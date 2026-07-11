@@ -176,6 +176,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "traffic_flow", nil
 	case *Usg:
 		return "usg", nil
+	case *UsgGeo:
+		return "usg_geo", nil
 	case *Usw:
 		return "usw", nil
 	case *RawSetting:
