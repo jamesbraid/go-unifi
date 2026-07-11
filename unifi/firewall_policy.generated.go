@@ -81,6 +81,8 @@ func (dst *FirewallPolicy) UnmarshalJSON(b []byte) error {
 }
 
 type FirewallPolicyDestination struct {
+	AppCategoryIDs        []int64  `json:"app_category_ids,omitempty"`
+	AppIDs                []int64  `json:"app_ids,omitempty"`
 	ClientMACs            []string `json:"client_macs,omitempty"`
 	IPGroupID             string   `json:"ip_group_id,omitempty"`
 	IPs                   []string `json:"ips,omitempty"`
@@ -88,7 +90,7 @@ type FirewallPolicyDestination struct {
 	MatchOppositeIPs      bool     `json:"match_opposite_ips"`
 	MatchOppositeNetworks bool     `json:"match_opposite_networks"`
 	MatchOppositePorts    bool     `json:"match_opposite_ports"`
-	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB
+	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY
 	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
 	NetworkIDs            []string `json:"network_ids,omitempty"`
 	Port                  string   `json:"port,omitempty"`
@@ -101,7 +103,9 @@ type FirewallPolicyDestination struct {
 func (dst *FirewallPolicyDestination) UnmarshalJSON(b []byte) error {
 	type Alias FirewallPolicyDestination
 	aux := &struct {
-		Port types.Number `json:"port"`
+		AppCategoryIDs []types.Number `json:"app_category_ids"`
+		AppIDs         []types.Number `json:"app_ids"`
+		Port           types.Number   `json:"port"`
 
 		*Alias
 	}{
@@ -111,6 +115,18 @@ func (dst *FirewallPolicyDestination) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	dst.AppCategoryIDs = make([]int64, len(aux.AppCategoryIDs))
+	for i, v := range aux.AppCategoryIDs {
+		if val, err := v.Int64(); err == nil {
+			dst.AppCategoryIDs[i] = val
+		}
+	}
+	dst.AppIDs = make([]int64, len(aux.AppIDs))
+	for i, v := range aux.AppIDs {
+		if val, err := v.Int64(); err == nil {
+			dst.AppIDs[i] = val
+		}
 	}
 	dst.Port = aux.Port.String()
 
@@ -143,6 +159,8 @@ func (dst *FirewallPolicySchedule) UnmarshalJSON(b []byte) error {
 }
 
 type FirewallPolicySource struct {
+	AppCategoryIDs        []int64  `json:"app_category_ids,omitempty"`
+	AppIDs                []int64  `json:"app_ids,omitempty"`
 	ClientMACs            []string `json:"client_macs,omitempty"`
 	IPGroupID             string   `json:"ip_group_id,omitempty"`
 	IPs                   []string `json:"ips,omitempty"`
@@ -150,7 +168,7 @@ type FirewallPolicySource struct {
 	MatchOppositeIPs      bool     `json:"match_opposite_ips"`
 	MatchOppositeNetworks bool     `json:"match_opposite_networks"`
 	MatchOppositePorts    bool     `json:"match_opposite_ports"`
-	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB
+	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY
 	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
 	NetworkIDs            []string `json:"network_ids,omitempty"`
 	Port                  string   `json:"port,omitempty"`
@@ -163,7 +181,9 @@ type FirewallPolicySource struct {
 func (dst *FirewallPolicySource) UnmarshalJSON(b []byte) error {
 	type Alias FirewallPolicySource
 	aux := &struct {
-		Port types.Number `json:"port"`
+		AppCategoryIDs []types.Number `json:"app_category_ids"`
+		AppIDs         []types.Number `json:"app_ids"`
+		Port           types.Number   `json:"port"`
 
 		*Alias
 	}{
@@ -173,6 +193,18 @@ func (dst *FirewallPolicySource) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	dst.AppCategoryIDs = make([]int64, len(aux.AppCategoryIDs))
+	for i, v := range aux.AppCategoryIDs {
+		if val, err := v.Int64(); err == nil {
+			dst.AppCategoryIDs[i] = val
+		}
+	}
+	dst.AppIDs = make([]int64, len(aux.AppIDs))
+	for i, v := range aux.AppIDs {
+		if val, err := v.Int64(); err == nil {
+			dst.AppIDs[i] = val
+		}
 	}
 	dst.Port = aux.Port.String()
 
