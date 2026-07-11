@@ -13,10 +13,19 @@ import (
 
 // contentFilteringTestServer stands up a new-style (UniFi OS) controller
 // serving the content-filtering collection at v2/.../content-filtering as a
-// bare JSON array. A per-id GET answers 405 + HTML like other v2 collection
-// endpoints, locking GetContentFiltering to the list-and-filter read. POST to
-// the collection echoes the body back with an _id assigned, the way the
-// controller answers a create.
+// bare JSON array, and is method-aware so it can also exercise
+// update/delete against the same collection, mirroring natTestServer:
+//   - GET    {listPath}     -> the fixture array (list/get-via-list)
+//   - POST   {listPath}     -> echoes the decoded body back with an _id
+//     assigned, the way the controller answers a create
+//   - PUT    {listPath}/id  -> echoes the decoded body back as the updated
+//     policy, matching updateContentFiltering's single-object response
+//     decode; rejects a bare-collection PUT or an id mismatch
+//   - DELETE {listPath}/id  -> 200 with no body, matching
+//     deleteContentFiltering's nil respBody decode
+//   - other GETs under {listPath}/ -> 405 + HTML like other v2 collection
+//     endpoints, so GetContentFiltering is locked to the list-and-filter
+//     read.
 func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *ContentFiltering) *httptest.Server {
 	t.Helper()
 	listPath := "/proxy/network/v2/api/site/" + site + "/content-filtering"
@@ -33,10 +42,6 @@ func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *
 		case r.Method == http.MethodGet && r.URL.Path == listPath:
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(listJSON))
-		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, listPath+"/"):
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_, _ = w.Write([]byte("<html><body>405 Not Allowed</body></html>"))
 		case r.Method == http.MethodPost && r.URL.Path == listPath:
 			body, _ := io.ReadAll(r.Body)
 			if gotCreate != nil {
@@ -49,6 +54,27 @@ func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *
 			echo["_id"] = "cccc0000000000000000c001"
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(echo)
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, listPath+"/"):
+			id := strings.TrimPrefix(r.URL.Path, listPath+"/")
+			var policy ContentFiltering
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &policy); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if policy.ID != id {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(policy)
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, listPath+"/"):
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, listPath+"/"):
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte("<html><body>405 Not Allowed</body></html>"))
 		default:
 			w.WriteHeader(http.StatusOK)
 		}
@@ -60,25 +86,32 @@ func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *
 // TestGetContentFiltering_ReadsViaList proves GetContentFiltering resolves a
 // policy by listing the bare-array collection and filtering by ID, and that
 // the wire fields observed on a live controller decode.
+//
+// It requests the *second* fixture element deliberately: a regression that
+// unconditionally returns respBody[0] (ignoring the requested id) would still
+// pass a test that only ever asked for the first id.
 func TestGetContentFiltering_ReadsViaList(t *testing.T) {
 	const site = "default"
 	srv := contentFilteringTestServer(t, site, `[
-		{"_id":"cccc0000000000000000c001","name":"kids devices","enabled":true,
+		{"_id":"cccc0000000000000000c001","name":"guest","enabled":false,
+		 "categories":[],"client_macs":[],"network_ids":[],
+		 "allow_list":[],"block_list":[],"safe_search":[],
+		 "schedule":{"mode":"ALWAYS"}},
+		{"_id":"cccc0000000000000000c002","name":"kids devices","enabled":true,
 		 "categories":["FAMILY","ADVERTISEMENT"],
 		 "client_macs":["aa:bb:cc:00:00:01"],"network_ids":[],
 		 "allow_list":[],"block_list":["example.test"],
 		 "safe_search":["GOOGLE","YOUTUBE","BING"],
-		 "schedule":{"mode":"ALWAYS"}},
-		{"_id":"cccc0000000000000000c002","name":"guest","enabled":false,
-		 "categories":[],"client_macs":[],"network_ids":[],
-		 "allow_list":[],"block_list":[],"safe_search":[],
 		 "schedule":{"mode":"ALWAYS"}}
 	]`, nil)
 	c := newAPGroupTestClient(t, srv)
 
-	got, err := c.GetContentFiltering(context.Background(), site, "cccc0000000000000000c001")
+	got, err := c.GetContentFiltering(context.Background(), site, "cccc0000000000000000c002")
 	if err != nil {
 		t.Fatalf("GetContentFiltering errored (regressed to per-id GET?): %v", err)
+	}
+	if got.ID != "cccc0000000000000000c002" {
+		t.Fatalf("id = %q, want cccc...c002 (regressed to respBody[0]?)", got.ID)
 	}
 	if got.Name != "kids devices" || !got.Enabled {
 		t.Errorf("policy = %+v", got)
@@ -155,5 +188,103 @@ func TestCreateContentFiltering_PostsFullArrays(t *testing.T) {
 	}
 	if posted.Schedule == nil || posted.Schedule.Mode != "ALWAYS" {
 		t.Errorf("schedule = %+v", posted.Schedule)
+	}
+}
+
+// TestListContentFiltering_ReturnsAll pins ListContentFiltering: it must
+// decode the full bare-array collection response, in order, with every
+// policy's fields intact — not just a single element or a filtered subset.
+func TestListContentFiltering_ReturnsAll(t *testing.T) {
+	const site = "default"
+	srv := contentFilteringTestServer(t, site, `[
+		{"_id":"cccc0000000000000000c001","name":"guest","enabled":false,
+		 "categories":[],"client_macs":[],"network_ids":[],
+		 "allow_list":[],"block_list":[],"safe_search":[],
+		 "schedule":{"mode":"ALWAYS"}},
+		{"_id":"cccc0000000000000000c002","name":"kids devices","enabled":true,
+		 "categories":["FAMILY","ADVERTISEMENT"],
+		 "client_macs":["aa:bb:cc:00:00:01"],"network_ids":[],
+		 "allow_list":[],"block_list":["example.test"],
+		 "safe_search":["GOOGLE","YOUTUBE","BING"],
+		 "schedule":{"mode":"ALWAYS"}}
+	]`, nil)
+	c := newAPGroupTestClient(t, srv)
+
+	got, err := c.ListContentFiltering(context.Background(), site)
+	if err != nil {
+		t.Fatalf("ListContentFiltering errored: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(ListContentFiltering) = %d, want 2: %+v", len(got), got)
+	}
+	if got[0].ID != "cccc0000000000000000c001" || got[1].ID != "cccc0000000000000000c002" {
+		t.Errorf("ids = [%q, %q], want [cccc...c001, cccc...c002]", got[0].ID, got[1].ID)
+	}
+	if got[0].Name != "guest" || got[0].Enabled {
+		t.Errorf("policy[0] = %+v", got[0])
+	}
+	if got[1].Name != "kids devices" || !got[1].Enabled {
+		t.Errorf("policy[1] = %+v", got[1])
+	}
+	if len(got[1].Categories) != 2 || got[1].Categories[0] != "FAMILY" {
+		t.Errorf("policy[1].categories = %v", got[1].Categories)
+	}
+	if len(got[1].BlockList) != 1 || got[1].BlockList[0] != "example.test" {
+		t.Errorf("policy[1].block_list = %v", got[1].BlockList)
+	}
+}
+
+// TestUpdateContentFiltering_RoundTrip pins UpdateContentFiltering: it must
+// PUT to the per-id path (collection path + "/" + d.ID, matching
+// updateContentFiltering's fmt.Sprintf) and decode the single-object
+// response body. The test server rejects a bare-collection PUT or an id
+// mismatch, so a regression to the wrong path or a dropped ID fails loudly
+// instead of silently succeeding against the wrong endpoint.
+func TestUpdateContentFiltering_RoundTrip(t *testing.T) {
+	const site = "default"
+	srv := contentFilteringTestServer(t, site, `[]`, nil)
+	c := newAPGroupTestClient(t, srv)
+
+	in := &ContentFiltering{
+		ID:         "cccc0000000000000000c001",
+		Name:       "kids devices updated",
+		Enabled:    false,
+		Categories: []string{"FAMILY"},
+		ClientMACs: []string{"aa:bb:cc:00:00:01"},
+		NetworkIDs: []string{},
+		AllowList:  []string{},
+		BlockList:  []string{"example.test"},
+		SafeSearch: []string{"GOOGLE"},
+		Schedule:   &ContentFilteringSchedule{Mode: "ALWAYS"},
+	}
+	got, err := c.UpdateContentFiltering(context.Background(), site, in)
+	if err != nil {
+		t.Fatalf("UpdateContentFiltering errored: %v", err)
+	}
+	if got.ID != "cccc0000000000000000c001" {
+		t.Errorf("id = %q, want cccc...c001 (wrong path hit?)", got.ID)
+	}
+	if got.Name != "kids devices updated" || got.Enabled {
+		t.Errorf("updated policy = %+v, want echo of input", got)
+	}
+	if len(got.BlockList) != 1 || got.BlockList[0] != "example.test" {
+		t.Errorf("updated block_list = %v", got.BlockList)
+	}
+	if got.Schedule == nil || got.Schedule.Mode != "ALWAYS" {
+		t.Errorf("updated schedule = %+v", got.Schedule)
+	}
+}
+
+// TestDeleteContentFiltering_Success pins DeleteContentFiltering: it must
+// DELETE the per-id path and treat a no-body 200 response as success
+// (matching deleteContentFiltering's nil respBody), rather than erroring on
+// an empty/undecodable body.
+func TestDeleteContentFiltering_Success(t *testing.T) {
+	const site = "default"
+	srv := contentFilteringTestServer(t, site, `[]`, nil)
+	c := newAPGroupTestClient(t, srv)
+
+	if err := c.DeleteContentFiltering(context.Background(), site, "cccc0000000000000000c001"); err != nil {
+		t.Fatalf("DeleteContentFiltering errored: %v", err)
 	}
 }
