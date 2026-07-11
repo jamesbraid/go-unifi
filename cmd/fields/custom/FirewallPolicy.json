@@ -11,6 +11,12 @@
     "client_macs": [
       ""
     ],
+    "app_ids": [
+      "[0-9]+"
+    ],
+    "app_category_ids": [
+      "[0-9]+"
+    ],
     "network_ids": [
       ""
     ],
@@ -21,7 +27,7 @@
     "match_opposite_ips": "true|false",
     "match_opposite_ports": "true|false",
     "match_opposite_networks": "true|false",
-    "matching_target": "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB",
+    "matching_target": "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
     "matching_target_type": "ANY|SPECIFIC|LIST|OBJECT",
     "port": "",
     "port_group_id": "",
@@ -57,6 +63,12 @@
     "client_macs": [
       ""
     ],
+    "app_ids": [
+      "[0-9]+"
+    ],
+    "app_category_ids": [
+      "[0-9]+"
+    ],
     "network_ids": [
       ""
     ],
@@ -67,7 +79,7 @@
     "match_opposite_ips": "true|false",
     "match_opposite_ports": "true|false",
     "match_opposite_networks": "true|false",
-    "matching_target": "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB",
+    "matching_target": "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
     "matching_target_type": "ANY|SPECIFIC|LIST|OBJECT",
     "port": "",
     "port_group_id": "",
