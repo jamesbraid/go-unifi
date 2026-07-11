@@ -110,6 +110,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "global_ap", nil
 	case *GlobalNat:
 		return "global_nat", nil
+	case *GlobalNetwork:
+		return "global_network", nil
 	case *GlobalSwitch:
 		return "global_switch", nil
 	case *GuestAccess:
@@ -118,6 +120,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "igmp_snooping", nil
 	case *Ips:
 		return "ips", nil
+	case *Ipsec:
+		return "ipsec", nil
 	case *Lcm:
 		return "lcm", nil
 	case *Locale:
@@ -136,6 +140,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "ntp", nil
 	case *Porta:
 		return "porta", nil
+	case *ProviderCapabilities:
+		return "provider_capabilities", nil
 	case *RadioAi:
 		return "radio_ai", nil
 	case *Radius:
