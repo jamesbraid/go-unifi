@@ -174,6 +174,8 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		}
 	case resource.StructName == "DNSRecord":
 		resource.ResourcePath = "static-dns"
+	case resource.StructName == "ContentFiltering":
+		resource.ResourcePath = "content-filtering"
 	case resource.StructName == "FirewallZone":
 		resource.ResourcePath = "firewall/zone"
 		resource.FieldProcessor = func(name string, f *FieldInfo) error {
@@ -740,6 +742,7 @@ func (r *ResourceInfo) IsV2() bool {
 	return slices.Contains([]string{
 		"ApGroup",
 		"BGPConfig",
+		"ContentFiltering",
 		"DNSRecord",
 		"FirewallPolicy",
 		"FirewallZone",

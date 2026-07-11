@@ -1,0 +1,13 @@
+{
+  "allow_list": [],
+  "block_list": [],
+  "categories": [],
+  "client_macs": [],
+  "enabled": "true|false",
+  "name": "",
+  "network_ids": [],
+  "safe_search": [],
+  "schedule": {
+    "mode": ""
+  }
+}
