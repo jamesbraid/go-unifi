@@ -170,6 +170,11 @@ functional validation constraints, including whether a Terraform attribute conta
 a secret. It does not copy vendor prose, examples, messages, metadata ordering, or
 unrelated internal datasets.
 
+The generated-tree digest covers only files the generator owns and overwrites on
+every run: `unifi/**/*.generated.go`, `unifi/version.generated.go`, and
+`specification.json`. One-time `.go` implementation scaffolds are hand-maintained
+after creation and are excluded from reproducibility comparisons.
+
 ### Sensitivity policy and specification generation
 
 Ubiquiti's `sensitive_metadata.json` is a privacy and sanitization classification,
@@ -198,10 +203,13 @@ secret paths and the digest of each reviewed canonical sensitivity dataset. It d
 not commit the raw Ubiquiti metadata or enumerate private metadata. During local or
 CI generation, the policy mapper:
 
-1. Parses every Ubiquiti classification and resolves its collection and dotted path
-   to exactly one field in the extracted schema.
-2. Rejects missing, ambiguous, or structurally incompatible paths.
-3. Applies `Sensitive: true` to exact secret-policy matches, at any nesting depth.
+1. Parses every Ubiquiti classification and checks it against the raw upstream
+   schema set before settings are split, collections are skipped, or custom files
+   are overlaid.
+2. Records whether each path maps to a generated field or to a classified
+   non-generated collection; malformed and ambiguous paths are errors.
+3. Applies `Sensitive: true` to exact secret-policy matches, at any nesting depth,
+   and fails if a secret-policy path does not land on one generated leaf.
 4. Treats the remaining classified paths as reviewed private metadata only when the
    canonical metadata digest has already been approved.
 5. Fails generation when the sensitivity dataset digest is new, requiring review
@@ -266,6 +274,7 @@ stable source facts:
 - SHA-256 hashes of extracted schemas and metadata artifacts.
 - A digest of the canonical schema set used to decide whether generation changed.
 - The canonical sensitivity-metadata digest and approved policy version.
+- A digest of the relevant bundled third-party license and notice inventory.
 - Names of known optional metadata artifacts absent from the source.
 
 It contains no generation timestamp or machine-local path.
@@ -276,7 +285,8 @@ installer URL, firmware ID, byte length, SHA-256, release timestamps, canonical
 schema digest, and generated-tree digest. It contains no raw schema content or local
 paths. It also records the sensitivity-metadata digest and policy version without
 listing Ubiquiti's private-metadata paths. This file lets scheduled automation detect
-a new installer without repeatedly downloading the current 880 MB artifact.
+a new installer without repeatedly downloading the current 880 MB artifact. It also
+records the reviewed license/notice digest without copying the notices.
 
 ## Extraction Contract and Failure Behavior
 
@@ -310,11 +320,12 @@ with an optional pinned OS Server version or explicit installer URL.
    `cmd/fields/schema-source.json`.
 3. Stop without downloading when it is unchanged.
 4. Download, verify, extract, and stage a changed installer.
-5. Compare the canonical schema and sensitivity-metadata digests.
-6. If the sensitivity-metadata digest is not in the approved policy, stop with an
-   actionable review error before changing the committed manifest or generated
-   tree. A maintainer reviews the local metadata, updates the policy, and reruns the
-   workflow.
+5. Compare the canonical schema, sensitivity-metadata, and relevant third-party
+   license/notice digests.
+6. If the sensitivity-metadata digest is not in the approved policy or the notice
+   digest has not been reviewed, stop with an actionable review error before
+   changing the committed manifest or generated tree. A maintainer reviews the
+   local inputs, updates the approvals, and reruns the workflow.
 7. If only provenance changed, update the small committed manifest without
    releasing or publishing extracted artifacts.
 8. If schemas changed, regenerate the Internal API code and Terraform specification.
@@ -328,7 +339,10 @@ the end and never uploads either as an Actions artifact.
 
 Current advisory CI is insufficient for automation. `continue-on-error: true` is
 removed from generation, test, and lint jobs, and those jobs become required branch
-checks.
+checks. Ordinary pull-request CI remains offline: it hashes the committed
+generator-owned files and compares them with the committed generated-tree digest.
+Full regenerate-and-compare runs only when a local snapshot exists, including the
+scheduled updater after verified extraction.
 
 ### Authentication and merge
 
@@ -445,7 +459,9 @@ installer is committed to the repository.
   the generated specification.
 - Private metadata remains visible, while existing provider credentials remain
   sensitive.
-- Missing, ambiguous, and structurally incompatible sensitivity paths fail.
+- Malformed or ambiguous sensitivity paths fail; classified paths in skipped,
+  split, or non-generated collections are recorded in coverage.
+- Every secret-policy path must land on exactly one generated leaf.
 - A new sensitivity-metadata digest fails until its policy is reviewed and approved.
 - The metadata mapper covers every classified path without relying on substring
   inference.
