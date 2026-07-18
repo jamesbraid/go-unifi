@@ -7,15 +7,85 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRunPrintSourceResolvesStableJSONWithoutSideEffects(t *testing.T) {
+	downloadURL, err := url.Parse("https://fw-download.ubnt.com/data/unifi-os-server/pinned")
+	require.NoError(t, err)
+	deps := defaultRunDeps()
+	deps.moduleRoot = func() (string, error) { panic("module root must not be called") }
+	deps.resolve = func(_ context.Context, _ *http.Client, _ string, selector SourceSelector) (InstallerSource, error) {
+		assert.Equal(t, SourceSelector{Kind: SourceUOSVersion, Value: "5.1.21"}, selector)
+		return InstallerSource{
+			Kind:           SourceUOSVersion,
+			OSVersion:      "5.1.21",
+			FirmwareID:     "0ab7907a-0e19-4ef1-8a48-997fda5cd7b5",
+			URL:            downloadURL,
+			ExpectedSHA256: strings.Repeat("a", 64),
+			ExpectedSize:   880119750,
+			Created:        time.Date(2026, 7, 8, 14, 37, 42, 0, time.UTC),
+			Updated:        time.Date(2026, 7, 8, 15, 1, 2, 0, time.UTC),
+		}, nil
+	}
+	deps.materialize = func(context.Context, *http.Client, InstallerSource, string) (*MaterializedInstaller, error) {
+		panic("materialize must not be called")
+	}
+	deps.extractUOS = func(context.Context, string, string, ArchiveLimits) (*ExtractedDefinitions, error) {
+		panic("extract must not be called")
+	}
+	deps.buildSnapshot = func(context.Context, SnapshotOptions) (*LocalManifest, error) { panic("snapshot must not be called") }
+	deps.scan = func(string) error { panic("scan must not be called") }
+	deps.render = func(string, string, *version.Version, func([]*ResourceInfo) error) error {
+		panic("render must not be called")
+	}
+	deps.publish = func(string, string, string, string, string) error { panic("publish must not be called") }
+
+	var stdout bytes.Buffer
+	require.NoError(t, runWithDeps(context.Background(), []string{"-print-source", "-uos-version", "5.1.21"}, &stdout, &bytes.Buffer{}, deps))
+	assert.Equal(t, `{"os_version":"5.1.21","network_version":"","firmware_id":"0ab7907a-0e19-4ef1-8a48-997fda5cd7b5","installer_url":"https://fw-download.ubnt.com/data/unifi-os-server/pinned","installer_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","installer_size":880119750,"created":"2026-07-08T14:37:42Z","updated":"2026-07-08T15:01:02Z"}`+"\n", stdout.String())
+}
+
+func TestRunPrintSourceRejectsIncompatibleModesAndSelectors(t *testing.T) {
+	for _, args := range [][]string{
+		{"-print-source", "-installer", "/tmp/installer"},
+		{"-print-source", "-latest"},
+		{"-print-source", "9.5.21"},
+		{"-print-source", "-uos-latest", "-generate-spec"},
+		{"-print-source", "-uos-latest", "-download-only"},
+		{"-print-source", "-uos-latest", "-verify-committed"},
+		{"-print-source", "-uos-latest", "-output-dir", "unifi"},
+		{"-print-source", "-uos-latest", "-spec-output", "specification.json"},
+	} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			deps := defaultRunDeps()
+			deps.resolve = func(context.Context, *http.Client, string, SourceSelector) (InstallerSource, error) {
+				panic("invalid mode must fail before resolve")
+			}
+			err := runWithDeps(context.Background(), args, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestRunPrintSourceRequiresCorrelatedChecksum(t *testing.T) {
+	deps := defaultRunDeps()
+	deps.moduleRoot = func() (string, error) { panic("module root must not be called") }
+	deps.materialize = func(context.Context, *http.Client, InstallerSource, string) (*MaterializedInstaller, error) {
+		panic("materialize must not be called")
+	}
+	err := runWithDeps(context.Background(), []string{"-print-source", "-installer-url", "https://fw-download.ubnt.com/data/unifi-os-server/raw"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+	require.ErrorContains(t, err, "SHA-256")
+}
 
 func TestRunAcceptsAllUOSSelectors(t *testing.T) {
 	for _, args := range [][]string{

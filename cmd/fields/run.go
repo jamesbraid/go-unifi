@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-version"
 )
@@ -23,6 +24,17 @@ import (
 type sourceValues struct {
 	latest, uosLatest                   bool
 	uosVersion, installer, installerURL string
+}
+
+type resolvedSourceOutput struct {
+	OSVersion       string `json:"os_version"`
+	NetworkVersion  string `json:"network_version"`
+	FirmwareID      string `json:"firmware_id"`
+	InstallerURL    string `json:"installer_url"`
+	InstallerSHA256 string `json:"installer_sha256"`
+	InstallerSize   int64  `json:"installer_size"`
+	Created         string `json:"created"`
+	Updated         string `json:"updated"`
 }
 
 type runDeps struct {
@@ -107,8 +119,39 @@ func runWithDeps(ctx context.Context, args []string, stdout, stderr io.Writer, d
 	specOutput := fs.String("spec-output", "specification.json", "Terraform specification output")
 	verifyCommitted := fs.Bool("verify-committed", false, "verify committed generated files offline")
 	verifyRegeneration := fs.Bool("verify-regeneration", false, "verify regeneration from local snapshot")
+	printSource := fs.Bool("print-source", false, "resolve and print UniFi OS source metadata without downloading")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse command: %w", err)
+	}
+	if *printSource {
+		forbidden := map[string]bool{
+			"download-only": true, "generate-spec": true, "output-dir": true, "spec-output": true,
+			"verify-committed": true, "verify-regeneration": true,
+		}
+		var incompatible []string
+		fs.Visit(func(f *flag.Flag) {
+			if forbidden[f.Name] {
+				incompatible = append(incompatible, "-"+f.Name)
+			}
+		})
+		if len(incompatible) != 0 {
+			sort.Strings(incompatible)
+			return fmt.Errorf("-print-source is mutually exclusive with %s", strings.Join(incompatible, ", "))
+		}
+		selector, err := selectorFromValues(values, fs.Args())
+		if err != nil {
+			return fmt.Errorf("select source: %w", err)
+		}
+		switch selector.Kind {
+		case SourceUOSLatest, SourceUOSVersion, SourceInstallerURL:
+		default:
+			return fmt.Errorf("-print-source requires -uos-latest, -uos-version, or a correlated -installer-url")
+		}
+		source, err := deps.resolve(ctx, deps.client, deps.firmwareEndpoint, selector)
+		if err != nil {
+			return fmt.Errorf("resolve source: %w", err)
+		}
+		return printResolvedSource(stdout, source)
 	}
 	terminal := *verifyCommitted || *verifyRegeneration
 	if *verifyCommitted && *verifyRegeneration {
@@ -155,6 +198,41 @@ func runWithDeps(ctx context.Context, args []string, stdout, stderr io.Writer, d
 		return runUOS(ctx, root, source, installer, *downloadOnly, deps, stdout)
 	}
 	return runLegacy(ctx, root, source, installer, *downloadOnly, *generateSpec, *outputDir, *specOutput, stdout)
+}
+
+func printResolvedSource(stdout io.Writer, source InstallerSource) error {
+	if err := ValidateInstallerURL(source.URL); err != nil {
+		return fmt.Errorf("validate resolved installer URL: %w", err)
+	}
+	if err := validateHexDigest(source.ExpectedSHA256, sha256.Size); err != nil {
+		return fmt.Errorf("resolved source SHA-256 is missing or invalid: %w", err)
+	}
+	if source.OSVersion == "" {
+		return errors.New("resolved source OS version is missing")
+	}
+	if source.FirmwareID == "" {
+		return errors.New("resolved source firmware ID is missing")
+	}
+	if source.ExpectedSize <= 0 {
+		return errors.New("resolved source installer size must be positive")
+	}
+	if source.Created.IsZero() || source.Updated.IsZero() {
+		return errors.New("resolved source timestamps are missing")
+	}
+	output := resolvedSourceOutput{
+		OSVersion:       source.OSVersion,
+		NetworkVersion:  "",
+		FirmwareID:      source.FirmwareID,
+		InstallerURL:    source.URL.String(),
+		InstallerSHA256: strings.ToLower(source.ExpectedSHA256),
+		InstallerSize:   source.ExpectedSize,
+		Created:         source.Created.UTC().Format(time.RFC3339),
+		Updated:         source.Updated.UTC().Format(time.RFC3339),
+	}
+	if err := json.NewEncoder(stdout).Encode(output); err != nil {
+		return fmt.Errorf("print resolved source: %w", err)
+	}
+	return nil
 }
 
 func runUOS(ctx context.Context, root string, source InstallerSource, installer *MaterializedInstaller, downloadOnly bool, deps runDeps, stdout io.Writer) (retErr error) {

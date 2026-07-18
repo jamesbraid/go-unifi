@@ -29,6 +29,22 @@ explicit URL is restricted to HTTPS Ubiquiti domains. A local `-installer`
 cannot establish facts that are absent from the file itself, so preserve the
 original URL and checksums separately when auditability matters.
 
+Scheduled discovery can resolve release metadata without downloading or
+changing repository files:
+
+```sh
+go run ./cmd/fields -print-source -uos-latest
+go run ./cmd/fields -print-source -uos-version 5.1.21
+```
+
+`-print-source` emits one stable JSON object containing the OS version,
+firmware ID, official installer URL, SHA-256, size, and release timestamps.
+The network version is empty until the verified installer is extracted. This
+mode accepts no generation, verification, download, or output options. A raw
+`-installer-url` succeeds only if the resolver can correlate it with complete
+release metadata; otherwise it fails closed instead of emitting a source with
+no trusted checksum.
+
 Use `-download-only` with any UniFi OS selector to extract and scan a local,
 gitignored snapshot without generating tracked output. After successful
 extraction, regeneration from that pinned snapshot is offline:
