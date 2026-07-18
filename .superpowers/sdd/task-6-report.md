@@ -55,6 +55,64 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Singleton schema-enum scanner compatibility
+
+Root cause: `PortConf.json` contains `op_mode: "switch"` in both the flattened
+and raw schemas. This is a singleton lowercase enum validator, but
+`schemaString` previously accepted type names, regex-shaped strings, and
+pipe-delimited values only. Scanner errors also omitted the JSON key path, so
+the real snapshot failure reported only `unexpected concrete scalar "switch"`.
+
+RED:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestScanExtractedInputs(AcceptsSingletonSchemaEnums|ReportsRejectedSchemaJSONPath)' -count=1
+--- FAIL: TestScanExtractedInputsAcceptsSingletonSchemaEnums
+    unexpected concrete scalar "switch"
+--- FAIL: TestScanExtractedInputsReportsRejectedSchemaJSONPath
+    Error "unexpected concrete scalar \"literal-secret-value\"" does not contain "/outer/op_mode"
+FAIL
+```
+
+Schema recursion now visits object keys in sorted order and reports RFC 6901
+JSON Pointer paths for rejected leaves. After the unchanged credential and
+high-entropy checks, `schemaString` accepts a singleton enum only when it
+matches the explicit bounded grammar `[a-z][a-z0-9_-]{0,15}`. Existing concrete
+string and high-entropy rejection fixtures remain green; in particular,
+`literal-secret-value` remains rejected and is now reported at
+`/outer/op_mode`.
+
+Focused scanner tests and the direct real-snapshot scan pass:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestScanExtractedInputs' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.235s
+
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run TestTask6RealSnapshotScan -count=1 -v
+=== RUN   TestTask6RealSnapshotScan
+--- PASS: TestTask6RealSnapshotScan (0.09s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.303s
+```
+
+The temporary real-snapshot test was removed before final verification and
+commit. The full `cmd/fields/v10.4.57` snapshot scan has no next error.
+
+Final verification:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestScanExtractedInputs' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.241s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.394s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+```
+
 The initial sandboxed full-suite run could not bind the tests' localhost
 `httptest` servers. The same suite passed with the required localhost
 permission; this was an environment restriction, not a product failure.

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -40,6 +41,7 @@ var (
 	timezoneKeyPattern      = regexp.MustCompile(`^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$`)
 	extensionKeyPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$`)
 	countryChannelPattern   = regexp.MustCompile(`^channels_(?:ng|na|ad|6e)(?:_(?:outdoor|indoor|dfs|40|80|160|240|320|4320|1080|2160|psc|ext_(?:outdoor|1080|2160)))?$`)
+	singletonEnumPattern    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,15}$`)
 )
 
 var knownMetadataShapes = map[string]byte{
@@ -113,7 +115,10 @@ func ScanExtractedInputs(root string) error {
 		if !ok {
 			return fmt.Errorf("field schema %s must be an object", rel)
 		}
-		return validateSchemaNode(object)
+		if err := validateSchemaNode(object); err != nil {
+			return fmt.Errorf("scan %s: %w", rel, err)
+		}
+		return nil
 	})
 }
 
@@ -583,37 +588,62 @@ func shannonEntropy(value string) float64 {
 }
 
 func validateSchemaNode(v any) error {
+	return validateSchemaNodeAt(v, "")
+}
+
+func validateSchemaNodeAt(v any, pointer string) error {
 	switch x := v.(type) {
 	case map[string]any:
-		for _, child := range x {
-			if err := validateSchemaNode(child); err != nil {
+		keys := make([]string, 0, len(x))
+		for key := range x {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if err := validateSchemaNodeAt(x[key], appendJSONPointer(pointer, key)); err != nil {
 				return err
 			}
 		}
 	case []any:
-		for _, child := range x {
-			if err := validateSchemaNode(child); err != nil {
+		for i, child := range x {
+			if err := validateSchemaNodeAt(child, fmt.Sprintf("%s/%d", pointer, i)); err != nil {
 				return err
 			}
 		}
 	case string:
 		if err := rejectHighEntropy(x); err != nil {
-			return err
+			return fmt.Errorf("schema path %s: %w", displayJSONPointer(pointer), err)
 		}
 		if !schemaString(x) {
-			return fmt.Errorf("unexpected concrete scalar %q", x)
+			return fmt.Errorf("schema path %s: unexpected concrete scalar %q", displayJSONPointer(pointer), x)
 		}
 	default:
-		return fmt.Errorf("schema leaves must be strings, got %T", v)
+		return fmt.Errorf("schema path %s: leaves must be strings, got %T", displayJSONPointer(pointer), v)
 	}
 	return nil
 }
+
+func appendJSONPointer(pointer, key string) string {
+	key = strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
+	return pointer + "/" + key
+}
+
+func displayJSONPointer(pointer string) string {
+	if pointer == "" {
+		return "/"
+	}
+	return pointer
+}
+
 func schemaString(value string) bool {
 	if value == "" || value == "true|false" {
 		return true
 	}
 	switch value {
 	case "string", "number", "integer", "boolean", "object", "array", "null":
+		return true
+	}
+	if singletonEnumPattern.MatchString(value) {
 		return true
 	}
 	if strings.ContainsAny(value, `.*+?{}[]()|\\^$`) {

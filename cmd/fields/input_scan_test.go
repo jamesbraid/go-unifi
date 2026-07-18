@@ -25,6 +25,20 @@ func TestScanExtractedInputsAcceptsKnownShapes(t *testing.T) {
 	require.NoError(t, ScanExtractedInputs(root))
 }
 
+func TestScanExtractedInputsAcceptsSingletonSchemaEnums(t *testing.T) {
+	root := t.TempDir()
+	writeScanFixture(t, root, "PortConf.json", `{"op_mode":"switch","nested":{"mode":"layer_3-1"}}`)
+	require.NoError(t, ScanExtractedInputs(root))
+}
+
+func TestScanExtractedInputsReportsRejectedSchemaJSONPath(t *testing.T) {
+	root := t.TempDir()
+	writeScanFixture(t, root, "PortConf.json", `{"outer":{"op_mode":"literal-secret-value"}}`)
+	err := ScanExtractedInputs(root)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "/outer/op_mode")
+}
+
 func TestScanExtractedInputsRejectsSecretsAndUnknownMetadata(t *testing.T) {
 	tests := []struct{ name, path, body string }{
 		{"PEM", "Device.json", `{"value":"-----BEGIN PRIVATE KEY-----\\nabc"}`},
