@@ -3,6 +3,7 @@ module github.com/ubiquiti-community/go-unifi
 go 1.25.0
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/terraform-plugin-codegen-spec v0.2.0
