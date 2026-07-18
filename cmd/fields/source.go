@@ -94,6 +94,15 @@ func ValidateInstallerURL(u *url.URL) error {
 	if u.Scheme != "https" {
 		return errors.New("installer URL must use HTTPS")
 	}
+	if u.User != nil {
+		return errors.New("installer URL must not contain user information")
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("installer URL must not contain a query or fragment")
+	}
+	if u.Path == "" || !strings.HasPrefix(u.EscapedPath(), "/") {
+		return errors.New("installer URL must contain an absolute path")
+	}
 	host := strings.ToLower(u.Hostname())
 	if host == "" || !allowedUbiquitiHost(host) {
 		return fmt.Errorf("installer URL host %q is not allowed", host)

@@ -74,6 +74,9 @@ func TestValidateInstallerURL(t *testing.T) {
 		"https://example.com/installer",
 		"https://ui.com@evil.example/installer",
 		"https:///installer",
+		"https://user:password@fw-download.ui.com/installer",
+		"https://fw-download.ui.com/installer?token=secret",
+		"https://fw-download.ui.com/installer#token",
 	} {
 		t.Run("rejects "+rawURL, func(t *testing.T) {
 			u, err := url.Parse(rawURL)

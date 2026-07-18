@@ -35,12 +35,15 @@ type runDeps struct {
 	extractUOS       func(context.Context, string, string, ArchiveLimits) (*ExtractedDefinitions, error)
 	buildSnapshot    func(context.Context, SnapshotOptions) (*LocalManifest, error)
 	scan             func(string) error
+	render           func(string, string, *version.Version, func([]*ResourceInfo) error) error
+	publish          func(string, string, string, string, string) error
 }
 
 func defaultRunDeps() runDeps {
 	return runDeps{client: http.DefaultClient, firmwareEndpoint: firmwareUpdateApi, schemaSourcePath: filepath.Join("cmd", "fields", "schema-source.json"),
 		moduleRoot: currentModuleRoot, resolve: ResolveInstaller, materialize: MaterializeInstaller,
-		extractUOS: ExtractUOSInstaller, buildSnapshot: BuildSnapshot, scan: ScanExtractedInputs}
+		extractUOS: ExtractUOSInstaller, buildSnapshot: BuildSnapshot, scan: ScanExtractedInputs,
+		render: renderGeneratedStage, publish: publishGeneratedTree}
 }
 
 func currentModuleRoot() (string, error) {
@@ -177,7 +180,7 @@ func runUOS(ctx context.Context, root string, source InstallerSource, installer 
 	if err != nil {
 		return fmt.Errorf("load sensitivity policy after snapshot publication: %w", err)
 	}
-	return regenerateAndPublish(ctx, root, snapshot, source, *manifest, policy, stdout)
+	return regenerateAndPublish(ctx, root, snapshot, source, *manifest, policy, stdout, deps)
 }
 
 func bestEffortPolicyVersion(name string) string {
@@ -258,7 +261,7 @@ func copyCustomTo(source, target string) error {
 	return nil
 }
 
-func regenerateAndPublish(ctx context.Context, root, snapshot string, source InstallerSource, manifest LocalManifest, policy SensitivityPolicy, stdout io.Writer) error {
+func regenerateAndPublish(ctx context.Context, root, snapshot string, source InstallerSource, manifest LocalManifest, policy SensitivityPolicy, stdout io.Writer, deps runDeps) error {
 	stage, err := os.MkdirTemp(filepath.Dir(root), ".go-unifi-generate-*")
 	if err != nil {
 		return fmt.Errorf("create generation staging tree: %w", err)
@@ -276,7 +279,7 @@ func regenerateAndPublish(ctx context.Context, root, snapshot string, source Ins
 	if err != nil {
 		return fmt.Errorf("parse Network version: %w", err)
 	}
-	if err := generateFromFields(snapshot, filepath.Join(stage, "unifi"), v, true, filepath.Join(stage, "specification.json"), io.Discard, prepare); err != nil {
+	if err := deps.render(snapshot, stage, v, prepare); err != nil {
 		return fmt.Errorf("render generated outputs: %w", err)
 	}
 	files, digest, err := HashGeneratedFiles(stage, "unifi", "specification.json")
@@ -291,11 +294,15 @@ func regenerateAndPublish(ctx context.Context, root, snapshot string, source Ins
 	if err := WriteSchemaSource(filepath.Join(stage, schemaRel), schemaSource); err != nil {
 		return fmt.Errorf("stage schema provenance: %w", err)
 	}
-	if err := publishGeneratedTree(root, stage, "unifi", "specification.json", schemaRel); err != nil {
+	if err := deps.publish(root, stage, "unifi", "specification.json", schemaRel); err != nil {
 		return fmt.Errorf("publish generated outputs: %w", err)
 	}
 	fmt.Fprintf(stdout, "%s\n", filepath.Join(root, "unifi"))
 	return nil
+}
+
+func renderGeneratedStage(snapshot, stage string, v *version.Version, prepare func([]*ResourceInfo) error) error {
+	return generateFromFields(snapshot, filepath.Join(stage, "unifi"), v, true, filepath.Join(stage, "specification.json"), io.Discard, prepare)
 }
 
 func installerSHA(source InstallerSource, manifest LocalManifest) string {
@@ -455,7 +462,7 @@ func verifyRegeneratedTree(ctx context.Context, root string, deps runDeps, stdou
 	if err != nil {
 		return err
 	}
-	if err := generateFromFields(snapshot, filepath.Join(stage, "unifi"), v, true, filepath.Join(stage, "specification.json"), io.Discard, func(resources []*ResourceInfo) error {
+	if err := deps.render(snapshot, stage, v, func(resources []*ResourceInfo) error {
 		_, err := ApplySensitivity(resources, raw, metadata, policy)
 		return err
 	}); err != nil {
@@ -476,37 +483,38 @@ func verifyRegeneratedTree(ctx context.Context, root string, deps runDeps, stdou
 }
 
 func publishGeneratedTree(root, stage, outputDir, specOutput, schemaSource string) error {
+	return publishGeneratedTreeWithOps(root, stage, outputDir, specOutput, schemaSource, defaultPublishFileOps())
+}
+
+type publishFileOps struct {
+	rename    func(string, string) error
+	remove    func(string) error
+	removeAll func(string) error
+}
+
+func defaultPublishFileOps() publishFileOps {
+	return publishFileOps{rename: os.Rename, remove: os.Remove, removeAll: os.RemoveAll}
+}
+
+func publishGeneratedTreeWithOps(root, stage, outputDir, specOutput, schemaSource string, ops publishFileOps) error {
 	current := filepath.Join(root, outputDir)
 	replacement, err := os.MkdirTemp(root, ".generated-tree-*")
 	if err != nil {
 		return err
 	}
-	os.RemoveAll(replacement)
-	defer os.RemoveAll(replacement)
+	defer func() { _ = ops.removeAll(replacement) }()
 	if err := copyTreeExcludingOwned(current, replacement); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	if err := copyOwnedGenerated(filepath.Join(stage, outputDir), replacement); err != nil {
 		return err
 	}
-	backup := filepath.Join(root, "."+filepath.Base(outputDir)+".generated-backup")
-	_ = os.RemoveAll(backup)
-	if _, err := os.Stat(current); err == nil {
-		if err := os.Rename(current, backup); err != nil {
-			return err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.Rename(replacement, current); err != nil {
-		_ = os.Rename(backup, current)
-		return err
-	}
 	type fileSwap struct {
-		target, staged, backup string
-		hadOld, installed      bool
+		target, prepared, backup string
+		hadOld, installed        bool
 	}
 	swaps := make([]fileSwap, 0, 2)
+	// Prepare and validate every file replacement before the first mutation.
 	for _, rel := range []string{specOutput, schemaSource} {
 		if rel == "" {
 			continue
@@ -514,8 +522,6 @@ func publishGeneratedTree(root, stage, outputDir, specOutput, schemaSource strin
 		target := filepath.Join(root, rel)
 		staged := filepath.Join(stage, rel)
 		if info, err := os.Stat(staged); err != nil || !info.Mode().IsRegular() {
-			_ = os.RemoveAll(current)
-			_ = os.Rename(backup, current)
 			if err == nil {
 				err = fmt.Errorf("staged file is not regular")
 			}
@@ -524,6 +530,11 @@ func publishGeneratedTree(root, stage, outputDir, specOutput, schemaSource strin
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
+		prepared, err := copyPreparedFile(staged, target)
+		if err != nil {
+			return fmt.Errorf("prepare staged %s: %w", rel, err)
+		}
+		defer func() { _ = ops.remove(prepared) }()
 		holder, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+".backup-*")
 		if err != nil {
 			return err
@@ -532,50 +543,120 @@ func publishGeneratedTree(root, stage, outputDir, specOutput, schemaSource strin
 		if err := holder.Close(); err != nil {
 			return err
 		}
-		if err := os.Remove(backupName); err != nil {
+		if err := ops.remove(backupName); err != nil {
 			return err
 		}
-		swaps = append(swaps, fileSwap{target: target, staged: staged, backup: backupName})
+		swaps = append(swaps, fileSwap{target: target, prepared: prepared, backup: backupName})
 	}
-	rollback := func() {
+	dirBackup, err := os.MkdirTemp(root, "."+filepath.Base(outputDir)+".generated-backup-*")
+	if err != nil {
+		return err
+	}
+	if err := ops.removeAll(dirBackup); err != nil {
+		return err
+	}
+	dirHadOld := false
+	dirInstalled := false
+	rollback := func(cause error) error {
+		var recovery []string
 		for i := len(swaps) - 1; i >= 0; i-- {
 			swap := &swaps[i]
 			if swap.installed {
-				_ = os.Remove(swap.target)
+				if err := ops.remove(swap.target); err != nil && !errors.Is(err, os.ErrNotExist) {
+					recovery = append(recovery, err.Error())
+				}
 			}
 			if swap.hadOld {
-				_ = os.Rename(swap.backup, swap.target)
+				if err := ops.rename(swap.backup, swap.target); err != nil {
+					recovery = append(recovery, err.Error())
+				}
 			}
 		}
-		_ = os.RemoveAll(current)
-		_ = os.Rename(backup, current)
+		if dirInstalled {
+			if err := ops.removeAll(current); err != nil && !errors.Is(err, os.ErrNotExist) {
+				recovery = append(recovery, err.Error())
+			}
+		}
+		if dirHadOld {
+			if err := ops.rename(dirBackup, current); err != nil {
+				recovery = append(recovery, err.Error())
+			}
+		}
+		if len(recovery) > 0 {
+			return fmt.Errorf("%w; rollback incomplete (backups retained): %s", cause, strings.Join(recovery, "; "))
+		}
+		return cause
 	}
+	if _, err := os.Stat(current); err == nil {
+		if err := ops.rename(current, dirBackup); err != nil {
+			return err
+		}
+		dirHadOld = true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := ops.rename(replacement, current); err != nil {
+		return rollback(err)
+	}
+	dirInstalled = true
 	for i := range swaps {
 		swap := &swaps[i]
 		if _, err := os.Stat(swap.target); err == nil {
-			if err := os.Rename(swap.target, swap.backup); err != nil {
-				rollback()
-				return err
+			if err := ops.rename(swap.target, swap.backup); err != nil {
+				return rollback(err)
 			}
 			swap.hadOld = true
 		} else if !errors.Is(err, os.ErrNotExist) {
-			rollback()
-			return err
+			return rollback(err)
 		}
-		if err := os.Rename(swap.staged, swap.target); err != nil {
-			rollback()
-			return err
+		if err := ops.rename(swap.prepared, swap.target); err != nil {
+			return rollback(err)
 		}
 		swap.installed = true
 	}
 	for i := range swaps {
 		if swaps[i].hadOld {
-			if err := os.Remove(swaps[i].backup); err != nil {
-				return err
-			}
+			_ = ops.remove(swaps[i].backup)
 		}
 	}
-	return os.RemoveAll(backup)
+	if dirHadOld {
+		_ = ops.removeAll(dirBackup)
+	}
+	return nil
+}
+
+func copyPreparedFile(source, target string) (string, error) {
+	in, err := os.Open(source)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	out, err := os.CreateTemp(filepath.Dir(target), "."+filepath.Base(target)+".prepared-*")
+	if err != nil {
+		return "", err
+	}
+	name := out.Name()
+	keep := false
+	defer func() {
+		_ = out.Close()
+		if !keep {
+			_ = os.Remove(name)
+		}
+	}()
+	if err := out.Chmod(0o644); err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		return "", err
+	}
+	if err := out.Sync(); err != nil {
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	keep = true
+	return name, nil
 }
 
 func copyTreeExcludingOwned(source, target string) error {
@@ -608,7 +689,7 @@ func copyTreeExcludingOwned(source, target string) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(dest, body, 0o644)
+		return os.WriteFile(dest, body, info.Mode().Perm())
 	})
 }
 func copyOwnedGenerated(source, target string) error {

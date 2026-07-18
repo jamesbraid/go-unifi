@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,6 +74,7 @@ func TestRunPolicyFailureKeepsSnapshotAndPriorOutputs(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "version.generated.go"), []byte("known-good"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "specification.json"), []byte(`{"known":"good"}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "schema-source.json"), []byte("known-source"), 0o644))
 	metadata := []byte(`{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`)
 	body := syntheticInstaller(t, installerFixtureOptions{innerEntries: []fixtureEntry{
 		{name: "api/fields/Setting.json", body: []byte(`{"system":{}}`)},
@@ -96,6 +99,104 @@ func TestRunPolicyFailureKeepsSnapshotAndPriorOutputs(t *testing.T) {
 	got, err = os.ReadFile(filepath.Join(root, "specification.json"))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"known":"good"}`, string(got))
+	got, err = os.ReadFile(filepath.Join(fieldsRoot, "schema-source.json"))
+	require.NoError(t, err)
+	assert.Equal(t, "known-source", string(got))
+}
+
+func TestRunBoundaryFailuresPreserveAllCommittedOutputs(t *testing.T) {
+	for _, boundary := range []string{"materialize", "extract", "snapshot", "scan", "render"} {
+		t.Run(boundary, func(t *testing.T) {
+			root, installer, deps := newRunFailureFixture(t)
+			injected := errors.New("injected " + boundary)
+			switch boundary {
+			case "materialize":
+				deps.materialize = func(context.Context, *http.Client, InstallerSource, string) (*MaterializedInstaller, error) {
+					return nil, injected
+				}
+			case "extract":
+				deps.extractUOS = func(context.Context, string, string, ArchiveLimits) (*ExtractedDefinitions, error) {
+					return nil, injected
+				}
+			case "snapshot":
+				deps.buildSnapshot = func(context.Context, SnapshotOptions) (*LocalManifest, error) { return nil, injected }
+			case "scan":
+				deps.scan = func(string) error { return injected }
+			case "render":
+				deps.render = func(string, string, *version.Version, func([]*ResourceInfo) error) error { return injected }
+			}
+			err := runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+			require.ErrorContains(t, err, injected.Error())
+			assertRunOutputsOld(t, root)
+		})
+	}
+}
+
+func TestVerifyRegeneratedTreeNeverOverwritesAndReportsFirstPath(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	before := captureRunOutputs(t, root)
+	deps.render = func(_ string, stage string, _ *version.Version, _ func([]*ResourceInfo) error) error {
+		require.NoError(t, os.MkdirAll(filepath.Join(stage, "unifi"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "aaa.generated.go"), []byte("different"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(stage, "specification.json"), []byte(`{}`), 0o644))
+		return nil
+	}
+	err := verifyRegeneratedTree(context.Background(), root, deps, &bytes.Buffer{})
+	require.ErrorContains(t, err, "regenerated file differs: specification.json")
+	assert.Equal(t, before, captureRunOutputs(t, root))
+}
+
+func newRunFailureFixture(t *testing.T) (string, string, runDeps) {
+	t.Helper()
+	root := t.TempDir()
+	fieldsRoot := filepath.Join(root, "cmd", "fields")
+	require.NoError(t, os.MkdirAll(filepath.Join(fieldsRoot, "custom"), 0o755))
+	metadata := []byte(`{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`)
+	body := syntheticInstaller(t, installerFixtureOptions{innerEntries: []fixtureEntry{{name: "api/fields/Setting.json", body: []byte(`{"system":{}}`)}, {name: "api/fields/Device.json", body: []byte(`{"name":".*"}`)}, {name: "sensitive_metadata.json", body: metadata}}})
+	installer := filepath.Join(root, "installer")
+	require.NoError(t, os.WriteFile(installer, body, 0o644))
+	digest, err := CanonicalJSONDigest(metadata)
+	require.NoError(t, err)
+	policy, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{digest}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "sensitive-policy.json"), policy, 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "old.generated.go"), []byte("old-go"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "specification.json"), []byte("old-spec"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "schema-source.json"), []byte("old-source"), 0o644))
+	deps := defaultRunDeps()
+	deps.moduleRoot = func() (string, error) { return root, nil }
+	deps.tempRoot = t.TempDir()
+	return root, installer, deps
+}
+func captureRunOutputs(t *testing.T, root string) map[string]string {
+	t.Helper()
+	result := map[string]string{}
+	for _, path := range []string{"specification.json", "cmd/fields/schema-source.json"} {
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		require.NoError(t, err)
+		result[path] = string(body)
+	}
+	require.NoError(t, filepath.WalkDir(filepath.Join(root, "unifi"), func(name string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".generated.go") {
+			return nil
+		}
+		body, err := os.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		result[filepath.ToSlash(strings.TrimPrefix(name, root+string(filepath.Separator)))] = string(body)
+		return nil
+	}))
+	return result
+}
+func assertRunOutputsOld(t *testing.T, root string) {
+	t.Helper()
+	assert.Equal(t, map[string]string{"unifi/old.generated.go": "old-go", "specification.json": "old-spec", "cmd/fields/schema-source.json": "old-source"}, captureRunOutputs(t, root))
 }
 
 func TestRunTerminalModesRejectSelectors(t *testing.T) {
@@ -136,7 +237,7 @@ func TestPublishGeneratedTreePreservesHandWrittenAndRemovesStale(t *testing.T) {
 	root := t.TempDir()
 	stage := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "keep.go"), []byte("keep"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "keep.go"), []byte("keep"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "stale.generated.go"), []byte("stale"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(stage, "unifi"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "fresh.generated.go"), []byte("fresh"), 0o644))
@@ -147,9 +248,90 @@ func TestPublishGeneratedTreePreservesHandWrittenAndRemovesStale(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(root, "unifi", "keep.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "keep", string(body))
+	info, err := os.Stat(filepath.Join(root, "unifi", "keep.go"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 	body, err = os.ReadFile(filepath.Join(root, "unifi", "fresh.generated.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "fresh", string(body))
+}
+
+func TestPublishGeneratedTreePreflightFailureAndFixedPathAreSafe(t *testing.T) {
+	root, stage := publicationFixture(t)
+	fixed := filepath.Join(root, ".unifi.generated-backup")
+	require.NoError(t, os.WriteFile(fixed, []byte("do-not-touch"), 0o600))
+	require.NoError(t, os.Remove(filepath.Join(stage, "cmd", "fields", "schema-source.json")))
+	require.Error(t, publishGeneratedTree(root, stage, "unifi", "specification.json", filepath.Join("cmd", "fields", "schema-source.json")))
+	assertPublicationFixtureOld(t, root)
+	body, err := os.ReadFile(fixed)
+	require.NoError(t, err)
+	assert.Equal(t, "do-not-touch", string(body))
+}
+
+func TestPublishGeneratedTreeRollsBackEverySwapFailure(t *testing.T) {
+	for failRename := 1; failRename <= 6; failRename++ {
+		t.Run(fmt.Sprintf("rename_%d", failRename), func(t *testing.T) {
+			root, stage := publicationFixture(t)
+			ops := defaultPublishFileOps()
+			calls := 0
+			realRename := ops.rename
+			ops.rename = func(old, new string) error {
+				calls++
+				if calls == failRename {
+					return errors.New("injected rename")
+				}
+				return realRename(old, new)
+			}
+			err := publishGeneratedTreeWithOps(root, stage, "unifi", "specification.json", filepath.Join("cmd", "fields", "schema-source.json"), ops)
+			require.ErrorContains(t, err, "injected rename")
+			assertPublicationFixtureOld(t, root)
+		})
+	}
+}
+
+func TestPublishGeneratedTreeCleanupFailureDoesNotTurnCommitIntoFailure(t *testing.T) {
+	root, stage := publicationFixture(t)
+	ops := defaultPublishFileOps()
+	realRemoveAll := ops.removeAll
+	backupCalls := 0
+	ops.removeAll = func(name string) error {
+		if strings.Contains(filepath.Base(name), "backup") {
+			backupCalls++
+			if backupCalls > 1 {
+				return errors.New("injected cleanup")
+			}
+		}
+		return realRemoveAll(name)
+	}
+	require.NoError(t, publishGeneratedTreeWithOps(root, stage, "unifi", "specification.json", filepath.Join("cmd", "fields", "schema-source.json"), ops))
+	body, err := os.ReadFile(filepath.Join(root, "unifi", "fresh.generated.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", string(body))
+}
+
+func publicationFixture(t *testing.T) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	stage := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "cmd", "fields"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "old.generated.go"), []byte("old-go"), 0o640))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "specification.json"), []byte("old-spec"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "cmd", "fields", "schema-source.json"), []byte("old-source"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(stage, "unifi"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(stage, "cmd", "fields"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "fresh.generated.go"), []byte("fresh"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(stage, "specification.json"), []byte("new-spec"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(stage, "cmd", "fields", "schema-source.json"), []byte("new-source"), 0o644))
+	return root, stage
+}
+func assertPublicationFixtureOld(t *testing.T, root string) {
+	t.Helper()
+	for path, want := range map[string]string{"unifi/old.generated.go": "old-go", "specification.json": "old-spec", "cmd/fields/schema-source.json": "old-source"} {
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		require.NoError(t, err, path)
+		assert.Equal(t, want, string(body), path)
+	}
 }
 
 func TestSelectorFromValues(t *testing.T) {

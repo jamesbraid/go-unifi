@@ -60,3 +60,45 @@ The full test run required the normal external sandbox profile because existing 
 - Explicit/local installer sources leave OS version empty when it cannot be established; the bundled Network version remains authoritative for the snapshot and generated client.
 - Metadata validators intentionally avoid entropy checks on schema regex strings. Task 6's real-release pilot should update a validator only when an observed optional metadata shape differs from its explicit fixture-backed contract.
 - No Task 6 or Task 7 workflow files were changed.
+
+## Review hardening follow-up
+
+### RED
+
+Review-driven tests initially failed because the publication seam and strict contracts did not yet exist:
+
+```text
+cmd/fields/run_test.go:160:11: undefined: defaultPublishFileOps
+cmd/fields/run_test.go:170:11: undefined: publishGeneratedTreeWithOps
+```
+
+After adding structural scanner cases, the first local pass over the real 10.4.57 metadata also exposed both an incorrect provisional shape and an over-broad entropy heuristic. The exact metadata contracts were then derived from the local extracted release, while retaining fixture-only CI tests.
+
+### Fixes
+
+- Publication now prepares and validates the merged Go tree, same-filesystem specification/provenance files, and unique backup names before the first mutation. Every mutation failure uses the rollback path. Successful publication ignores backup-cleanup errors and retains recoverable uniquely named backups instead of returning a false failure.
+- Added deterministic failure injection for all six directory/file swap renames. Every case proves generated Go, `specification.json`, and `schema-source.json` remain byte-identical. Tests also cover preflight failure, cleanup failure, fixed-path non-interference, stale generated removal, and hand-written file mode preservation.
+- Added run-boundary failure tests for materialization, extraction, snapshot publication, scanning, policy review, and rendering. All three committed output classes remain unchanged.
+- `verifyRegeneratedTree` now uses the injected renderer; tests prove it reports the first differing path and never overwrites committed files.
+- Installer URLs now reject user information, query strings, and fragments. `metadata/source.json` is strictly decoded and its URL and digest fields are validated rather than skipped.
+- Replaced top-level-only metadata checks with position-aware contracts for every allowlisted file. Representative fixtures cover country records, event records, geo country codes, legacy endpoint segments, radio channel records, sensitivity metadata, extension MIME records, and timezone records.
+- High-entropy base64-like opaque runs are rejected even when followed by regex metacharacters. Schema regex strings remain accepted as syntax, while non-string schema leaves and unexpected metadata nesting are rejected.
+- A local, non-committed validation run passed against all eight real UniFi Network 10.4.57 metadata files from the adjacent proof-of-concept extraction.
+
+### GREEN
+
+```text
+$ go test ./cmd/fields -run 'Test(Run|VerifyRegeneratedTree|PublishGeneratedTree|ScanExtractedInputs|ValidateInstallerURL)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.907s
+
+$ go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.413s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+$ go vet ./...
+(no output)
+
+$ git diff --check
+(no output)
+```
