@@ -12,11 +12,9 @@ var firmwareLatestApi = "https://fw-update.ubnt.com/api/firmware-latest"
 var firmwareApi = "https://fw-update.ubnt.com/api/firmware"
 
 const (
-	debianPlatform         = "debian"
-	releaseChannel         = "release"
-	unifiControllerProduct = "unifi-controller"
-	osServerProduct        = "unifi-os-server"
-	osServerPlatform       = "linux-x64"
+	releaseChannel   = "release"
+	osServerProduct  = "unifi-os-server"
+	osServerPlatform = "linux-x64"
 )
 
 type firmwareUpdateApiResponse struct {
