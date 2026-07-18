@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testDockerManifestList = "application/vnd.docker.distribution.manifest.list.v2+json"
+	testDockerManifest     = "application/vnd.docker.distribution.manifest.v2+json"
+	testDockerLayerGzip    = "application/vnd.docker.image.rootfs.diff.tar.gzip"
+)
+
 func TestImportOCIStagesValidatedLayout(t *testing.T) {
 	layer := fixtureTar(t, fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")})
 	layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, ociFixtureOptions{layers: [][]byte{layer}})), t.TempDir(), DefaultArchiveLimits())
@@ -52,11 +58,56 @@ func TestResolveImageSelectsNestedLinuxAMD64(t *testing.T) {
 	require.Len(t, image.Manifest.Layers, 1)
 }
 
+func TestResolveImageAcceptsDockerSchema2ManifestAndNestedList(t *testing.T) {
+	layer := fixtureGzip(t, fixtureTar(t, fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")}))
+	opts := ociFixtureOptions{
+		layers:            [][]byte{layer},
+		mediaTypes:        []string{testDockerLayerGzip},
+		nested:            true,
+		manifestMediaType: testDockerManifest,
+		nestedMediaType:   testDockerManifestList,
+		indexMediaType:    testDockerManifestList,
+	}
+	layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, opts)), t.TempDir(), DefaultArchiveLimits())
+	require.NoError(t, err)
+	image, err := ResolveImage(layout, v1.Platform{OS: "linux", Architecture: "amd64"})
+	require.NoError(t, err)
+	f, err := FindFileInLayers(image, "usr/lib/unifi/lib/ace.jar", DefaultArchiveLimits())
+	require.NoError(t, err)
+	defer f.Close()
+	got, err := io.ReadAll(f)
+	require.NoError(t, err)
+	assert.Equal(t, "jar", string(got))
+}
+
+func TestResolveImageRejectsDockerMediaTypesInWrongRolesAndUnknownTypes(t *testing.T) {
+	layer := fixtureTar(t, fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")})
+	for _, tc := range []struct {
+		name string
+		opts ociFixtureOptions
+	}{
+		{"list as manifest", ociFixtureOptions{layers: [][]byte{layer}, manifestMediaType: testDockerManifestList, manifestDescType: testDockerManifest}},
+		{"manifest as nested list", ociFixtureOptions{layers: [][]byte{layer}, nested: true, nestedMediaType: testDockerManifest, nestedDescType: testDockerManifestList}},
+		{"layer as manifest descriptor", ociFixtureOptions{layers: [][]byte{layer}, manifestDescType: testDockerLayerGzip}},
+		{"unknown manifest body", ociFixtureOptions{layers: [][]byte{layer}, manifestMediaType: "application/vnd.example.manifest.v2+json", manifestDescType: testDockerManifest}},
+		{"unknown index body", ociFixtureOptions{layers: [][]byte{layer}, indexMediaType: "application/vnd.example.index.v1+json"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, tc.opts)), t.TempDir(), DefaultArchiveLimits())
+			require.NoError(t, err)
+			_, err = ResolveImage(layout, v1.Platform{OS: "linux", Architecture: "amd64"})
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestResolveImageRejectsDescriptorMismatch(t *testing.T) {
 	layer := fixtureTar(t, fixtureEntry{name: "file", body: []byte("x")})
 	for _, opts := range []ociFixtureOptions{
 		{layers: [][]byte{layer}, manifestSizeDelta: 1},
 		{layers: [][]byte{layer}, manifestDigest: digest.FromString("wrong")},
+		{layers: [][]byte{layer}, manifestMediaType: testDockerManifest, manifestSizeDelta: 1},
+		{layers: [][]byte{layer}, manifestMediaType: testDockerManifest, manifestDigest: digest.FromString("wrong")},
 	} {
 		layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, opts)), t.TempDir(), DefaultArchiveLimits())
 		require.NoError(t, err)
@@ -114,6 +165,8 @@ func TestFindFileInLayersRejectsLayerMismatchUnsupportedTargetLinkAndLimits(t *t
 		{"size", ociFixtureOptions{layers: [][]byte{plain}, layerSizeDelta: 1}, nil},
 		{"digest", ociFixtureOptions{layers: [][]byte{plain}, layerDigest: digest.FromString("wrong")}, nil},
 		{"zstd", ociFixtureOptions{layers: [][]byte{plain}, mediaTypes: []string{v1.MediaTypeImageLayerZstd}}, nil},
+		{"unknown media type", ociFixtureOptions{layers: [][]byte{plain}, mediaTypes: []string{"application/vnd.example.layer.v1+tar"}}, nil},
+		{"Docker manifest as layer", ociFixtureOptions{layers: [][]byte{plain}, mediaTypes: []string{testDockerManifest}}, nil},
 		{"target link", ociFixtureOptions{layers: [][]byte{link}}, nil},
 		{"layer bytes", ociFixtureOptions{layers: [][]byte{plain}}, func(l ArchiveLimits) ArchiveLimits { l.MaxLayerBytes = 16; return l }},
 		{"jar bytes", ociFixtureOptions{layers: [][]byte{plain}}, func(l ArchiveLimits) ArchiveLimits { l.MaxJarBytes = 2; return l }},

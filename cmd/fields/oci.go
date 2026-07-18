@@ -16,6 +16,12 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+const (
+	dockerMediaTypeManifestList = "application/vnd.docker.distribution.manifest.list.v2+json"
+	dockerMediaTypeManifest     = "application/vnd.docker.distribution.manifest.v2+json"
+	dockerMediaTypeLayerGzip    = "application/vnd.docker.image.rootfs.diff.tar.gzip"
+)
+
 type OCILayout struct {
 	Root   string
 	limits ArchiveLimits
@@ -174,7 +180,7 @@ func ResolveImage(layout *OCILayout, platform v1.Platform) (*ResolvedImage, erro
 		}
 		for _, desc := range descs {
 			switch desc.MediaType {
-			case v1.MediaTypeImageIndex:
+			case v1.MediaTypeImageIndex, dockerMediaTypeManifestList:
 				if _, ok := active[desc.Digest]; ok {
 					return fmt.Errorf("OCI nested index cycle at %s", desc.Digest)
 				}
@@ -189,13 +195,16 @@ func ResolveImage(layout *OCILayout, platform v1.Platform) (*ResolvedImage, erro
 				if err := validateIndex(nested); err != nil {
 					return fmt.Errorf("OCI nested index %s: %w", desc.Digest, err)
 				}
+				if nested.MediaType != "" && nested.MediaType != desc.MediaType {
+					return fmt.Errorf("OCI nested index %s media type mismatch: descriptor %q, body %q", desc.Digest, desc.MediaType, nested.MediaType)
+				}
 				active[desc.Digest] = struct{}{}
 				err = walk(nested.Manifests, depth+1)
 				delete(active, desc.Digest)
 				if err != nil {
 					return err
 				}
-			case v1.MediaTypeImageManifest:
+			case v1.MediaTypeImageManifest, dockerMediaTypeManifest:
 				if desc.Platform == nil || desc.Platform.OS != platform.OS || desc.Platform.Architecture != platform.Architecture {
 					continue
 				}
@@ -211,7 +220,7 @@ func ResolveImage(layout *OCILayout, platform v1.Platform) (*ResolvedImage, erro
 				if err := json.Unmarshal(body, &manifest); err != nil {
 					return fmt.Errorf("parse OCI manifest %s: %w", desc.Digest, err)
 				}
-				if manifest.SchemaVersion != 2 || manifest.MediaType != v1.MediaTypeImageManifest {
+				if manifest.SchemaVersion != 2 || manifest.MediaType != desc.MediaType {
 					return fmt.Errorf("unsupported OCI manifest %s", desc.Digest)
 				}
 				matches = append(matches, manifest)
@@ -244,7 +253,7 @@ func FindFileInLayers(image *ResolvedImage, name string, limits ArchiveLimits) (
 	}
 	for i := len(image.Manifest.Layers) - 1; i >= 0; i-- {
 		desc := image.Manifest.Layers[i]
-		if desc.MediaType != v1.MediaTypeImageLayer && desc.MediaType != v1.MediaTypeImageLayerGzip {
+		if desc.MediaType != v1.MediaTypeImageLayer && !isGzipLayerMediaType(desc.MediaType) {
 			return nil, fmt.Errorf("layer %s: unsupported media type %q", desc.Digest, desc.MediaType)
 		}
 		blob, err := openVerifiedBlob(image.Blobs, desc, limits.MaxBlobBytes)
@@ -253,7 +262,7 @@ func FindFileInLayers(image *ResolvedImage, name string, limits ArchiveLimits) (
 		}
 		var stream io.Reader = blob
 		var gz *gzip.Reader
-		if desc.MediaType == v1.MediaTypeImageLayerGzip {
+		if isGzipLayerMediaType(desc.MediaType) {
 			gz, err = gzip.NewReader(blob)
 			if err != nil {
 				blob.Close()
@@ -506,8 +515,12 @@ func validateIndex(index v1.Index) error {
 	if index.SchemaVersion != 2 {
 		return fmt.Errorf("unsupported schema version %d", index.SchemaVersion)
 	}
-	if index.MediaType != "" && index.MediaType != v1.MediaTypeImageIndex {
+	if index.MediaType != "" && index.MediaType != v1.MediaTypeImageIndex && index.MediaType != dockerMediaTypeManifestList {
 		return fmt.Errorf("unsupported media type %q", index.MediaType)
 	}
 	return nil
+}
+
+func isGzipLayerMediaType(mediaType string) bool {
+	return mediaType == v1.MediaTypeImageLayerGzip || mediaType == dockerMediaTypeLayerGzip
 }

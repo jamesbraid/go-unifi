@@ -80,6 +80,11 @@ type ociFixtureOptions struct {
 	mediaTypes        []string
 	platform          v1.Platform
 	nested            bool
+	manifestMediaType string
+	manifestDescType  string
+	nestedMediaType   string
+	nestedDescType    string
+	indexMediaType    string
 	manifestSizeDelta int64
 	manifestDigest    digest.Digest
 	layerSizeDelta    int64
@@ -109,26 +114,46 @@ func fixtureOCI(t *testing.T, opts ociFixtureOptions) []byte {
 		layerDescs = append(layerDescs, v1.Descriptor{MediaType: mediaType, Digest: d, Size: sz})
 		blobs = append(blobs, fixtureEntry{name: fmt.Sprintf("blobs/sha256/%s", digest.FromBytes(layer).Encoded()), body: layer})
 	}
-	manifest := v1.Manifest{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: v1.MediaTypeImageManifest, Config: v1.Descriptor{MediaType: v1.MediaTypeImageConfig, Digest: digest.FromBytes([]byte("{}")), Size: 2}, Layers: layerDescs}
+	manifestMediaType := opts.manifestMediaType
+	if manifestMediaType == "" {
+		manifestMediaType = v1.MediaTypeImageManifest
+	}
+	manifestDescType := opts.manifestDescType
+	if manifestDescType == "" {
+		manifestDescType = manifestMediaType
+	}
+	manifest := v1.Manifest{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: manifestMediaType, Config: v1.Descriptor{MediaType: v1.MediaTypeImageConfig, Digest: digest.FromBytes([]byte("{}")), Size: 2}, Layers: layerDescs}
 	manifestBytes, err := json.Marshal(manifest)
 	require.NoError(t, err)
 	manifestDigest := digest.FromBytes(manifestBytes)
 	if opts.manifestDigest != "" {
 		manifestDigest = opts.manifestDigest
 	}
-	manifestDesc := v1.Descriptor{MediaType: v1.MediaTypeImageManifest, Digest: manifestDigest, Size: int64(len(manifestBytes)) + opts.manifestSizeDelta, Platform: &opts.platform}
+	manifestDesc := v1.Descriptor{MediaType: manifestDescType, Digest: manifestDigest, Size: int64(len(manifestBytes)) + opts.manifestSizeDelta, Platform: &opts.platform}
 	blobs = append(blobs, fixtureEntry{name: "blobs/sha256/" + digest.FromBytes(manifestBytes).Encoded(), body: manifestBytes})
 
 	rootDesc := manifestDesc
 	if opts.nested {
-		nested := v1.Index{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: v1.MediaTypeImageIndex, Manifests: []v1.Descriptor{manifestDesc}}
+		nestedMediaType := opts.nestedMediaType
+		if nestedMediaType == "" {
+			nestedMediaType = v1.MediaTypeImageIndex
+		}
+		nestedDescType := opts.nestedDescType
+		if nestedDescType == "" {
+			nestedDescType = nestedMediaType
+		}
+		nested := v1.Index{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: nestedMediaType, Manifests: []v1.Descriptor{manifestDesc}}
 		nestedBytes, err := json.Marshal(nested)
 		require.NoError(t, err)
 		nestedDigest := digest.FromBytes(nestedBytes)
-		rootDesc = v1.Descriptor{MediaType: v1.MediaTypeImageIndex, Digest: nestedDigest, Size: int64(len(nestedBytes))}
+		rootDesc = v1.Descriptor{MediaType: nestedDescType, Digest: nestedDigest, Size: int64(len(nestedBytes))}
 		blobs = append(blobs, fixtureEntry{name: "blobs/sha256/" + nestedDigest.Encoded(), body: nestedBytes})
 	}
-	index := v1.Index{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: v1.MediaTypeImageIndex, Manifests: []v1.Descriptor{rootDesc}}
+	indexMediaType := opts.indexMediaType
+	if indexMediaType == "" {
+		indexMediaType = v1.MediaTypeImageIndex
+	}
+	index := v1.Index{Versioned: specs.Versioned{SchemaVersion: 2}, MediaType: indexMediaType, Manifests: []v1.Descriptor{rootDesc}}
 	indexBytes, err := json.Marshal(index)
 	require.NoError(t, err)
 	entries := []fixtureEntry{{name: "oci-layout", body: []byte(`{"imageLayoutVersion":"1.0.0"}`)}, {name: "index.json", body: indexBytes}}
