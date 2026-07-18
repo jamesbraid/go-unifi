@@ -735,6 +735,13 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		IPSecDhGroup     *int64  `json:"ipsec_dh_group,omitempty"`
 		IPSecIkeLifetime *int64  `json:"ipsec_ike_lifetime,omitempty"`
 
+		// IKE peer identifiers and per-child-SA networks (policy-based mode)
+		IPSecLocalIDentifier         *string `json:"ipsec_local_identifier,omitempty"`
+		IPSecLocalIDentifierEnabled  bool    `json:"ipsec_local_identifier_enabled"`
+		IPSecRemoteIDentifier        *string `json:"ipsec_remote_identifier,omitempty"`
+		IPSecRemoteIDentifierEnabled bool    `json:"ipsec_remote_identifier_enabled"`
+		IPSecSeparateIkev2Networks   bool    `json:"ipsec_separate_ikev2_networks"`
+
 		// ESP (phase 2)
 		IPSecEspEncryption *string `json:"ipsec_esp_encryption,omitempty"`
 		IPSecEspHash       *string `json:"ipsec_esp_hash,omitempty"`
@@ -771,6 +778,12 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		IPSecHash:        n.IPSecHash,
 		IPSecDhGroup:     n.IPSecDhGroup,
 		IPSecIkeLifetime: n.IPSecIkeLifetime,
+
+		IPSecLocalIDentifier:         n.IPSecLocalIDentifier,
+		IPSecLocalIDentifierEnabled:  n.IPSecLocalIDentifierEnabled,
+		IPSecRemoteIDentifier:        n.IPSecRemoteIDentifier,
+		IPSecRemoteIDentifierEnabled: n.IPSecRemoteIDentifierEnabled,
+		IPSecSeparateIkev2Networks:   n.IPSecSeparateIkev2Networks,
 
 		IPSecEspEncryption: n.IPSecEspEncryption,
 		IPSecEspHash:       n.IPSecEspHash,

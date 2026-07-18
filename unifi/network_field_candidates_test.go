@@ -22,9 +22,8 @@ type fieldCandidate struct {
 // ipsec_dynamic_routing is true, and rejects it as api.err.UnrecognizedLocalIp
 // unless that address is bound to an actually-adopted gateway's WAN
 // interface -- unsatisfiable in this container-only, no-hardware simulation.
-// mergePolicyBasedPrereq/mergeRouteBasedPrereq pick the mode-appropriate
-// pairing for each candidate; layer each candidate's own gating fields
-// (enable flags, mode selectors) on top via extra.
+// mergeRouteBasedPrereq layers the route-based (dynamic routing) pairing plus
+// each candidate's own gating fields on top via extra.
 var siteVPNBasePrereq = map[string]any{
 	"vpn_type":               "ipsec-vpn",
 	"ipsec_interface":        "wan",
@@ -53,17 +52,6 @@ func mergePrereq(base map[string]any, extra map[string]any) map[string]any {
 		m[k] = v
 	}
 	return m
-}
-
-// mergePolicyBasedPrereq is siteVPNBasePrereq in policy-based mode
-// (ipsec_dynamic_routing false), which accepts ipsec_local_ip "any". Use for
-// candidates that are policy-based concepts (per-peer IKE identifiers,
-// per-child-SA IKEv2 networks).
-func mergePolicyBasedPrereq(extra map[string]any) map[string]any {
-	return mergePrereq(siteVPNBasePrereq, mergePrereq(map[string]any{
-		"ipsec_local_ip":        "any",
-		"ipsec_dynamic_routing": false,
-	}, extra))
 }
 
 // mergeRouteBasedPrereq is siteVPNBasePrereq in route-based / dynamic-routing
@@ -113,14 +101,9 @@ var networkFieldCandidates = []fieldCandidate{
 	// suppression) is wired -- see marshalCorporate.
 	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil},
 
-	// Advanced site-vpn IPsec options: IKE identifiers, tunnel IP, separate
-	// IKEv2 networks. All require vpn_type "ipsec-vpn" (the only IPsec value
-	// in the vpn_type enum) to be meaningful.
-	{Wire: "ipsec_local_identifier", Purpose: PurposeSiteVPN, Value: "site-a.vpn.example.com", Prereq: mergePolicyBasedPrereq(map[string]any{"ipsec_local_identifier_enabled": true})},
-	{Wire: "ipsec_local_identifier_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergePolicyBasedPrereq(map[string]any{"ipsec_local_identifier": "site-a.vpn.example.com"})},
-	{Wire: "ipsec_remote_identifier", Purpose: PurposeSiteVPN, Value: "site-b.vpn.example.com", Prereq: mergePolicyBasedPrereq(map[string]any{"ipsec_remote_identifier_enabled": true})},
-	{Wire: "ipsec_remote_identifier_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergePolicyBasedPrereq(map[string]any{"ipsec_remote_identifier": "site-b.vpn.example.com"})},
-	{Wire: "ipsec_separate_ikev2_networks", Purpose: PurposeSiteVPN, Value: true, Prereq: mergePolicyBasedPrereq(nil)}, // "separate IKEv2 networks" is a per-child-SA policy-based concept; the controller rejects it in route-based (dynamic routing) mode with api.err.IpsecSeparateIkeV2NetworkRequiresPolicyBased
+	// Advanced site-vpn IPsec route-based (dynamic routing) options: tunnel
+	// IP requires vpn_type "ipsec-vpn" and a real ipsec_local_ip to be
+	// meaningful.
 	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: "192.0.2.4/30", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true})},
 	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip": "192.0.2.4/30"})},
 

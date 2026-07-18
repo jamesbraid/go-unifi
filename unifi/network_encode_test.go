@@ -1108,6 +1108,68 @@ func TestMarshalNetworkWANDSLite(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkSiteVPNIkeIdentifiers guards the IKE peer identifier and
+// separate-IKEv2-networks fields wired into marshalSiteVPN in Task 4 --
+// live-verified PERSISTED.
+func TestMarshalNetworkSiteVPNIkeIdentifiers(t *testing.T) {
+	network := &Network{
+		ID:                           "507f1f77bcf86cd799439036",
+		Purpose:                      PurposeSiteVPN,
+		Enabled:                      true,
+		VPNType:                      strPtr("ipsec-vpn"),
+		IPSecKeyExchange:             strPtr("ikev2"),
+		IPSecLocalIDentifier:         strPtr("site-a.vpn.example.com"),
+		IPSecLocalIDentifierEnabled:  true,
+		IPSecRemoteIDentifier:        strPtr("site-b.vpn.example.com"),
+		IPSecRemoteIDentifierEnabled: true,
+		IPSecSeparateIkev2Networks:   true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["ipsec_local_identifier"]; got != "site-a.vpn.example.com" {
+		t.Errorf("ipsec_local_identifier = %v, want site-a.vpn.example.com", got)
+	}
+	if got := result["ipsec_local_identifier_enabled"]; got != true {
+		t.Errorf("ipsec_local_identifier_enabled = %v, want true", got)
+	}
+	if got := result["ipsec_remote_identifier"]; got != "site-b.vpn.example.com" {
+		t.Errorf("ipsec_remote_identifier = %v, want site-b.vpn.example.com", got)
+	}
+	if got := result["ipsec_remote_identifier_enabled"]; got != true {
+		t.Errorf("ipsec_remote_identifier_enabled = %v, want true", got)
+	}
+	if got := result["ipsec_separate_ikev2_networks"]; got != true {
+		t.Errorf("ipsec_separate_ikev2_networks = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeSiteVPN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	for _, field := range []string{"ipsec_local_identifier_enabled", "ipsec_remote_identifier_enabled", "ipsec_separate_ikev2_networks"} {
+		if got := result[field]; got != false {
+			t.Errorf("%s = %v, want false", field, got)
+		}
+	}
+	for _, field := range []string{"ipsec_local_identifier", "ipsec_remote_identifier"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s
