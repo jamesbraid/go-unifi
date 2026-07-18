@@ -29,37 +29,34 @@ var networkEncoderPurposes = []string{
 	PurposeUserVPN,
 }
 
-// networkEncoderPresenceAllowlistTODOs lists generated wire names that look
-// like genuine encoder gaps: fields configurable in current controller UIs
-// but never emitted by Network.MarshalJSON for any purpose. Each entry has a
-// matching fieldCandidate in networkFieldCandidates
-// (network_field_candidates_test.go) that TestIntegrationNetworkFieldProbe
-// uses to classify the gap against a live controller;
+// networkEncoderPresenceAllowlistTODOs lists generated wire names that were
+// probed against a live simulation-mode controller (TestIntegrationNetworkFieldProbe,
+// see network_field_probe_integration_test.go) and did NOT come back
+// PERSISTED. Every PERSISTED field from the same probe run is wired into the
+// matching purpose marshal struct in network_encode.go and removed from this
+// slice (the coverage test now requires the encoder to emit it, which is
+// self-verifying). What remains here is STRIPPED (controller silently drops
+// the field) or REJECTED (controller rejects the create/update), each with
+// the measured outcome recorded below. Each entry still has a matching
+// fieldCandidate in networkFieldCandidates (network_field_candidates_test.go);
 // TestFieldCandidatesCoverAllTODOs keeps the two lists in lockstep.
 var networkEncoderPresenceAllowlistTODOs = []string{
-	// vpn_client_configuration_remote_ip_override is emitted for
-	// remote-user-vpn but its enable flag is never sent.
-	"vpn_client_configuration_remote_ip_override_enabled",
-
-	// advanced multicast settings: proxy downstream networks (the rest of
-	// this group -- fast leave, querier, flood control, suppression -- is
-	// wired; see marshalCorporate).
+	// probe 2026-07 (10.0.162 sim controller): STRIPPED. Create succeeds but
+	// the field is absent/empty on read-back regardless of value sent; a real
+	// referenced networkconf id might behave differently on real hardware.
 	"igmp_proxy_downstream_networkconf_ids",
 
-	// advanced site-vpn IPsec route-based (dynamic routing) options: tunnel
-	// IP and the dynamic-subnets toggle (the rest of this group -- IKE
-	// identifiers, separate IKEv2 networks -- is wired; see marshalSiteVPN).
+	// probe 2026-07 (10.0.162 sim controller): REJECTED, api.err.UnrecognizedLocalIp
+	// on sibling field ipsec_local_ip. These are route-based (ipsec_dynamic_routing
+	// true) site-vpn fields; the controller requires ipsec_local_ip to be a real
+	// address bound to an adopted gateway's WAN interface, which this bare
+	// container-only simulation (no adopted hardware) cannot provide. Every other
+	// prerequisite (PSK, profile, phase 1/2 params, remote subnets, the tunnel_ip
+	// value itself) was supplied and did not change the outcome -- see
+	// mergeRouteBasedPrereq in network_field_candidates_test.go.
 	"ipsec_tunnel_ip",
 	"ipsec_tunnel_ip_enabled",
 	"remote_vpn_dynamic_subnets_enabled",
-
-	// L2TP remote-user-vpn RADIUS option is never sent even though the other
-	// l2tp_* fields are.
-	"require_mschapv2",
-
-	// OpenVPN server protocol (TCP/UDP) for remote-user-vpn is never sent
-	// even though openvpn_mode is.
-	"vpn_protocol",
 }
 
 // networkEncoderAllowlist contains generated wire names that are intentionally
