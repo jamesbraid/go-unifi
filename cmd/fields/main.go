@@ -263,16 +263,6 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		baseType.Fields["UPnPSecureMode"] = NewFieldInfo("UPnPSecureMode", "upnp_secure_mode", fields.Bool, "", true, false, true, "")
 		baseType.Fields["IPAliases"] = NewFieldInfo("IPAliases", "ip_aliases", fields.String, "", true, true, false, "")
 		baseType.Fields["DHCPRelayServers"] = NewFieldInfo("DHCPRelayServers", "dhcp_relay_servers", fields.String, "", true, true, false, "")
-		baseType.Fields["WireguardInterfaceBindingModeIPVersion"] = NewFieldInfo(
-			"WireguardInterfaceBindingModeIPVersion",
-			"wireguard_interface_binding_mode_ip_version",
-			fields.String,
-			"v4|v6",
-			true,
-			false,
-			true,
-			"",
-		)
 	case resource.StructName == "Device":
 		baseType.Fields["PortTable"] = NewFieldInfo("PortTable", "port_table", "[]DevicePortTable", "", true, false, false, "")
 		baseType.Fields[" MAC"] = NewFieldInfo("MAC", "mac", fields.String, "", true, false, false, "")
@@ -658,6 +648,25 @@ func main() {
 				case "Purpose":
 					f.OmitEmpty = false
 					f.IsPointer = false
+				case "WireguardInterfaceBindingModeVersion":
+					// ace.jar defines wireguard_interface_binding_mode_ip_version
+					// since UniFi Network 10.4.57, and the IPVersion->Version name
+					// replacement mangles it. Pin the historical public field name
+					// to avoid a breaking rename.
+					f.FieldName = "WireguardInterfaceBindingModeIPVersion"
+				case "DHCPDDNS1", "DHCPDDNS2":
+					// UniFi Network 10.4.57 dropped the IP-or-empty
+					// validation regex for these fields (now free-form),
+					// which would make the generator emit *string with
+					// omitempty. Sending "" remains valid upstream, so
+					// pin the pre-10.4.57 shape (plain string, no
+					// omitempty) to avoid a breaking change for
+					// consumers.
+					f.FieldType = fields.String
+					f.IsPointer = false
+					f.OmitEmpty = false
+					f.CustomUnmarshalType = ""
+					f.CustomUnmarshalFunc = ""
 				}
 				if f.OmitEmpty && !f.IsArray {
 					switch f.FieldType {
