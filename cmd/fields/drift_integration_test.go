@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,18 +59,22 @@ func TestIntegrationV2Drift(t *testing.T) {
 			}
 
 			body, status, err := s.GetJSON(ctx, fmt.Sprintf(probe.path, c.Site))
-			if err != nil {
-				t.Fatalf("probe: %v", err)
-			}
 			if status == 404 {
 				t.Skipf("endpoint absent on this controller version (404)")
+			}
+			if errors.Is(err, testenv.ErrNotJSON) {
+				t.Fatalf("probe returned HTTP %d with a non-JSON body — controller not serving the API?", status)
+			}
+			if err != nil {
+				t.Fatalf("probe: %v", err)
 			}
 			if status != 200 {
 				t.Fatalf("probe status = %d", status)
 			}
-			if body == nil {
-				t.Fatalf("probe returned HTTP 200 with a non-JSON body — controller not serving the API?")
-			}
+			// body == nil here is a legal JSON `null` response (an empty
+			// v2 collection some controllers serve that way); it falls
+			// through to the observed-count check below and is skipped
+			// there like any other empty collection.
 
 			var observed []map[string]any
 			switch v := body.(type) {

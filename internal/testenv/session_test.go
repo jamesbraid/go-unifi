@@ -3,6 +3,7 @@ package testenv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,6 +32,13 @@ func fakeController(t *testing.T) *httptest.Server {
 			return
 		}
 		w.Write([]byte(`[{"_id":"x","enabled":true}]`))
+	})
+	// Unknown paths: a real controller answers with a JSON error envelope,
+	// not the plain-text page Go's ServeMux defaults to — model that so
+	// GetJSON callers see a genuine 404 rather than a spurious ErrNotJSON.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"meta":{"rc":"error","msg":"api.err.NotFound"}}`))
 	})
 	return httptest.NewTLSServer(mux)
 }
@@ -117,5 +125,51 @@ func TestSessionGetJSONNotFound(t *testing.T) {
 	}
 	if status != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", status)
+	}
+}
+
+// TestSessionGetJSONNull covers legal JSON null bodies (e.g. an empty v2
+// endpoint): GetJSON must return a nil body with a nil error, not
+// ErrNotJSON — null is valid JSON, distinct from a non-JSON body.
+func TestSessionGetJSONNull(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`null`))
+	}))
+	defer srv.Close()
+
+	s := NewSession(srv.URL)
+	body, status, err := s.GetJSON(context.Background(), "/whatever")
+	if err != nil {
+		t.Fatalf("unexpected error for JSON null body: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if body != nil {
+		t.Fatalf("body = %#v, want nil", body)
+	}
+}
+
+// TestSessionGetJSONNotJSON covers a non-JSON 200 body (e.g. the
+// controller's boot-time HTML placeholder): GetJSON must return
+// ErrNotJSON so callers can distinguish this from a legal JSON null.
+func TestSessionGetJSONNotJSON(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html><html><body>starting up</body></html>`))
+	}))
+	defer srv.Close()
+
+	s := NewSession(srv.URL)
+	body, status, err := s.GetJSON(context.Background(), "/whatever")
+	if !errors.Is(err, ErrNotJSON) {
+		t.Fatalf("err = %v, want ErrNotJSON", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if body != nil {
+		t.Fatalf("body = %#v, want nil", body)
 	}
 }

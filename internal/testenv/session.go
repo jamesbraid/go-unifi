@@ -9,12 +9,20 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"time"
 )
+
+// ErrNotJSON is returned by GetJSON when the response body cannot be
+// decoded as JSON at all (e.g. the controller's boot-time HTML
+// placeholder page). It is distinct from a legal JSON `null` body, which
+// GetJSON reports as (nil, status, nil) — callers that need to tell the
+// two apart should check errors.Is(err, ErrNotJSON).
+var ErrNotJSON = errors.New("response body is not JSON")
 
 // Session is a cookie-authenticated raw client for a classic UniFi
 // controller (self-signed TLS accepted).
@@ -82,10 +90,13 @@ func (s *Session) Login(ctx context.Context, username, password string) error {
 	return nil
 }
 
-// GetJSON fetches path and returns the decoded body (nil when the body is
-// not JSON), the HTTP status code, and any transport error. Non-2xx statuses
-// are not errors: probes need to distinguish 404 (endpoint absent in this
-// controller version) from failure.
+// GetJSON fetches path and returns the decoded body, the HTTP status code,
+// and any error. Non-2xx statuses are not errors: probes need to
+// distinguish 404 (endpoint absent in this controller version) from
+// failure. A body that fails to decode as JSON returns (nil, status,
+// ErrNotJSON); a legal JSON `null` body returns (nil, status, nil) — the
+// two are not the same thing, and callers that care (e.g. the drift probe)
+// must use errors.Is to tell them apart.
 func (s *Session) GetJSON(ctx context.Context, path string) (any, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+path, nil)
 	if err != nil {
@@ -106,7 +117,7 @@ func (s *Session) GetJSON(ctx context.Context, path string) (any, int, error) {
 
 	var body any
 	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, resp.StatusCode, nil
+		return nil, resp.StatusCode, ErrNotJSON
 	}
 	return body, resp.StatusCode, nil
 }
