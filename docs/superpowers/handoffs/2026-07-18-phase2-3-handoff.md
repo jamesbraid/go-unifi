@@ -23,6 +23,11 @@ git cat-file -e origin/controller-testing:internal/testenv/controller.go
 git cat-file -e origin/controller-testing:internal/testenv/testenv_integration_test.go
 ```
 
+Your worktree branches off `controller-testing` but was created BEFORE
+phase 1 landed there — once the signal fires, rebase onto the updated ref
+(`git fetch origin && git rebase origin/controller-testing`, or
+`origin/main` if that's where it landed) before doing step zero.
+
 If not landed yet: wait by polling, self-paced at ~20–30 minute intervals
 (ScheduleWakeup / a self-paced loop — long intervals, this is a
 hours-not-seconds wait). Each wake: fetch, re-check, report one line of
