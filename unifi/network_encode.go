@@ -75,7 +75,6 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		SettingPreference       *string                         `json:"setting_preference,omitempty"`
 		IGMPSnooping            bool                            `json:"igmp_snooping"`
 		DHCPguardEnabled        bool                            `json:"dhcpguard_enabled"`
-		MdnsEnabled             bool                            `json:"mdns_enabled"`
 		LteLanEnabled           bool                            `json:"lte_lan_enabled"`
 		IPAliases               []string                        `json:"ip_aliases"`
 		NATOutboundIPAddresses  []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
@@ -161,7 +160,6 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		SettingPreference:       valueOrDefault(n.SettingPreference, "auto"),
 		IGMPSnooping:            n.IGMPSnooping,
 		DHCPguardEnabled:        n.DHCPguardEnabled,
-		MdnsEnabled:             n.MdnsEnabled,
 		LteLanEnabled:           n.LteLanEnabled,
 		IPAliases:               orEmptySlice(n.IPAliases),
 		NATOutboundIPAddresses:  orEmptyNATSlice(n.NATOutboundIPAddresses),
@@ -313,7 +311,6 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		SettingPreference       *string                         `json:"setting_preference,omitempty"`
 		IGMPSnooping            bool                            `json:"igmp_snooping"`
 		DHCPguardEnabled        bool                            `json:"dhcpguard_enabled"`
-		MdnsEnabled             bool                            `json:"mdns_enabled"`
 		LteLanEnabled           bool                            `json:"lte_lan_enabled"`
 		IPAliases               []string                        `json:"ip_aliases"`
 		NATOutboundIPAddresses  []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
@@ -399,7 +396,6 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		SettingPreference:       valueOrDefault(n.SettingPreference, "auto"),
 		IGMPSnooping:            n.IGMPSnooping,
 		DHCPguardEnabled:        n.DHCPguardEnabled,
-		MdnsEnabled:             n.MdnsEnabled,
 		LteLanEnabled:           n.LteLanEnabled,
 		IPAliases:               orEmptySlice(n.IPAliases),
 		NATOutboundIPAddresses:  orEmptyNATSlice(n.NATOutboundIPAddresses),

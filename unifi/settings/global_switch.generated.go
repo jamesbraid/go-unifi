@@ -33,6 +33,7 @@ type GlobalSwitch struct {
 	FlowctrlEnabled                bool                                `json:"flowctrl_enabled"`
 	ForwardUnknownMcastRouterPorts bool                                `json:"forward_unknown_mcast_router_ports"`
 	JumboframeEnabled              bool                                `json:"jumboframe_enabled"`
+	LinkDebounce                   *int64                              `json:"link_debounce,omitempty"` // 0|[1-9]00|[1-4][0-9]00|5000
 	RADIUSProfileID                string                              `json:"radiusprofile_id,omitempty"`
 	StpVersion                     string                              `json:"stp_version,omitempty"`       // stp|rstp|disabled
 	SwitchExclusions               []string                            `json:"switch_exclusions,omitempty"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
@@ -41,6 +42,8 @@ type GlobalSwitch struct {
 func (dst *GlobalSwitch) UnmarshalJSON(b []byte) error {
 	type Alias GlobalSwitch
 	aux := &struct {
+		LinkDebounce *types.Number `json:"link_debounce"`
+
 		*Alias
 	}{
 		Alias: (*Alias)(dst),
@@ -54,6 +57,14 @@ func (dst *GlobalSwitch) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	if aux.LinkDebounce != nil {
+		if val, err := aux.LinkDebounce.Int64(); err == nil {
+			dst.LinkDebounce = &val
+		} else if string(*aux.LinkDebounce) == "" {
+			var zero int64
+			dst.LinkDebounce = &zero
+		}
 	}
 
 	return nil

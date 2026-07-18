@@ -96,6 +96,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "country", nil
 	case *Dashboard:
 		return "dashboard", nil
+	case *DeviceSupervision:
+		return "device_supervision", nil
 	case *Doh:
 		return "doh", nil
 	case *Dpi:
