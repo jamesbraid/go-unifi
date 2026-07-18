@@ -543,6 +543,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	audit := newSensitiveAudit()
 
 	// Initialize specification generator
 	specGen := NewSpecificationGenerator("unifi")
@@ -761,7 +762,7 @@ func main() {
 
 		if sensitiveMeta != nil {
 			collection := collectionForResource(fieldsFile.Name(), resource.StructName)
-			sensitiveMeta.markResource(resource, collection)
+			audit.record(sensitiveMeta, resource, collection)
 		}
 
 		// Add fields not present in the JAR schema to nested types.
@@ -813,6 +814,10 @@ func main() {
 				}
 			}
 		}
+	}
+
+	if sensitiveMeta != nil {
+		audit.print(sensitiveMeta)
 	}
 
 	// Write version file. On a fields-dir cache hit, unifiVersion is nil;

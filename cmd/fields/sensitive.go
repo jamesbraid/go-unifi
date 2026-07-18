@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -76,17 +77,19 @@ func collectionForResource(sourceFile, structName string) string {
 	return strings.ToLower(strings.TrimSuffix(sourceFile, ".json"))
 }
 
-// markResource flags the resource's fields listed for collection. Paths may
-// be dot-separated ("auth_servers.x_secret") and are walked by JSON name.
-// Drift (unknown collections/paths) is logged and skipped, never fatal.
-func (m *sensitiveMetadata) markResource(r *ResourceInfo, collection string) {
+// markResource flags the resource's fields listed for collection, returning
+// the number of fields marked and the listed paths not found in the schema.
+// An unknown collection is not drift: it just means the resource has no
+// sensitive fields, so it returns (0, nil).
+func (m *sensitiveMetadata) markResource(r *ResourceInfo, collection string) (int, []string) {
 	paths, ok := m.ByCollection[collection]
 	if !ok {
-		fmt.Printf("sensitive metadata: no entry for collection %q\n", collection)
-		return
+		return 0, nil
 	}
 
 	root := r.Types[r.StructName]
+	marked := 0
+	var missed []string
 	for _, p := range paths {
 		leaf := p
 		if i := strings.LastIndex(p, "."); i >= 0 {
@@ -97,11 +100,13 @@ func (m *sensitiveMetadata) markResource(r *ResourceInfo, collection string) {
 		}
 		f := findFieldByJSONPath(root, p)
 		if f == nil {
-			fmt.Printf("sensitive metadata: %s.%s not found in schema\n", collection, p)
+			missed = append(missed, p)
 			continue
 		}
 		f.Sensitive = true
+		marked++
 	}
+	return marked, missed
 }
 
 // findFieldByJSONPath walks a dot-separated path of JSON field names from
@@ -125,4 +130,87 @@ func findFieldByJSONPath(root *FieldInfo, path string) *FieldInfo {
 		cur = next
 	}
 	return cur
+}
+
+// sensitiveAudit aggregates markResource results across a codegen run so the
+// operator gets one compact audit block instead of per-resource log spam.
+type sensitiveAudit struct {
+	consumed   map[string]bool
+	resources  map[string]int            // collection -> resources recorded
+	missCounts map[string]map[string]int // collection -> path -> resources missing it
+	marked     int
+}
+
+func newSensitiveAudit() *sensitiveAudit {
+	return &sensitiveAudit{
+		consumed:   map[string]bool{},
+		resources:  map[string]int{},
+		missCounts: map[string]map[string]int{},
+	}
+}
+
+// record marks one resource's sensitive fields and tracks the collection,
+// the marked count, and any missed (listed-but-not-found) paths.
+func (a *sensitiveAudit) record(m *sensitiveMetadata, r *ResourceInfo, collection string) {
+	marked, missed := m.markResource(r, collection)
+	a.consumed[collection] = true
+	a.resources[collection]++
+	a.marked += marked
+	for _, p := range missed {
+		if a.missCounts[collection] == nil {
+			a.missCounts[collection] = map[string]int{}
+		}
+		a.missCounts[collection][p]++
+	}
+}
+
+// lines returns the audit report lines (sorted for determinism):
+//   - upstream collections with no generated resource (reverse audit)
+//   - listed paths not found in any schema, deduped across resources
+//   - a summary line: "sensitive metadata: marked N fields across M collections"
+//
+// A miss is only emitted when every resource in the collection missed the
+// path: with ~43 Setting* resources sharing the "setting" collection, a path
+// present in some schemas but not others is per-resource noise, while a path
+// missing from all of them is real drift.
+func (a *sensitiveAudit) lines(m *sensitiveMetadata) []string {
+	var out []string
+
+	var unconsumed []string
+	for c := range m.ByCollection {
+		if !a.consumed[c] {
+			unconsumed = append(unconsumed, c)
+		}
+	}
+	slices.Sort(unconsumed)
+	for _, c := range unconsumed {
+		out = append(out, fmt.Sprintf("sensitive metadata: collection %q has no generated resource", c))
+	}
+
+	var missLines []string
+	for c, paths := range a.missCounts {
+		for p, n := range paths {
+			if n == a.resources[c] {
+				missLines = append(missLines, fmt.Sprintf("sensitive metadata: %s.%s not found in any schema", c, p))
+			}
+		}
+	}
+	slices.Sort(missLines)
+	out = append(out, missLines...)
+
+	collections := 0
+	for c := range a.consumed {
+		if _, ok := m.ByCollection[c]; ok {
+			collections++
+		}
+	}
+	out = append(out, fmt.Sprintf("sensitive metadata: marked %d fields across %d collections", a.marked, collections))
+	return out
+}
+
+// print writes lines() to stdout.
+func (a *sensitiveAudit) print(m *sensitiveMetadata) {
+	for _, l := range a.lines(m) {
+		fmt.Println(l)
+	}
 }
