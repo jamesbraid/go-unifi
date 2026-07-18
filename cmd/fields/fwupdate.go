@@ -9,11 +9,15 @@ import (
 )
 
 var firmwareUpdateApi = "https://fw-update.ubnt.com/api/firmware-latest"
+var firmwareLatestApi = "https://fw-update.ubnt.com/api/firmware-latest"
+var firmwareApi = "https://fw-update.ubnt.com/api/firmware"
 
 const (
 	debianPlatform         = "debian"
 	releaseChannel         = "release"
 	unifiControllerProduct = "unifi-controller"
+	osServerProduct        = "unifi-os-server"
+	osServerPlatform       = "linux-x64"
 	maxVersion             = "10.0.0"
 )
 
@@ -26,13 +30,15 @@ type firmwareUpdateApiResponseEmbedded struct {
 }
 
 type firmwareUpdateApiResponseEmbeddedFirmware struct {
-	Channel  string                                         `json:"channel"`
-	Created  string                                         `json:"created"`
-	Id       string                                         `json:"id"`
-	Platform string                                         `json:"platform"`
-	Product  string                                         `json:"product"`
-	Version  *version.Version                               `json:"version"`
-	Links    firmwareUpdateApiResponseEmbeddedFirmwareLinks `json:"_links"`
+	Channel        string                                         `json:"channel"`
+	Created        string                                         `json:"created"`
+	Id             string                                         `json:"id"`
+	Platform       string                                         `json:"platform"`
+	Product        string                                         `json:"product"`
+	Version        *version.Version                               `json:"version"`
+	Sha256Checksum string                                         `json:"sha256_checksum"`
+	FileSize       int64                                          `json:"file_size"`
+	Links          firmwareUpdateApiResponseEmbeddedFirmwareLinks `json:"_links"`
 }
 
 type firmwareUpdateApiResponseEmbeddedFirmwareDataLink struct {
