@@ -15,7 +15,7 @@ func TestScanExtractedInputsAcceptsKnownShapes(t *testing.T) {
 	root := t.TempDir()
 	writeScanFixture(t, root, "Device.json", `{"name":".*","nested":{"type":"string"}}`)
 	writeScanFixture(t, root, "metadata/sensitive_metadata.json", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`)
-	writeScanFixture(t, root, "metadata/country_codes_list.json", `[{"name":"Canada","key":"CA","hints":[],"code":"124","channels_ng":[1,2],"afc":{"channels_6e":[]}}]`)
+	writeScanFixture(t, root, "metadata/country_codes_list.json", `[{"name":"Canada","key":"CA","hints":[],"code":"124","channels_ng":[1,2],"channels_ad_ext_1080":[1],"channels_ad_ext_2160":[2],"afc":{"channels_6e":[]}}]`)
 	writeScanFixture(t, root, "metadata/event_defs.json", `{"EVT_AP_Test":{"subsystem":"wlan","alert_repeat":true,"alert_sendmail":false,"alert_subject":"Test","key":"EVT_AP_Test","event_enabled":true,"msg":"{ap} connected","is_alert":false,"is_negative":false}}`)
 	writeScanFixture(t, root, "metadata/geo_ip_country_codes_list.json", `{"countries":["CA","US"]}`)
 	writeScanFixture(t, root, "metadata/legacy_endpoint_segments.json", `["api","hourly.site","upgrade-external"]`)

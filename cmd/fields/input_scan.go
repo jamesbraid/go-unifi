@@ -39,7 +39,7 @@ var (
 	artifactNamePattern     = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,512}$`)
 	timezoneKeyPattern      = regexp.MustCompile(`^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$`)
 	extensionKeyPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$`)
-	countryChannelPattern   = regexp.MustCompile(`^channels_(?:ng|na|ad|6e)(?:_(?:outdoor|indoor|dfs|40|80|160|240|320|4320|1080|2160|psc|ext_outdoor))?$`)
+	countryChannelPattern   = regexp.MustCompile(`^channels_(?:ng|na|ad|6e)(?:_(?:outdoor|indoor|dfs|40|80|160|240|320|4320|1080|2160|psc|ext_(?:outdoor|1080|2160)))?$`)
 )
 
 var knownMetadataShapes = map[string]byte{
@@ -493,7 +493,7 @@ func rejectHighEntropy(value string) error {
 		return errors.New("contains high-entropy lowercase hexadecimal value")
 	}
 	for _, token := range alphabeticOpaquePattern.FindAllString(value, -1) {
-		if shannonEntropy(token) >= 3.75 {
+		if shannonEntropy(token) >= 3.75 && opaqueAlphabeticRun(token) {
 			return errors.New("contains high-entropy alphabetic value")
 		}
 	}
@@ -504,11 +504,36 @@ func rejectHighEntropy(value string) error {
 			lower = lower || r >= 'a' && r <= 'z'
 			encodedMarker = encodedMarker || r >= '0' && r <= '9' || strings.ContainsRune("=+/", r)
 		}
-		if upper && lower && (encodedMarker || shannonEntropy(token) >= 4) && shannonEntropy(token) >= 4 {
+		letters := strings.Map(func(r rune) rune {
+			if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' {
+				return r
+			}
+			return -1
+		}, token)
+		if upper && lower && shannonEntropy(token) >= 4 && (encodedMarker || opaqueAlphabeticRun(letters)) {
 			return errors.New("contains high-entropy base64-like value")
 		}
 	}
 	return nil
+}
+
+func opaqueAlphabeticRun(token string) bool {
+	runes := []rune(token)
+	upper, lower, transitions := false, false, 0
+	wasUpper := false
+	for i, r := range runes {
+		isUpper := r >= 'A' && r <= 'Z'
+		upper = upper || isUpper
+		lower = lower || r >= 'a' && r <= 'z'
+		if i > 0 && isUpper != wasUpper {
+			transitions++
+		}
+		wasUpper = isUpper
+	}
+	if !upper || !lower {
+		return true
+	}
+	return float64(transitions)/float64(len(runes)-1) > .45
 }
 
 func isBoundedHumanText(value string) bool {

@@ -66,6 +66,22 @@ Additional RED fixtures showed unchecked non-digest provenance fields and dynami
 
 Timezone keys use bounded IANA-zone grammar (plus `UTC`) and values use bounded POSIX-TZ grammar. Extension keys use bounded extension grammar and values use bounded MIME grammar. Human event text remains printable and bounded but is no longer exempt from opaque-token detection. Long alphabetic runs are entropy-checked regardless of upper/lower case, while schema punctuation remains parsed as schema syntax. Country channel keys were narrowed to the observed additive grammar. A third local scan of all real 10.4.57 metadata passed; the temporary absolute-path test was removed before commit.
 
+Correction: that final sentence was inaccurate. The cited all-file scan ran before the country-channel grammar was narrowed, and the grammar change was not followed by another real-data run. A later direct harness reproduced valid `channels_ad_ext_1080` and `channels_ad_ext_2160` being rejected. RED fixture coverage now includes both keys, and the exact observed suffix grammar accepts them.
+
+The temporary local harness called `validateCountryCodes` directly on the adjacent real `country_codes_list.json`, then copied all eight allowlisted real files and called the production `ScanExtractedInputs` dispatch. After also refining opaque detection to distinguish natural CamelCase event identifiers from alternating opaque runs, the exact verification was:
+
+```text
+$ GOCACHE=/tmp/go-cache go test ./cmd/fields -run 'TestLocalReal(CountryProductionValidator|AllMetadataProductionDispatch)$' -count=1 -v
+=== RUN   TestLocalRealCountryProductionValidator
+--- PASS: TestLocalRealCountryProductionValidator (0.01s)
+=== RUN   TestLocalRealAllMetadataProductionDispatch
+--- PASS: TestLocalRealAllMetadataProductionDispatch (0.08s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.313s
+```
+
+The absolute-path harness was removed immediately after this run and is not part of the committed test suite.
+
 The full test run required the normal external sandbox profile because existing `httptest` tests bind loopback ports.
 
 ## Decisions and follow-ups
