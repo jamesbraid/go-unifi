@@ -68,6 +68,9 @@ func TestIntegrationV2Drift(t *testing.T) {
 			if status != 200 {
 				t.Fatalf("probe status = %d", status)
 			}
+			if body == nil {
+				t.Fatalf("probe returned HTTP 200 with a non-JSON body — controller not serving the API?")
+			}
 
 			var observed []map[string]any
 			switch v := body.(type) {
