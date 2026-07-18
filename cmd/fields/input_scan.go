@@ -41,7 +41,6 @@ var (
 	timezoneKeyPattern      = regexp.MustCompile(`^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$`)
 	extensionKeyPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$`)
 	countryChannelPattern   = regexp.MustCompile(`^channels_(?:ng|na|ad|6e)(?:_(?:outdoor|indoor|dfs|40|80|160|240|320|4320|1080|2160|psc|ext_(?:outdoor|1080|2160)))?$`)
-	singletonEnumPattern    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,15}$`)
 )
 
 var knownMetadataShapes = map[string]byte{
@@ -640,10 +639,10 @@ func schemaString(value string) bool {
 		return true
 	}
 	switch value {
-	case "string", "number", "integer", "boolean", "object", "array", "null":
+	case "string", "number", "integer", "boolean", "object", "array", "null", "false":
 		return true
 	}
-	if singletonEnumPattern.MatchString(value) {
+	if reviewedSingletonEnum(value) {
 		return true
 	}
 	if strings.ContainsAny(value, `.*+?{}[]()|\\^$`) {
@@ -659,4 +658,13 @@ func schemaString(value string) bool {
 		return true
 	}
 	return false
+}
+
+func reviewedSingletonEnum(value string) bool {
+	switch value {
+	case "static-route", "switch", "upgrade":
+		return true
+	default:
+		return false
+	}
 }

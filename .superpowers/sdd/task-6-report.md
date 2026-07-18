@@ -55,6 +55,46 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Reviewed singleton-enum allowlist
+
+Review found that the bounded lowercase grammar still admitted arbitrary short
+concrete strings such as `password`, `letmein`, and `secret123`. Inventory of
+the real raw field schemas found exactly three lowercase singleton enum
+validators outside standard schema types: `static-route`, `switch`, and
+`upgrade`.
+
+RED fixtures confirmed that all three secret-like values passed under the
+grammar. The broad pattern is now replaced by an exact reviewed allowlist for
+the three observed enum validators, so any future singleton value fails closed
+for review. Fixtures cover acceptance of all three values and rejection of all
+three short secret-like strings with their RFC 6901 path.
+
+The stricter direct real-snapshot scan then revealed one separate observed
+literal category previously masked by the broad pattern:
+
+```text
+scan Setting.json: schema path /super_mgmt/default_site_device_auth_password_alert: unexpected concrete scalar "false"
+```
+
+Inventory found only this `"false"` boolean-literal validator (in its flattened
+and raw representations), so `false` is accepted explicitly alongside standard
+schema type tokens; `true` is not implicitly broadened. With that reviewed
+literal added, focused scanner tests and the full real snapshot pass:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestScanExtractedInputs' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.244s
+
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run TestTask6ReviewedSingletonRealSnapshot -count=1 -v
+=== RUN   TestTask6ReviewedSingletonRealSnapshot
+--- PASS: TestTask6ReviewedSingletonRealSnapshot (0.10s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.316s
+```
+
+The temporary real-snapshot harness was removed before final verification and
+commit.
+
 ## Singleton schema-enum scanner compatibility
 
 Root cause: `PortConf.json` contains `op_mode: "switch"` in both the flattened

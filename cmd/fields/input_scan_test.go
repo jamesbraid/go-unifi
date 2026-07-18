@@ -27,8 +27,26 @@ func TestScanExtractedInputsAcceptsKnownShapes(t *testing.T) {
 
 func TestScanExtractedInputsAcceptsSingletonSchemaEnums(t *testing.T) {
 	root := t.TempDir()
-	writeScanFixture(t, root, "PortConf.json", `{"op_mode":"switch","nested":{"mode":"layer_3-1"}}`)
+	writeScanFixture(t, root, "PortConf.json", `{"route_type":"static-route","op_mode":"switch","upgrade_mode":"upgrade"}`)
 	require.NoError(t, ScanExtractedInputs(root))
+}
+
+func TestScanExtractedInputsAcceptsObservedFalseBooleanLiteral(t *testing.T) {
+	root := t.TempDir()
+	writeScanFixture(t, root, "Setting.json", `{"super_mgmt":{"default_site_device_auth_password_alert":"false"}}`)
+	require.NoError(t, ScanExtractedInputs(root))
+}
+
+func TestScanExtractedInputsRejectsUnreviewedShortSingletons(t *testing.T) {
+	for _, value := range []string{"password", "letmein", "secret123", "true"} {
+		t.Run(value, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, "PortConf.json", `{"validator":"`+value+`"}`)
+			err := ScanExtractedInputs(root)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "/validator")
+		})
+	}
 }
 
 func TestScanExtractedInputsReportsRejectedSchemaJSONPath(t *testing.T) {
