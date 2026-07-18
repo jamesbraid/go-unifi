@@ -157,7 +157,7 @@ func ResolveInstaller(ctx context.Context, client *http.Client, endpoint string,
 		if err := ValidateInstallerURL(downloadURL); err != nil {
 			return InstallerSource{}, err
 		}
-		return InstallerSource{Kind: selector.Kind, URL: downloadURL}, nil
+		return resolveUOSInstaller(ctx, client, endpoint, selector)
 	case SourceUOSLatest, SourceUOSVersion:
 		return resolveUOSInstaller(ctx, client, endpoint, selector)
 	default:
@@ -251,10 +251,27 @@ func resolveUOSInstaller(ctx context.Context, client *http.Client, endpoint stri
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return InstallerSource{}, fmt.Errorf("decode firmware response: %w", err)
 	}
-	if len(response.Embedded.Firmware) != 1 {
-		return InstallerSource{}, fmt.Errorf("expected exactly one firmware result, got %d", len(response.Embedded.Firmware))
+	records := response.Embedded.Firmware
+	if selector.Kind == SourceInstallerURL {
+		wantedURL, err := url.Parse(selector.Value)
+		if err != nil {
+			return InstallerSource{}, fmt.Errorf("parse installer URL for correlation: %w", err)
+		}
+		matches := make([]firmwareUpdateApiResponseEmbeddedFirmware, 0, 1)
+		for _, candidate := range records {
+			if candidate.Links.Data.Href != nil && candidate.Links.Data.Href.String() == wantedURL.String() {
+				matches = append(matches, candidate)
+			}
+		}
+		if len(matches) != 1 {
+			return InstallerSource{}, fmt.Errorf("expected exactly one firmware result matching installer URL, got %d", len(matches))
+		}
+		records = matches
 	}
-	record := response.Embedded.Firmware[0]
+	if len(records) != 1 {
+		return InstallerSource{}, fmt.Errorf("expected exactly one firmware result, got %d", len(records))
+	}
+	record := records[0]
 	if record.Product != uosServerProduct || record.Platform != uosServerPlatform || record.Channel != releaseChannel {
 		return InstallerSource{}, errors.New("firmware result does not match requested product, platform, and channel")
 	}

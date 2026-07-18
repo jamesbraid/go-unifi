@@ -40,10 +40,11 @@ go run ./cmd/fields -print-source -uos-version 5.1.21
 `-print-source` emits one stable JSON object containing the OS version,
 firmware ID, official installer URL, SHA-256, size, and release timestamps.
 The network version is empty until the verified installer is extracted. This
-mode accepts no generation, verification, download, or output options. A raw
-`-installer-url` succeeds only if the resolver can correlate it with complete
-release metadata; otherwise it fails closed instead of emitting a source with
-no trusted checksum.
+mode accepts no generation, verification, download, or output options. An
+`-installer-url` is matched exactly against the official release records
+returned by firmware discovery and inherits that record's complete provenance.
+An unknown URL, duplicate match, or incomplete checksum fails closed instead of
+emitting or downloading an untrusted source.
 
 Use `-download-only` with any UniFi OS selector to extract and scan a local,
 gitignored snapshot without generating tracked output. After successful

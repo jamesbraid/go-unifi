@@ -77,14 +77,14 @@ func TestRunPrintSourceRejectsIncompatibleModesAndSelectors(t *testing.T) {
 	}
 }
 
-func TestRunPrintSourceRequiresCorrelatedChecksum(t *testing.T) {
+func TestRunPrintSourceRequiresCorrelatedMetadata(t *testing.T) {
 	deps := defaultRunDeps()
 	deps.moduleRoot = func() (string, error) { panic("module root must not be called") }
 	deps.materialize = func(context.Context, *http.Client, InstallerSource, string) (*MaterializedInstaller, error) {
 		panic("materialize must not be called")
 	}
 	err := runWithDeps(context.Background(), []string{"-print-source", "-installer-url", "https://fw-download.ubnt.com/data/unifi-os-server/raw"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
-	require.ErrorContains(t, err, "SHA-256")
+	require.ErrorContains(t, err, "matching installer URL")
 }
 
 func TestRunAcceptsAllUOSSelectors(t *testing.T) {

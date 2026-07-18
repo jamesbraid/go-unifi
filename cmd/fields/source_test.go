@@ -156,6 +156,74 @@ func TestResolveInstaller(t *testing.T) {
 	}
 }
 
+func TestResolveInstallerURLCorrelatesOfficialFirmwareMetadata(t *testing.T) {
+	target := map[string]any{
+		"channel": "release", "created": "2026-07-08T14:37:42Z", "updated": "2026-07-08T15:01:02Z",
+		"file_size": 880119750, "id": "firmware-id", "md5": "72f3373dfaf441afe33536221837bafe",
+		"sha256_checksum": "77e3feac1595779402dd87ff8d20d66faa39c87b572646f86ff0006711262445",
+		"platform":        "linux-x64", "product": "unifi-os-server", "version": "v5.1.21",
+		"_links": map[string]any{"data": map[string]any{"href": "https://fw-download.ubnt.com/data/unifi-os-server/target"}},
+	}
+	other := map[string]any{
+		"channel": "release", "created": "2026-07-09T14:37:42Z", "updated": "2026-07-09T15:01:02Z",
+		"file_size": 10, "id": "other-id", "sha256_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"platform": "linux-x64", "product": "unifi-os-server", "version": "v5.2.0",
+		"_links": map[string]any{"data": map[string]any{"href": "https://fw-download.ubnt.com/data/unifi-os-server/other"}},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, schemaFetcherUserAgent, req.Header.Get("User-Agent"))
+		assert.Contains(t, req.URL.Query()["filter"], firmwareUpdateApiFilter("eq", "product", uosServerProduct))
+		require.NoError(t, json.NewEncoder(rw).Encode(map[string]any{"_embedded": map[string]any{"firmware": []map[string]any{other, target}}}))
+	}))
+	defer server.Close()
+
+	got, err := ResolveInstaller(context.Background(), server.Client(), server.URL, SourceSelector{
+		Kind: SourceInstallerURL, Value: "https://fw-download.ubnt.com/data/unifi-os-server/target",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, SourceInstallerURL, got.Kind)
+	assert.Equal(t, "5.1.21", got.OSVersion)
+	assert.Equal(t, "firmware-id", got.FirmwareID)
+	assert.EqualValues(t, 880119750, got.ExpectedSize)
+	assert.Equal(t, target["sha256_checksum"], got.ExpectedSHA256)
+}
+
+func TestResolveInstallerURLFailsClosedWithoutUniqueCompleteMetadata(t *testing.T) {
+	valid := map[string]any{
+		"channel": "release", "created": "2026-07-08T14:37:42Z", "updated": "2026-07-08T15:01:02Z",
+		"file_size": 12, "id": "firmware-id", "sha256_checksum": "77e3feac1595779402dd87ff8d20d66faa39c87b572646f86ff0006711262445",
+		"platform": "linux-x64", "product": "unifi-os-server", "version": "v5.1.21",
+		"_links": map[string]any{"data": map[string]any{"href": "https://fw-download.ubnt.com/data/unifi-os-server/target"}},
+	}
+	for _, tt := range []struct {
+		name    string
+		records []map[string]any
+	}{
+		{name: "unknown URL", records: nil},
+		{name: "ambiguous URL", records: []map[string]any{valid, valid}},
+		{name: "incomplete checksum", records: []map[string]any{func() map[string]any {
+			copy := make(map[string]any, len(valid))
+			for key, value := range valid {
+				copy[key] = value
+			}
+			copy["sha256_checksum"] = ""
+			return copy
+		}()}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+				require.NoError(t, json.NewEncoder(rw).Encode(map[string]any{"_embedded": map[string]any{"firmware": tt.records}}))
+			}))
+			defer server.Close()
+			_, err := ResolveInstaller(context.Background(), server.Client(), server.URL, SourceSelector{
+				Kind: SourceInstallerURL, Value: "https://fw-download.ubnt.com/data/unifi-os-server/target",
+			})
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestResolveInstallerRejectsIncompleteOrMismatchedRecords(t *testing.T) {
 	valid := map[string]any{
 		"channel": "release", "created": "2026-07-08T14:37:42Z", "updated": "2026-07-08T14:37:42Z",
