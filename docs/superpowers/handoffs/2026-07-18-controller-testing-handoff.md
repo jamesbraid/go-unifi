@@ -135,3 +135,16 @@ upstream fixes there (same org).
   testcontainers cannot find the socket. It used to panic on that
   failure; the harness now converts it to a skip (see
   `internal/testenv` `newDockerProviderSafe`).
+- **Guest-purpose deferral (final review, not yet closed)**: the phase 2
+  field probe only exercised `purpose=corporate`. The 35 fields it wired
+  into `marshalCorporate`/`marshalWAN`/`marshalSiteVPN`/`marshalUserVPN`
+  were deliberately NOT mirrored into `marshalGuest` (see the comment
+  above it in `unifi/network_encode.go`) — the encoder-value coverage
+  test uses any-purpose-union semantics so it cannot flag this gap. A
+  guest-purpose probe pass is needed before porting those field groups.
+  Related follow-up from the same review: the always-emitted empty-string
+  WAN fields (`wan_ipv6`, `wan_gateway_v6`, `wan_username`,
+  `x_wan_password` on non-static/non-pppoe WANs) match the generated
+  tags but were never live-probed in the unset state — add a plain-DHCP
+  WAN case to the next probe run to confirm the controller accepts an
+  empty string there.

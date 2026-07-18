@@ -314,6 +314,21 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 }
 
 // marshalGuest marshals a Guest network.
+//
+// Guest shares the networkconf collection with Corporate, and the phase 2
+// field probe (see docs/superpowers/handoffs/2026-07-18-controller-testing-
+// handoff.md) only exercised purpose=corporate. The following field groups
+// were live-verified and wired into marshalCorporate/marshalWAN/
+// marshalSiteVPN/marshalUserVPN but were deliberately NOT mirrored here:
+// dhcpd_time_offset (paired with dhcpd_time_offset_enabled, which this
+// struct already emits), mac_override_enabled (paired with mac_override,
+// which this struct already emits), firewall_zone_id, upnp_lan_enabled, the
+// advanced IGMP fields (igmp_fastleave, igmp_flood_unknown_multicast,
+// igmp_groupmembership, igmp_maxresponse, igmp_mcrtrexpiretime,
+// igmp_querier_switches, igmp_supression), and the ipv6 single-network pair
+// (ipv6_single_network_interface, single_network_lan). Do not port these
+// without a guest-purpose probe pass to confirm they persist the same way
+// on this purpose.
 func (n *Network) marshalGuest() ([]byte, error) {
 	var defaultStart, defaultEnd string
 	if n.IPSubnet != nil {
