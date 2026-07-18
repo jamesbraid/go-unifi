@@ -267,7 +267,8 @@ func usage() {
 
 // buildSchemas obtains a controller artifact (downloading it unless a local
 // file is given), extracts the field definitions and metadata into the
-// schemas directory, and records the UniFi Network version it found there.
+// schemas directory, and records the UniFi Network version it found there,
+// along with the source artifact (URL or local path) as the ARTIFACT marker.
 func buildSchemas(
 	schemasDir, fieldsDir, metadataDir, customDir string,
 	localFile string,

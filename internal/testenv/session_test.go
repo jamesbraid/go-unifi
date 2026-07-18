@@ -1,4 +1,3 @@
-// internal/testenv/session_test.go
 package testenv
 
 import (
@@ -92,16 +91,16 @@ func TestSessionLoginBootPlaceholder(t *testing.T) {
 func TestSessionLoginMetaRCError(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"meta":{"rc":"error"}}`))
+		w.Write([]byte(`{"meta":{"rc":"invalid_credentials"}}`))
 	}))
 	defer srv.Close()
 
 	s := NewSession(srv.URL)
 	err := s.Login(context.Background(), "admin", "admin")
 	if err == nil {
-		t.Fatal(`expected login error for meta.rc == "error"`)
+		t.Fatal(`expected login error for meta.rc == "invalid_credentials"`)
 	}
-	if !strings.Contains(err.Error(), "error") {
+	if !strings.Contains(err.Error(), "invalid_credentials") {
 		t.Fatalf("error %q should include the rc value", err)
 	}
 }

@@ -15,19 +15,18 @@ import (
 )
 
 // v2Probes maps each hand-written schema in overrides/resources/ to the
-// live endpoint that serves it. list=false endpoints return a single object.
+// live endpoint that serves it.
 var v2Probes = []struct {
 	schemaFile string
 	path       string
-	list       bool
 }{
-	{"FirewallZone.json", "/v2/api/site/%s/firewall/zone", true},
-	{"FirewallPolicy.json", "/v2/api/site/%s/firewall-policies", true},
-	{"TrafficRoute.json", "/v2/api/site/%s/trafficroutes", true},
-	{"Nat.json", "/v2/api/site/%s/nat", true},
-	{"DnsRecord.json", "/v2/api/site/%s/static-dns", true},
-	{"OSPFRouter.json", "/v2/api/site/%s/ospf/router", true},
-	{"BgpConfig.json", "/v2/api/site/%s/bgp/config", false},
+	{"FirewallZone.json", "/v2/api/site/%s/firewall/zone"},
+	{"FirewallPolicy.json", "/v2/api/site/%s/firewall-policies"},
+	{"TrafficRoute.json", "/v2/api/site/%s/trafficroutes"},
+	{"Nat.json", "/v2/api/site/%s/nat"},
+	{"DnsRecord.json", "/v2/api/site/%s/static-dns"},
+	{"OSPFRouter.json", "/v2/api/site/%s/ospf/router"},
+	{"BgpConfig.json", "/v2/api/site/%s/bgp/config"},
 }
 
 // TestIntegrationV2Drift compares the hand-written v2 schemas against what a

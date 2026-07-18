@@ -42,7 +42,7 @@ func TestIntegrationControllerBoots(t *testing.T) {
 		if wantVersion == "" {
 			t.Logf("could not parse a version out of UNIFI_TEST_PKGURL=%q; skipping pin check", pkgURL)
 		} else if runningVersion == "" {
-			t.Errorf("controller pin check skipped: UNIFI_TEST_PKGURL specifies version %q but sysinfo response has no version field", wantVersion)
+			t.Errorf("controller pin check could not be performed: UNIFI_TEST_PKGURL specifies version %q but sysinfo response has no version field", wantVersion)
 		} else if runningVersion != wantVersion {
 			t.Errorf("controller pin not honoured: requested version %q (from UNIFI_TEST_PKGURL=%q) but controller reports %q; "+
 				"current jacobalberty/unifi images cannot install a runtime PKGURL, so the container runs its bundled build",

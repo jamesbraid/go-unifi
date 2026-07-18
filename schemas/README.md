@@ -52,13 +52,16 @@ generator fails with a collision error naming the offending file).
 
 ## Live verification
 
-`go test -tags integration ./internal/testenv/ ./cmd/fields/` boots a
-disposable simulation-mode controller (jacobalberty/unifi via
+`go test -tags integration ./internal/testenv/ ./cmd/fields/ -timeout 20m`
+boots a disposable simulation-mode controller (jacobalberty/unifi via
 testcontainers; `admin`/`admin`) and compares the hand-written v2 schemas
-in `overrides/resources/` against what the live API serves. Pin the
-controller build with `UNIFI_TEST_IMAGE` or `UNIFI_TEST_PKGURL` (a UniFi
-Network .deb URL), or point `UNIFI_TEST_URL` at an existing controller.
-Current jacobalberty/unifi images ignore a runtime `UNIFI_TEST_PKGURL`
-(no `docker-build.sh` in the image), so pinning a build only takes effect
-against an image that supports it; the smoke test fails if a requested
-pin is not honoured.
+in `overrides/resources/` against what the live API serves. The explicit
+`-timeout` matters: the two packages each boot their own container, and
+two container boots can together exceed Go's default 10-minute test
+timeout. Pin the controller build with `UNIFI_TEST_IMAGE` or
+`UNIFI_TEST_PKGURL` (a UniFi Network .deb URL), or point `UNIFI_TEST_URL`
+at an existing controller — targets used this way must accept the demo
+`admin`/`admin` credentials. Current jacobalberty/unifi images ignore a
+runtime `UNIFI_TEST_PKGURL` (no `docker-build.sh` in the image), so
+pinning a build only takes effect against an image that supports it; the
+smoke test fails if a requested pin is not honoured.
