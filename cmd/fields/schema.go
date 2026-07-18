@@ -870,8 +870,13 @@ func (g *SpecificationGenerator) WriteSpecification(outputPath string) error {
 	return nil
 }
 
+// markResourceAttributeSensitive sets Sensitive on whichever attribute type
+// slot is populated. It intentionally parallels markDataSourceAttributeSensitive;
+// the duplication is deliberate because the attribute types differ per package.
 func markResourceAttributeSensitive(attr *resource.Attribute) {
 	switch {
+	case attr.Dynamic != nil:
+		attr.Dynamic.Sensitive = ptr(true)
 	case attr.Bool != nil:
 		attr.Bool.Sensitive = ptr(true)
 	case attr.Float64 != nil:
@@ -901,8 +906,13 @@ func markResourceAttributeSensitive(attr *resource.Attribute) {
 	}
 }
 
+// markDataSourceAttributeSensitive sets Sensitive on whichever attribute type
+// slot is populated. It intentionally parallels markResourceAttributeSensitive;
+// the duplication is deliberate because the attribute types differ per package.
 func markDataSourceAttributeSensitive(attr *datasource.Attribute) {
 	switch {
+	case attr.Dynamic != nil:
+		attr.Dynamic.Sensitive = ptr(true)
 	case attr.Bool != nil:
 		attr.Bool.Sensitive = ptr(true)
 	case attr.Float64 != nil:

@@ -400,6 +400,27 @@ func TestSpecificationGenerator_SensitiveAttributes(t *testing.T) {
 	assert.True(t, find("x_password").sensitive, "top-level sensitive")
 	assert.False(t, find("name").sensitive, "not sensitive")
 
+	// data source side: same fields flow through fieldToDataSourceAttribute
+	require.Len(t, spec.DataSources, 1)
+	dsAttrs := spec.DataSources[0].Schema.Attributes
+
+	findDS := func(name string) *struct{ found, sensitive bool } {
+		for _, a := range dsAttrs {
+			if a.Name == name {
+				s := false
+				switch {
+				case a.String != nil && a.String.Sensitive != nil:
+					s = *a.String.Sensitive
+				}
+				return &struct{ found, sensitive bool }{true, s}
+			}
+		}
+		return &struct{ found, sensitive bool }{}
+	}
+
+	assert.True(t, findDS("x_password").sensitive, "datasource top-level sensitive")
+	assert.False(t, findDS("name").sensitive, "datasource not sensitive")
+
 	// nested: auth_servers is a list_nested with x_secret inside
 	for _, a := range attrs {
 		if a.Name != "auth_servers" {
