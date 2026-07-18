@@ -46,18 +46,11 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	// wired; see marshalCorporate).
 	"igmp_proxy_downstream_networkconf_ids",
 
-	// advanced site-vpn IPsec options (IKE identifiers, tunnel IP, separate
-	// IKEv2 networks) are configurable in the UI but never sent by
-	// marshalSiteVPN.
-	"ipsec_local_identifier",
-	"ipsec_local_identifier_enabled",
-	"ipsec_remote_identifier",
-	"ipsec_remote_identifier_enabled",
-	"ipsec_separate_ikev2_networks",
+	// advanced site-vpn IPsec route-based (dynamic routing) options: tunnel
+	// IP and the dynamic-subnets toggle (the rest of this group -- IKE
+	// identifiers, separate IKEv2 networks -- is wired; see marshalSiteVPN).
 	"ipsec_tunnel_ip",
 	"ipsec_tunnel_ip_enabled",
-
-	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle.
 	"remote_vpn_dynamic_subnets_enabled",
 
 	// L2TP remote-user-vpn RADIUS option is never sent even though the other
