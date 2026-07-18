@@ -1,1 +1,9 @@
 /v*.*.*/
+/.v*.*.*.staging-*/
+/.v*.*.*.backup-*/
+/.schema-source.json.tmp-*
+/unifi-os-server-*
+/image.tar
+/ace.jar
+/internal-dependencies.jar
+/raw-metadata/
