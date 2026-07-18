@@ -348,7 +348,7 @@ func main() {
 		false,
 		"Only download and build the fields JSON directory, do not generate",
 	)
-	useLatestVersion := flag.Bool("latest", false, "Use the latest available version")
+	useLatestVersion := flag.Bool("latest", false, "Fetch the latest UniFi OS Server release (installer path)")
 	osServerFlag := flag.String(
 		"os-server",
 		"",
@@ -449,11 +449,14 @@ func main() {
 		switch mode {
 		case modeInstallerLatest:
 			rel, err = latestOsServerRelease()
+			if err != nil {
+				panic(err)
+			}
 		case modeInstallerVersion:
 			rel, err = findOsServerRelease(*osServerFlag)
-		}
-		if err != nil {
-			panic(err)
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		installerPath := *installerFlag
