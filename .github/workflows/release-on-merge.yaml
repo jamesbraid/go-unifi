@@ -1,0 +1,54 @@
+---
+name: Release On Schema Update
+
+on:
+  push:
+    branches:
+      - 'main'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Check for generated schema changes
+        id: changed
+        run: |
+          set -euo pipefail
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^unifi/.*\.generated\.go$|^specification\.json$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no generated schema changes; skipping"
+          fi
+
+      - name: Create GitHub App token
+        if: steps.changed.outputs.changed == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Tag next minor release
+        if: steps.changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          latest="$(git tag -l 'v*' --sort=-v:refname | head -1)"
+          latest="${latest:-v0.0.0}"
+          next="$(echo "${latest}" | awk -F. '{printf "v%d.%d.0", substr($1, 2), $2 + 1}')"
+          git tag "${next}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "${next}"
+          echo "tagged ${next} (was ${latest})"

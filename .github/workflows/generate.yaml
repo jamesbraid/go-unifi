@@ -6,23 +6,67 @@ on:
     - cron: 0 0 * * *
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-generation
+  cancel-in-progress: false
+
 jobs:
   fields:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      
+
+      - name: Check latest UniFi OS Server release
+        id: check
+        run: |
+          set -euo pipefail
+          latest="$(curl -sf 'https://fw-update.ubnt.com/api/firmware-latest?filter=eq~~channel~~release&filter=eq~~product~~unifi-os-server' | jq -r '[._embedded.firmware[] | select(.platform == "linux-x64")] | .[0].version | ltrimstr("v")')"
+          current="$(grep -oE 'UnifiOsServerVersion = "[^"]*"' unifi/version.generated.go | cut -d'"' -f2 || true)"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          if [ "${latest}" = "${current}" ]; then
+            echo "uptodate=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "latest UniFi OS Server: ${latest}; generated from: ${current:-none}"
+
       - name: Setup Go
+        if: steps.check.outputs.uptodate != 'true'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
 
       - name: Generate
+        if: steps.check.outputs.uptodate != 'true'
         run: go generate ./...
 
-      # TODO: Automatically merge the PR if tests pass.
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - name: Create GitHub App token
+        if: steps.check.outputs.uptodate != 'true'
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Create pull request
+        if: steps.check.outputs.uptodate != 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
           delete-branch: true
-          title: 'Update to latest controller version'
+          branch: auto/unifi-${{ steps.check.outputs.latest }}
+          title: "Update to UniFi OS Server ${{ steps.check.outputs.latest }}"
+          body: |
+            Automated regeneration from UniFi OS Server ${{ steps.check.outputs.latest }}.
+
+            Produced by the schema-generation workflow (`go generate ./...`).
+          labels: automation
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        run: gh pr merge --auto --squash "${{ steps.cpr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
