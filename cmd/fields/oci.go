@@ -29,7 +29,7 @@ func extractImageTar(installerPath, dir string) error {
 
 	fi, err := f.Stat()
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to stat installer: %w", err)
 	}
 
 	zr, err := zip.NewReader(f, fi.Size())
@@ -41,25 +41,35 @@ func extractImageTar(installerPath, dir string) error {
 		if zf.Name != "image.tar" {
 			continue
 		}
-		src, err := zf.Open()
-		if err != nil {
-			return err
-		}
-		defer src.Close()
-
-		dst, err := os.Create(filepath.Join(dir, "image.tar"))
-		if err != nil {
-			return err
-		}
-		defer dst.Close()
-
-		if _, err := io.Copy(dst, src); err != nil {
-			return fmt.Errorf("unable to extract image.tar: %w", err)
-		}
-		return nil
+		return writeImageTarEntry(zf, dir)
 	}
 
 	return errors.New("image.tar not found in installer zip payload")
+}
+
+// writeImageTarEntry extracts a single zip entry to dir/image.tar. Close
+// errors on the destination are checked so late writeback failures (e.g.
+// ENOSPC) surface here instead of as a later parse error.
+func writeImageTarEntry(zf *zip.File, dir string) error {
+	src, err := zf.Open()
+	if err != nil {
+		return fmt.Errorf("unable to open image.tar zip entry: %w", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(filepath.Join(dir, "image.tar"))
+	if err != nil {
+		return fmt.Errorf("unable to create image.tar: %w", err)
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return fmt.Errorf("unable to extract image.tar: %w", err)
+	}
+	if err := dst.Close(); err != nil {
+		return fmt.Errorf("unable to finish writing image.tar: %w", err)
+	}
+	return nil
 }
 
 // untarLayout extracts an OCI image layout tar into dir.
@@ -130,16 +140,18 @@ func findAceJar(layoutDir, workDir string) (string, error) {
 	for _, m := range manifest.Manifests {
 		img, err := ii.Image(m.Digest)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("unable to open image: %w", err)
 		}
 
 		layers, err := img.Layers()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("unable to list image layers: %w", err)
 		}
 
-		for _, layer := range layers {
-			path, err := extractAceJarFromLayer(layer, workDir)
+		// Top layer first: OCI overlay semantics give the topmost layer the
+		// final say for a path, so its ace.jar wins over stale copies below.
+		for i := len(layers) - 1; i >= 0; i-- {
+			path, err := extractAceJarFromLayer(layers[i], workDir)
 			if err != nil {
 				return "", err
 			}
@@ -155,7 +167,7 @@ func findAceJar(layoutDir, workDir string) (string, error) {
 func extractAceJarFromLayer(layer v1.Layer, workDir string) (string, error) {
 	rc, err := layer.Uncompressed()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("unable to uncompress layer: %w", err)
 	}
 	defer rc.Close()
 
@@ -179,10 +191,13 @@ func extractAceJarFromLayer(layer v1.Layer, workDir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		defer aceJar.Close()
 
 		if _, err := io.Copy(aceJar, tr); err != nil {
+			aceJar.Close()
 			return "", err
+		}
+		if err := aceJar.Close(); err != nil {
+			return "", fmt.Errorf("unable to finish writing ace.jar: %w", err)
 		}
 		return aceJar.Name(), nil
 	}

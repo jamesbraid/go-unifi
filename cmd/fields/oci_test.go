@@ -55,10 +55,36 @@ func TestUntarLayoutAndFindAceJar(t *testing.T) {
 	assert.Equal(t, aceJar, b)
 }
 
+func TestUntarLayoutRejectsTraversal(t *testing.T) {
+	for _, name := range []string{"../evil.txt", "/tmp/evil.txt"} {
+		t.Run(name, func(t *testing.T) {
+			tarPath := filepath.Join(t.TempDir(), "evil.tar")
+			writeTarFile(t, tarPath, name)
+
+			err := untarLayout(tarPath, t.TempDir())
+			assert.ErrorContains(t, err, "unsafe path")
+		})
+	}
+}
+
 func TestFindAceJarMissing(t *testing.T) {
 	layoutDir := writeTestLayout(t, map[string][]byte{
 		"usr/bin/bash": []byte("nope"),
 	})
 	_, err := findAceJar(layoutDir, t.TempDir())
 	assert.ErrorContains(t, err, "ace.jar")
+}
+
+func TestFindAceJarTopLayerWins(t *testing.T) {
+	layoutDir := writeTestLayoutMulti(t, []map[string][]byte{
+		{"usr/lib/unifi/lib/ace.jar": []byte("stale")},
+		{"./usr/lib/unifi/lib/ace.jar": []byte("fresh")}, // "./" prefix, as real layers often carry
+	})
+
+	got, err := findAceJar(layoutDir, t.TempDir())
+	require.NoError(t, err)
+
+	b, err := os.ReadFile(got)
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", string(b))
 }

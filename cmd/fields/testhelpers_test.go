@@ -62,34 +62,64 @@ func buildTestAceJar(t *testing.T, files map[string]string, networkVersion strin
 // given files, returning the layout dir.
 func writeTestLayout(t *testing.T, files map[string][]byte) string {
 	t.Helper()
+	return writeTestLayoutMulti(t, []map[string][]byte{files})
+}
 
-	var layerBuf bytes.Buffer
-	tw := tar.NewWriter(&layerBuf)
-	for name, content := range files {
-		require.NoError(t, tw.WriteHeader(&tar.Header{
-			Name:     name,
-			Mode:     0o644,
-			Size:     int64(len(content)),
-			Typeflag: tar.TypeReg,
-		}))
-		_, err := tw.Write(content)
+// writeTestLayoutMulti writes an OCI image layout with one tar layer per
+// entry (first entry is the base layer), returning the layout dir.
+func writeTestLayoutMulti(t *testing.T, layers []map[string][]byte) string {
+	t.Helper()
+
+	img := empty.Image
+	for _, files := range layers {
+		var layerBuf bytes.Buffer
+		tw := tar.NewWriter(&layerBuf)
+		for name, content := range files {
+			require.NoError(t, tw.WriteHeader(&tar.Header{
+				Name:     name,
+				Mode:     0o644,
+				Size:     int64(len(content)),
+				Typeflag: tar.TypeReg,
+			}))
+			_, err := tw.Write(content)
+			require.NoError(t, err)
+		}
+		require.NoError(t, tw.Close())
+
+		layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(layerBuf.Bytes())), nil
+		})
+		require.NoError(t, err)
+
+		img, err = mutate.AppendLayers(img, layer)
 		require.NoError(t, err)
 	}
-	require.NoError(t, tw.Close())
-
-	layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(layerBuf.Bytes())), nil
-	})
-	require.NoError(t, err)
-
-	img, err := mutate.AppendLayers(empty.Image, layer)
-	require.NoError(t, err)
 
 	dir := t.TempDir()
 	p, err := layout.Write(dir, empty.Index)
 	require.NoError(t, err)
 	require.NoError(t, p.AppendImage(img))
 	return dir
+}
+
+// writeTarFile writes a tar file holding one empty-ish regular file per name.
+// Unlike tarDir it accepts arbitrary entry names (including unsafe ones).
+func writeTarFile(t *testing.T, path string, names ...string) {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, name := range names {
+		require.NoError(t, tw.WriteHeader(&tar.Header{
+			Name:     name,
+			Mode:     0o644,
+			Size:     1,
+			Typeflag: tar.TypeReg,
+		}))
+		_, err := tw.Write([]byte("x"))
+		require.NoError(t, err)
+	}
+	require.NoError(t, tw.Close())
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o644))
 }
 
 // tarDir returns dir's contents as tar bytes (paths relative to dir).
