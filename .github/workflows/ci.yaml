@@ -2,13 +2,15 @@
 name: CI
 
 on:
-  pull_request: {}
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   verify-generated-tree:
@@ -140,11 +142,10 @@ jobs:
         shell: bash
         env:
           APICOMPAT_BOOTSTRAP_SHA256: f5729a9a15a6cda97b980e7e399384b6d3ea8332b40a3a41228e334eb0fb9228
+          BREAKING_API_APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-api-approved') }}
         run: |
-          set +e
           if [[ -f cmd/apicompat/main.go ]]; then
-            go run ./cmd/apicompat -base . -candidate ../candidate \
-              -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+            go build -o "$RUNNER_TEMP/apicompat" ./cmd/apicompat
           else
             bootstrap_sha256="$(sha256sum ../candidate/cmd/apicompat/main.go | cut -d ' ' -f 1)"
             if [[ "$bootstrap_sha256" != "$APICOMPAT_BOOTSTRAP_SHA256" ]]; then
@@ -152,31 +153,77 @@ jobs:
               exit 1
             fi
             GOWORK=off GOFLAGS=-mod=readonly \
-              go run ../candidate/cmd/apicompat/main.go \
-              -base . -candidate ../candidate \
-              -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+              go build -o "$RUNNER_TEMP/apicompat" ../candidate/cmd/apicompat/main.go
           fi
-          status=$?
-          set -e
-          if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
-            cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$status"
-
-      - name: Compare push API
-        if: github.event_name == 'push'
-        working-directory: candidate
-        shell: bash
-        run: |
           set +e
-          go run ./cmd/apicompat -base ../base -candidate . \
+          "$RUNNER_TEMP/apicompat" -base . -candidate ../candidate \
             -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
           status=$?
           set -e
           if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
             cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
           fi
-          exit "$status"
+          case "$status" in
+            0) exit 0 ;;
+            2)
+              if [[ "$BREAKING_API_APPROVED" == "true" ]]; then
+                echo "::warning title=Breaking API approved::Breaking API change approved by maintainer label"
+                echo "> [!WARNING]" >> "$GITHUB_STEP_SUMMARY"
+                echo "> Breaking API change approved by maintainer label." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              exit 2
+              ;;
+            3) exit 3 ;;
+            *) echo "unexpected API comparison status: $status" >&2; exit 3 ;;
+          esac
+
+      - name: Compare push API
+        if: github.event_name == 'push'
+        id: push-api
+        working-directory: candidate
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/apicompat" ./cmd/apicompat
+          set +e
+          "$RUNNER_TEMP/apicompat" -base ../base -candidate . \
+            -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          status=$?
+          set -e
+          if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
+            cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          case "$status" in
+            0) echo "status=compatible" >> "$GITHUB_OUTPUT" ;;
+            2) echo "status=breaking" >> "$GITHUB_OUTPUT" ;;
+            3) exit 3 ;;
+            *) echo "unexpected API comparison status: $status" >&2; exit 3 ;;
+          esac
+
+      - name: Verify approved breaking push
+        if: github.event_name == 'push' && steps.push-api.outputs.status == 'breaking'
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' \
+            "/repos/$REPOSITORY/commits/$CANDIDATE_SHA/pulls" \
+            > "$RUNNER_TEMP/associated-api-prs.json"
+          jq -e --arg repo "$REPOSITORY" '
+            [.[] | select(
+              .merged_at != null and
+              .base.ref == "main" and
+              .base.repo.full_name == $repo
+            )] as $prs |
+            ($prs | length == 1) and
+            ($prs[0].labels | map(.name) | index("breaking-api-approved") != null)
+          ' "$RUNNER_TEMP/associated-api-prs.json" > /dev/null
+          echo "::warning title=Breaking API approved::Merged PR carries breaking-api-approved"
+          echo "> [!WARNING]" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Breaking API change was approved on the single associated merged PR." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require clean API comparison trees
         run: |

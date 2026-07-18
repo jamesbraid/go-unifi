@@ -195,6 +195,19 @@ generated-path boundary, deterministic regeneration, committed provenance,
 tests, vet, lint, and API comparison have completed. Breaking API changes are
 reported in a pull request but are never automatically merged.
 
+A maintainer may explicitly approve a legitimate major-version change by applying
+the exact `breaking-api-approved` label. Pull-request CI accepts comparator exit
+status 2 only when that maintainer-controlled label is present; ambiguous status 3
+always fails. Push CI independently verifies that a breaking main commit is
+associated with exactly one merged pull request into `main` carrying the label, so
+direct, unlabeled, or multiply-associated pushes fail closed. The schema updater
+never enables auto-merge for a breaking change, even when labeled.
+
+The label authorizes review and merge only. `UniFi Schema Release` continues to
+require `api-compatibility: compatible`, so a labeled breaking change cannot create
+an automated patch tag. After the compatibility decision and versioning work are
+complete, publish any major release through the separate manual tag process.
+
 Both schema workflows need a narrowly installed GitHub App. Configure the
 repository secrets `SCHEMA_AUTOMATION_APP_ID` and
 `SCHEMA_AUTOMATION_PRIVATE_KEY`. The App installation needs Contents write
@@ -208,3 +221,8 @@ the exact value `true`. The workflows do not create or modify this variable:
 leave it unset until the App,
 branch-protection rules, release workflow, and first automation pull request
 have been reviewed. Local generation never authorizes an automated release.
+
+Task 8 external setup must create the repository label before the manual dry run,
+for example `gh label create breaking-api-approved --color B60205 --description
+'Maintainer-approved breaking Go API change'`. Restrict label application through
+the repository's normal maintainer permissions and review process.

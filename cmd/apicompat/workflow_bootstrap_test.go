@@ -24,17 +24,17 @@ func TestPullRequestWorkflowBootstrapsOnlyReviewedComparator(t *testing.T) {
 	pullRequestStep := between(t, string(workflow), "      - name: Compare pull request API", "      - name: Compare push API")
 
 	assert.Contains(t, pullRequestStep, "if [[ -f cmd/apicompat/main.go ]]; then")
-	assert.Contains(t, pullRequestStep, "go run ./cmd/apicompat")
+	assert.Contains(t, pullRequestStep, `go build -o "$RUNNER_TEMP/apicompat" ./cmd/apicompat`)
 	assert.Contains(t, pullRequestStep, "sha256sum ../candidate/cmd/apicompat/main.go")
 	assert.Contains(t, pullRequestStep, "APICOMPAT_BOOTSTRAP_SHA256: "+expectedDigest)
 	assert.Contains(t, pullRequestStep, "GOWORK=off GOFLAGS=-mod=readonly")
-	assert.Contains(t, pullRequestStep, "go run ../candidate/cmd/apicompat/main.go")
+	assert.Contains(t, pullRequestStep, `go build -o "$RUNNER_TEMP/apicompat" ../candidate/cmd/apicompat/main.go`)
 	assert.Contains(t, pullRequestStep, "refusing unreviewed API comparator bootstrap")
 	assert.NotContains(t, pullRequestStep, "cd ../candidate")
 	assert.NotContains(t, pullRequestStep, "working-directory: candidate")
 	assert.Less(t,
-		strings.Index(pullRequestStep, "go run ./cmd/apicompat"),
-		strings.Index(pullRequestStep, "go run ../candidate/cmd/apicompat/main.go"),
+		strings.Index(pullRequestStep, `go build -o "$RUNNER_TEMP/apicompat" ./cmd/apicompat`),
+		strings.Index(pullRequestStep, `go build -o "$RUNNER_TEMP/apicompat" ../candidate/cmd/apicompat/main.go`),
 		"trusted base comparator must remain the normal path",
 	)
 }

@@ -438,6 +438,11 @@ Commit: `ci: automate compatible UniFi schema releases`
 
 ### Task 8: Manual automation dry run
 
+Before the dry run, create the maintainer-controlled `breaking-api-approved`
+repository label. Applying it permits a reviewed breaking PR to satisfy CI and be
+merged manually, but must not enable updater auto-merge or the compatible-only
+schema patch tag workflow; a major release remains a separate manual tag decision.
+
 **Files:**
 - Modify only files whose behavior fails the dry run.
 

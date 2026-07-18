@@ -202,8 +202,9 @@ jobs:
         run: |
           set -euo pipefail
           git worktree add --detach "$RUNNER_TEMP/schema-base" origin/main
+          go build -o "$RUNNER_TEMP/apicompat" ./cmd/apicompat
           set +e
-          go run ./cmd/apicompat -base "$RUNNER_TEMP/schema-base" -candidate . \
+          "$RUNNER_TEMP/apicompat" -base "$RUNNER_TEMP/schema-base" -candidate . \
             -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
           status=$?
           set -e
