@@ -2,5 +2,6 @@
     "name": "",
     "device_macs": [
         ""
-    ]
+    ],
+    "for_wlanconf": "true|false"
 }
