@@ -33,8 +33,9 @@ type APGroup struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	DeviceMacs []string `json:"device_macs"`
-	Name       string   `json:"name"`
+	DeviceMacs  []string `json:"device_macs"`
+	ForWLANconf bool     `json:"for_wlanconf"`
+	Name        string   `json:"name"`
 }
 
 func (dst *APGroup) UnmarshalJSON(b []byte) error {
