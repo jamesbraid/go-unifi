@@ -163,6 +163,7 @@ type FieldInfo struct {
 	FieldValidation     string
 	OmitEmpty           bool
 	IsArray             bool
+	Sensitive           bool
 	Fields              map[string]*FieldInfo
 	CustomUnmarshalType string
 	CustomUnmarshalFunc string
@@ -538,6 +539,11 @@ func main() {
 		panic(err)
 	}
 
+	sensitiveMeta, err := loadSensitiveMetadata(fieldsDir)
+	if err != nil {
+		panic(err)
+	}
+
 	// Initialize specification generator
 	specGen := NewSpecificationGenerator("unifi")
 
@@ -751,6 +757,11 @@ func main() {
 		if err != nil {
 			fmt.Printf("skipping file %s: %s", fieldsFile.Name(), err)
 			continue
+		}
+
+		if sensitiveMeta != nil {
+			collection := collectionForResource(fieldsFile.Name(), resource.StructName)
+			sensitiveMeta.markResource(resource, collection)
 		}
 
 		// Add fields not present in the JAR schema to nested types.
