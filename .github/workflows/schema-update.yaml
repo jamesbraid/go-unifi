@@ -44,6 +44,7 @@ jobs:
         id: source
         shell: bash
         env:
+          ALLOW_AUTOMATED_SCHEMA_RELEASES: ${{ vars.ALLOW_AUTOMATED_SCHEMA_RELEASES }}
           GH_TOKEN: ${{ github.token }}
           INPUT_UOS_VERSION: ${{ inputs.uos_version }}
           INPUT_INSTALLER_URL: ${{ inputs.installer_url }}
@@ -85,9 +86,41 @@ jobs:
                   .head.repo.full_name == $repo
                 )] | length' "$RUNNER_TEMP/pending-prs.json")
                 if [[ "$pending_pr_count" -eq 1 ]]; then
-                  automation_sha=$(git show \
+                  pending_pr_body=$(jq -r --arg repo "$REPOSITORY" '[.[] | select(
+                    .base.ref == "main" and .base.repo.full_name == $repo and
+                    .head.ref == "automation/unifi-schema-update" and
+                    .head.repo.full_name == $repo
+                  )][0].body // ""' "$RUNNER_TEMP/pending-prs.json")
+                  expected_digest=$(sed -n \
+                    's/.*expected-generated-tree-digest: \([0-9a-f]\{64\}\).*/\1/p' \
+                    <<< "$pending_pr_body")
+                  pending_generated_digest=$(git show \
                     refs/remotes/origin/automation/unifi-schema-update:cmd/fields/schema-source.json |
-                    jq -er .installer_sha256) || automation_sha=
+                    jq -er .generated_tree_digest) || pending_generated_digest=
+                  pending_api_marker=$(grep -E \
+                    '^<!-- api-compatibility: (compatible|breaking) -->$' \
+                    <<< "$pending_pr_body" || true)
+                  pending_api_status=${pending_api_marker#<!-- api-compatibility: }
+                  pending_api_status=${pending_api_status% -->}
+                  desired_auto_merge=false
+                  if [[ "$pending_api_status" == compatible ]] &&
+                    [[ "$ALLOW_AUTOMATED_SCHEMA_RELEASES" == true ]]; then
+                    desired_auto_merge=true
+                  fi
+                  pending_pr_number=$(jq -r --arg repo "$REPOSITORY" '[.[] | select(
+                    .base.ref == "main" and .base.repo.full_name == $repo and
+                    .head.ref == "automation/unifi-schema-update" and
+                    .head.repo.full_name == $repo
+                  )][0].number' "$RUNNER_TEMP/pending-prs.json")
+                  current_auto_merge=$(gh pr view "$pending_pr_number" --repo "$REPOSITORY" \
+                    --json autoMergeRequest --jq '.autoMergeRequest != null')
+                  if [[ "$expected_digest" == "$pending_generated_digest" ]] &&
+                    [[ "$pending_api_status" =~ ^(compatible|breaking)$ ]] &&
+                    [[ "$desired_auto_merge" == "$current_auto_merge" ]]; then
+                    automation_sha=$(git show \
+                      refs/remotes/origin/automation/unifi-schema-update:cmd/fields/schema-source.json |
+                      jq -er .installer_sha256) || automation_sha=
+                  fi
                 fi
               fi
               ;;
@@ -237,6 +270,7 @@ jobs:
 
       - name: Push and create or update stable pull request
         if: steps.source.outputs.changed == 'true'
+        id: pull-request
         shell: bash
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -256,15 +290,35 @@ jobs:
             gh pr create --base main --head automation/unifi-schema-update \
               --title "$PR_TITLE" --body-file "$RUNNER_TEMP/schema-pr-body.md"
           fi
+          pr_number=$(gh pr list --state open --base main --head automation/unifi-schema-update \
+            --json number --jq '.[0].number // empty')
+          test -n "$pr_number"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
 
-      - name: Enable compatible release auto-merge
-        if: >-
-          steps.source.outputs.changed == 'true' &&
-          steps.api.outputs.api_status == 'compatible' &&
-          vars.ALLOW_AUTOMATED_SCHEMA_RELEASES == 'true'
+      - name: Reconcile pull request auto-merge
+        if: steps.source.outputs.changed == 'true'
         env:
+          ALLOW_AUTOMATED_SCHEMA_RELEASES: ${{ vars.ALLOW_AUTOMATED_SCHEMA_RELEASES }}
+          API_STATUS: ${{ steps.api.outputs.api_status }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh pr merge --auto --rebase automation/unifi-schema-update
+          PR_NUMBER: ${{ steps.pull-request.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          desired_auto_merge=false
+          if [[ "$API_STATUS" == compatible ]] &&
+            [[ "$ALLOW_AUTOMATED_SCHEMA_RELEASES" == true ]]; then
+            desired_auto_merge=true
+          fi
+          current_auto_merge=$(gh pr view "$PR_NUMBER" --json autoMergeRequest \
+            --jq '.autoMergeRequest != null')
+          if [[ "$desired_auto_merge" == "$current_auto_merge" ]]; then
+            exit 0
+          fi
+          if [[ "$desired_auto_merge" == true ]]; then
+            gh pr merge --auto --rebase "$PR_NUMBER"
+          else
+            gh pr merge --disable-auto "$PR_NUMBER"
+          fi
 
       - name: Cleanup local schema inputs
         if: always()
