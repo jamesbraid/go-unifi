@@ -83,6 +83,13 @@ code generation. The scanner enforces known metadata shapes, rejects credential
 material and suspicious opaque values, and reports schema failures with their
 JSON Pointer path.
 
+Provenance artifact names use closed structural namespaces rather than generic
+entropy heuristics: `api/fields/<name>.json`, exact root metadata allowlist names,
+and reviewed direct or dependency-JAR notice paths. Canonical slash paths, safe
+component lengths, notice filename grammar, case uniqueness, and lowercase
+SHA-256 digests are mandatory. Entropy checks remain enabled for actual scalar
+values.
+
 Ubiquiti's sensitivity metadata is a privacy/sanitization inventory, not a
 Terraform policy. The committed `cmd/fields/sensitive-policy.json` approves one
 canonical metadata digest and exact reviewed paths:

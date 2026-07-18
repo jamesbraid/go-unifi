@@ -195,8 +195,20 @@ func validateSourceMetadata(body []byte) error {
 			return fmt.Errorf("source metadata %s is invalid", label)
 		}
 	}
-	for name, digest := range source.Artifacts {
-		if !artifactNamePattern.MatchString(name) || validateDigestPath(name) != nil || rejectHighEntropy(name) != nil || !isLowerHexDigest(digest, 64) {
+	artifactNames := make([]string, 0, len(source.Artifacts))
+	for name := range source.Artifacts {
+		artifactNames = append(artifactNames, name)
+	}
+	sort.Strings(artifactNames)
+	artifactNamesByFold := make(map[string]string, len(artifactNames))
+	for _, name := range artifactNames {
+		digest := source.Artifacts[name]
+		folded := strings.ToLower(name)
+		if previous, exists := artifactNamesByFold[folded]; exists {
+			return fmt.Errorf("source metadata artifact case ambiguity between %q and %q", previous, name)
+		}
+		artifactNamesByFold[folded] = name
+		if validateSourceArtifactName(name) != nil || !isLowerHexDigest(digest, 64) {
 			return fmt.Errorf("source metadata artifact %q is invalid", name)
 		}
 	}
@@ -213,6 +225,50 @@ func validateSourceMetadata(body []byte) error {
 	}
 	return nil
 }
+
+func validateSourceArtifactName(name string) error {
+	if !artifactNamePattern.MatchString(name) {
+		return errors.New("artifact path contains unsupported characters or length")
+	}
+	if err := validateDigestPath(name); err != nil {
+		return err
+	}
+	parts := strings.Split(name, "/")
+	for _, component := range parts {
+		if len(component) == 0 || len(component) > 255 {
+			return errors.New("artifact path component length is invalid")
+		}
+	}
+	if len(parts) == 3 && parts[0] == "api" && parts[1] == "fields" && strings.HasSuffix(parts[2], ".json") && len(strings.TrimSuffix(parts[2], ".json")) > 0 {
+		return nil
+	}
+	if len(parts) == 1 {
+		for _, allowed := range metadataAllowlist {
+			if name == allowed {
+				return nil
+			}
+		}
+		return errors.New("artifact is not approved root metadata")
+	}
+	var noticePath string
+	switch {
+	case parts[0] == "internal-dependencies.jar" && len(parts) >= 2:
+		noticePath = strings.Join(parts[1:], "/")
+	case parts[0] == "ace.jar" && len(parts) >= 2:
+		if len(parts) >= 5 && parts[1] == "BOOT-INF" && parts[2] == "lib" && strings.EqualFold(filepath.Ext(parts[3]), ".jar") {
+			noticePath = strings.Join(parts[4:], "/")
+		} else {
+			noticePath = strings.Join(parts[1:], "/")
+		}
+	default:
+		return errors.New("artifact namespace is not recognized")
+	}
+	if !isReviewedNoticePath(noticePath) {
+		return errors.New("artifact notice path is not reviewed")
+	}
+	return nil
+}
+
 func isLowerHexDigest(value string, n int) bool {
 	if len(value) != n {
 		return false

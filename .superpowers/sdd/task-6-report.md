@@ -201,6 +201,49 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+### Structured provenance artifact paths
+
+The final real snapshot scan exposed a false positive for
+`ace.jar/BOOT-INF/lib/spring-data-commons-3.5.10.jar/license.txt`: the generic
+base64/high-entropy detector treated slash and dash path segments as one opaque
+token. This stopped after atomic snapshot publication and did not change tracked
+output.
+
+RED coverage reproduces that exact path and exercises each provenance namespace.
+Artifact names now use a closed structural validator for one upstream
+`api/fields/<safe>.json` path, exact root metadata allowlist names, reviewed direct
+`ace.jar` and `internal-dependencies.jar` notices, and reviewed
+`ace.jar/BOOT-INF/lib/<safe.jar>` dependency notices. Canonical digest paths,
+ASCII path grammar, 512-byte total and 255-byte component limits, reviewed notice
+basenames, sorted case-fold uniqueness, and exact lowercase SHA-256 digests are
+enforced. Unknown namespaces, traversal, controls, backslashes, non-notices, and
+binary lookalikes fail. Scalar entropy checks are unchanged.
+
+A temporary test called `ScanExtractedInputs` directly on the complete published
+`v10.4.57` snapshot containing 138 notice files. It passed:
+
+```text
+=== RUN   TestTask6RealPublishedSnapshotScan
+--- PASS: TestTask6RealPublishedSnapshotScan (0.09s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.295s
+```
+
+The temporary real-snapshot harness was removed before final verification.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(ValidateSource|ScanExtractedInputs)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.230s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.788s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+```
+
 ## Extracted-definition lifecycle and snapshot semantics
 
 The successful extractor path returned file-backed artifacts beneath a

@@ -85,6 +85,48 @@ func TestScanExtractedInputsValidatesSourceMetadataURL(t *testing.T) {
 	require.ErrorContains(t, ScanExtractedInputs(root), "installer URL")
 }
 
+func TestValidateSourceMetadataAcceptsStructuredNoticeArtifactPath(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	body := map[string]any{
+		"network_version": "10.4.57", "policy_version": "1",
+		"artifacts":        map[string]string{"ace.jar/BOOT-INF/lib/spring-data-commons-3.5.10.jar/license.txt": digest},
+		"missing_optional": []string{},
+	}
+	encoded, err := json.Marshal(body)
+	require.NoError(t, err)
+	require.NoError(t, validateSourceMetadata(encoded))
+}
+
+func TestValidateSourceArtifactNameClosedNamespaces(t *testing.T) {
+	for _, name := range []string{
+		"api/fields/Device.json", "sensitive_metadata.json",
+		"ace.jar/META-INF/LICENSE", "internal-dependencies.jar/NOTICE.txt",
+		"ace.jar/BOOT-INF/lib/spring-data-commons-3.5.10.jar/license.txt",
+	} {
+		require.NoError(t, validateSourceArtifactName(name), name)
+	}
+	for _, name := range []string{
+		"other/Device.json", "api/fields/../Device.json", "api\\fields\\Device.json",
+		"api/fields/Device.exe", "unknown_metadata.json",
+		"ace.jar/BOOT-INF/lib/foo.jar/README.txt", "ace.jar/BOOT-INF/lib/foo.jar/LICENSE.class",
+		"ace.jar/BOOT-INF/lib/foo.jar/../../LICENSE", "ace.jar/BOOT-INF/lib/foo.jar/LICENSE\x00.txt",
+	} {
+		require.Error(t, validateSourceArtifactName(name), name)
+	}
+}
+
+func TestValidateSourceMetadataRejectsArtifactCaseAmbiguity(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	body := map[string]any{
+		"network_version": "10.4.57", "policy_version": "1",
+		"artifacts":        map[string]string{"api/fields/Device.json": digest, "api/fields/device.json": digest},
+		"missing_optional": []string{},
+	}
+	encoded, err := json.Marshal(body)
+	require.NoError(t, err)
+	require.ErrorContains(t, validateSourceMetadata(encoded), "case ambiguity")
+}
+
 func TestScanExtractedInputsRejectsOpaqueValuesInEverySensitivePosition(t *testing.T) {
 	opaque := []struct{ name, body string }{
 		{"default name", `{"min_field_size":1,"default_names":["AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`},
