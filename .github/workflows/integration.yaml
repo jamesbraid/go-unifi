@@ -39,27 +39,32 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      # Boot the exact build the schemas came from when it is a .deb; the
-      # UniFi OS Server installer cannot be installed into this image, so
-      # those artifacts fall back to the image's default controller.
-      - name: Pin controller build
-        id: pin
+      # Current jacobalberty/unifi images (v10.0.162 and latest, which
+      # bundles the same build) cannot install a runtime PKGURL: the
+      # entrypoint only runs /usr/local/bin/docker-build.sh "$PKGURL" if
+      # that script exists, and it does not in either tag, so PKGURL is
+      # silently ignored. Even a manual dpkg -i of a 10.4.x deb leaves
+      # unifi unconfigured (needs Java 25, absent from the image). So
+      # rather than claim a pin that never applies, just report what the
+      # schemas were built from and let the suite run the image's
+      # bundled build. UNIFI_TEST_PKGURL is still honoured by the
+      # harness (internal/testenv/controller.go) for whenever an image
+      # regains runtime install support; the smoke test added for that
+      # case (TestIntegrationControllerBoots) fails loudly if a pin is
+      # requested but not honoured, so re-enabling this is safe.
+      - name: Report controller provenance
         run: |
           artifact="$(cat schemas/ARTIFACT 2>/dev/null || true)"
           case "${artifact}" in
             https://*.deb)
-              echo "pkgurl=${artifact}" >> "$GITHUB_OUTPUT"
-              echo "Pinning controller to ${artifact}"
+              echo "::warning title=Controller pin unavailable::schemas built from ${artifact} but current jacobalberty/unifi images cannot install it at runtime (docker-build.sh removed; 10.4.x needs Java 25). Suite runs the image default build."
               ;;
             *)
-              echo "pkgurl=" >> "$GITHUB_OUTPUT"
               echo "No pinnable .deb artifact (${artifact:-none}); using image default"
               ;;
           esac
 
       - name: Run integration suite
-        env:
-          UNIFI_TEST_PKGURL: ${{ steps.pin.outputs.pkgurl }}
         run: >-
           go test -tags integration -timeout 25m -v
           ./internal/testenv/ ./cmd/fields/

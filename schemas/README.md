@@ -58,3 +58,7 @@ testcontainers; `admin`/`admin`) and compares the hand-written v2 schemas
 in `overrides/resources/` against what the live API serves. Pin the
 controller build with `UNIFI_TEST_IMAGE` or `UNIFI_TEST_PKGURL` (a UniFi
 Network .deb URL), or point `UNIFI_TEST_URL` at an existing controller.
+Current jacobalberty/unifi images ignore a runtime `UNIFI_TEST_PKGURL`
+(no `docker-build.sh` in the image), so pinning a build only takes effect
+against an image that supports it; the smoke test fails if a requested
+pin is not honoured.
