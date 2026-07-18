@@ -37,33 +37,14 @@ var networkEncoderPurposes = []string{
 // uses to classify the gap against a live controller;
 // TestFieldCandidatesCoverAllTODOs keeps the two lists in lockstep.
 var networkEncoderPresenceAllowlistTODOs = []string{
-	// dhcpd_time_offset_enabled is emitted for corporate/guest but the offset
-	// value itself is never sent.
-	"dhcpd_time_offset",
-
-	// mac_override is emitted for corporate/guest but its enable flag is
-	// never sent.
-	"mac_override_enabled",
-
 	// vpn_client_configuration_remote_ip_override is emitted for
 	// remote-user-vpn but its enable flag is never sent.
 	"vpn_client_configuration_remote_ip_override_enabled",
 
-	// zone-based firewall (controller 9.0+) network-to-zone assignment is
-	// never sent.
-	"firewall_zone_id",
-
-	// advanced multicast settings (fast leave, querier, proxy downstream
-	// networks, flood control) are configurable in current controller UIs but
-	// never sent.
-	"igmp_fastleave",
-	"igmp_flood_unknown_multicast",
-	"igmp_groupmembership",
-	"igmp_maxresponse",
-	"igmp_mcrtrexpiretime",
+	// advanced multicast settings: proxy downstream networks (the rest of
+	// this group -- fast leave, querier, flood control, suppression -- is
+	// wired; see marshalCorporate).
 	"igmp_proxy_downstream_networkconf_ids",
-	"igmp_querier_switches",
-	"igmp_supression",
 
 	// WAN MTU is a standard UI setting but is never sent by marshalWAN.
 	"interface_mtu",
@@ -80,21 +61,12 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	"ipsec_tunnel_ip",
 	"ipsec_tunnel_ip_enabled",
 
-	// ipv6_interface_type supports "single_network" but its companion
-	// interface/LAN selection fields are never sent.
-	"ipv6_single_network_interface",
-	"single_network_lan",
-
 	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle.
 	"remote_vpn_dynamic_subnets_enabled",
 
 	// L2TP remote-user-vpn RADIUS option is never sent even though the other
 	// l2tp_* fields are.
 	"require_mschapv2",
-
-	// per-LAN UPnP toggle is never sent even though the WAN-side upnp_*
-	// fields are emitted by marshalWAN.
-	"upnp_lan_enabled",
 
 	// OpenVPN server protocol (TCP/UDP) for remote-user-vpn is never sent
 	// even though openvpn_mode is.
