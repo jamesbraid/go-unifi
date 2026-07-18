@@ -55,6 +55,27 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Metadata-backed absent non-generated secrets
+
+Real sensitivity metadata classifies historical/device and root-setting secret
+paths that are absent from the corresponding 10.4.57 raw schema. The policy
+contract requires recording these as non-generated secrets, but the mapper
+previously rejected any missing path when its raw collection still existed.
+
+A RED fixture uses metadata-backed `device.x_authkey` with a real-shaped Device
+schema that lacks the field. The mapper now permits an absent exact
+`non_generated_secret_path` only when the same canonical path came from the
+approved vendor sensitivity metadata. It still checks the generated resource
+graph and fails if the path becomes generated. An absent typo such as
+`device.x_authkey_typo` fails because it is not backed by the approved metadata.
+This keeps historical secrets reviewable without turning the non-generated list
+into an unchecked extension point.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestApplySensitivity_(NonGeneratedSecretPathsEnforceStatus|AllowsMetadataBackedAbsentSecretInExistingRawCollection|FailuresAreTransactional)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.221s
+```
+
 ## NetworkConf compatibility-field identity
 
 The real generator parse path initially blocked sensitivity inventory because

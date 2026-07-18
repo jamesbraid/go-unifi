@@ -200,7 +200,7 @@ func TestApplySensitivity_SettingExpansionAndSkippedTerraform(t *testing.T) {
 }
 
 func TestApplySensitivity_NonGeneratedSecretPathsEnforceStatus(t *testing.T) {
-	metadata := sensitivityMetadata(t, map[string][]string{"wall": {"password"}}, nil, nil)
+	metadata := sensitivityMetadata(t, map[string][]string{"wall": {"password"}, "missingcollection": {"token"}}, nil, nil)
 	policy := approvedPolicy(t, metadata)
 	policy.NonGeneratedSecretPaths = []string{"wall.password", "missingcollection.token"}
 	coverage, err := ApplySensitivity(nil, rawSchemas(map[string]string{"Wall": `{"password":".*"}`}), metadata, policy)
@@ -223,6 +223,21 @@ func TestApplySensitivity_NonGeneratedSecretPathsEnforceStatus(t *testing.T) {
 	absentPolicy.NonGeneratedSecretPaths = []string{"missingcollection.token"}
 	_, err = ApplySensitivity([]*ResourceInfo{customOnly}, rawSchemas(map[string]string{"Wall": `{"password":".*"}`}), metadata, absentPolicy)
 	require.ErrorContains(t, err, "became generated")
+}
+
+func TestApplySensitivity_AllowsMetadataBackedAbsentSecretInExistingRawCollection(t *testing.T) {
+	metadata := sensitivityMetadata(t, map[string][]string{"device": {"x_authkey"}}, nil, nil)
+	raw := rawSchemas(map[string]string{"Device": `{"name":".*"}`})
+	policy := approvedPolicy(t, metadata)
+	policy.NonGeneratedSecretPaths = []string{"device.x_authkey"}
+
+	coverage, err := ApplySensitivity(nil, raw, metadata, policy)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"device.x_authkey"}, coverage.SecretNonGenerated)
+
+	policy.NonGeneratedSecretPaths = []string{"device.x_authkey_typo"}
+	_, err = ApplySensitivity(nil, raw, metadata, policy)
+	require.ErrorContains(t, err, "not present in approved sensitivity metadata")
 }
 
 func TestApplySensitivity_ExplicitPolicyPathMayExtendMetadata(t *testing.T) {

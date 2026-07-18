@@ -286,8 +286,8 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 			return SensitivityCoverage{}, fmt.Errorf("resolve non-generated policy secret %q: %w", secretPath, err)
 		}
 		if len(resolved) == 0 {
-			if resolver.hasRawCollection(collection) {
-				return SensitivityCoverage{}, fmt.Errorf("non-generated policy secret %q no longer resolves in its raw collection", secretPath)
+			if _, classified := nonGenerated[missing]; !classified {
+				return SensitivityCoverage{}, fmt.Errorf("non-generated policy secret %q is absent and not present in approved sensitivity metadata", secretPath)
 			}
 			if err := canonicalPaths.add(missing, secretPath); err != nil {
 				return SensitivityCoverage{}, err
@@ -369,11 +369,6 @@ func newSensitivityResolver(resources []*ResourceInfo, raw RawSchemaIndex) (*sen
 		}{name: name, body: body}
 	}
 	return resolver, nil
-}
-
-func (r *sensitivityResolver) hasRawCollection(collection string) bool {
-	_, ok := r.rawByFold[strings.ToLower(collection)]
-	return ok
 }
 
 func (r *sensitivityResolver) resolveRaw(path string) ([]resolvedRawPath, string, error) {
