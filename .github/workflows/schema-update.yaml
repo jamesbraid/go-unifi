@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: unifi-schema-update
@@ -43,8 +44,10 @@ jobs:
         id: source
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           INPUT_UOS_VERSION: ${{ inputs.uos_version }}
           INPUT_INSTALLER_URL: ${{ inputs.installer_url }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ -n "$INPUT_UOS_VERSION" && -n "$INPUT_INSTALLER_URL" ]]; then
@@ -59,6 +62,7 @@ jobs:
             selector=(-uos-latest)
           fi
           printf '%s\0' "${selector[@]}" > "$RUNNER_TEMP/schema-selector"
+          automation_sha=
           set +e
           automation_ref=$(git ls-remote --exit-code origin \
             refs/heads/automation/unifi-schema-update | awk '{print $1}')
@@ -68,9 +72,24 @@ jobs:
             0)
               git fetch --no-tags origin \
                 refs/heads/automation/unifi-schema-update:refs/remotes/origin/automation/unifi-schema-update
-              automation_sha=$(git show \
-                refs/remotes/origin/automation/unifi-schema-update:cmd/fields/schema-source.json |
-                jq -r .installer_sha256)
+              if git merge-base --is-ancestor origin/main \
+                refs/remotes/origin/automation/unifi-schema-update; then
+                owner=${REPOSITORY%%/*}
+                gh api --method GET "/repos/$REPOSITORY/pulls" \
+                  -f state=open -f base=main \
+                  -f head="$owner:automation/unifi-schema-update" \
+                  > "$RUNNER_TEMP/pending-prs.json"
+                pending_pr_count=$(jq --arg repo "$REPOSITORY" '[.[] | select(
+                  .base.ref == "main" and .base.repo.full_name == $repo and
+                  .head.ref == "automation/unifi-schema-update" and
+                  .head.repo.full_name == $repo
+                )] | length' "$RUNNER_TEMP/pending-prs.json")
+                if [[ "$pending_pr_count" -eq 1 ]]; then
+                  automation_sha=$(git show \
+                    refs/remotes/origin/automation/unifi-schema-update:cmd/fields/schema-source.json |
+                    jq -er .installer_sha256) || automation_sha=
+                fi
+              fi
               ;;
             2) automation_ref=; automation_sha= ;;
             *) echo "failed to inspect automation branch" >&2; exit 1 ;;
@@ -255,4 +274,4 @@ jobs:
           git clean -fdX -- cmd/fields
           rm -f "$RUNNER_TEMP/schema-selector" "$RUNNER_TEMP/resolved-source.json" \
             "$RUNNER_TEMP/changed-paths" "$RUNNER_TEMP/api-compat.md" \
-            "$RUNNER_TEMP/schema-pr-body.md"
+            "$RUNNER_TEMP/schema-pr-body.md" "$RUNNER_TEMP/pending-prs.json"
