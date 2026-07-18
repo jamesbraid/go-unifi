@@ -313,7 +313,7 @@ func buildSchemas(
 
 	// Invalidate the markers before touching the cache: if extraction fails
 	// partway, the next run must rebuild instead of trusting leftovers.
-	for _, marker := range []string{"VERSION", "SOURCE"} {
+	for _, marker := range []string{"VERSION", "SOURCE", "ARTIFACT"} {
 		if err := os.Remove(filepath.Join(schemasDir, marker)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
@@ -329,6 +329,14 @@ func buildSchemas(
 	}
 
 	if err := writeMarker(schemasDir, "VERSION", networkVersion.String()); err != nil {
+		return nil, err
+	}
+
+	artifact := "local " + filepath.Base(artifactPath)
+	if downloadURL != nil {
+		artifact = downloadURL.String()
+	}
+	if err := writeMarker(schemasDir, "ARTIFACT", artifact); err != nil {
 		return nil, err
 	}
 

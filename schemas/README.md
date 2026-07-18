@@ -6,8 +6,8 @@ field definitions the UniFi Network application ships inside
 build time** into this directory and are deliberately **not committed or
 redistributed** — they originate from software proprietary to Ubiquiti Inc.
 or its licensors, and this repository publishes only its own code and the
-generated interoperable client. Only the two marker files and this README are
-tracked.
+generated interoperable client. Only the three marker files and this README
+are tracked.
 
 ## Layout
 
@@ -15,6 +15,8 @@ tracked.
 VERSION    UniFi Network application version of the local cache (tracked)
 SOURCE     release the cache came from, "<product> <version>" (tracked) —
            generation skips the download when this matches the latest release
+ARTIFACT   URL of the controller artifact the cache came from (tracked);
+           CI uses it to boot the matching controller build
 fields/    extracted per-entity field validators + exploded Setting*.json +
            the overlay copies from overrides/resources/   (gitignored)
 metadata/  extracted sensitive_metadata.json, which feeds the specification's

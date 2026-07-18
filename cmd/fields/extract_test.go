@@ -292,6 +292,35 @@ func TestNewFieldInfoRejectsUnsafeSchemaText(t *testing.T) {
 	require.NotContains(t, f.FieldValidation, "`")
 }
 
+func TestBuildSchemasWritesArtifactMarker(t *testing.T) {
+	restoreMin := minFieldFiles
+	minFieldFiles = 1
+	t.Cleanup(func() { minFieldFiles = restoreMin })
+
+	deb := buildDeb(t, map[string][]byte{
+		"./usr/lib/unifi/lib/ace.jar": buildZip(t, func() map[string][]byte {
+			m := defsJarFiles()
+			m["product.properties"] = []byte(productProperties)
+			return m
+		}()),
+	})
+
+	schemasDir := t.TempDir()
+	customDir := filepath.Join(t.TempDir(), "custom")
+	require.NoError(t, os.MkdirAll(customDir, 0o755))
+
+	_, err := buildSchemas(schemasDir,
+		filepath.Join(schemasDir, "fields"),
+		filepath.Join(schemasDir, "metadata"),
+		customDir,
+		writeTempArtifact(t, deb), nil, nil)
+	require.NoError(t, err)
+
+	marker, err := os.ReadFile(filepath.Join(schemasDir, "ARTIFACT"))
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(marker), "local "), "marker = %q", marker)
+}
+
 func TestReadNetworkVersionMissing(t *testing.T) {
 	aceJar := writeTempArtifact(t, buildZip(t, map[string][]byte{
 		"META-INF/MANIFEST.MF": []byte("Main-Class: x\n"),
