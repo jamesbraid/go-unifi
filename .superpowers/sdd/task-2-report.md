@@ -170,3 +170,66 @@ Synthetic tests cover:
 - Existing legacy Debian extraction and `main()` wiring are unchanged.
 - Temporary layout, selected JAR, nested JAR, candidate, and partial artifact cleanup paths were checked.
 - The package cache under the user Library directory was sandbox-blocked once; verification uses `GOCACHE=/tmp/go-cache`, with no source impact.
+
+## Review fixes
+
+### RED: target-ancestor links and special entries
+
+Review identified that `scanLayer` rejected unsafe types only at the exact target
+and whiteout paths. Tests added a same-layer ancestor symlink plus target, a newer
+ancestor hardlink over a lower target, and a newer ancestor character-device entry
+over a lower target. All three initially exposed the target and failed with:
+
+```text
+--- FAIL: TestFindFileInLayersRejectsLinkOrSpecialTargetAncestors
+    --- FAIL: .../same_layer_ancestor_symlink
+        Error: An error is expected but got nil.
+    --- FAIL: .../newer_layer_ancestor_hardlink
+        Error: An error is expected but got nil.
+    --- FAIL: .../newer_layer_ancestor_special
+        Error: An error is expected but got nil.
+```
+
+`scanLayer` now recognizes every ancestor of the requested target and rejects link
+or special archive types there, while continuing to allow unrelated valid rootfs
+entries and real ancestor directories.
+
+### RED: notice basename suffixes
+
+Review also identified that notice selection accepted only exact basenames or dot
+suffixes. Fixtures added root and `META-INF` entries from both JARs using hyphen and
+underscore suffixes. All four were initially absent:
+
+```text
+--- FAIL: TestExtractUOSInstallerInventoriesNoticeBasenameSuffixes
+    map does not contain "ace.jar/LICENSE-APACHE"
+    map does not contain "ace.jar/META-INF/notice_third-party"
+    map does not contain "internal-dependencies.jar/NOTICE-third-party"
+    map does not contain "internal-dependencies.jar/META-INF/LICENSE_BSD"
+```
+
+`isNoticePath` now accepts any case-insensitive basename beginning with `LICENSE`
+or `NOTICE`, while retaining the root-or-`META-INF` location restriction.
+
+### GREEN: review cases
+
+```text
+$ GOCACHE=/tmp/go-cache go test ./cmd/fields -run 'TestFindFileInLayersRejectsLinkOrSpecialTargetAncestors|TestExtractUOSInstallerInventoriesNoticeBasenameSuffixes' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields
+```
+
+### Review-fix final verification
+
+```text
+$ GOCACHE=/tmp/go-cache go test ./cmd/fields -run 'Test(ImportOCI|ResolveImage|FindFileInLayers|ExtractUOSInstaller|SyntheticInstaller)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields
+
+$ GOCACHE=/tmp/go-cache go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields
+?  github.com/ubiquiti-community/go-unifi/internal/fields [no test files]
+ok github.com/ubiquiti-community/go-unifi/unifi
+ok github.com/ubiquiti-community/go-unifi/unifi/settings
+?  github.com/ubiquiti-community/go-unifi/unifi/types [no test files]
+
+$ git diff --check
+```

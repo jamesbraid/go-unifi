@@ -321,11 +321,15 @@ func scanLayer(r io.Reader, target, tempRoot string, limits ArchiveLimits) (*os.
 		}
 		seen[entryName] = struct{}{}
 		isTarget := entryName == target
+		isTargetAncestor := strings.HasPrefix(target, entryName+"/")
 		removed, isWhiteout := whiteoutTarget(entryName)
 		if isTarget || isWhiteout {
 			if h.Typeflag != tar.TypeReg && h.Typeflag != tar.TypeRegA {
 				return candidate, false, fmt.Errorf("unsupported entry type for %q", entryName)
 			}
+		}
+		if isTargetAncestor && h.Typeflag != tar.TypeDir && h.Typeflag != tar.TypeReg && h.Typeflag != tar.TypeRegA {
+			return candidate, false, fmt.Errorf("unsupported entry type for target ancestor %q", entryName)
 		}
 		if isWhiteout && (removed == "" || target == removed || strings.HasPrefix(target, removed+"/")) {
 			blocked = true

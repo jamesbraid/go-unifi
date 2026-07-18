@@ -285,7 +285,7 @@ func isNoticePath(name string) bool {
 		return false
 	}
 	base := strings.ToUpper(path.Base(name))
-	return base == "LICENSE" || strings.HasPrefix(base, "LICENSE.") || base == "NOTICE" || strings.HasPrefix(base, "NOTICE.")
+	return strings.HasPrefix(base, "LICENSE") || strings.HasPrefix(base, "NOTICE")
 }
 
 func extractZipArtifact(ctx context.Context, entry *zip.File, name, outRoot string, limit int64) (ExtractedArtifact, error) {

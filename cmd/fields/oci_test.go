@@ -132,3 +132,42 @@ func TestFindFileInLayersRejectsLayerMismatchUnsupportedTargetLinkAndLimits(t *t
 		})
 	}
 }
+
+func TestFindFileInLayersRejectsLinkOrSpecialTargetAncestors(t *testing.T) {
+	target := fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")}
+	base := fixtureTar(t, target)
+	for _, tc := range []struct {
+		name   string
+		layers [][]byte
+	}{
+		{
+			name: "same layer ancestor symlink",
+			layers: [][]byte{fixtureTar(t,
+				fixtureEntry{name: "usr/lib/unifi", typeflag: tar.TypeSymlink, linkname: "elsewhere"},
+				target,
+			)},
+		},
+		{
+			name: "newer layer ancestor hardlink",
+			layers: [][]byte{base, fixtureTar(t,
+				fixtureEntry{name: "usr/lib", typeflag: tar.TypeLink, linkname: "elsewhere"},
+			)},
+		},
+		{
+			name: "newer layer ancestor special",
+			layers: [][]byte{base, fixtureTar(t,
+				fixtureEntry{name: "usr", typeflag: tar.TypeChar},
+			)},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			limits := DefaultArchiveLimits()
+			layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, ociFixtureOptions{layers: tc.layers})), t.TempDir(), limits)
+			require.NoError(t, err)
+			image, err := ResolveImage(layout, v1.Platform{OS: "linux", Architecture: "amd64"})
+			require.NoError(t, err)
+			_, err = FindFileInLayers(image, aceJarPath, limits)
+			require.Error(t, err)
+		})
+	}
+}

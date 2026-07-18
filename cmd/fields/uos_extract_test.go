@@ -95,3 +95,28 @@ func TestExtractUOSInstallerHonorsCancellation(t *testing.T) {
 	_, err := ExtractUOSInstaller(ctx, path, t.TempDir(), DefaultArchiveLimits())
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+func TestExtractUOSInstallerInventoriesNoticeBasenameSuffixes(t *testing.T) {
+	internal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+		fixtureEntry{name: "NOTICE-third-party", body: []byte("inner root notice")},
+		fixtureEntry{name: "META-INF/LICENSE_BSD", body: []byte("inner license")},
+	)
+	installer := syntheticInstaller(t, installerFixtureOptions{aceEntries: []fixtureEntry{
+		{name: productPropsPath, body: []byte("version=10.4.57\n")},
+		{name: internalJarPath, body: internal},
+		{name: "LICENSE-APACHE", body: []byte("ace root license")},
+		{name: "META-INF/notice_third-party", body: []byte("ace notice")},
+	}})
+	installerPath := filepath.Join(t.TempDir(), "installer")
+	require.NoError(t, os.WriteFile(installerPath, installer, 0o600))
+
+	result, err := ExtractUOSInstaller(context.Background(), installerPath, t.TempDir(), DefaultArchiveLimits())
+	require.NoError(t, err)
+	assert.Contains(t, result.Notices, "ace.jar/LICENSE-APACHE")
+	assert.Contains(t, result.Notices, "ace.jar/META-INF/notice_third-party")
+	assert.Contains(t, result.Notices, "internal-dependencies.jar/NOTICE-third-party")
+	assert.Contains(t, result.Notices, "internal-dependencies.jar/META-INF/LICENSE_BSD")
+}
