@@ -120,6 +120,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "igmp_snooping", nil
 	case *Ips:
 		return "ips", nil
+	case *IpsSuppression:
+		return "ips_suppression", nil
 	case *Lcm:
 		return "lcm", nil
 	case *Locale:
@@ -172,6 +174,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "traffic_flow", nil
 	case *Usg:
 		return "usg", nil
+	case *UsgGeo:
+		return "usg_geo", nil
 	case *Usw:
 		return "usw", nil
 	case *RawSetting:
