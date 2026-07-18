@@ -23,6 +23,16 @@ func TestVersionFromPkgURL(t *testing.T) {
 			url:  "",
 			want: "",
 		},
+		{
+			name: "leftmost dash-delimited triple (build ID) should be ignored",
+			url:  "https://example.com/build-1.0.0-10.4.57-uuid.deb",
+			want: "10.4.57",
+		},
+		{
+			name: "version directly before .deb with no trailing dash",
+			url:  "https://host/fa30-debian-10.4.57.deb",
+			want: "10.4.57",
+		},
 	}
 
 	for _, tt := range tests {
