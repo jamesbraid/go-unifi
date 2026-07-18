@@ -11,9 +11,20 @@ import (
 )
 
 func latestUnifiVersion(ctx context.Context, client *http.Client, endpoint string) (*version.Version, *url.URL, error) {
+	firmware, err := latestUnifiFirmware(ctx, client, endpoint)
+	if err != nil || firmware == nil {
+		return nil, nil, err
+	}
+	if _, err := installerSourceFromLegacyFirmware(*firmware, SourceLegacyLatest); err != nil {
+		return nil, nil, err
+	}
+	return firmware.Version.Core(), firmware.Links.Data.Href, nil
+}
+
+func latestUnifiFirmware(ctx context.Context, client *http.Client, endpoint string) (*firmwareUpdateApiResponseEmbeddedFirmware, error) {
 	url, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	query := url.Query()
@@ -24,7 +35,7 @@ func latestUnifiVersion(ctx context.Context, client *http.Client, endpoint strin
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	req.Header.Set("User-Agent", schemaFetcherUserAgent)
@@ -33,17 +44,17 @@ func latestUnifiVersion(ctx context.Context, client *http.Client, endpoint strin
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, fmt.Errorf("resolve legacy installer: unexpected HTTP status %s", resp.Status)
+		return nil, fmt.Errorf("resolve legacy installer: unexpected HTTP status %s", resp.Status)
 	}
 
 	var respData firmwareUpdateApiResponse
 	err = json.NewDecoder(resp.Body).Decode(&respData)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	for _, firmware := range respData.Embedded.Firmware {
@@ -51,8 +62,8 @@ func latestUnifiVersion(ctx context.Context, client *http.Client, endpoint strin
 			continue
 		}
 
-		return firmware.Version.Core(), firmware.Links.Data.Href, nil
+		return &firmware, nil
 	}
 
-	return nil, nil, nil
+	return nil, nil
 }

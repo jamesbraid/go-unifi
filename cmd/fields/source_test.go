@@ -189,3 +189,35 @@ func TestResolveInstallerRejectsIncompleteOrMismatchedRecords(t *testing.T) {
 		require.Error(t, err)
 	}
 }
+
+func TestResolveInstallerLegacyLatestCarriesAndEnforcesMetadata(t *testing.T) {
+	contents := []byte("legacy installer")
+	downloadURL := "https://fw-download.ubnt.com/data/unifi-controller/test.deb"
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		require.NoError(t, json.NewEncoder(rw).Encode(map[string]any{
+			"_embedded": map[string]any{"firmware": []map[string]any{{
+				"channel": "release", "created": "2026-07-08T14:37:42Z", "updated": "2026-07-08T14:37:42Z",
+				"file_size": len(contents), "id": "legacy-firmware-id", "md5": "eb92ab1b9f38c6c5333b32e940a961f5",
+				"sha256_checksum": testSHA256(contents), "platform": "debian", "product": "unifi-controller",
+				"version": "9.5.21", "_links": map[string]any{"data": map[string]any{"href": downloadURL}},
+			}}},
+		}))
+	}))
+	defer server.Close()
+
+	src, err := ResolveInstaller(context.Background(), server.Client(), server.URL, SourceSelector{Kind: SourceLegacyLatest})
+	require.NoError(t, err)
+	assert.EqualValues(t, len(contents), src.ExpectedSize)
+	assert.Equal(t, testSHA256(contents), src.ExpectedSHA256)
+	assert.Equal(t, "eb92ab1b9f38c6c5333b32e940a961f5", src.ExpectedMD5)
+	assert.Equal(t, "legacy-firmware-id", src.FirmwareID)
+	assert.Equal(t, "unifi-controller", src.Product)
+	assert.Equal(t, "debian", src.Platform)
+	assert.Equal(t, "release", src.Channel)
+
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return bodyResponse(req, http.StatusOK, []byte("tampered content")), nil
+	})}
+	_, err = MaterializeInstaller(context.Background(), client, src, t.TempDir())
+	require.ErrorContains(t, err, "SHA-256 mismatch", "legacy latest materialization must enforce API metadata")
+}

@@ -117,14 +117,14 @@ func ResolveInstaller(ctx context.Context, client *http.Client, endpoint string,
 
 	switch selector.Kind {
 	case SourceLegacyLatest:
-		v, downloadURL, err := latestUnifiVersion(ctx, client, endpoint)
+		firmware, err := latestUnifiFirmware(ctx, client, endpoint)
 		if err != nil {
 			return InstallerSource{}, err
 		}
-		if v == nil || downloadURL == nil {
+		if firmware == nil {
 			return InstallerSource{}, errors.New("legacy installer was not found")
 		}
-		return InstallerSource{Kind: selector.Kind, OSVersion: v.String(), URL: downloadURL}, nil
+		return installerSourceFromLegacyFirmware(*firmware, selector.Kind)
 	case SourceLegacyVersion:
 		v, err := version.NewVersion(selector.Value)
 		if err != nil {
@@ -154,6 +154,56 @@ func ResolveInstaller(ctx context.Context, client *http.Client, endpoint string,
 	default:
 		return InstallerSource{}, fmt.Errorf("unsupported source kind %q", selector.Kind)
 	}
+}
+
+func installerSourceFromLegacyFirmware(record firmwareUpdateApiResponseEmbeddedFirmware, kind SourceKind) (InstallerSource, error) {
+	if record.Product != unifiControllerProduct || record.Platform != debianPlatform || record.Channel != releaseChannel {
+		return InstallerSource{}, errors.New("legacy firmware result does not match requested product, platform, and channel")
+	}
+	if record.Version == nil || record.Id == "" || record.FileSize <= 0 || record.Links.Data.Href == nil {
+		return InstallerSource{}, errors.New("legacy firmware result is incomplete")
+	}
+	if err := validateHexDigest(record.SHA256Checksum, 32); err != nil {
+		return InstallerSource{}, fmt.Errorf("invalid legacy firmware SHA-256: %w", err)
+	}
+	if record.MD5 != "" {
+		if err := validateHexDigest(record.MD5, 16); err != nil {
+			return InstallerSource{}, fmt.Errorf("invalid legacy firmware MD5: %w", err)
+		}
+	}
+	if err := ValidateInstallerURL(record.Links.Data.Href); err != nil {
+		return InstallerSource{}, fmt.Errorf("invalid legacy firmware data URL: %w", err)
+	}
+	created, err := parseOptionalFirmwareTime(record.Created)
+	if err != nil {
+		return InstallerSource{}, fmt.Errorf("invalid legacy firmware creation time: %w", err)
+	}
+	updated, err := parseOptionalFirmwareTime(record.Updated)
+	if err != nil {
+		return InstallerSource{}, fmt.Errorf("invalid legacy firmware update time: %w", err)
+	}
+
+	return InstallerSource{
+		Kind:           kind,
+		OSVersion:      record.Version.Core().String(),
+		FirmwareID:     record.Id,
+		Product:        record.Product,
+		Platform:       record.Platform,
+		Channel:        record.Channel,
+		URL:            record.Links.Data.Href,
+		ExpectedSize:   record.FileSize,
+		ExpectedSHA256: strings.ToLower(record.SHA256Checksum),
+		ExpectedMD5:    strings.ToLower(record.MD5),
+		Created:        created,
+		Updated:        updated,
+	}, nil
+}
+
+func parseOptionalFirmwareTime(value string) (time.Time, error) {
+	if value == "" {
+		return time.Time{}, nil
+	}
+	return time.Parse(time.RFC3339, value)
 }
 
 func resolveUOSInstaller(ctx context.Context, client *http.Client, endpoint string, selector SourceSelector) (InstallerSource, error) {

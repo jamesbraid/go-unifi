@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +84,60 @@ func TestMaterializeInstallerRejectsNon2xx(t *testing.T) {
 
 	_, err := MaterializeInstaller(context.Background(), server.Client(), remoteInstallerSource(t, server.URL, []byte("unused")), t.TempDir())
 	require.Error(t, err)
+}
+
+func TestMaterializeInstallerValidatesRedirectTargets(t *testing.T) {
+	contents := []byte("redirected installer")
+	for _, tt := range []struct {
+		name      string
+		location  string
+		wantError bool
+		wantCalls int
+	}{
+		{name: "rejects HTTP", location: "http://fw-download.ubnt.com/installer", wantError: true, wantCalls: 1},
+		{name: "rejects unrelated host", location: "https://example.com/installer", wantError: true, wantCalls: 1},
+		{name: "allows Ubiquiti HTTPS", location: "https://downloads.ui.com/installer", wantCalls: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				if calls == 1 {
+					return redirectResponse(req, tt.location), nil
+				}
+				return bodyResponse(req, http.StatusOK, contents), nil
+			})}
+			src := remoteInstallerSource(t, "https://fw-download.ubnt.com/start", contents)
+
+			got, err := MaterializeInstaller(context.Background(), client, src, t.TempDir())
+			if tt.wantError {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantCalls, calls)
+				return
+			}
+			require.NoError(t, err)
+			defer got.Close()
+			assert.Equal(t, tt.wantCalls, calls)
+		})
+	}
+}
+
+func TestMaterializeInstallerPreservesCallerRedirectPolicy(t *testing.T) {
+	policyError := errors.New("redirect forbidden by caller")
+	calls := 0
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			calls++
+			return redirectResponse(req, "https://downloads.ui.com/installer"), nil
+		}),
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return policyError
+		},
+	}
+
+	_, err := MaterializeInstaller(context.Background(), client, remoteInstallerSource(t, "https://fw-download.ubnt.com/start", []byte("unused")), t.TempDir())
+	require.ErrorIs(t, err, policyError)
+	assert.Equal(t, 1, calls)
 }
 
 func TestMaterializeInstallerHonorsTimeout(t *testing.T) {
@@ -183,4 +239,30 @@ func assertDirectoryEmpty(t *testing.T, path string) {
 	entries, err := os.ReadDir(path)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func redirectResponse(req *http.Request, location string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusFound,
+		Status:     "302 Found",
+		Header:     http.Header{"Location": []string{location}},
+		Body:       io.NopCloser(strings.NewReader("")),
+		Request:    req,
+	}
+}
+
+func bodyResponse(req *http.Request, status int, contents []byte) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     http.StatusText(status),
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(contents)),
+		Request:    req,
+	}
 }

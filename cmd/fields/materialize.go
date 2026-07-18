@@ -33,6 +33,7 @@ func MaterializeInstaller(ctx context.Context, client *http.Client, src Installe
 	if client == nil {
 		client = http.DefaultClient
 	}
+	client = installerHTTPClient(client)
 	downloadCtx, cancel := context.WithTimeout(ctx, installerDownloadTimeout)
 	defer cancel()
 
@@ -93,6 +94,24 @@ func MaterializeInstaller(ctx context.Context, client *http.Client, src Installe
 		SHA256:    digest,
 		temporary: true,
 	}, nil
+}
+
+func installerHTTPClient(client *http.Client) *http.Client {
+	redirectClient := *client
+	callerCheckRedirect := client.CheckRedirect
+	redirectClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := ValidateInstallerURL(req.URL); err != nil {
+			return fmt.Errorf("invalid installer redirect: %w", err)
+		}
+		if callerCheckRedirect != nil {
+			return callerCheckRedirect(req, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	return &redirectClient
 }
 
 func materializeLocalInstaller(src InstallerSource) (*MaterializedInstaller, error) {

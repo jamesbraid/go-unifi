@@ -29,12 +29,15 @@ func TestLatestUnifiVersion(t *testing.T) {
 		Embedded: firmwareUpdateApiResponseEmbedded{
 			Firmware: []firmwareUpdateApiResponseEmbeddedFirmware{
 				{
-					Channel:  releaseChannel,
-					Created:  "2023-02-06T08:55:31+00:00",
-					Id:       "c9249c91-3b91-4166-93b8-69b9548850c3",
-					Platform: debianPlatform,
-					Product:  unifiControllerProduct,
-					Version:  fwVersion,
+					Channel:        releaseChannel,
+					Created:        "2023-02-06T08:55:31+00:00",
+					FileSize:       1234,
+					Id:             "c9249c91-3b91-4166-93b8-69b9548850c3",
+					MD5:            "72f3373dfaf441afe33536221837bafe",
+					SHA256Checksum: "77e3feac1595779402dd87ff8d20d66faa39c87b572646f86ff0006711262445",
+					Platform:       debianPlatform,
+					Product:        unifiControllerProduct,
+					Version:        fwVersion,
 					Links: firmwareUpdateApiResponseEmbeddedFirmwareLinks{
 						Data: firmwareUpdateApiResponseEmbeddedFirmwareDataLink{
 							Href: fwDownload,
