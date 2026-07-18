@@ -10,6 +10,8 @@ If the schema-fetcher branch merges first, rebase onto main afterwards.
 
 ## What to build (three plans, execute in order)
 
+All three phases are landed on this branch as of this session.
+
 1. `docs/superpowers/plans/2026-07-18-phase1-demo-controller-harness-v2-drift.md`
    — `internal/testenv` harness (testcontainers, simulation mode) + v2
    schema drift probe. Independent value: the drift signal for the
@@ -34,11 +36,15 @@ plan headers.
   documents the seeding), mirrored from
   `terraform-provider-unifi/unifi/provider_test.go`.
 - **Image**: `jacobalberty/unifi` — versioned tags reach `v10.0.162`
-  (10.4.x not tagged yet); env `PKGURL` installs an arbitrary UniFi Network
-  `.deb` at container start (that's how we pin the exact schema version;
-  the `.deb` URL for the current snapshot is recorded by the phase 3
-  ARTIFACT marker, and today is
-  `https://fw-download.ubnt.com/data/unifi-controller/fa30-debian-10.4.57-86432683-a50a-4fd9-8e7b-21180c41611b.deb`).
+  (10.4.x not tagged yet). CORRECTED during implementation: those images
+  IGNORE a runtime `PKGURL` env (no docker-build.sh inside) and cannot run
+  10.4.x at all (needs Java 25). Version pinning instead happens at image
+  BUILD time: CI builds `jamesbraid/unifi-docker` (fork of
+  starkjs/unifi-docker, pinned commit) with `PKGURL` as a build arg set
+  from the phase 3 ARTIFACT marker, enforced by
+  `UNIFI_TEST_EXPECT_VERSION` from `schemas/VERSION`; the harness default
+  stays `jacobalberty/unifi:v10.0.162` and still forwards
+  `UNIFI_TEST_PKGURL` for images that do honor runtime PKGURL.
 - **Classic controller API** (this image is NOT UniFi OS): base
   `https://host:8443`, login `POST /api/login` `{"username","password"}`
   with cookie session, v1 REST at `/api/s/<site>/rest/...`, v2 at
@@ -98,14 +104,34 @@ LiveOnly fields with validation inferred from observed values. Run the
 crawler as-is from their repo against our harness rather than porting it;
 upstream fixes there (same org).
 
-## Open questions the implementation will answer empirically
+## Answers established empirically (phases 1-3, this branch)
 
-- Which v2 endpoints the simulation controller actually serves (expect
-  zones/policies present via ZBF defaults; trafficroutes/NAT possibly
-  empty → probe skips; OSPF/BGP may 404 without a routing-capable
-  gateway).
-- Whether PKGURL-installing the 10.4.57 deb works in the image's current
-  base (if mongo/java constraints bite, fall back to the newest working
-  tag and record it).
-- Exact v2 list paths (phase 1 task verifies against the SDK's own client
-  code before enabling each probe).
+- **v2 endpoints served by the sim controller**: `jacobalberty/unifi`
+  v10.0.162 in simulation mode returns HTTP 200 for every drift-probe
+  endpoint. `apgroups` returns the seeded default AP group — the probe
+  immediately caught real drift there (`for_wlanconf`, since folded into
+  `overrides/resources/ApGroups.json`). The other eight collections
+  (firewall zone/policies, trafficroutes, nat, static-dns, ospf/router,
+  bgp/config, network-members-groups) come back 200 with an EMPTY
+  collection, so the probe skips them. No 404s anywhere; no ZBF default
+  zones are seeded on 10.0.162.
+- **PKGURL 10.4.57 install**: runtime `PKGURL` does NOT work — the
+  jacobalberty image ignores it (and its base cannot run 10.4.x/Java 25).
+  The answer that shipped: CI builds a pinned image from
+  `jamesbraid/unifi-docker` with the 10.4.57 `.deb` from
+  `schemas/ARTIFACT` baked in as a build arg, and
+  `UNIFI_TEST_EXPECT_VERSION` (from `schemas/VERSION`) makes the suite
+  fail loudly if the booted controller is not the pinned build.
+- **Encoder field probe** (phase 2, now landed): of the 39 unverified
+  allowlist fields, 35 PERSISTED on the sim controller and are now wired
+  into the encoder; 1 STRIPPED (`igmp_proxy_downstream_networkconf_ids`);
+  3 REJECTED only because the bare container has no adopted gateway
+  (`api.err.UnrecognizedLocalIp` on `ipsec_local_ip`) — re-probe those on
+  a routing-capable setup someday (`UNIFI_TEST_IMAGE` exists for newer
+  builds, but the blocker is hardware adoption, not controller version).
+- **Local dev on macOS + colima**: export
+  `DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"` and
+  `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/var/run/docker.sock"`, or
+  testcontainers cannot find the socket. It used to panic on that
+  failure; the harness now converts it to a skip (see
+  `internal/testenv` `newDockerProviderSafe`).
