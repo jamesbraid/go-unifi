@@ -94,6 +94,67 @@ func downloadJar(url *url.URL, outputDir string) (string, error) {
 	return aceJar.Name(), nil
 }
 
+func extractLegacyInstaller(installerPath, outputDir string) (string, error) {
+	file, err := os.Open(installerPath)
+	if err != nil {
+		return "", fmt.Errorf("open verified Debian package: %w", err)
+	}
+	defer file.Close()
+	return extractLegacyJar(file, outputDir)
+}
+
+func extractLegacyJar(deb io.Reader, outputDir string) (string, error) {
+	arReader := ar.NewReader(deb)
+	var uncompressedReader io.Reader
+	for {
+		header, err := arReader.Next()
+		if errors.Is(err, io.EOF) || header == nil {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("read Debian archive: %w", err)
+		}
+		if header.Name == "data.tar.xz" {
+			uncompressedReader, err = xz.NewReader(arReader)
+			if err != nil {
+				return "", fmt.Errorf("open Debian data archive: %w", err)
+			}
+			break
+		}
+	}
+	if uncompressedReader == nil {
+		return "", errors.New("unable to find .deb data file")
+	}
+	tarReader := tar.NewReader(uncompressedReader)
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("read Debian data archive: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg || header.Name != "./usr/lib/unifi/lib/ace.jar" {
+			continue
+		}
+		acePath := filepath.Join(outputDir, "ace.jar")
+		ace, err := os.Create(acePath)
+		if err != nil {
+			return "", fmt.Errorf("create ace.jar: %w", err)
+		}
+		_, copyErr := io.Copy(ace, tarReader)
+		closeErr := ace.Close()
+		if copyErr != nil {
+			return "", fmt.Errorf("write ace.jar: %w", copyErr)
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("close ace.jar: %w", closeErr)
+		}
+		return acePath, nil
+	}
+	return "", errors.New("unable to find ace.jar")
+}
+
 func extractJSON(jarFile, fieldsDir string) error {
 	jarZip, err := zip.OpenReader(jarFile)
 	if err != nil {

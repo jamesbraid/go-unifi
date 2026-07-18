@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -10,13 +9,10 @@ import (
 	"fmt"
 	"go/format"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -306,139 +302,22 @@ func usage() {
 	flag.PrintDefaults()
 }
 
-func main() {
-	flag.Usage = usage
-	outputDirFlag := flag.String(
-		"output-dir",
-		"unifi",
-		"The output directory of the generated Go code",
-	)
-	downloadOnly := flag.Bool(
-		"download-only",
-		false,
-		"Only download and build the fields JSON directory, do not generate",
-	)
-	useLatestVersion := flag.Bool("latest", false, "Use the latest available version")
-	generateSpec := flag.Bool(
-		"generate-spec",
-		false,
-		"Generate Terraform provider specification JSON file",
-	)
-	specOutputPath := flag.String(
-		"spec-output",
-		"specification.json",
-		"Output path for the Terraform provider specification JSON file",
-	)
-
-	flag.Parse()
-
-	specifiedVersion := flag.Arg(0)
-	if specifiedVersion != "" && *useLatestVersion {
-		fmt.Print("error: cannot specify version with latest\n\n")
-		usage()
-		os.Exit(1)
-	} else if specifiedVersion == "" && !*useLatestVersion {
-		fmt.Print("error: must specify version or latest\n\n")
-		usage()
-		os.Exit(1)
-	}
-
-	var unifiVersion *version.Version
-	var unifiDownloadUrl *url.URL
-	var err error
-
-	if *useLatestVersion {
-		unifiVersion, unifiDownloadUrl, err = latestUnifiVersion(context.Background(), http.DefaultClient, firmwareUpdateApi)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		unifiVersion, err = version.NewVersion(specifiedVersion)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		unifiDownloadUrl, err = url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", unifiVersion))
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("Unable to get the current filename")
-	}
-
-	versionBaseDir := filepath.Dir(filename)
-
-	fieldsDir := filepath.Join(versionBaseDir, fmt.Sprintf("v%s", unifiVersion))
-
-	outDir := filepath.Join(wd, *outputDirFlag)
-
-	fieldsInfo, err := os.Stat(fieldsDir)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			panic(err)
-		}
-
-		err = os.MkdirAll(fieldsDir, 0o755)
-		if err != nil {
-			panic(err)
-		}
-
-		// download fields, create
-		jarFile, err := downloadJar(unifiDownloadUrl, fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
-		err = extractJSON(jarFile, fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
-		// defer func() {
-		// 	err = os.RemoveAll(fieldsDir)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// }()
-
-		err = copyCustom(fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
-		fieldsInfo, err = os.Stat(fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-	}
-	if !fieldsInfo.IsDir() {
-		panic("version info isn't a directory")
-	}
-
-	if *downloadOnly {
-		fmt.Println("Fields JSON ready!")
-		os.Exit(0)
-	}
-
+func generateFromFields(fieldsDir, outDir string, unifiVersion *version.Version, generateSpec bool, specOutputFile string, stdout io.Writer, prepare func([]*ResourceInfo) error) error {
 	fieldsFiles, err := os.ReadDir(fieldsDir)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("read fields directory: %w", err)
 	}
 
 	// Initialize specification generator
 	specGen := NewSpecificationGenerator("unifi")
+	type generationJob struct {
+		resource           *ResourceInfo
+		goFile, structName string
+	}
+	jobs := make([]generationJob, 0, len(fieldsFiles))
 	settingSchema, settingSchemaErr := os.ReadFile(filepath.Join(fieldsDir, "Setting.json"))
 	if settingSchemaErr != nil && !errors.Is(settingSchemaErr, os.ErrNotExist) {
-		panic(settingSchemaErr)
+		return fmt.Errorf("read Setting.json: %w", settingSchemaErr)
 	}
 
 	for _, fieldsFile := range fieldsFiles {
@@ -469,13 +348,12 @@ func main() {
 		fieldsFilePath := filepath.Join(fieldsDir, fieldsFile.Name())
 		b, err := os.ReadFile(fieldsFilePath)
 		if err != nil {
-			fmt.Printf("skipping file %s: %s", fieldsFile.Name(), err)
-			continue
+			return fmt.Errorf("read field schema %s: %w", fieldsFile.Name(), err)
 		}
 
 		resource := NewResource(structName, urlPath)
 		if err := SetResourceSourceIdentity(resource, fieldsFile.Name(), settingSchema); err != nil {
-			panic(err)
+			return fmt.Errorf("set source identity for %s: %w", fieldsFile.Name(), err)
 		}
 
 		switch resource.StructName {
@@ -652,8 +530,7 @@ func main() {
 
 		err = resource.processJSON(b)
 		if err != nil {
-			fmt.Printf("skipping file %s: %s", fieldsFile.Name(), err)
-			continue
+			return fmt.Errorf("process field schema %s: %w", fieldsFile.Name(), err)
 		}
 
 		// Add fields not present in the JAR schema to nested types.
@@ -663,46 +540,46 @@ func main() {
 			}
 		}
 
-		// Add resource to specification generator
-		specGen.AddResource(resource)
-
-		var code string
-		if code, err = resource.generateCode(false); err != nil {
-			panic(err)
+		jobs = append(jobs, generationJob{resource: resource, goFile: goFile, structName: structName})
+	}
+	resources := make([]*ResourceInfo, len(jobs))
+	for i := range jobs {
+		resources[i] = jobs[i].resource
+	}
+	if prepare != nil {
+		if err := prepare(resources); err != nil {
+			return fmt.Errorf("prepare generated resources: %w", err)
 		}
-
-		// Determine output directory based on whether it's a setting
-		var targetDir string
+	}
+	for _, job := range jobs {
+		resource := job.resource
+		specGen.AddResource(resource)
+		code, err := resource.generateCode(false)
+		if err != nil {
+			return fmt.Errorf("generate %s: %w", resource.StructName, err)
+		}
+		targetDir := outDir
 		if resource.IsSetting() {
 			targetDir = filepath.Join(outDir, "settings")
-			// Ensure settings directory exists
-			if err := os.MkdirAll(targetDir, 0o755); err != nil {
-				panic(err)
-			}
-		} else {
-			targetDir = outDir
 		}
-
-		_ = os.Remove(filepath.Join(targetDir, goFile))
-		if err := os.WriteFile(filepath.Join(targetDir, goFile), ([]byte)(code), 0o644); err != nil {
-			panic(err)
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			return fmt.Errorf("create generated output directory: %w", err)
 		}
-
+		if err := os.WriteFile(filepath.Join(targetDir, job.goFile), []byte(code), 0o644); err != nil {
+			return fmt.Errorf("write generated %s: %w", job.goFile, err)
+		}
 		if !resource.IsSetting() {
-			implFile := strcase.ToSnake(structName) + ".go"
-			implFilePath := filepath.Join(targetDir, implFile)
-
-			if _, err := os.Stat(implFilePath); err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					var implCode string
-					if implCode, err = resource.generateCode(true); err != nil {
-						panic(err)
-					}
-
-					if err := os.WriteFile(filepath.Join(implFilePath), ([]byte)(implCode), 0o644); err != nil {
-						panic(err)
-					}
+			implFilePath := filepath.Join(targetDir, strcase.ToSnake(job.structName)+".go")
+			if _, statErr := os.Stat(implFilePath); errors.Is(statErr, os.ErrNotExist) {
+				implCode, genErr := resource.generateCode(true)
+				if genErr != nil {
+					return fmt.Errorf("generate implementation scaffold %s: %w", resource.StructName, genErr)
 				}
+				if err := os.WriteFile(implFilePath, []byte(implCode), 0o644); err != nil {
+					return fmt.Errorf("write implementation scaffold: %w", err)
+				}
+			} else if statErr != nil {
+				return fmt.Errorf("stat implementation scaffold: %w", statErr)
 			}
 		}
 	}
@@ -718,26 +595,23 @@ const UnifiVersion = %q
 
 	versionGo, err = format.Source(versionGo)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("format generated version: %w", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(outDir, "version.generated.go"), versionGo, 0o644); err != nil {
-		panic(err)
+		return fmt.Errorf("write generated version: %w", err)
 	}
 
 	// Generate Terraform provider specification if requested
-	if *generateSpec {
-		specOutputFile := *specOutputPath
-		if !filepath.IsAbs(specOutputFile) {
-			specOutputFile = filepath.Join(wd, specOutputFile)
-		}
+	if generateSpec {
 		if err := specGen.WriteSpecification(specOutputFile); err != nil {
-			panic(err)
+			return fmt.Errorf("write Terraform specification: %w", err)
 		}
-		fmt.Printf("Generated specification: %s\n", specOutputFile)
+		fmt.Fprintf(stdout, "Generated specification: %s\n", specOutputFile)
 	}
 
-	fmt.Printf("%s\n", outDir)
+	fmt.Fprintf(stdout, "%s\n", outDir)
+	return nil
 }
 
 func (r *ResourceInfo) IsSetting() bool {

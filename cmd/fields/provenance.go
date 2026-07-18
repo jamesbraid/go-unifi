@@ -41,19 +41,20 @@ type LocalManifest struct {
 }
 
 type SchemaSource struct {
-	OSVersion           string    `json:"os_version"`
-	NetworkVersion      string    `json:"network_version"`
-	FirmwareID          string    `json:"firmware_id"`
-	InstallerURL        string    `json:"installer_url"`
-	InstallerSHA256     string    `json:"installer_sha256"`
-	SchemaDigest        string    `json:"schema_digest"`
-	SensitivityDigest   string    `json:"sensitivity_digest"`
-	NoticeDigest        string    `json:"notice_digest"`
-	GeneratedTreeDigest string    `json:"generated_tree_digest"`
-	PolicyVersion       string    `json:"policy_version"`
-	InstallerSize       int64     `json:"installer_size"`
-	Created             time.Time `json:"created"`
-	Updated             time.Time `json:"updated"`
+	OSVersion           string            `json:"os_version"`
+	NetworkVersion      string            `json:"network_version"`
+	FirmwareID          string            `json:"firmware_id"`
+	InstallerURL        string            `json:"installer_url"`
+	InstallerSHA256     string            `json:"installer_sha256"`
+	SchemaDigest        string            `json:"schema_digest"`
+	SensitivityDigest   string            `json:"sensitivity_digest"`
+	NoticeDigest        string            `json:"notice_digest"`
+	GeneratedTreeDigest string            `json:"generated_tree_digest"`
+	PolicyVersion       string            `json:"policy_version"`
+	InstallerSize       int64             `json:"installer_size"`
+	Created             time.Time         `json:"created"`
+	Updated             time.Time         `json:"updated"`
+	GeneratedFiles      map[string]string `json:"generated_files"`
 }
 
 func (m LocalManifest) MarshalJSON() ([]byte, error) {
@@ -89,19 +90,20 @@ func (m LocalManifest) MarshalJSON() ([]byte, error) {
 
 func (s SchemaSource) MarshalJSON() ([]byte, error) {
 	type fields struct {
-		OSVersion           string     `json:"os_version"`
-		NetworkVersion      string     `json:"network_version"`
-		FirmwareID          string     `json:"firmware_id"`
-		InstallerURL        string     `json:"installer_url"`
-		InstallerSHA256     string     `json:"installer_sha256"`
-		SchemaDigest        string     `json:"schema_digest"`
-		SensitivityDigest   string     `json:"sensitivity_digest"`
-		NoticeDigest        string     `json:"notice_digest"`
-		GeneratedTreeDigest string     `json:"generated_tree_digest"`
-		PolicyVersion       string     `json:"policy_version"`
-		InstallerSize       int64      `json:"installer_size"`
-		Created             *time.Time `json:"created"`
-		Updated             *time.Time `json:"updated"`
+		OSVersion           string            `json:"os_version"`
+		NetworkVersion      string            `json:"network_version"`
+		FirmwareID          string            `json:"firmware_id"`
+		InstallerURL        string            `json:"installer_url"`
+		InstallerSHA256     string            `json:"installer_sha256"`
+		SchemaDigest        string            `json:"schema_digest"`
+		SensitivityDigest   string            `json:"sensitivity_digest"`
+		NoticeDigest        string            `json:"notice_digest"`
+		GeneratedTreeDigest string            `json:"generated_tree_digest"`
+		PolicyVersion       string            `json:"policy_version"`
+		InstallerSize       int64             `json:"installer_size"`
+		Created             *time.Time        `json:"created"`
+		Updated             *time.Time        `json:"updated"`
+		GeneratedFiles      map[string]string `json:"generated_files"`
 	}
 	return json.Marshal(fields{
 		OSVersion: s.OSVersion, NetworkVersion: s.NetworkVersion, FirmwareID: s.FirmwareID,
@@ -109,6 +111,7 @@ func (s SchemaSource) MarshalJSON() ([]byte, error) {
 		SensitivityDigest: s.SensitivityDigest, NoticeDigest: s.NoticeDigest,
 		GeneratedTreeDigest: s.GeneratedTreeDigest, PolicyVersion: s.PolicyVersion,
 		InstallerSize: s.InstallerSize, Created: normalizedTime(s.Created), Updated: normalizedTime(s.Updated),
+		GeneratedFiles: nonNilStringMap(s.GeneratedFiles),
 	})
 }
 
