@@ -116,6 +116,17 @@ func (s *Session) DeleteJSON(ctx context.Context, path string) (any, int, error)
 	return s.do(ctx, http.MethodDelete, path, nil)
 }
 
+// PutJSON sends a JSON body via PUT; same return convention as GetJSON. The
+// classic controller API updates site-wide settings objects (as opposed to
+// rest/* collections, which use POST) at /api/s/{site}/set/setting/{key}.
+func (s *Session) PutJSON(ctx context.Context, path string, body any) (any, int, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.do(ctx, http.MethodPut, path, payload)
+}
+
 func (s *Session) do(ctx context.Context, method, path string, payload []byte) (any, int, error) {
 	var reader io.Reader
 	if payload != nil {

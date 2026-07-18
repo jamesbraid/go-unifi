@@ -32,8 +32,31 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 	c := testenv.Start(ctx, t)
 	s := c.NewSession(ctx, t)
 
-	// Resolve "@zone" placeholders to a real zone id once.
-	zoneID := firstZoneID(ctx, t, s, c.Site)
+	// Resolve "@..." placeholders to real referenced-object ids once, so
+	// candidates and their Prereq siblings can reference an object that
+	// actually exists on this controller instead of a well-formed but
+	// nonexistent id.
+	placeholders := map[string]string{
+		"@zone":          firstZoneID(ctx, t, s, c.Site),
+		"@radiusprofile": firstRadiusProfileID(ctx, t, s, c.Site),
+	}
+
+	// require_mschapv2 and vpn_protocol select RADIUS-authenticated
+	// remote-user-vpn modes (l2tp-server, openvpn-server); the controller
+	// rejects them with api.err.RadiusServerNotEnabled unless the site's
+	// RADIUS setting (distinct from the radiusprofile object referenced by
+	// radiusprofile_id) is itself enabled.
+	if _, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/set/setting/radius", map[string]any{"key": "radius", "enabled": true}); err != nil || status != 200 {
+		t.Logf("failed to enable site radius setting (status %d, %v); RADIUS-gated candidates may be REJECTED", status, err)
+	}
+	resolve := func(v any) any {
+		if str, ok := v.(string); ok {
+			if resolved, ok := placeholders[str]; ok {
+				return resolved
+			}
+		}
+		return v
+	}
 
 	base := func(purpose string, n int) map[string]any {
 		m := map[string]any{
@@ -53,12 +76,9 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 		t.Run(cand.Wire, func(t *testing.T) {
 			payload := base(cand.Purpose, i)
 			for k, v := range cand.Prereq {
-				payload[k] = v
+				payload[k] = resolve(v)
 			}
-			value := cand.Value
-			if value == "@zone" {
-				value = zoneID
-			}
+			value := resolve(cand.Value)
 			payload[cand.Wire] = value
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
@@ -171,6 +191,26 @@ func firstZoneID(ctx context.Context, t *testing.T, s *testenv.Session, site str
 			if id, ok := m["_id"].(string); ok {
 				return id
 			}
+		}
+	}
+	return "000000000000000000000000"
+}
+
+// firstRadiusProfileID resolves "@radiusprofile" to a real radiusprofile id.
+// Every site ships a default RADIUS profile, so radiusprofile_id-gated
+// candidates (e.g. require_mschapv2, vpn_protocol on l2tp/openvpn-server
+// remote-user-vpn networks) can reference an object the controller actually
+// recognizes instead of a well-formed but nonexistent id.
+func firstRadiusProfileID(ctx context.Context, t *testing.T, s *testenv.Session, site string) string {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/rest/radiusprofile")
+	if err != nil || status != 200 {
+		t.Logf("no radius profiles available (status %d, %v); @radiusprofile candidates will be REJECTED", status, err)
+		return "000000000000000000000000"
+	}
+	if m := firstData(t, body); m != nil {
+		if id, ok := m["_id"].(string); ok {
+			return id
 		}
 	}
 	return "000000000000000000000000"
