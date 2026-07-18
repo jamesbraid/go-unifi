@@ -99,15 +99,6 @@ func mergeRouteBasedPrereq(extra map[string]any) map[string]any {
 // credentials, a real radiusprofile_id, or a fuller site-vpn base config) and
 // the probe re-run; see field-probe.log for the resulting classification.
 var networkFieldCandidates = []fieldCandidate{
-	// dhcpd_time_offset_enabled is already emitted for corporate/guest; the
-	// offset value itself is not.
-	{Wire: "dhcpd_time_offset", Purpose: PurposeCorporate, Value: 3600, Prereq: map[string]any{"dhcpd_time_offset_enabled": true}},
-
-	// mac_override is already emitted for corporate/guest; its enable flag
-	// is not. The candidate IS the enable flag, so Value is the flag itself
-	// and Prereq supplies the value field it gates.
-	{Wire: "mac_override_enabled", Purpose: PurposeCorporate, Value: true, Prereq: map[string]any{"mac_override": "02:00:00:00:00:01"}},
-
 	// vpn_client_configuration_remote_ip_override is already emitted for
 	// remote-user-vpn (grouped under WireGuard Server Configuration in
 	// marshalUserVPN); its enable flag is not. The controller rejects a
@@ -116,20 +107,11 @@ var networkFieldCandidates = []fieldCandidate{
 	// x_wireguard_private_key are present.
 	{Wire: "vpn_client_configuration_remote_ip_override_enabled", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{"vpn_type": "wireguard-server", "vpn_client_configuration_remote_ip_override": "192.0.2.55", "local_port": 51820, "x_wireguard_private_key": "wGwQ7hjIRMxERjBS+iaGXfDcnTAtoQAaHXqIisVWWXg="}},
 
-	// Zone-based firewall (controller 9.0+) network-to-zone assignment.
-	{Wire: "firewall_zone_id", Purpose: PurposeCorporate, Value: "@zone", Prereq: nil}, // "@zone": resolved live to an existing zone id (Task 3)
-
-	// Advanced multicast settings: fast leave, querier, proxy downstream
-	// networks, flood control. Grouped with the igmp_snooping toggle the
-	// encoder already sends for corporate/guest/vlan-only.
-	{Wire: "igmp_fastleave", Purpose: PurposeCorporate, Value: true, Prereq: nil},
-	{Wire: "igmp_flood_unknown_multicast", Purpose: PurposeCorporate, Value: true, Prereq: nil},
-	{Wire: "igmp_groupmembership", Purpose: PurposeCorporate, Value: 260, Prereq: nil},                                                   // seconds; validation allows 2-3600, 260 is IGMP's own default interval
-	{Wire: "igmp_maxresponse", Purpose: PurposeCorporate, Value: 10, Prereq: nil},                                                        // seconds; validation caps at 25
-	{Wire: "igmp_mcrtrexpiretime", Purpose: PurposeCorporate, Value: 300, Prereq: nil},                                                   // seconds; validation allows 0-3600
-	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil}, // shape of a referenced networkconf id; a real id must be substituted to test acceptance live
-	{Wire: "igmp_querier_switches", Purpose: PurposeCorporate, Value: []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}}, Prereq: nil},
-	{Wire: "igmp_supression", Purpose: PurposeCorporate, Value: true, Prereq: nil},
+	// igmp_proxy_downstream_networkconf_ids: shape of a referenced
+	// networkconf id; a real id must be substituted to test acceptance live.
+	// The rest of this group (fast leave, querier, flood control,
+	// suppression) is wired -- see marshalCorporate.
+	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil},
 
 	// WAN MTU. The coverage comment attributes this to marshalWAN, not
 	// corporate -- Purpose is PurposeWAN here.
@@ -147,11 +129,6 @@ var networkFieldCandidates = []fieldCandidate{
 	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: "192.0.2.4/30", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true})},
 	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip": "192.0.2.4/30"})},
 
-	// ipv6_interface_type "single_network" mode and its companion
-	// interface/LAN selection fields.
-	{Wire: "ipv6_single_network_interface", Purpose: PurposeCorporate, Value: "wan", Prereq: map[string]any{"ipv6_interface_type": "single_network"}},           // no validation comment on the generated field; "wan" mirrors the ipsec_interface/l2tp_interface "wan[2-9]?" convention
-	{Wire: "single_network_lan", Purpose: PurposeCorporate, Value: "000000000000000000000000", Prereq: map[string]any{"ipv6_interface_type": "single_network"}}, // shape of a referenced LAN network id; a real id must be substituted to test acceptance live
-
 	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle;
 	// pairs naturally with the ipsec_dynamic_routing flag the encoder
 	// already sends. Requires a tunnel IP (api.err.IpsecDynamicSubnetsRequireTunnelIp).
@@ -168,10 +145,6 @@ var networkFieldCandidates = []fieldCandidate{
 	// api.err.RadiusProfileRequired unless radiusprofile_id references a
 	// real profile ("@radiusprofile" resolves live to the site's default).
 	{Wire: "require_mschapv2", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{"vpn_type": "l2tp-server", "l2tp_interface": "wan", "x_ipsec_pre_shared_key": "l2tp-s3cret-psk", "radiusprofile_id": "@radiusprofile"}},
-
-	// Per-LAN UPnP toggle (distinct from the WAN-side upnp_* fields
-	// marshalWAN already sends).
-	{Wire: "upnp_lan_enabled", Purpose: PurposeCorporate, Value: true, Prereq: nil},
 
 	// OpenVPN server protocol for remote-user-vpn; openvpn_mode is already
 	// emitted. The controller rejects an openvpn-server network with

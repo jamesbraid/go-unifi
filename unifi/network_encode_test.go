@@ -733,6 +733,160 @@ func TestMarshalNetworkUserVPNBindingMode(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkCorporateIGMPAdvanced guards the advanced multicast
+// fields added to the corporate marshaler in Task 4 (fast leave, flood
+// control, querier interval/response/expire timers, querier switches,
+// suppression) -- live-verified PERSISTED against a simulation-mode 10.0.162
+// controller (network_field_probe_integration_test.go).
+func TestMarshalNetworkCorporateIGMPAdvanced(t *testing.T) {
+	groupmembership := int64(260)
+	maxresponse := int64(10)
+	mcrtrexpiretime := int64(300)
+
+	network := &Network{
+		ID:                        "507f1f77bcf86cd799439030",
+		Purpose:                   PurposeCorporate,
+		Enabled:                   true,
+		IGMPFastleave:             true,
+		IGMPFloodUnknownMulticast: true,
+		IGMPGroupmembership:       &groupmembership,
+		IGMPMaxresponse:           &maxresponse,
+		IGMPMcrtrexpiretime:       &mcrtrexpiretime,
+		IGMPQuerierSwitches:       []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}},
+		IGMPSuppression:           true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got := result["igmp_fastleave"]; got != true {
+		t.Errorf("igmp_fastleave = %v, want true", got)
+	}
+	if got := result["igmp_flood_unknown_multicast"]; got != true {
+		t.Errorf("igmp_flood_unknown_multicast = %v, want true", got)
+	}
+	if got := result["igmp_groupmembership"]; got != float64(260) {
+		t.Errorf("igmp_groupmembership = %v, want 260", got)
+	}
+	if got := result["igmp_maxresponse"]; got != float64(10) {
+		t.Errorf("igmp_maxresponse = %v, want 10", got)
+	}
+	if got := result["igmp_mcrtrexpiretime"]; got != float64(300) {
+		t.Errorf("igmp_mcrtrexpiretime = %v, want 300", got)
+	}
+	if got := result["igmp_supression"]; got != true {
+		t.Errorf("igmp_supression = %v, want true", got)
+	}
+	switches, ok := result["igmp_querier_switches"].([]any)
+	if !ok || len(switches) != 1 {
+		t.Fatalf("igmp_querier_switches = %v, want 1 entry", result["igmp_querier_switches"])
+	}
+	entry, ok := switches[0].(map[string]any)
+	if !ok || entry["querier_address"] != "10.0.0.254" {
+		t.Errorf("igmp_querier_switches[0] = %v, want querier_address 10.0.0.254", switches[0])
+	}
+
+	// Unset => bools false, pointers/slices omitted.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeCorporate, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["igmp_fastleave"]; got != false {
+		t.Errorf("igmp_fastleave = %v, want false", got)
+	}
+	if got := result["igmp_supression"]; got != false {
+		t.Errorf("igmp_supression = %v, want false", got)
+	}
+	for _, field := range []string{"igmp_groupmembership", "igmp_maxresponse", "igmp_mcrtrexpiretime", "igmp_querier_switches"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
+// TestMarshalNetworkCorporateMisc guards the remaining corporate fields
+// wired in Task 4: DHCP time offset value, MAC override enable flag,
+// zone-based firewall assignment, per-LAN UPnP, and the ipv6_interface_type
+// "single_network" companion fields -- live-verified PERSISTED.
+func TestMarshalNetworkCorporateMisc(t *testing.T) {
+	timeOffset := int64(3600)
+	zoneID := "64f0000000000000000000aa"
+	lanID := "64f0000000000000000000bb"
+
+	network := &Network{
+		ID:                         "507f1f77bcf86cd799439031",
+		Purpose:                    PurposeCorporate,
+		Enabled:                    true,
+		DHCPDTimeOffset:            &timeOffset,
+		MACOverride:                "02:00:00:00:00:01",
+		MACOverrideEnabled:         true,
+		FirewallZoneID:             &zoneID,
+		UPnPLanEnabled:             true,
+		IPV6InterfaceType:          strPtr("single_network"),
+		IPV6SingleNetworkInterface: strPtr("wan"),
+		SingleNetworkLan:           &lanID,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got := result["dhcpd_time_offset"]; got != float64(3600) {
+		t.Errorf("dhcpd_time_offset = %v, want 3600", got)
+	}
+	if got := result["mac_override_enabled"]; got != true {
+		t.Errorf("mac_override_enabled = %v, want true", got)
+	}
+	if got := result["firewall_zone_id"]; got != zoneID {
+		t.Errorf("firewall_zone_id = %v, want %s", got, zoneID)
+	}
+	if got := result["upnp_lan_enabled"]; got != true {
+		t.Errorf("upnp_lan_enabled = %v, want true", got)
+	}
+	if got := result["ipv6_single_network_interface"]; got != "wan" {
+		t.Errorf("ipv6_single_network_interface = %v, want wan", got)
+	}
+	if got := result["single_network_lan"]; got != lanID {
+		t.Errorf("single_network_lan = %v, want %s", got, lanID)
+	}
+
+	// Unset => omitted/false, no perpetual diff against the API.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeCorporate, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["mac_override_enabled"]; got != false {
+		t.Errorf("mac_override_enabled = %v, want false", got)
+	}
+	if got := result["upnp_lan_enabled"]; got != false {
+		t.Errorf("upnp_lan_enabled = %v, want false", got)
+	}
+	for _, field := range []string{"dhcpd_time_offset", "firewall_zone_id", "ipv6_single_network_interface", "single_network_lan"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s
