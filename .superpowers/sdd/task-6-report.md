@@ -164,6 +164,43 @@ git diff --check
 temporary-harness and raw-archive checks
 ```
 
+### Closed notice suffix grammar
+
+The first reviewed matcher excluded several named binary extensions but still
+accepted arbitrary dash/underscore suffixes such as `LICENSE-secrets.json`. RED
+tests captured JSON, executable, compressed-property, malformed separator,
+non-numeric dotted-token, empty, and control-byte cases for both direct and nested
+paths.
+
+The shared matcher now accepts only an exact reviewed family, family plus `.txt`
+or `.md`, or a dash/underscore sequence of non-empty ASCII alphanumeric tokens.
+Dots are permitted only inside all-numeric version tokens, and the variant may end
+in `.txt` or `.md`. This accepts observed forms plus `LICENSE-2.0`,
+`LICENSE-APACHE-2.0.txt`, and `NOTICE-third-party`, while rejecting arbitrary file
+extensions and malformed names.
+
+The retained-ace production harness again reported 138 notices, 850,719 notice
+bytes, 263,007,262 expanded dependency bytes, and the unchanged reviewed digest:
+
+```text
+70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f
+```
+
+The temporary absolute-path harness was removed before verification and commit.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(DependencyNoticePathFamiliesExcludeBinaryLookalikes|ExtractUOSInstallerInventoriesDirectDependencyNotices|ExtractUOSInstallerInventoriesNoticeBasenameSuffixes|ExtractUOSInstallerDependencyNoticeInventoryIsOrderIndependent)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.218s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.845s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+```
+
 ## Extracted-definition lifecycle and snapshot semantics
 
 The successful extractor path returned file-backed artifacts beneath a

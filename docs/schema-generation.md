@@ -112,9 +112,11 @@ The extractor checks direct entries in `ace.jar` and
 `internal-dependencies.jar`, then sequentially opens every direct dependency JAR
 beneath `ace.jar/BOOT-INF/lib`. It captures root or `META-INF` files in the
 LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY basename families, including
-reviewed `.txt`, `.md`, dash, and underscore variants such as `LICENSE-2.0`.
-Binary and property-file
-lookalikes are excluded. Every nested archive is still fully validated before
+exact names and `.txt` or `.md`. Dash/underscore variants contain non-empty ASCII
+name/version tokens; dots are allowed only in all-numeric version tokens such as
+`2.0`, with optional final `.txt` or `.md`. Thus `LICENSE-APACHE-2.0.txt` and
+`NOTICE-third-party` are included while JSON, executable, compressed property,
+class, property, and binary lookalikes are excluded. Every nested archive is still fully validated before
 non-notice entries are ignored.
 
 The reviewed 10.4.57 input contains 153 direct dependency JARs. Seventy-three

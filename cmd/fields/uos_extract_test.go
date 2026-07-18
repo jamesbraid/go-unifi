@@ -261,7 +261,9 @@ func TestExtractUOSInstallerDependencyNoticeInventoryIsOrderIndependent(t *testi
 func TestDependencyNoticePathFamiliesExcludeBinaryLookalikes(t *testing.T) {
 	for _, name := range []string{
 		"LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE.md",
-		"META-INF/LICENSE-2.0", "META-INF/LICENSE-2.0.txt", "META-INF/COPYING", "META-INF/COPYRIGHT",
+		"META-INF/LICENSE-2.0", "META-INF/LICENSE-2.0.txt", "META-INF/LICENSE-APACHE-2.0.txt",
+		"META-INF/NOTICE-third-party", "META-INF/LICENSE_APACHE_2.0.md",
+		"META-INF/COPYING", "META-INF/COPYRIGHT",
 		"META-INF/THIRDPARTY", "META-INF/THIRD-PARTY-NOTICES.txt",
 	} {
 		assert.True(t, isDependencyNoticePath(name), name)
@@ -269,6 +271,10 @@ func TestDependencyNoticePathFamiliesExcludeBinaryLookalikes(t *testing.T) {
 	}
 	for _, name := range []string{
 		"META-INF/LICENSE.class", "META-INF/NOTICE.properties", "LICENSE.bin",
+		"META-INF/LICENSE-secrets.json", "META-INF/NOTICE.exe",
+		"META-INF/LICENSE-data.properties.gz", "META-INF/LICENSE-APACHE.json",
+		"META-INF/LICENSE-", "META-INF/LICENSE__APACHE", "META-INF/LICENSE-2..0",
+		"META-INF/LICENSE-v2.0", "META-INF/LICENSE-APACHE-2.0\x00.txt",
 		"com/example/Copyright.class", "README.txt", "META-INF/THIRDPARTY.class",
 	} {
 		assert.False(t, isDependencyNoticePath(name), name)

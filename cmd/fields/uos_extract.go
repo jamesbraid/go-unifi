@@ -473,21 +473,62 @@ func hasNoticeBasename(name string, families []string) bool {
 		if !strings.HasPrefix(base, family) || len(base) == len(family) {
 			continue
 		}
-		remainder := base[len(family):]
-		if remainder == ".TXT" || remainder == ".MD" {
+		if validNoticeFamilySuffix(base[len(family):]) {
 			return true
-		}
-		if remainder[0] == '-' || remainder[0] == '_' {
-			extension := strings.ToUpper(path.Ext(remainder))
-			switch extension {
-			case ".CLASS", ".PROPERTIES", ".BIN":
-				continue
-			default:
-				return true
-			}
 		}
 	}
 	return false
+}
+
+func validNoticeFamilySuffix(suffix string) bool {
+	if suffix == ".TXT" || suffix == ".MD" {
+		return true
+	}
+	if len(suffix) < 2 || (suffix[0] != '-' && suffix[0] != '_') {
+		return false
+	}
+	variant := suffix[1:]
+	if strings.HasSuffix(variant, ".TXT") {
+		variant = strings.TrimSuffix(variant, ".TXT")
+	} else if strings.HasSuffix(variant, ".MD") {
+		variant = strings.TrimSuffix(variant, ".MD")
+	}
+	if variant == "" {
+		return false
+	}
+	start := 0
+	for i := 0; i <= len(variant); i++ {
+		if i < len(variant) && variant[i] != '-' && variant[i] != '_' {
+			continue
+		}
+		if i == start || !validNoticeVariantToken(variant[start:i]) {
+			return false
+		}
+		start = i + 1
+	}
+	return true
+}
+
+func validNoticeVariantToken(token string) bool {
+	if strings.Contains(token, ".") {
+		for _, part := range strings.Split(token, ".") {
+			if part == "" {
+				return false
+			}
+			for i := range len(part) {
+				if part[i] < '0' || part[i] > '9' {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for i := range len(token) {
+		if (token[i] < 'A' || token[i] > 'Z') && (token[i] < '0' || token[i] > '9') {
+			return false
+		}
+	}
+	return token != ""
 }
 
 func extractZipArtifact(ctx context.Context, entry *zip.File, name, outRoot string, limit int64) (ExtractedArtifact, error) {
