@@ -96,6 +96,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "country", nil
 	case *Dashboard:
 		return "dashboard", nil
+	case *DeviceSupervision:
+		return "device_supervision", nil
 	case *Doh:
 		return "doh", nil
 	case *Dpi:
@@ -104,8 +106,6 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "element_adopt", nil
 	case *EtherLighting:
 		return "ether_lighting", nil
-	case *EvaluationScore:
-		return "evaluation_score", nil
 	case *GlobalAp:
 		return "global_ap", nil
 	case *GlobalNat:
@@ -118,6 +118,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "igmp_snooping", nil
 	case *Ips:
 		return "ips", nil
+	case *IpsSuppression:
+		return "ips_suppression", nil
 	case *Lcm:
 		return "lcm", nil
 	case *Locale:
@@ -140,8 +142,6 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "radio_ai", nil
 	case *Radius:
 		return "radius", nil
-	case *RoamingAssistant:
-		return "roaming_assistant", nil
 	case *Rsyslogd:
 		return "rsyslogd", nil
 	case *Snmp:
@@ -170,6 +170,8 @@ func GetSettingKey(setting Setting) (string, error) {
 		return "traffic_flow", nil
 	case *Usg:
 		return "usg", nil
+	case *UsgGeo:
+		return "usg_geo", nil
 	case *Usw:
 		return "usw", nil
 	case *RawSetting:

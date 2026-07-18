@@ -28,6 +28,7 @@ type Connectivity struct {
 	Enabled            bool   `json:"enabled"`
 	MeshEssid          string `json:"x_mesh_essid,omitempty"`
 	MeshPsk            string `json:"x_mesh_psk,omitempty"`
+	MloMeshEnabled     bool   `json:"mlo_mesh_enabled"`
 	UplinkHost         string `json:"uplink_host,omitempty"`
 	UplinkType         string `json:"uplink_type,omitempty"`
 }
