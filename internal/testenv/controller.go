@@ -105,9 +105,13 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	}
 
 	// The seeded admin appears some time after the port opens; poll login.
+	// One Session is reused across attempts: a stale cookie from a failed
+	// login is harmless (each attempt is a fresh POST), and constructing
+	// a fresh Transport+TLS+cookiejar every 3s would otherwise abandon up
+	// to ~80 of them over the full deadline.
 	deadline := time.Now().Add(4 * time.Minute)
+	s := NewSession(c.BaseURL)
 	for {
-		s := NewSession(c.BaseURL)
 		err := s.Login(ctx, c.Username, c.Password)
 		if err == nil {
 			return c

@@ -3,15 +3,16 @@ package main
 import "slices"
 
 // driftIgnoredKeys are controller envelope fields that the schema files
-// never carry (the generator adds them to every resource itself).
-var driftIgnoredKeys = map[string]bool{
-	"_id":            true,
-	"site_id":        true,
-	"attr_hidden":    true,
-	"attr_hidden_id": true,
-	"attr_no_delete": true,
-	"attr_no_edit":   true,
-}
+// never carry (the generator adds them to every resource itself). Derived
+// from envelopeJSONKeys (main.go), the single source of truth shared with
+// the generator's baseType fields.
+var driftIgnoredKeys = func() map[string]bool {
+	m := make(map[string]bool, len(envelopeJSONKeys))
+	for _, k := range envelopeJSONKeys {
+		m[k] = true
+	}
+	return m
+}()
 
 type driftResult struct {
 	// LiveOnly are fields the live controller emitted that the schema does
