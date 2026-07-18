@@ -139,9 +139,9 @@ jobs:
       # either not triggered or held for approval (GitHub's behavior has
       # changed over time), so it needs manual attention either way.
       # NOTE: auto-merge only waits for checks that branch protection marks
-      # required (the Test job); without that protection rule it merges
-      # immediately, ungated. Breaking API changes skip auto-merge entirely
-      # (see the Flag breaking change step below).
+      # required (the Test and Integration jobs); without that protection
+      # rule it merges immediately, ungated. Breaking API changes skip
+      # auto-merge entirely (see the Flag breaking change step below).
       - name: Create pull request
         if: steps.check.outputs.changed == 'true'
         id: pr

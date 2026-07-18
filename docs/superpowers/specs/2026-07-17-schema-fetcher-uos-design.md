@@ -107,7 +107,8 @@ caught even without the prefix.
 - **ci.yaml**: Test is blocking; the generated-drift check is blocking
   unless a new upstream release appeared mid-PR.
 - Full hands-off needs repo settings: `SCHEMA_UPDATE_TOKEN` (PAT/App,
-  contents+pull-requests write), allow auto-merge, required Test check.
+  contents+pull-requests write), allow auto-merge, and required checks
+  `Test` + `Integration` on main.
 
 ## Licensing posture
 
