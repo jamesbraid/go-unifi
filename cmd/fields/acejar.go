@@ -27,8 +27,19 @@ var keepTopLevelJSON = []string{
 	"ssl-inspection-file-extension.json",
 }
 
+// readZipFile returns the full contents of a zip entry.
+func readZipFile(f *zip.File) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
 // findInternalJar reads internal-dependencies.jar out of ace.jar (a Spring
-// Boot fat jar).
+// Boot fat jar). Pass 1 matches the exact BOOT-INF path; pass 2 falls back
+// to a name suffix in case the packaging moves the jar.
 func findInternalJar(aceJarPath string) ([]byte, error) {
 	zr, err := zip.OpenReader(aceJarPath)
 	if err != nil {
@@ -37,16 +48,14 @@ func findInternalJar(aceJarPath string) ([]byte, error) {
 	defer zr.Close()
 
 	for _, f := range zr.File {
-		if f.Name != "BOOT-INF/lib/internal-dependencies.jar" &&
-			!strings.Contains(f.Name, "internal-dependencies") {
-			continue
+		if f.Name == "BOOT-INF/lib/internal-dependencies.jar" {
+			return readZipFile(f)
 		}
-		rc, err := f.Open()
-		if err != nil {
-			return nil, err
+	}
+	for _, f := range zr.File {
+		if strings.HasSuffix(f.Name, "internal-dependencies.jar") {
+			return readZipFile(f)
 		}
-		defer rc.Close()
-		return io.ReadAll(rc)
 	}
 
 	return nil, errors.New("internal-dependencies.jar not found in ace.jar")
@@ -61,6 +70,7 @@ func extractDefs(internalJar []byte, fieldsDir string) (int, error) {
 	}
 
 	n := 0
+	fieldDefs := 0
 	for _, f := range zr.File {
 		var dest string
 		switch {
@@ -74,21 +84,30 @@ func extractDefs(internalJar []byte, fieldsDir string) (int, error) {
 
 		rc, err := f.Open()
 		if err != nil {
-			return n, err
+			return n, fmt.Errorf("unable to extract %s: %w", f.Name, err)
 		}
 		b, err := io.ReadAll(rc)
 		rc.Close()
 		if err != nil {
-			return n, err
+			return n, fmt.Errorf("unable to extract %s: %w", f.Name, err)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return n, err
+			return n, fmt.Errorf("unable to extract %s: %w", f.Name, err)
 		}
 		if err := os.WriteFile(dest, b, 0o644); err != nil {
-			return n, err
+			return n, fmt.Errorf("unable to extract %s: %w", f.Name, err)
 		}
 		n++
+		if strings.HasPrefix(f.Name, "api/fields/") {
+			fieldDefs++
+		}
+	}
+
+	// A valid internal-dependencies.jar always carries field definitions; zero
+	// means the packaging changed and we must not silently extract nothing.
+	if fieldDefs == 0 {
+		return 0, errors.New("no api/fields definitions found in internal-dependencies.jar")
 	}
 
 	return n, nil
@@ -109,12 +128,7 @@ func readNetworkVersion(aceJarPath string) (string, error) {
 		if f.Name != "BOOT-INF/classes/product.properties" {
 			continue
 		}
-		rc, err := f.Open()
-		if err != nil {
-			return "", err
-		}
-		defer rc.Close()
-		b, err := io.ReadAll(rc)
+		b, err := readZipFile(f)
 		if err != nil {
 			return "", err
 		}

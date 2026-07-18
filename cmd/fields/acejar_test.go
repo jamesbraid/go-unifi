@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,6 +18,27 @@ func writeTempFile(t *testing.T, name string, content []byte) string {
 	return p
 }
 
+type zipEntry struct {
+	name    string
+	content []byte
+}
+
+// buildAceJarEntries returns ace.jar bytes holding exactly the given entries,
+// in order.
+func buildAceJarEntries(t *testing.T, entries ...zipEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, e := range entries {
+		w, err := zw.Create(e.name)
+		require.NoError(t, err)
+		_, err = w.Write(e.content)
+		require.NoError(t, err)
+	}
+	require.NoError(t, zw.Close())
+	return buf.Bytes()
+}
+
 func TestFindInternalJar(t *testing.T) {
 	aceJar := writeTempFile(t, "ace.jar", buildTestAceJar(t, map[string]string{
 		"api/fields/NetworkConf.json": `{}`,
@@ -23,7 +46,36 @@ func TestFindInternalJar(t *testing.T) {
 
 	internal, err := findInternalJar(aceJar)
 	require.NoError(t, err)
-	assert.Contains(t, string(internal), "PK")
+
+	zr, err := zip.NewReader(bytes.NewReader(internal), int64(len(internal)))
+	require.NoError(t, err)
+	names := make([]string, 0, len(zr.File))
+	for _, f := range zr.File {
+		names = append(names, f.Name)
+	}
+	assert.Contains(t, names, "api/fields/NetworkConf.json")
+}
+
+func TestFindInternalJarMissing(t *testing.T) {
+	aceJar := writeTempFile(t, "ace.jar", buildAceJarEntries(t,
+		zipEntry{"BOOT-INF/classes/product.properties", []byte("version=1.2.3\n")},
+	))
+
+	_, err := findInternalJar(aceJar)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "internal-dependencies.jar")
+}
+
+func TestFindInternalJarPrefersExactMatch(t *testing.T) {
+	realInternal := buildTestZip(t, "api/fields/NetworkConf.json", []byte(`{}`))
+	aceJar := writeTempFile(t, "ace.jar", buildAceJarEntries(t,
+		zipEntry{"BOOT-INF/lib/internal-dependencies.jar.bak", []byte("decoy")},
+		zipEntry{"BOOT-INF/lib/internal-dependencies.jar", realInternal},
+	))
+
+	internal, err := findInternalJar(aceJar)
+	require.NoError(t, err)
+	assert.Equal(t, realInternal, internal)
 }
 
 func TestReadNetworkVersion(t *testing.T) {
@@ -32,6 +84,26 @@ func TestReadNetworkVersion(t *testing.T) {
 	v, err := readNetworkVersion(aceJar)
 	require.NoError(t, err)
 	assert.Equal(t, "10.4.57", v)
+}
+
+func TestReadNetworkVersionMissingProperties(t *testing.T) {
+	aceJar := writeTempFile(t, "ace.jar", buildAceJarEntries(t,
+		zipEntry{"BOOT-INF/lib/internal-dependencies.jar", buildTestZip(t, "x", []byte("y"))},
+	))
+
+	_, err := readNetworkVersion(aceJar)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "product.properties")
+}
+
+func TestReadNetworkVersionMissingVersion(t *testing.T) {
+	aceJar := writeTempFile(t, "ace.jar", buildAceJarEntries(t,
+		zipEntry{"BOOT-INF/classes/product.properties", []byte("product=UniFi\n")},
+	))
+
+	_, err := readNetworkVersion(aceJar)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "version=")
 }
 
 func TestExtractDefs(t *testing.T) {
@@ -64,4 +136,12 @@ func TestExtractDefs(t *testing.T) {
 
 	// class files and manifests ignored
 	assert.NoFileExists(t, filepath.Join(fieldsDir, "MANIFEST.MF"))
+}
+
+func TestExtractDefsNoFieldDefs(t *testing.T) {
+	internal := buildTestZip(t, "com/ubnt/SomeClass.class", []byte("CAFEBABE"))
+
+	_, err := extractDefs(internal, t.TempDir())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no api/fields")
 }
