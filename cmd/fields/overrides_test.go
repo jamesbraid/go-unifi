@@ -20,7 +20,11 @@ func resourceWithFields(structName string, fields map[string]*FieldInfo) *Resour
 
 func withOverrides(t *testing.T, overrides map[string]resourceOverride, fn func()) {
 	t.Helper()
-	resourceOverridesOnce.Do(func() {})
+	// Force the real overrides/fields.toml to load (and resourceOverridesOnce
+	// to fire) before we save and neutralize it, so restoration below yields
+	// the genuine map rather than nil for any test that later calls
+	// resourceOverrides() lazily.
+	resourceOverrides()
 	saved := resourceOverridesMap
 	resourceOverridesMap = overrides
 	t.Cleanup(func() { resourceOverridesMap = saved })

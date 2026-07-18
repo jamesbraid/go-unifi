@@ -42,6 +42,11 @@ func fakeController(t *testing.T) *httptest.Server {
 		case http.MethodPost:
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body == nil {
+				// A non-object body (or a decode error) leaves body nil;
+				// initialize it rather than panic on assignment below.
+				body = map[string]any{}
+			}
 			body["_id"] = "new-id"
 			resp := map[string]any{"meta": map[string]any{"rc": "ok"}, "data": []any{body}}
 			_ = json.NewEncoder(w).Encode(resp)

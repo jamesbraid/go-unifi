@@ -25,6 +25,15 @@ import (
 // that cache and make TestIntegrationControllerBoots falsely skip with
 // "docker unavailable" even on a machine with a working daemon.
 func TestDockerHealthNoPanic(t *testing.T) {
+	// testcontainers' host discovery gives ~/.testcontainers.properties
+	// precedence over DOCKER_HOST. Redirect HOME (and USERPROFILE, for
+	// portability) to an empty temp dir so a developer machine with that
+	// file pointing at a live daemon can't make this test see a real
+	// docker host and skip the panic path it's meant to pin.
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	t.Setenv("USERPROFILE", fakeHome)
+
 	// Point discovery at paths that cannot exist so it fails regardless of
 	// the machine's real docker setup. Depending on how testcontainers
 	// resolves these, dockerHealth returns either a construction/health
