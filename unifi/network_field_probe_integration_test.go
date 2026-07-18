@@ -5,8 +5,10 @@ package unifi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -70,11 +72,17 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 
 			created := firstData(t, body)
 			id, _ := created["_id"].(string)
-			defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id) //nolint:errcheck
+			if id == "" {
+				t.Logf("no _id in create response; skipping cleanup: %v", created)
+			} else {
+				defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id) //nolint:errcheck
+			}
 
 			got, ok := created[cand.Wire]
-			// Some fields only appear on read-back; check GET too.
-			if !ok {
+			// Some fields only appear on read-back; check GET too. Without an
+			// id there's nothing to re-GET, so classify from the create
+			// response alone.
+			if !ok && id != "" {
 				fresh, status, _ := s.GetJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id)
 				if status == 200 {
 					if m := firstData(t, fresh); m != nil {
@@ -83,7 +91,7 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 				}
 			}
 
-			if ok && fmt.Sprintf("%v", got) == fmt.Sprintf("%v", value) {
+			if ok && jsonEqual(got, value) {
 				t.Logf("PERSISTED %s = %v", cand.Wire, got)
 			} else if ok {
 				t.Logf("MUTATED %s: sent %v, got %v", cand.Wire, value, got)
@@ -115,6 +123,40 @@ func firstData(t *testing.T, body any) map[string]any {
 		}
 	}
 	return nil
+}
+
+// jsonEqual compares a and b by round-tripping both through JSON and
+// comparing the decoded result with reflect.DeepEqual. Raw comparison of a
+// Go struct/slice candidate value against the map[string]any the controller
+// hands back on read-back never matches -- and fmt.Sprintf("%v", ...) on
+// either side is no better, since it string-formats field order and types
+// the wire format doesn't preserve. Normalizing both sides through JSON
+// gives them the same shape (map[string]any, []any, float64, ...) before
+// comparing. The float64 normalization also means int/float differences
+// between what was sent and what came back are treated as equal, which is
+// the desired semantic here: did the controller keep the value.
+func jsonEqual(a, b any) bool {
+	na, err := normalizeJSON(a)
+	if err != nil {
+		return false
+	}
+	nb, err := normalizeJSON(b)
+	if err != nil {
+		return false
+	}
+	return reflect.DeepEqual(na, nb)
+}
+
+func normalizeJSON(v any) (any, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var out any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func firstZoneID(ctx context.Context, t *testing.T, s *testenv.Session, site string) string {
