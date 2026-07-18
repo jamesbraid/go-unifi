@@ -3055,6 +3055,74 @@
       }
     },
     {
+      "name": "heat_map",
+      "schema": {
+        "attributes": [
+          {
+            "name": "description",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "map_id",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "heat_map_point",
+      "schema": {
+        "attributes": [
+          {
+            "name": "download_speed",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "heatmap_id",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "upload_speed",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "x",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "y",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "hotspot_2_conf",
       "schema": {
         "attributes": [
@@ -3886,6 +3954,91 @@
           {
             "name": "trial_reset",
             "float64": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "map",
+      "schema": {
+        "attributes": [
+          {
+            "name": "lat",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "lng",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "map_type_id",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "offset_left",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "offset_top",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "opacity",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "selected",
+            "bool": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "tilt",
+            "int64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "unit",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "upp",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "zoom",
+            "int64": {
               "computed_optional_required": "computed"
             }
           }
@@ -6778,6 +6931,28 @@
       }
     },
     {
+      "name": "tag",
+      "schema": {
+        "attributes": [
+          {
+            "name": "member_table",
+            "list": {
+              "computed_optional_required": "computed",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "traffic_route",
       "schema": {
         "attributes": [
@@ -6980,6 +7155,49 @@
                   }
                 ]
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "virtual_device",
+      "schema": {
+        "attributes": [
+          {
+            "name": "height_in_meters",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "locked",
+            "bool": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "map_id",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "x",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "y",
+            "string": {
+              "computed_optional_required": "computed"
             }
           }
         ]
@@ -11233,6 +11451,74 @@
       }
     },
     {
+      "name": "heat_map",
+      "schema": {
+        "attributes": [
+          {
+            "name": "description",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "map_id",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "heat_map_point",
+      "schema": {
+        "attributes": [
+          {
+            "name": "download_speed",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "heatmap_id",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "upload_speed",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "x",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "y",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "hotspot_2_conf",
       "schema": {
         "attributes": [
@@ -12064,6 +12350,91 @@
           {
             "name": "trial_reset",
             "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "map",
+      "schema": {
+        "attributes": [
+          {
+            "name": "lat",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "lng",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "map_type_id",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "offset_left",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "offset_top",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "opacity",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "selected",
+            "bool": {
+              "computed_optional_required": "optional"
+            }
+          },
+          {
+            "name": "tilt",
+            "int64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "unit",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "upp",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "zoom",
+            "int64": {
               "computed_optional_required": "computed_optional"
             }
           }
@@ -14956,6 +15327,28 @@
       }
     },
     {
+      "name": "tag",
+      "schema": {
+        "attributes": [
+          {
+            "name": "member_table",
+            "list": {
+              "computed_optional_required": "computed_optional",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "traffic_route",
       "schema": {
         "attributes": [
@@ -15158,6 +15551,49 @@
                   }
                 ]
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "virtual_device",
+      "schema": {
+        "attributes": [
+          {
+            "name": "height_in_meters",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "locked",
+            "bool": {
+              "computed_optional_required": "optional"
+            }
+          },
+          {
+            "name": "map_id",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "x",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "y",
+            "string": {
+              "computed_optional_required": "computed_optional"
             }
           }
         ]
