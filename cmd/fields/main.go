@@ -117,10 +117,12 @@ var fileReps = []replacement{
 }
 
 type ResourceInfo struct {
-	StructName     string
-	ResourcePath   string
-	Types          map[string]*FieldInfo
-	FieldProcessor func(name string, f *FieldInfo) error
+	StructName       string
+	ResourcePath     string
+	SourceFileBase   string
+	SourcePathPrefix []string
+	Types            map[string]*FieldInfo
+	FieldProcessor   func(name string, f *FieldInfo) error
 }
 
 type FieldInfo struct {
@@ -134,6 +136,7 @@ type FieldInfo struct {
 	Fields              map[string]*FieldInfo
 	CustomUnmarshalType string
 	CustomUnmarshalFunc string
+	Sensitive           bool
 }
 
 func NewResource(structName string, resourcePath string) *ResourceInfo {
@@ -433,6 +436,10 @@ func main() {
 
 	// Initialize specification generator
 	specGen := NewSpecificationGenerator("unifi")
+	settingSchema, settingSchemaErr := os.ReadFile(filepath.Join(fieldsDir, "Setting.json"))
+	if settingSchemaErr != nil && !errors.Is(settingSchemaErr, os.ErrNotExist) {
+		panic(settingSchemaErr)
+	}
 
 	for _, fieldsFile := range fieldsFiles {
 		name := fieldsFile.Name()
@@ -467,6 +474,9 @@ func main() {
 		}
 
 		resource := NewResource(structName, urlPath)
+		if err := SetResourceSourceIdentity(resource, fieldsFile.Name(), settingSchema); err != nil {
+			panic(err)
+		}
 
 		switch resource.StructName {
 		case "Account":

@@ -201,6 +201,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			nestedAttrs := g.generateNestedDataSourceAttributes(r, field)
 			attr.ListNested = &datasource.ListNestedAttribute{
 				ComputedOptionalRequired: "computed",
+				Sensitive:                sensitivePtr(field),
 				NestedObject: datasource.NestedAttributeObject{
 					AssociatedExternalType: externalType,
 					Attributes:             nestedAttrs,
@@ -210,6 +211,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			// Simple array - use list
 			attr.List = &datasource.ListAttribute{
 				ComputedOptionalRequired: "computed",
+				Sensitive:                sensitivePtr(field),
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
 			}
@@ -222,6 +224,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		nestedAttrs := g.generateNestedDataSourceAttributes(r, field)
 		attr.SingleNested = &datasource.SingleNestedAttribute{
 			ComputedOptionalRequired: "computed",
+			Sensitive:                sensitivePtr(field),
 			Attributes:               nestedAttrs,
 			AssociatedExternalType:   externalType,
 		}
@@ -233,11 +236,13 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 	case "bool":
 		attr.Bool = &datasource.BoolAttribute{
 			ComputedOptionalRequired: "computed",
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 	case "int64":
 		intAttr := &datasource.Int64Attribute{
 			ComputedOptionalRequired: "computed",
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
@@ -247,11 +252,13 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 	case "float64":
 		attr.Float64 = &datasource.Float64Attribute{
 			ComputedOptionalRequired: "computed",
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 	case "string":
 		strAttr := &datasource.StringAttribute{
 			ComputedOptionalRequired: "computed",
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
@@ -264,6 +271,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			nestedAttrs := g.generateNestedDataSourceAttributesFromType(r, field.FieldType)
 			attr.SingleNested = &datasource.SingleNestedAttribute{
 				ComputedOptionalRequired: "computed",
+				Sensitive:                sensitivePtr(field),
 				Attributes:               nestedAttrs,
 				AssociatedExternalType:   externalType,
 			}
@@ -271,6 +279,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			// Default to string for unknown types
 			attr.String = &datasource.StringAttribute{
 				ComputedOptionalRequired: "computed",
+				Sensitive:                sensitivePtr(field),
 				AssociatedExternalType:   externalType,
 			}
 		}
@@ -385,6 +394,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			nestedAttrs := g.generateNestedResourceAttributes(r, field)
 			attr.ListNested = &resource.ListNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
+				Sensitive:                sensitivePtr(field),
 				NestedObject: resource.NestedAttributeObject{
 					AssociatedExternalType: externalType,
 					Attributes:             nestedAttrs,
@@ -394,6 +404,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			// Simple array - use list
 			attr.List = &resource.ListAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
+				Sensitive:                sensitivePtr(field),
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
 			}
@@ -406,6 +417,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 		nestedAttrs := g.generateNestedResourceAttributes(r, field)
 		attr.SingleNested = &resource.SingleNestedAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
+			Sensitive:                sensitivePtr(field),
 			Attributes:               nestedAttrs,
 			AssociatedExternalType:   externalType,
 		}
@@ -417,11 +429,13 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 	case "bool":
 		attr.Bool = &resource.BoolAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 	case fields.Int:
 		intAttr := &resource.Int64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
@@ -431,11 +445,13 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 	case "float64":
 		attr.Float64 = &resource.Float64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 	case "string":
 		strAttr := &resource.StringAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
+			Sensitive:                sensitivePtr(field),
 			AssociatedExternalType:   externalType,
 		}
 		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
@@ -448,6 +464,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			nestedAttrs := g.generateNestedResourceAttributesFromType(r, field.FieldType)
 			attr.SingleNested = &resource.SingleNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
+				Sensitive:                sensitivePtr(field),
 				Attributes:               nestedAttrs,
 				AssociatedExternalType:   externalType,
 			}
@@ -455,12 +472,20 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			// Default to string for unknown types
 			attr.String = &resource.StringAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
+				Sensitive:                sensitivePtr(field),
 				AssociatedExternalType:   externalType,
 			}
 		}
 	}
 
 	return attr
+}
+
+func sensitivePtr(field *FieldInfo) *bool {
+	if field == nil || !field.Sensitive {
+		return nil
+	}
+	return ptr(true)
 }
 
 // generateNestedResourceAttributes generates nested attributes for resources.

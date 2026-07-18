@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-codegen-spec/datasource"
+	"github.com/hashicorp/terraform-plugin-codegen-spec/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +41,12 @@ func TestSpecificationGenerator_Generate_ProviderAttributes(t *testing.T) {
 	assert.True(t, attrNames["api_url"])
 	assert.True(t, attrNames["site"])
 	assert.True(t, attrNames["allow_insecure"])
+	password := attrs[slices.IndexFunc(attrs, func(attr provider.Attribute) bool { return attr.Name == "password" })]
+	apiKey := attrs[slices.IndexFunc(attrs, func(attr provider.Attribute) bool { return attr.Name == "api_key" })]
+	require.NotNil(t, password.String)
+	require.NotNil(t, apiKey.String)
+	assert.Equal(t, ptr(true), password.String.Sensitive)
+	assert.Equal(t, ptr(true), apiKey.String.Sensitive)
 }
 
 func TestSpecificationGenerator_Generate_SimpleResource(t *testing.T) {
@@ -152,6 +160,59 @@ func TestSpecificationGenerator_Generate_NestedArrayAttribute(t *testing.T) {
 	require.NotNil(t, schedulesAttr)
 	require.NotNil(t, schedulesAttr.ListNested)
 	require.Len(t, schedulesAttr.ListNested.NestedObject.Attributes, 2)
+}
+
+func TestSpecificationGenerator_Generate_SensitiveLeaves(t *testing.T) {
+	gen := NewSpecificationGenerator("unifi")
+	resource := NewResource("RADIUSProfile", "radiusprofile")
+	privateKey := NewFieldInfo("PrivateKey", "x_private_key", "string", "", true, false, false, "")
+	privateKey.Sensitive = true
+	name := NewFieldInfo("Name", "name", "string", "", false, false, false, "")
+	authServers := NewFieldInfo("AuthServers", "auth_servers", "RADIUSProfileAuthServers", "", true, true, false, "")
+	secret := NewFieldInfo("Secret", "x_secret", "string", "", true, false, false, "")
+	secret.Sensitive = true
+	authServers.Fields = map[string]*FieldInfo{
+		"IP":     NewFieldInfo("IP", "ip", "string", "", true, false, false, ""),
+		"Secret": secret,
+	}
+	resource.Types[resource.StructName].Fields["PrivateKey"] = privateKey
+	resource.Types[resource.StructName].Fields["Name"] = name
+	resource.Types[resource.StructName].Fields["AuthServers"] = authServers
+	resource.Types[authServers.FieldType] = authServers
+	gen.AddResource(resource)
+
+	generated := gen.Generate()
+	require.Len(t, generated.Resources, 1)
+	require.Len(t, generated.DataSources, 1)
+
+	resourceAttrs := generated.Resources[0].Schema.Attributes
+	resourceKey := resourceAttrs[slices.IndexFunc(resourceAttrs, findAttr("private_key"))]
+	require.NotNil(t, resourceKey.String)
+	assert.Equal(t, ptr(true), resourceKey.String.Sensitive)
+	resourceName := resourceAttrs[slices.IndexFunc(resourceAttrs, findAttr("name"))]
+	require.NotNil(t, resourceName.String)
+	assert.Nil(t, resourceName.String.Sensitive)
+	resourceAuth := resourceAttrs[slices.IndexFunc(resourceAttrs, findAttr("auth_servers"))]
+	require.NotNil(t, resourceAuth.ListNested)
+	assert.Nil(t, resourceAuth.ListNested.Sensitive)
+	resourceNested := resourceAuth.ListNested.NestedObject.Attributes
+	resourceSecret := resourceNested[slices.IndexFunc(resourceNested, findAttr("secret"))]
+	resourceIP := resourceNested[slices.IndexFunc(resourceNested, findAttr("ip"))]
+	assert.Equal(t, ptr(true), resourceSecret.String.Sensitive)
+	assert.Nil(t, resourceIP.String.Sensitive)
+
+	dsAttrs := generated.DataSources[0].Schema.Attributes
+	dsKey := dsAttrs[slices.IndexFunc(dsAttrs, func(attr datasource.Attribute) bool { return attr.Name == "private_key" })]
+	require.NotNil(t, dsKey.String)
+	assert.Equal(t, ptr(true), dsKey.String.Sensitive)
+	dsAuth := dsAttrs[slices.IndexFunc(dsAttrs, func(attr datasource.Attribute) bool { return attr.Name == "auth_servers" })]
+	require.NotNil(t, dsAuth.ListNested)
+	assert.Nil(t, dsAuth.ListNested.Sensitive)
+	dsNested := dsAuth.ListNested.NestedObject.Attributes
+	dsSecret := dsNested[slices.IndexFunc(dsNested, func(attr datasource.Attribute) bool { return attr.Name == "secret" })]
+	dsIP := dsNested[slices.IndexFunc(dsNested, func(attr datasource.Attribute) bool { return attr.Name == "ip" })]
+	assert.Equal(t, ptr(true), dsSecret.String.Sensitive)
+	assert.Nil(t, dsIP.String.Sensitive)
 }
 
 func TestSpecificationGenerator_Generate_SkipsSettings(t *testing.T) {
