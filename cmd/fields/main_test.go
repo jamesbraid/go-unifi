@@ -2,10 +2,41 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	assert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGenerateFromFieldsMergesUpstreamWireguardIPVersionCompatibilityField(t *testing.T) {
+	fieldsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Setting.json"), []byte(`{}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "NetworkConf.json"), []byte(`{"networkgroup":"LAN[2-8]?","wireguard_interface_binding_mode_ip_version":"^(v4|v6)$"}`), 0o600))
+
+	err := generateFromFields(fieldsDir, t.TempDir(), version.Must(version.NewVersion("10.4.57")), false, filepath.Join(t.TempDir(), "spec.json"), io.Discard, func(resources []*ResourceInfo) error {
+		for _, resource := range resources {
+			if resource.StructName != "Network" {
+				continue
+			}
+			var matches []*FieldInfo
+			for _, field := range resource.Types[resource.StructName].Fields {
+				if field != nil && field.JSONName == "wireguard_interface_binding_mode_ip_version" {
+					matches = append(matches, field)
+				}
+			}
+			require.Len(t, matches, 1)
+			assert.Equal(t, "WireguardInterfaceBindingModeIPVersion", matches[0].FieldName)
+			assert.Equal(t, "string", matches[0].FieldType)
+			assert.True(t, matches[0].IsPointer)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
 
 func TestFieldInfoFromValidation(t *testing.T) {
 	for i, c := range []struct {

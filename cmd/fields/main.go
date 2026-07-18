@@ -408,6 +408,13 @@ func generateFromFields(fieldsDir, outDir string, unifiVersion *version.Version,
 		case "Network":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
+				case "WireguardInterfaceBindingModeVersion":
+					// Older schemas lacked this field, so NewResource supplies a
+					// compatibility definition. Newer schemas include it, but the
+					// global IPVersion cleanup shortens the generated Go name.
+					// Reuse the compatibility identity so the upstream definition
+					// replaces it instead of emitting a duplicate JSON tag.
+					f.FieldName = "WireguardInterfaceBindingModeIPVersion"
 				case "InternetAccessEnabled", "IntraNetworkAccessEnabled":
 					if f.FieldType == fields.Bool {
 						f.CustomUnmarshalType = "*bool"

@@ -55,6 +55,31 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## NetworkConf compatibility-field identity
+
+The real generator parse path initially blocked sensitivity inventory because
+Network 10.4.57 now supplies
+`wireguard_interface_binding_mode_ip_version`, while `NewResource` still adds
+the same JSON field for compatibility with older schemas. Global Go-name
+cleanup rewrites upstream `IPVersion` to `Version`, leaving two map entries with
+the same JSON name. Sensitivity resolution correctly rejected the ambiguity:
+
+```text
+duplicate JSONName "wireguard_interface_binding_mode_ip_version" while resolving networkconf.networkgroup
+```
+
+A minimal real-shaped generation fixture established RED with two matching
+fields. The Network field processor now restores the established
+`WireguardInterfaceBindingModeIPVersion` Go identity for the upstream field, so
+normal map insertion replaces the compatibility fallback. The upstream JSON
+tag, string type, pointer behavior, and validation remain authoritative, while
+older schemas retain the fallback.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run TestGenerateFromFieldsMergesUpstreamWireguardIPVersionCompatibilityField -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.214s
+```
+
 ## Reviewed singleton-enum allowlist
 
 Review found that the bounded lowercase grammar still admitted arbitrary short
