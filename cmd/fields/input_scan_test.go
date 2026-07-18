@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,7 +49,7 @@ func TestScanExtractedInputsRejectsSecretsAndUnknownMetadata(t *testing.T) {
 func TestScanExtractedInputsValidatesSourceMetadataURL(t *testing.T) {
 	root := t.TempDir()
 	writeScanFixture(t, root, "Device.json", `{"name":".*"}`)
-	writeScanFixture(t, root, "metadata/source.json", `{"os_version":"5.1.21","network_version":"10.4.57","firmware_id":"id","installer_url":"https://user:pass@fw-download.ui.com/file","installer_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","installer_md5":"","product":"unifi-os-server","platform":"linux-x64","channel":"release","schema_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sensitivity_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","notice_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","policy_version":"1","installer_size":1,"created":null,"updated":null,"artifacts":{},"missing_optional":[]}`)
+	writeScanFixture(t, root, "metadata/source.json", `{"os_version":"5.1.21","network_version":"10.4.57","firmware_id":"f5e2a400-1111-4222-8333-123456789abc","installer_url":"https://user:pass@fw-download.ui.com/file","installer_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","installer_md5":"","product":"unifi-os-server","platform":"linux-x64","channel":"release","schema_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sensitivity_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","notice_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","policy_version":"1","installer_size":1,"created":null,"updated":null,"artifacts":{},"missing_optional":[]}`)
 	require.ErrorContains(t, ScanExtractedInputs(root), "installer URL")
 }
 
@@ -92,6 +95,41 @@ func TestScanExtractedInputsEnforcesObservedMetadataInvariants(t *testing.T) {
 			require.Error(t, ScanExtractedInputs(root))
 		})
 	}
+}
+
+func TestScanExtractedInputsRejectsUncheckedProvenanceStrings(t *testing.T) {
+	base := map[string]any{"os_version": "5.1.21", "network_version": "10.4.57", "firmware_id": "f5e2a400-1111-4222-8333-123456789abc", "installer_url": "https://fw-download.ui.com/file", "installer_sha256": strings.Repeat("a", 64), "installer_md5": "", "product": "unifi-os-server", "platform": "linux-x64", "channel": "release", "schema_digest": strings.Repeat("a", 64), "sensitivity_digest": strings.Repeat("a", 64), "notice_digest": strings.Repeat("a", 64), "policy_version": "1", "installer_size": 1, "created": nil, "updated": nil, "artifacts": map[string]string{}, "missing_optional": []string{}}
+	for _, tc := range []struct {
+		name   string
+		mutate func(map[string]any)
+	}{{"product", func(v map[string]any) { v["product"] = "AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj" }}, {"firmware", func(v map[string]any) { v["firmware_id"] = "abcdefabcdefabcdefabcdefabcdefabcdef" }}, {"version", func(v map[string]any) { v["network_version"] = "NotAVersion" }}, {"artifact", func(v map[string]any) {
+		v["artifacts"] = map[string]string{"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj": strings.Repeat("a", 64)}
+	}}, {"missing optional", func(v map[string]any) { v["missing_optional"] = []string{"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"} }}} {
+		t.Run(tc.name, func(t *testing.T) {
+			copy := maps.Clone(base)
+			tc.mutate(copy)
+			body, err := json.Marshal(copy)
+			require.NoError(t, err)
+			root := t.TempDir()
+			writeScanFixture(t, root, "metadata/source.json", string(body))
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+
+func TestScanExtractedInputsRejectsOpaqueDynamicMetadataStrings(t *testing.T) {
+	for _, tc := range []struct{ name, path, body string }{
+		{"timezone key", "metadata/timezones.json", `{"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj":{"TZ":"GMT0"}}`}, {"timezone value", "metadata/timezones.json", `{"America/Vancouver":{"TZ":"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"}}`}, {"mime key", "metadata/ssl-inspection-file-extension.json", `{"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj":{"mime":"application/json"}}`}, {"mime value", "metadata/ssl-inspection-file-extension.json", `{"json":{"mime":"application/AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"}}`}, {"event subject", "metadata/event_defs.json", eventFixture("AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj", "ok")}, {"event message", "metadata/event_defs.json", eventFixture("ok", "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN")}, {"all lower schema", "Device.json", `{"value":"abcdefghijklmnopqrstuvwxyzabcdefghijklmnop.*"}`}, {"all upper schema", "Device.json", `{"value":"ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOP.*"}`}} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, tc.path, tc.body)
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+func eventFixture(subject, msg string) string {
+	body, _ := json.Marshal(map[string]any{"EVT_AP_Test": map[string]any{"subsystem": "wlan", "alert_repeat": true, "alert_sendmail": false, "alert_subject": subject, "key": "EVT_AP_Test", "event_enabled": true, "msg": msg, "is_alert": false, "is_negative": false}})
+	return string(body)
 }
 
 func writeScanFixture(t *testing.T, root, name, body string) {

@@ -60,6 +60,12 @@ The scanner now validates every sensitivity string against its observed bounded 
 
 Entropy exemptions are position-specific: canonical provenance digests use exact lowercase-hex length validation; timezone values use bounded POSIX-TZ syntax; extension values use bounded MIME syntax; and human event subject/message strings use bounded printable-text validation. Opaque lowercase hex and mixed-case letters-only runs remain rejected in schema and sensitive-metadata positions. A second local scan of all real 10.4.57 metadata passed after these constraints were applied; the local absolute-path test was removed before commit.
 
+## Exhaustive provenance-string follow-up
+
+Additional RED fixtures showed unchecked non-digest provenance fields and dynamic timezone, MIME, and event-text positions. Source metadata now validates versions, optional UUID firmware identity, exact product/platform/channel values, policy version, MD5, artifact names, and the known missing-optional inventory. Artifact and dynamic metadata keys also undergo opaque-run detection.
+
+Timezone keys use bounded IANA-zone grammar (plus `UTC`) and values use bounded POSIX-TZ grammar. Extension keys use bounded extension grammar and values use bounded MIME grammar. Human event text remains printable and bounded but is no longer exempt from opaque-token detection. Long alphabetic runs are entropy-checked regardless of upper/lower case, while schema punctuation remains parsed as schema syntax. Country channel keys were narrowed to the observed additive grammar. A third local scan of all real 10.4.57 metadata passed; the temporary absolute-path test was removed before commit.
+
 The full test run required the normal external sandbox profile because existing `httptest` tests bind loopback ports.
 
 ## Decisions and follow-ups

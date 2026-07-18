@@ -16,22 +16,30 @@ import (
 )
 
 var (
-	pemPrivateKey          = regexp.MustCompile(`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----`)
-	jwtToken               = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\b`)
-	awsAccessKey           = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	gcpAPIKey              = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
-	base64Like             = regexp.MustCompile(`[A-Za-z0-9+/_=-]{32,}`)
-	endpointSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,34}$`)
-	eventNamePattern       = regexp.MustCompile(`^EVT_[A-Za-z0-9_]+$`)
-	numericKeyPattern      = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
-	sensitiveNamePattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,256}$`)
-	countryKeyPattern      = regexp.MustCompile(`^[A-Z]{2}$`)
-	decimalStringPattern   = regexp.MustCompile(`^[0-9]+$`)
-	subsystemPattern       = regexp.MustCompile(`^[a-z0-9_-]*$`)
-	radioBandPattern       = regexp.MustCompile(`^unii[1-8](?:ext)?$`)
-	mimePattern            = regexp.MustCompile(`^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+*-]+$`)
-	posixTZPattern         = regexp.MustCompile(`^[A-Za-z0-9<>,.+:/_-]{1,256}$`)
-	lowerHexOpaquePattern  = regexp.MustCompile(`[0-9a-f]{32,}`)
+	pemPrivateKey           = regexp.MustCompile(`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----`)
+	jwtToken                = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\b`)
+	awsAccessKey            = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	gcpAPIKey               = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	base64Like              = regexp.MustCompile(`[A-Za-z0-9+/_=-]{32,}`)
+	endpointSegmentPattern  = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,34}$`)
+	eventNamePattern        = regexp.MustCompile(`^EVT_[A-Za-z0-9_]+$`)
+	numericKeyPattern       = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
+	sensitiveNamePattern    = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,256}$`)
+	countryKeyPattern       = regexp.MustCompile(`^[A-Z]{2}$`)
+	decimalStringPattern    = regexp.MustCompile(`^[0-9]+$`)
+	subsystemPattern        = regexp.MustCompile(`^[a-z0-9_-]*$`)
+	radioBandPattern        = regexp.MustCompile(`^unii[1-8](?:ext)?$`)
+	mimePattern             = regexp.MustCompile(`^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+*-]+$`)
+	posixTZPattern          = regexp.MustCompile(`^[A-Za-z0-9<>,.+:/_-]{1,256}$`)
+	lowerHexOpaquePattern   = regexp.MustCompile(`[0-9a-f]{32,}`)
+	alphabeticOpaquePattern = regexp.MustCompile(`[A-Za-z]{32,}`)
+	versionPattern          = regexp.MustCompile(`^v?[0-9]+(?:\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.-]+)?$`)
+	uuidPattern             = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	policyVersionPattern    = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)*$`)
+	artifactNamePattern     = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,512}$`)
+	timezoneKeyPattern      = regexp.MustCompile(`^(?:UTC|[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)+)$`)
+	extensionKeyPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$`)
+	countryChannelPattern   = regexp.MustCompile(`^channels_(?:ng|na|ad|6e)(?:_(?:outdoor|indoor|dfs|40|80|160|240|320|4320|1080|2160|psc|ext_outdoor))?$`)
 )
 
 var knownMetadataShapes = map[string]byte{
@@ -154,14 +162,49 @@ func validateSourceMetadata(body []byte) error {
 			return fmt.Errorf("installer URL: %w", err)
 		}
 	}
+	if source.OSVersion != "" && !versionPattern.MatchString(source.OSVersion) {
+		return errors.New("source metadata OS version is invalid")
+	}
+	if !versionPattern.MatchString(source.NetworkVersion) {
+		return errors.New("source metadata Network version is invalid")
+	}
+	if source.FirmwareID != "" && (!uuidPattern.MatchString(source.FirmwareID) || rejectHighEntropy(source.FirmwareID) != nil) {
+		return errors.New("source metadata firmware ID is invalid")
+	}
+	if source.Product != "" && source.Product != "unifi-os-server" && source.Product != "unifi-controller" {
+		return errors.New("source metadata product is invalid")
+	}
+	if source.Platform != "" && source.Platform != "linux-x64" && source.Platform != "debian" {
+		return errors.New("source metadata platform is invalid")
+	}
+	if source.Channel != "" && source.Channel != "release" {
+		return errors.New("source metadata channel is invalid")
+	}
+	if !policyVersionPattern.MatchString(source.PolicyVersion) {
+		return errors.New("source metadata policy version is invalid")
+	}
+	if source.InstallerMD5 != "" && !isLowerHexDigest(source.InstallerMD5, 32) {
+		return errors.New("source metadata installer MD5 is invalid")
+	}
 	for label, digest := range map[string]string{"installer_sha256": source.InstallerSHA256, "schema_digest": source.SchemaDigest, "sensitivity_digest": source.SensitivityDigest, "notice_digest": source.NoticeDigest} {
 		if digest != "" && !isLowerHexDigest(digest, 64) {
 			return fmt.Errorf("source metadata %s is invalid", label)
 		}
 	}
 	for name, digest := range source.Artifacts {
-		if name == "" || !isLowerHexDigest(digest, 64) {
+		if !artifactNamePattern.MatchString(name) || validateDigestPath(name) != nil || rejectHighEntropy(name) != nil || !isLowerHexDigest(digest, 64) {
 			return fmt.Errorf("source metadata artifact %q is invalid", name)
+		}
+	}
+	allowedMissing := map[string]bool{}
+	for _, name := range metadataAllowlist {
+		if name != "sensitive_metadata.json" {
+			allowedMissing[name] = true
+		}
+	}
+	for _, name := range source.MissingOptional {
+		if !allowedMissing[name] || rejectHighEntropy(name) != nil {
+			return fmt.Errorf("source metadata missing optional %q is invalid", name)
 		}
 	}
 	return nil
@@ -206,7 +249,7 @@ func validateKnownMetadata(name string, v any) error {
 		values := v.([]any)
 		for _, value := range values {
 			segment, ok := value.(string)
-			if !ok || !endpointSegmentPattern.MatchString(segment) {
+			if !ok || !endpointSegmentPattern.MatchString(segment) || rejectHighEntropy(segment) != nil {
 				return fmt.Errorf("invalid legacy endpoint segment %v", value)
 			}
 		}
@@ -226,6 +269,9 @@ func validateSingleStringRecordMap(v any, field string) error {
 		if key == "" {
 			return errors.New("metadata record key is empty")
 		}
+		if rejectHighEntropy(key) != nil {
+			return fmt.Errorf("metadata record key %s is opaque", key)
+		}
 		record, ok := value.(map[string]any)
 		if !ok || len(record) != 1 {
 			return fmt.Errorf("metadata record %s has unexpected structure", key)
@@ -235,10 +281,10 @@ func validateSingleStringRecordMap(v any, field string) error {
 			return fmt.Errorf("metadata record %s has invalid %s", key, field)
 		}
 		if field == "TZ" {
-			if !posixTZPattern.MatchString(text) {
+			if !timezoneKeyPattern.MatchString(key) || !posixTZPattern.MatchString(text) || rejectHighEntropy(text) != nil {
 				return fmt.Errorf("metadata record %s has invalid POSIX timezone", key)
 			}
-		} else if len(text) > 256 || !mimePattern.MatchString(text) {
+		} else if !extensionKeyPattern.MatchString(key) || len(text) > 256 || !mimePattern.MatchString(text) || rejectHighEntropy(text) != nil {
 			return fmt.Errorf("metadata record %s has invalid MIME", key)
 		}
 	}
@@ -305,7 +351,7 @@ func validateCountryCodes(v any) error {
 				if err := validateTypedArray(field, "string"); err != nil {
 					return fmt.Errorf("country hints: %w", err)
 				}
-			case strings.HasPrefix(key, "channels_"):
+			case countryChannelPattern.MatchString(key):
 				if err := validateTypedArray(field, "number"); err != nil {
 					return fmt.Errorf("country %s: %w", key, err)
 				}
@@ -315,7 +361,7 @@ func validateCountryCodes(v any) error {
 					return errors.New("country afc must be object")
 				}
 				for afcKey, channels := range afc {
-					if !strings.HasPrefix(afcKey, "channels_6e") {
+					if !map[string]bool{"channels_6e": true, "channels_6e_40": true, "channels_6e_80": true, "channels_6e_160": true, "channels_6e_320": true}[afcKey] {
 						return fmt.Errorf("unexpected afc field %s", afcKey)
 					}
 					if err := validateTypedArray(channels, "number"); err != nil {
@@ -351,7 +397,7 @@ func validateEventDefinitions(v any) error {
 	events := v.(map[string]any)
 	allowed := map[string]string{"subsystem": "string", "alert_repeat": "bool", "alert_sendmail": "bool", "alert_subject": "string", "key": "string", "event_enabled": "bool", "msg": "string", "is_alert": "bool", "is_negative": "bool"}
 	for name, value := range events {
-		if !eventNamePattern.MatchString(name) {
+		if !eventNamePattern.MatchString(name) || rejectHighEntropy(name) != nil {
 			return fmt.Errorf("invalid event name %s", name)
 		}
 		record, ok := value.(map[string]any)
@@ -378,7 +424,7 @@ func validateEventDefinitions(v any) error {
 						return fmt.Errorf("event %s subsystem invalid", name)
 					}
 				default:
-					if len(text) > 2048 || !isBoundedHumanText(text) {
+					if len(text) > 2048 || !isBoundedHumanText(text) || rejectHighEntropy(text) != nil {
 						return fmt.Errorf("event %s field %s invalid", name, field)
 					}
 				}
@@ -445,6 +491,11 @@ func validateConcreteString(value string) error { return rejectHighEntropy(value
 func rejectHighEntropy(value string) error {
 	if lowerHexOpaquePattern.MatchString(value) {
 		return errors.New("contains high-entropy lowercase hexadecimal value")
+	}
+	for _, token := range alphabeticOpaquePattern.FindAllString(value, -1) {
+		if shannonEntropy(token) >= 3.75 {
+			return errors.New("contains high-entropy alphabetic value")
+		}
 	}
 	for _, token := range base64Like.FindAllString(value, -1) {
 		upper, lower, encodedMarker := false, false, false
