@@ -133,17 +133,36 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 // skipUnlessDockerAvailable probes the docker daemon before doing any real
 // work, so a missing/unreachable daemon is reported as a skip while every
 // other failure (bad image, crashing container, ...) surfaces as a hard
-// test failure instead of being mistaken for "docker isn't installed".
+// test failure instead of being mistaken for "docker isn't installed". On a
+// machine with no docker host discoverable at all (no DOCKER_HOST, no
+// /var/run/docker.sock, no testcontainers.properties),
+// testcontainers.NewDockerProvider panics rather than returning an error, so
+// the probe runs through dockerHealth, which recovers that panic and turns
+// it into an error like any other "docker unavailable" case.
 func skipUnlessDockerAvailable(ctx context.Context, t *testing.T) {
 	t.Helper()
 
-	provider, err := testcontainers.NewDockerProvider()
-	if err != nil {
+	if err := dockerHealth(ctx); err != nil {
 		t.Skipf("docker unavailable: %v", err)
 	}
-	if err := provider.Health(ctx); err != nil {
-		t.Skipf("docker unavailable: %v", err)
+}
+
+// dockerHealth constructs a docker provider and checks its health, recovering
+// any panic from provider construction (e.g. testcontainers-go's
+// NewDockerProvider, which calls core.MustExtractDockerHost and panics when
+// no docker host can be found) and reporting it as an error instead.
+func dockerHealth(ctx context.Context) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("docker provider panicked: %v", r)
+		}
+	}()
+
+	provider, providerErr := testcontainers.NewDockerProvider()
+	if providerErr != nil {
+		return providerErr
 	}
+	return provider.Health(ctx)
 }
 
 // NewSession returns a logged-in raw session against the controller.
