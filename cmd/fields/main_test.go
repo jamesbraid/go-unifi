@@ -161,6 +161,29 @@ func TestResourceTypes(t *testing.T) {
 	})
 }
 
+func TestValidateArgs(t *testing.T) {
+	cases := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{"no args", []string{}, false},
+		{"one version", []string{"9.5.21"}, false},
+		{"two positionals", []string{"9.5.21", "-download-only"}, true},
+		{"three positionals", []string{"a", "b", "c"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateArgs(tc.args)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestResolveMode(t *testing.T) {
 	cases := []struct {
 		name      string

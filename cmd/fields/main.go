@@ -327,6 +327,16 @@ func usage() {
 	flag.PrintDefaults()
 }
 
+// validateArgs rejects extra positional arguments. Go's flag package stops
+// parsing at the first non-flag argument, so `fields 9.5.21 -download-only`
+// silently treats the flag as a positional arg instead of erroring.
+func validateArgs(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("unexpected arguments %q: flags must precede the version", args[1:])
+	}
+	return nil
+}
+
 func main() {
 	flag.Usage = usage
 	outputDirFlag := flag.String(
@@ -367,6 +377,12 @@ func main() {
 	)
 
 	flag.Parse()
+
+	if err := validateArgs(flag.Args()); err != nil {
+		fmt.Printf("error: %s\n\n", err)
+		usage()
+		os.Exit(1)
+	}
 
 	mode, err := resolveMode(flag.Arg(0), *useLatestVersion, *osServerFlag, *urlFlag, *installerFlag)
 	if err != nil {
