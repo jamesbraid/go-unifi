@@ -246,6 +246,12 @@ func compactStrings(values []string) []string {
 }
 
 func addPackageAPI(api map[string]apiEntry, pkg *types.Package) []string {
+	packageKey := "package " + pkg.Path()
+	api[packageKey] = apiEntry{
+		Display: packageKey,
+		Value:   "name " + pkg.Name(),
+	}
+
 	scope := pkg.Scope()
 	names := scope.Names()
 	sort.Strings(names)

@@ -184,6 +184,26 @@ func TestClassifyAllPackagesRemovedBreaking(t *testing.T) {
 	assert.NotEmpty(t, report.Changes)
 }
 
+func TestClassifyPackageClauseRenameBreaking(t *testing.T) {
+	base := writeModule(t, "package unifi\n")
+	candidate := writeModule(t, "package renamed\n")
+
+	report := classify(context.Background(), base, candidate)
+
+	assert.Equal(t, breaking, report.Status)
+	assert.NotEmpty(t, report.Changes)
+}
+
+func TestClassifyPackageWithoutExportsRemovalBreaking(t *testing.T) {
+	base := writeModule(t, "package unifi\nvar private int\n")
+	candidate := writeEmptyModule(t)
+
+	report := classify(context.Background(), base, candidate)
+
+	assert.Equal(t, breaking, report.Status)
+	assert.NotEmpty(t, report.Changes)
+}
+
 func TestFixedGoEnvClearsBuildFlags(t *testing.T) {
 	t.Setenv("GOFLAGS", "-tags=unexpected")
 
