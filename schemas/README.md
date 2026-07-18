@@ -47,3 +47,12 @@ compat fields in `fields.toml`), with conditional logic in
 `unifi/`. See the comments at the top of `overrides/fields.toml` for the
 selection rules; hand-written files must not re-declare generated types (the
 generator fails with a collision error naming the offending file).
+
+## Live verification
+
+`go test -tags integration ./internal/testenv/ ./cmd/fields/` boots a
+disposable simulation-mode controller (jacobalberty/unifi via
+testcontainers; `admin`/`admin`) and compares the hand-written v2 schemas
+in `overrides/resources/` against what the live API serves. Pin the
+controller build with `UNIFI_TEST_IMAGE` or `UNIFI_TEST_PKGURL` (a UniFi
+Network .deb URL), or point `UNIFI_TEST_URL` at an existing controller.
