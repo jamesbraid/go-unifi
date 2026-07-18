@@ -83,102 +83,23 @@ func (r *RawSetting) MarshalJSON() ([]byte, error) {
 // GetSettingKey returns the key name for a specific setting type
 // This is used internally to determine which endpoint to call.
 func GetSettingKey(setting Setting) (string, error) {
-	switch s := setting.(type) {
-	case *AutoSpeedtest:
-		return "auto_speedtest", nil
-	case *Baresip:
-		return "baresip", nil
-	case *Broadcast:
-		return "broadcast", nil
-	case *Connectivity:
-		return "connectivity", nil
-	case *Country:
-		return "country", nil
-	case *Dashboard:
-		return "dashboard", nil
-	case *Doh:
-		return "doh", nil
-	case *Dpi:
-		return "dpi", nil
-	case *ElementAdopt:
-		return "element_adopt", nil
-	case *EtherLighting:
-		return "ether_lighting", nil
-	case *EvaluationScore:
-		return "evaluation_score", nil
-	case *GlobalAp:
-		return "global_ap", nil
-	case *GlobalNat:
-		return "global_nat", nil
-	case *GlobalSwitch:
-		return "global_switch", nil
-	case *GuestAccess:
-		return "guest_access", nil
-	case *IgmpSnooping:
-		return "igmp_snooping", nil
-	case *Ips:
-		return "ips", nil
-	case *Lcm:
-		return "lcm", nil
-	case *Locale:
-		return "locale", nil
-	case *MagicSiteToSiteVpn:
-		return "magic_site_to_site_vpn", nil
-	case *Mdns:
-		return "mdns", nil
-	case *Mgmt:
-		return "mgmt", nil
-	case *Netflow:
-		return "netflow", nil
-	case *NetworkOptimization:
-		return "network_optimization", nil
-	case *Ntp:
-		return "ntp", nil
-	case *Porta:
-		return "porta", nil
-	case *RadioAi:
-		return "radio_ai", nil
-	case *Radius:
-		return "radius", nil
-	case *RoamingAssistant:
-		return "roaming_assistant", nil
-	case *Rsyslogd:
-		return "rsyslogd", nil
-	case *Snmp:
-		return "snmp", nil
-	case *SslInspection:
-		return "ssl_inspection", nil
-	case *SuperCloudaccess:
-		return "super_cloudaccess", nil
-	case *SuperEvents:
-		return "super_events", nil
-	case *SuperFwupdate:
-		return "super_fwupdate", nil
-	case *SuperIdentity:
-		return "super_identity", nil
-	case *SuperMail:
-		return "super_mail", nil
-	case *SuperMgmt:
-		return "super_mgmt", nil
-	case *SuperSdn:
-		return "super_sdn", nil
-	case *SuperSmtp:
-		return "super_smtp", nil
-	case *Teleport:
-		return "teleport", nil
-	case *TrafficFlow:
-		return "traffic_flow", nil
-	case *Usg:
-		return "usg", nil
-	case *Usw:
-		return "usw", nil
-	case *RawSetting:
+	if s, ok := setting.(*RawSetting); ok {
 		// For raw settings, use the key from the data
 		if s.Key != "" {
 			return s.Key, nil
 		}
 		return "", fmt.Errorf("raw setting has no key")
-	default:
-		return "", fmt.Errorf("unknown setting type: %T", setting)
 	}
+	// These settings were exposed by older UniFi releases and remain part of
+	// the public Go API even though the current schema no longer defines them.
+	switch setting.(type) {
+	case *EvaluationScore:
+		return "evaluation_score", nil
+	case *RoamingAssistant:
+		return "roaming_assistant", nil
+	}
+	if key, ok := generatedSettingKey(setting); ok {
+		return key, nil
+	}
+	return "", fmt.Errorf("unknown setting type: %T", setting)
 }

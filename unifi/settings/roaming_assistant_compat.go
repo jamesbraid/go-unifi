@@ -1,5 +1,4 @@
-// Code generated from ace.jar fields *.json files
-// DO NOT EDIT.
+// Deprecated compatibility model retained from the last schema that exposed RoamingAssistant.
 
 package settings
 
@@ -21,15 +20,18 @@ var (
 	_ strconv.NumError
 )
 
-type EvaluationScore struct {
+type RoamingAssistant struct {
 	BaseSetting
 
-	DismissedIDs []string `json:"dismissed_ids,omitempty"` // ^[a-zA-Z]{2}[0-9]{2,3}$|^$
+	Enabled bool   `json:"enabled"`
+	Rssi    *int64 `json:"rssi,omitempty"` // ^-([6-7][0-9]|80)$
 }
 
-func (dst *EvaluationScore) UnmarshalJSON(b []byte) error {
-	type Alias EvaluationScore
+func (dst *RoamingAssistant) UnmarshalJSON(b []byte) error {
+	type Alias RoamingAssistant
 	aux := &struct {
+		Rssi *types.Number `json:"rssi"`
+
 		*Alias
 	}{
 		Alias: (*Alias)(dst),
@@ -43,6 +45,14 @@ func (dst *EvaluationScore) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	if aux.Rssi != nil {
+		if val, err := aux.Rssi.Int64(); err == nil {
+			dst.Rssi = &val
+		} else if string(*aux.Rssi) == "" {
+			var zero int64
+			dst.Rssi = &zero
+		}
 	}
 
 	return nil

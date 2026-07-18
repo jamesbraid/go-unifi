@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -259,6 +260,12 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	case resource.StructName == "BGPConfig":
 		resource.ResourcePath = "bgp/config"
 	}
+	if resource.StructName == "Network" {
+		// Retained after its removal from newer schemas so patch releases do not
+		// remove a released public field. Controllers that ignore the legacy
+		// per-network mDNS toggle continue to receive the same payload as before.
+		baseType.Fields["MdnsEnabled"] = NewFieldInfo("MdnsEnabled", "mdns_enabled", fields.Bool, "", false, false, false, "")
+	}
 
 	return resource
 }
@@ -440,7 +447,7 @@ func generateFromFields(fieldsDir, outDir string, unifiVersion *version.Version,
 					f.OmitEmpty = false
 					f.IsPointer = false
 				}
-				if f.OmitEmpty && !f.IsArray {
+				if f.OmitEmpty && !f.IsArray && name != "DHCPDDNS1" && name != "DHCPDDNS2" {
 					switch f.FieldType {
 					case fields.Bool, fields.String:
 						f.IsPointer = true
@@ -561,13 +568,19 @@ func generateFromFields(fieldsDir, outDir string, unifiVersion *version.Version,
 	for _, job := range jobs {
 		resource := job.resource
 		specGen.AddResource(resource)
-		code, err := resource.generateCode(false)
-		if err != nil {
-			return fmt.Errorf("generate %s: %w", resource.StructName, err)
-		}
 		targetDir := outDir
 		if resource.IsSetting() {
 			targetDir = filepath.Join(outDir, "settings")
+			implementationPath := filepath.Join(targetDir, strcase.ToSnake(resource.CleanStructName())+".go")
+			if _, statErr := os.Stat(implementationPath); statErr == nil {
+				continue
+			} else if !errors.Is(statErr, os.ErrNotExist) {
+				return fmt.Errorf("stat setting implementation: %w", statErr)
+			}
+		}
+		code, err := resource.generateCode(false)
+		if err != nil {
+			return fmt.Errorf("generate %s: %w", resource.StructName, err)
 		}
 		if err := os.MkdirAll(targetDir, 0o755); err != nil {
 			return fmt.Errorf("create generated output directory: %w", err)
@@ -589,6 +602,10 @@ func generateFromFields(fieldsDir, outDir string, unifiVersion *version.Version,
 				return fmt.Errorf("stat implementation scaffold: %w", statErr)
 			}
 		}
+	}
+
+	if err := writeSettingRegistry(outDir, resources); err != nil {
+		return err
 	}
 
 	// Write version file.
@@ -618,6 +635,49 @@ const UnifiVersion = %q
 	}
 
 	fmt.Fprintf(stdout, "%s\n", outDir)
+	return nil
+}
+
+func writeSettingRegistry(outDir string, resources []*ResourceInfo) error {
+	type settingRegistration struct {
+		StructName string
+		Key        string
+	}
+
+	registrations := make([]settingRegistration, 0)
+	for _, resource := range resources {
+		if !resource.IsSetting() {
+			continue
+		}
+		name := resource.CleanStructName()
+		registrations = append(registrations, settingRegistration{
+			StructName: name,
+			Key:        strcase.ToSnake(name),
+		})
+	}
+	sort.Slice(registrations, func(i, j int) bool {
+		return registrations[i].StructName < registrations[j].StructName
+	})
+
+	var source bytes.Buffer
+	source.WriteString("// Code generated from ace.jar fields *.json files\n// DO NOT EDIT.\n\npackage settings\n\n")
+	source.WriteString("func generatedSettingKey(setting Setting) (string, bool) {\n\tswitch setting.(type) {\n")
+	for _, registration := range registrations {
+		fmt.Fprintf(&source, "\tcase *%s:\n\t\treturn %q, true\n", registration.StructName, registration.Key)
+	}
+	source.WriteString("\tdefault:\n\t\treturn \"\", false\n\t}\n}\n")
+
+	formatted, err := format.Source(source.Bytes())
+	if err != nil {
+		return fmt.Errorf("format generated setting registry: %w", err)
+	}
+	settingsDir := filepath.Join(outDir, "settings")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		return fmt.Errorf("create settings output directory: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(settingsDir, "registry.generated.go"), formatted, 0o644); err != nil {
+		return fmt.Errorf("write generated setting registry: %w", err)
+	}
 	return nil
 }
 

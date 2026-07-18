@@ -20,6 +20,7 @@ func TestIgmpSnoopingRoundTrip(t *testing.T) {
 		"querier_mode": "CUSTOM",
 		"querier_subscription_mode": "ALL",
 		"querier_switches": ["d8:b3:70:11:a9:5c"],
+		"querier_addresses": ["192.0.2.1"],
 		"network_ids": ["681268c001e36a7836e21559", "6813e64a4ee8cb0f1f486ac8"]
 	}`
 
@@ -38,6 +39,9 @@ func TestIgmpSnoopingRoundTrip(t *testing.T) {
 	}
 	if s.SubscriptionMode != "ALL" || s.QuerierMode != "CUSTOM" {
 		t.Errorf("subscription_mode=%q querier_mode=%q", s.SubscriptionMode, s.QuerierMode)
+	}
+	if len(s.QuerierAddresses) != 1 || s.QuerierAddresses[0] != "192.0.2.1" {
+		t.Errorf("QuerierAddresses = %#v", s.QuerierAddresses)
 	}
 
 	// GetSettingKey must resolve the type to the correct endpoint key.

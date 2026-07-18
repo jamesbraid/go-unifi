@@ -5,12 +5,51 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/go-version"
 	assert "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGenerateFromFieldsGeneratesCurrentSettingRegistry(t *testing.T) {
+	fieldsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Setting.json"), []byte(`{"alpha":{},"new_feature":{}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "SettingAlpha.json"), []byte(`{}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "SettingNewFeature.json"), []byte(`{}`), 0o600))
+
+	outDir := t.TempDir()
+	err := generateFromFields(fieldsDir, outDir, version.Must(version.NewVersion("10.4.57")), false, filepath.Join(t.TempDir(), "spec.json"), io.Discard, nil)
+	require.NoError(t, err)
+
+	body, err := os.ReadFile(filepath.Join(outDir, "settings", "registry.generated.go"))
+	require.NoError(t, err)
+	generated := string(body)
+	assert.Contains(t, generated, "case *Alpha:")
+	assert.Contains(t, generated, `return "alpha", true`)
+	assert.Contains(t, generated, "case *NewFeature:")
+	assert.Contains(t, generated, `return "new_feature", true`)
+	assert.False(t, strings.Contains(generated, "RawSetting"), "raw fallback remains hand-written")
+}
+
+func TestGenerateFromFieldsKeepsHandWrittenSettingImplementation(t *testing.T) {
+	fieldsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Setting.json"), []byte(`{"alpha":{}}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "SettingAlpha.json"), []byte(`{"enabled":"true|false"}`), 0o600))
+
+	outDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(outDir, "settings"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(outDir, "settings", "alpha.go"), []byte("package settings\n\ntype Alpha struct { BaseSetting }\n"), 0o600))
+	err := generateFromFields(fieldsDir, outDir, version.Must(version.NewVersion("10.4.57")), false, filepath.Join(t.TempDir(), "spec.json"), io.Discard, nil)
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(outDir, "settings", "alpha.generated.go"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	registry, err := os.ReadFile(filepath.Join(outDir, "settings", "registry.generated.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(registry), "case *Alpha:")
+}
 
 func TestGenerateFromFieldsMergesUpstreamWireguardIPVersionCompatibilityField(t *testing.T) {
 	fieldsDir := t.TempDir()
@@ -33,6 +72,23 @@ func TestGenerateFromFieldsMergesUpstreamWireguardIPVersionCompatibilityField(t 
 			assert.Equal(t, "string", matches[0].FieldType)
 			assert.True(t, matches[0].IsPointer)
 		}
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGenerateFromFieldsPreservesReleasedNetworkFields(t *testing.T) {
+	fieldsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Setting.json"), []byte(`{}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "NetworkConf.json"), []byte(`{"dhcpd_dns_1":"","dhcpd_dns_2":""}`), 0o600))
+
+	err := generateFromFields(fieldsDir, t.TempDir(), version.Must(version.NewVersion("10.4.57")), false, filepath.Join(t.TempDir(), "spec.json"), io.Discard, func(resources []*ResourceInfo) error {
+		require.Len(t, resources, 1)
+		fields := resources[0].Types["Network"].Fields
+		assert.Contains(t, fields, "MdnsEnabled")
+		assert.Equal(t, "mdns_enabled", fields["MdnsEnabled"].JSONName)
+		assert.False(t, fields["DHCPDDNS1"].IsPointer)
+		assert.False(t, fields["DHCPDDNS2"].IsPointer)
 		return nil
 	})
 	require.NoError(t, err)

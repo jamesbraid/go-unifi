@@ -1,5 +1,4 @@
-// Code generated from ace.jar fields *.json files
-// DO NOT EDIT.
+// Deprecated compatibility model retained from the last schema that exposed HeatMap.
 
 package unifi
 
@@ -24,7 +23,7 @@ var (
 	_ strings.Builder
 )
 
-type HeatMapPoint struct {
+type HeatMap struct {
 	ID     string `json:"_id,omitempty"`
 	SiteID string `json:"site_id,omitempty"`
 
@@ -33,15 +32,14 @@ type HeatMapPoint struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	DownloadSpeed float64 `json:"download_speed,omitempty"`
-	HeatmapID     string  `json:"heatmap_id,omitempty"`
-	UploadSpeed   float64 `json:"upload_speed,omitempty"`
-	X             float64 `json:"x,omitempty"`
-	Y             float64 `json:"y,omitempty"`
+	Description string `json:"description,omitempty"`
+	MapID       string `json:"map_id,omitempty"`
+	Name        string `json:"name,omitempty"` // .*[^\s]+.*
+	Type        string `json:"type,omitempty"` // download|upload
 }
 
-func (dst *HeatMapPoint) UnmarshalJSON(b []byte) error {
-	type Alias HeatMapPoint
+func (dst *HeatMap) UnmarshalJSON(b []byte) error {
+	type Alias HeatMap
 	aux := &struct {
 		*Alias
 	}{
@@ -56,20 +54,20 @@ func (dst *HeatMapPoint) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listHeatMapPoint(
+func (c *ApiClient) listHeatMap(
 	ctx context.Context,
 	site string,
 	query ...map[string]string,
-) ([]HeatMapPoint, error) {
+) ([]HeatMap, error) {
 	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []HeatMapPoint `json:"data"`
+		Meta meta      `json:"meta"`
+		Data []HeatMap `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/heatmappoint", site),
+		fmt.Sprintf("api/s/%s/rest/heatmap", site),
 		nil,
 		&respBody,
 		query...,
@@ -80,19 +78,19 @@ func (c *ApiClient) listHeatMapPoint(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getHeatMapPoint(
+func (c *ApiClient) getHeatMap(
 	ctx context.Context,
 	site string,
 	id string,
-) (*HeatMapPoint, error) {
+) (*HeatMap, error) {
 	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []HeatMapPoint `json:"data"`
+		Meta meta      `json:"meta"`
+		Data []HeatMap `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/heatmappoint/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, id),
 		nil,
 		&respBody,
 	)
@@ -107,7 +105,7 @@ func (c *ApiClient) getHeatMapPoint(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteHeatMapPoint(
+func (c *ApiClient) deleteHeatMap(
 	ctx context.Context,
 	site string,
 	id string,
@@ -115,7 +113,7 @@ func (c *ApiClient) deleteHeatMapPoint(
 	err := c.do(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/heatmappoint/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, id),
 		struct{}{},
 		nil,
 	)
@@ -125,20 +123,20 @@ func (c *ApiClient) deleteHeatMapPoint(
 	return nil
 }
 
-func (c *ApiClient) createHeatMapPoint(
+func (c *ApiClient) createHeatMap(
 	ctx context.Context,
 	site string,
-	d *HeatMapPoint,
-) (*HeatMapPoint, error) {
+	d *HeatMap,
+) (*HeatMap, error) {
 	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []HeatMapPoint `json:"data"`
+		Meta meta      `json:"meta"`
+		Data []HeatMap `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/heatmappoint", site),
+		fmt.Sprintf("api/s/%s/rest/heatmap", site),
 		d,
 		&respBody,
 	)
@@ -155,19 +153,19 @@ func (c *ApiClient) createHeatMapPoint(
 	return &res, nil
 }
 
-func (c *ApiClient) updateHeatMapPoint(
+func (c *ApiClient) updateHeatMap(
 	ctx context.Context,
 	site string,
-	d *HeatMapPoint,
-) (*HeatMapPoint, error) {
+	d *HeatMap,
+) (*HeatMap, error) {
 	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []HeatMapPoint `json:"data"`
+		Meta meta      `json:"meta"`
+		Data []HeatMap `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/heatmappoint/%s", site, d.ID),
+		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, d.ID),
 		d,
 		&respBody,
 	)
@@ -178,7 +176,7 @@ func (c *ApiClient) updateHeatMapPoint(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getHeatMapPoint(ctx, site, d.ID)
+		return c.getHeatMap(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

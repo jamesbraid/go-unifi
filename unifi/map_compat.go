@@ -1,5 +1,4 @@
-// Code generated from ace.jar fields *.json files
-// DO NOT EDIT.
+// Deprecated compatibility model retained from the last schema that exposed Map.
 
 package unifi
 
@@ -24,7 +23,7 @@ var (
 	_ strings.Builder
 )
 
-type HeatMap struct {
+type Map struct {
 	ID     string `json:"_id,omitempty"`
 	SiteID string `json:"site_id,omitempty"`
 
@@ -33,15 +32,27 @@ type HeatMap struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	Description string `json:"description,omitempty"`
-	MapID       string `json:"map_id,omitempty"`
-	Name        string `json:"name,omitempty"` // .*[^\s]+.*
-	Type        string `json:"type,omitempty"` // download|upload
+	Lat        string  `json:"lat,omitempty"`       // ^([-]?[\d]+[.]?[\d]*([eE][-+]?[\d]+)?)$
+	Lng        string  `json:"lng,omitempty"`       // ^([-]?[\d]+[.]?[\d]*([eE][-+]?[\d]+)?)$
+	MapTypeID  string  `json:"mapTypeId,omitempty"` // satellite|roadmap|hybrid|terrain
+	Name       string  `json:"name,omitempty"`
+	OffsetLeft float64 `json:"offset_left,omitempty"`
+	OffsetTop  float64 `json:"offset_top,omitempty"`
+	Opacity    float64 `json:"opacity,omitempty"` // ^(0(\.[\d]{1,2})?|1)$|^$
+	Selected   bool    `json:"selected"`
+	Tilt       *int64  `json:"tilt,omitempty"`
+	Type       string  `json:"type,omitempty"` // designerMap|imageMap|googleMap
+	Unit       string  `json:"unit,omitempty"` // m|f
+	Upp        float64 `json:"upp,omitempty"`
+	Zoom       *int64  `json:"zoom,omitempty"`
 }
 
-func (dst *HeatMap) UnmarshalJSON(b []byte) error {
-	type Alias HeatMap
+func (dst *Map) UnmarshalJSON(b []byte) error {
+	type Alias Map
 	aux := &struct {
+		Tilt *types.Number `json:"tilt"`
+		Zoom *types.Number `json:"zoom"`
+
 		*Alias
 	}{
 		Alias: (*Alias)(dst),
@@ -51,24 +62,40 @@ func (dst *HeatMap) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
 	}
+	if aux.Tilt != nil {
+		if val, err := aux.Tilt.Int64(); err == nil {
+			dst.Tilt = &val
+		} else if string(*aux.Tilt) == "" {
+			var zero int64
+			dst.Tilt = &zero
+		}
+	}
+	if aux.Zoom != nil {
+		if val, err := aux.Zoom.Int64(); err == nil {
+			dst.Zoom = &val
+		} else if string(*aux.Zoom) == "" {
+			var zero int64
+			dst.Zoom = &zero
+		}
+	}
 
 	return nil
 }
 
-func (c *ApiClient) listHeatMap(
+func (c *ApiClient) listMap(
 	ctx context.Context,
 	site string,
 	query ...map[string]string,
-) ([]HeatMap, error) {
+) ([]Map, error) {
 	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []HeatMap `json:"data"`
+		Meta meta  `json:"meta"`
+		Data []Map `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/heatmap", site),
+		fmt.Sprintf("api/s/%s/rest/map", site),
 		nil,
 		&respBody,
 		query...,
@@ -79,19 +106,19 @@ func (c *ApiClient) listHeatMap(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getHeatMap(
+func (c *ApiClient) getMap(
 	ctx context.Context,
 	site string,
 	id string,
-) (*HeatMap, error) {
+) (*Map, error) {
 	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []HeatMap `json:"data"`
+		Meta meta  `json:"meta"`
+		Data []Map `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/map/%s", site, id),
 		nil,
 		&respBody,
 	)
@@ -106,7 +133,7 @@ func (c *ApiClient) getHeatMap(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteHeatMap(
+func (c *ApiClient) deleteMap(
 	ctx context.Context,
 	site string,
 	id string,
@@ -114,7 +141,7 @@ func (c *ApiClient) deleteHeatMap(
 	err := c.do(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/map/%s", site, id),
 		struct{}{},
 		nil,
 	)
@@ -124,20 +151,20 @@ func (c *ApiClient) deleteHeatMap(
 	return nil
 }
 
-func (c *ApiClient) createHeatMap(
+func (c *ApiClient) createMap(
 	ctx context.Context,
 	site string,
-	d *HeatMap,
-) (*HeatMap, error) {
+	d *Map,
+) (*Map, error) {
 	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []HeatMap `json:"data"`
+		Meta meta  `json:"meta"`
+		Data []Map `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/heatmap", site),
+		fmt.Sprintf("api/s/%s/rest/map", site),
 		d,
 		&respBody,
 	)
@@ -154,19 +181,19 @@ func (c *ApiClient) createHeatMap(
 	return &res, nil
 }
 
-func (c *ApiClient) updateHeatMap(
+func (c *ApiClient) updateMap(
 	ctx context.Context,
 	site string,
-	d *HeatMap,
-) (*HeatMap, error) {
+	d *Map,
+) (*Map, error) {
 	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []HeatMap `json:"data"`
+		Meta meta  `json:"meta"`
+		Data []Map `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/heatmap/%s", site, d.ID),
+		fmt.Sprintf("api/s/%s/rest/map/%s", site, d.ID),
 		d,
 		&respBody,
 	)
@@ -177,7 +204,7 @@ func (c *ApiClient) updateHeatMap(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getHeatMap(ctx, site, d.ID)
+		return c.getMap(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

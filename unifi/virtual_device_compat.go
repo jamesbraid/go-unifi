@@ -1,5 +1,4 @@
-// Code generated from ace.jar fields *.json files
-// DO NOT EDIT.
+// Deprecated compatibility model retained from the last schema that exposed VirtualDevice.
 
 package unifi
 
@@ -24,7 +23,7 @@ var (
 	_ strings.Builder
 )
 
-type Tag struct {
+type VirtualDevice struct {
 	ID     string `json:"_id,omitempty"`
 	SiteID string `json:"site_id,omitempty"`
 
@@ -33,12 +32,16 @@ type Tag struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	MemberTable []string `json:"member_table,omitempty"`
-	Name        string   `json:"name,omitempty"`
+	HeightInMeters float64 `json:"heightInMeters,omitempty"`
+	Locked         bool    `json:"locked"`
+	MapID          string  `json:"map_id,omitempty"`
+	Type           string  `json:"type,omitempty"` // uap|usg|usw
+	X              string  `json:"x,omitempty"`
+	Y              string  `json:"y,omitempty"`
 }
 
-func (dst *Tag) UnmarshalJSON(b []byte) error {
-	type Alias Tag
+func (dst *VirtualDevice) UnmarshalJSON(b []byte) error {
+	type Alias VirtualDevice
 	aux := &struct {
 		*Alias
 	}{
@@ -53,20 +56,20 @@ func (dst *Tag) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listTag(
+func (c *ApiClient) listVirtualDevice(
 	ctx context.Context,
 	site string,
 	query ...map[string]string,
-) ([]Tag, error) {
+) ([]VirtualDevice, error) {
 	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
+		Meta meta            `json:"meta"`
+		Data []VirtualDevice `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/tag", site),
+		fmt.Sprintf("api/s/%s/rest/virtualdevice", site),
 		nil,
 		&respBody,
 		query...,
@@ -77,19 +80,19 @@ func (c *ApiClient) listTag(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getTag(
+func (c *ApiClient) getVirtualDevice(
 	ctx context.Context,
 	site string,
 	id string,
-) (*Tag, error) {
+) (*VirtualDevice, error) {
 	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
+		Meta meta            `json:"meta"`
+		Data []VirtualDevice `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/virtualdevice/%s", site, id),
 		nil,
 		&respBody,
 	)
@@ -104,7 +107,7 @@ func (c *ApiClient) getTag(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteTag(
+func (c *ApiClient) deleteVirtualDevice(
 	ctx context.Context,
 	site string,
 	id string,
@@ -112,7 +115,7 @@ func (c *ApiClient) deleteTag(
 	err := c.do(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, id),
+		fmt.Sprintf("api/s/%s/rest/virtualdevice/%s", site, id),
 		struct{}{},
 		nil,
 	)
@@ -122,20 +125,20 @@ func (c *ApiClient) deleteTag(
 	return nil
 }
 
-func (c *ApiClient) createTag(
+func (c *ApiClient) createVirtualDevice(
 	ctx context.Context,
 	site string,
-	d *Tag,
-) (*Tag, error) {
+	d *VirtualDevice,
+) (*VirtualDevice, error) {
 	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
+		Meta meta            `json:"meta"`
+		Data []VirtualDevice `json:"data"`
 	}
 
 	err := c.do(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/tag", site),
+		fmt.Sprintf("api/s/%s/rest/virtualdevice", site),
 		d,
 		&respBody,
 	)
@@ -152,19 +155,19 @@ func (c *ApiClient) createTag(
 	return &res, nil
 }
 
-func (c *ApiClient) updateTag(
+func (c *ApiClient) updateVirtualDevice(
 	ctx context.Context,
 	site string,
-	d *Tag,
-) (*Tag, error) {
+	d *VirtualDevice,
+) (*VirtualDevice, error) {
 	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
+		Meta meta            `json:"meta"`
+		Data []VirtualDevice `json:"data"`
 	}
 	err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, d.ID),
+		fmt.Sprintf("api/s/%s/rest/virtualdevice/%s", site, d.ID),
 		d,
 		&respBody,
 	)
@@ -175,7 +178,7 @@ func (c *ApiClient) updateTag(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getTag(ctx, site, d.ID)
+		return c.getVirtualDevice(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {
