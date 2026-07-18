@@ -115,3 +115,47 @@ func TestIgmpSnoopingOmitsUnsetQuerierAddresses(t *testing.T) {
 		t.Fatalf("unset querier_addresses unexpectedly encoded: %s", body)
 	}
 }
+
+func TestIgmpSnoopingLegacyAddressEditUpdatesStructuredWireShape(t *testing.T) {
+	raw := `{"key":"igmp_snooping","querier_addresses":[{"mac":"d8:b3:70:11:a9:5c","network_id":"network-1","querier_address":"192.0.2.1","query_interval":60}]}`
+	var setting IgmpSnooping
+	if err := json.Unmarshal([]byte(raw), &setting); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	setting.QuerierAddresses[0] = "192.0.2.99"
+
+	body, err := json.Marshal(&setting)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back struct {
+		Addresses []IgmpSnoopingQuerierAddress `json:"querier_addresses"`
+	}
+	if err := json.Unmarshal(body, &back); err != nil {
+		t.Fatalf("re-unmarshal: %v", err)
+	}
+	if len(back.Addresses) != 1 || back.Addresses[0].QuerierAddress != "192.0.2.99" || back.Addresses[0].MAC != "d8:b3:70:11:a9:5c" || back.Addresses[0].NetworkID != "network-1" || back.Addresses[0].QueryInterval == nil || *back.Addresses[0].QueryInterval != 60 {
+		t.Fatalf("edited structured addresses = %#v", back.Addresses)
+	}
+}
+
+func TestIgmpSnoopingLegacyAddressClearOmitsStaleStructuredWireShape(t *testing.T) {
+	raw := `{"key":"igmp_snooping","querier_addresses":[{"mac":"d8:b3:70:11:a9:5c","querier_address":"192.0.2.1","query_interval":60}]}`
+	var setting IgmpSnooping
+	if err := json.Unmarshal([]byte(raw), &setting); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	setting.QuerierAddresses = nil
+
+	body, err := json.Marshal(&setting)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back map[string]any
+	if err := json.Unmarshal(body, &back); err != nil {
+		t.Fatalf("re-unmarshal: %v", err)
+	}
+	if _, exists := back["querier_addresses"]; exists {
+		t.Fatalf("cleared querier_addresses emitted stale details: %s", body)
+	}
+}

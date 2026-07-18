@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -29,9 +30,10 @@ type IgmpSnooping struct {
 	QuerierSwitches                    []string                     `json:"querier_switches,omitempty"`
 	QuerierAddresses                   []string                     `json:"querier_addresses,omitempty"`
 	QuerierAddressDetails              []IgmpSnoopingQuerierAddress `json:"-"`
-	Switches                           []string                     `json:"switches,omitempty"`
-	PrimaryQuerier                     string                       `json:"primary_querier,omitempty"`
-	FailoverQuerier                    string                       `json:"failover_querier,omitempty"`
+	querierAddressesBaseline           []string
+	Switches                           []string `json:"switches,omitempty"`
+	PrimaryQuerier                     string   `json:"primary_querier,omitempty"`
+	FailoverQuerier                    string   `json:"failover_querier,omitempty"`
 }
 
 // IgmpSnoopingQuerierAddress retains the structured querier metadata returned
@@ -44,9 +46,9 @@ type IgmpSnoopingQuerierAddress struct {
 }
 
 // UnmarshalJSON accepts both the released string-array representation and the
-// object-array representation returned by newer controllers. Object metadata
-// has no source-compatible home in the released API and is intentionally
-// reduced to querier_address.
+// object-array representation returned by newer controllers. Structured
+// metadata is retained in QuerierAddressDetails while QuerierAddresses remains
+// a source-compatible string projection.
 func (s *IgmpSnooping) UnmarshalJSON(body []byte) error {
 	type alias IgmpSnooping
 	aux := struct {
@@ -62,6 +64,7 @@ func (s *IgmpSnooping) UnmarshalJSON(body []byte) error {
 	if bytes.Equal(bytes.TrimSpace(aux.QuerierAddresses), []byte("null")) {
 		s.QuerierAddresses = nil
 		s.QuerierAddressDetails = nil
+		s.querierAddressesBaseline = nil
 		return nil
 	}
 	var rawAddresses []json.RawMessage
@@ -105,8 +108,10 @@ func (s *IgmpSnooping) UnmarshalJSON(body []byte) error {
 	}
 	s.QuerierAddresses = addresses
 	s.QuerierAddressDetails = nil
+	s.querierAddressesBaseline = nil
 	if sawObject {
 		s.QuerierAddressDetails = details
+		s.querierAddressesBaseline = append([]string(nil), addresses...)
 	}
 	return nil
 }
@@ -115,13 +120,7 @@ func (s *IgmpSnooping) UnmarshalJSON(body []byte) error {
 // available, and otherwise preserves the released string-array shape.
 func (s IgmpSnooping) MarshalJSON() ([]byte, error) {
 	type alias IgmpSnooping
-	var addresses any
-	if len(s.QuerierAddresses) != 0 {
-		addresses = s.QuerierAddresses
-	}
-	if len(s.QuerierAddressDetails) != 0 {
-		addresses = s.QuerierAddressDetails
-	}
+	addresses := s.marshalQuerierAddresses()
 	return json.Marshal(struct {
 		QuerierAddresses any `json:"querier_addresses,omitempty"`
 		*alias
@@ -129,4 +128,60 @@ func (s IgmpSnooping) MarshalJSON() ([]byte, error) {
 		QuerierAddresses: addresses,
 		alias:            (*alias)(&s),
 	})
+}
+
+func (s IgmpSnooping) marshalQuerierAddresses() any {
+	if len(s.QuerierAddressDetails) == 0 {
+		if len(s.QuerierAddresses) == 0 {
+			return nil
+		}
+		return s.QuerierAddresses
+	}
+	// Details constructed directly through the new API have no decoded legacy
+	// baseline and are authoritative.
+	if len(s.querierAddressesBaseline) == 0 {
+		return s.QuerierAddressDetails
+	}
+	if slices.Equal(s.QuerierAddresses, s.querierAddressesBaseline) {
+		return s.QuerierAddressDetails
+	}
+	if len(s.QuerierAddresses) == 0 {
+		return nil
+	}
+
+	synchronized := make([]IgmpSnoopingQuerierAddress, len(s.QuerierAddresses))
+	used := make([]bool, len(s.QuerierAddressDetails))
+	matched := make([]bool, len(s.QuerierAddresses))
+	// Preserve metadata by identity first, including when callers reorder or
+	// clone the released string slice.
+	for i, address := range s.QuerierAddresses {
+		for detailIndex, detail := range s.QuerierAddressDetails {
+			if used[detailIndex] || detail.QuerierAddress != address {
+				continue
+			}
+			synchronized[i] = detail
+			used[detailIndex] = true
+			matched[i] = true
+			break
+		}
+	}
+	// A same-length positional replacement is a field edit: clone the original
+	// detail record and update only its address.
+	if len(s.QuerierAddresses) == len(s.querierAddressesBaseline) {
+		for i, address := range s.QuerierAddresses {
+			if matched[i] || i >= len(s.QuerierAddressDetails) || used[i] {
+				continue
+			}
+			synchronized[i] = s.QuerierAddressDetails[i]
+			synchronized[i].QuerierAddress = address
+			used[i] = true
+			matched[i] = true
+		}
+	}
+	for i, address := range s.QuerierAddresses {
+		if !matched[i] {
+			synchronized[i].QuerierAddress = address
+		}
+	}
+	return synchronized
 }
