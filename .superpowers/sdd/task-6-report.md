@@ -114,6 +114,56 @@ git diff --check
 raw archive and binary diff checks
 ```
 
+### Review hardening: snapshot binding and aggregate expansion
+
+Review found that offline regeneration approved only the committed notice digest;
+it did not bind that value to the selected snapshot's actual notice files. The new
+snapshot provenance validator strictly decodes `metadata/source.json`, checks its
+Network version, walks only regular non-symlink notice paths with canonical and
+case-fold collision validation, and recomputes `CanonicalTreeDigest`. Rendering
+requires equality among the actual tree, local manifest, approved policy, and
+committed schema-source digest. A regression mutates both a local notice body and
+its local manifest while leaving the old committed digest approved; regeneration
+now fails on the unapproved actual digest without changing tracked output.
+
+The prior 512 MiB limit applied independently to every nested JAR. A shared 2 GiB
+expanded-byte budget now spans all direct dependency JARs while preserving that
+per-JAR limit. Multiple individually valid archives that exceed the shared budget
+fail. The final retained-ace harness streamed and CRC-validated all 153 archives
+through the production path and measured 263,007,262 expanded bytes. It again found
+138 notices totaling 850,719 bytes, and the canonical digest remained unchanged:
+
+```text
+70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f
+```
+
+Direct and nested capture now use the same reviewed family matcher. Exact names,
+`.txt`, `.md`, and dash/underscore variants such as `LICENSE-2.0` are accepted;
+`.class`, `.properties`, and `.bin` lookalikes remain excluded. The existing root
+and `META-INF` path scope is unchanged.
+
+Successful extraction is explicitly closed immediately after `BuildSnapshot`
+returns, before scan, policy, or rendering. The original defer remains an
+idempotent fallback for snapshot-construction failures. A scan seam proves the
+extraction tree is already absent, and download-only continues from the durable
+snapshot.
+
+Verification:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(SnapshotNotice|ValidateSnapshotNotice|AddSnapshotNotice|VerifyRegenerationRejectsDifferent|VerificationModesReject|ExtractUOSInstaller|DependencyNoticePath|RunCleansExtractedDefinitions|RunLocalInstaller|RunPolicyFailure|RunBoundary|SchemaGenerationDocumentation)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.041s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 2.025s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+temporary-harness and raw-archive checks
+```
+
 ## Extracted-definition lifecycle and snapshot semantics
 
 The successful extractor path returned file-backed artifacts beneath a

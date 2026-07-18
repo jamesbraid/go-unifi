@@ -161,6 +161,17 @@ func TestRunUnapprovedNoticeDigestKeepsSnapshotAndPriorOutputs(t *testing.T) {
 	require.NoError(t, statErr, "complete snapshot remains available for notice review")
 }
 
+func TestRunCleansExtractedDefinitionsBeforeSnapshotScan(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	deps.scan = func(string) error {
+		assertNoExtractArtifacts(t, deps.tempRoot)
+		return errors.New("stop after cleanup assertion")
+	}
+	err := runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+	require.ErrorContains(t, err, "stop after cleanup assertion")
+	assertRunOutputsOld(t, root)
+}
+
 func TestVerificationModesRejectUnapprovedSchemaSourceNoticeDigest(t *testing.T) {
 	root, installer, deps := newRunFailureFixture(t)
 	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
@@ -177,6 +188,31 @@ func TestVerificationModesRejectUnapprovedSchemaSourceNoticeDigest(t *testing.T)
 	require.ErrorContains(t, err, "notice digest")
 	err = verifyRegeneratedTree(context.Background(), root, deps, &bytes.Buffer{})
 	require.ErrorContains(t, err, "notice digest")
+	assert.Equal(t, before, captureRunOutputs(t, root))
+}
+
+func TestVerifyRegenerationRejectsDifferentActualSnapshotNoticeTree(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	before := captureRunOutputs(t, root)
+	snapshot := filepath.Join(root, "cmd", "fields", "v10.4.57")
+	noticePath := filepath.Join(snapshot, "metadata", "notices", "ace.jar", "META-INF", "LICENSE")
+	require.NoError(t, os.WriteFile(noticePath, []byte("changed reviewed terms"), 0o644))
+	newDigest, err := CanonicalTreeDigest(map[string][]byte{"ace.jar/META-INF/LICENSE": []byte("changed reviewed terms")})
+	require.NoError(t, err)
+	manifestPath := filepath.Join(snapshot, "metadata", "source.json")
+	body, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+	var manifest LocalManifest
+	require.NoError(t, json.Unmarshal(body, &manifest))
+	manifest.NoticeDigest = newDigest
+	body, err = json.Marshal(manifest)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(manifestPath, body, 0o644))
+
+	err = verifyRegeneratedTree(context.Background(), root, deps, &bytes.Buffer{})
+	require.ErrorContains(t, err, newDigest)
+	require.ErrorContains(t, err, "not approved")
 	assert.Equal(t, before, captureRunOutputs(t, root))
 }
 

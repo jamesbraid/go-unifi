@@ -131,7 +131,8 @@ whiteouts. This avoids selecting a stale or deleted `ace.jar` from an older laye
 sequentially to bounded temporary files so neither the 880 MB installer nor its
 image layers are loaded into memory as whole byte slices. At most 1,024 dependency
 JARs are inspected; captured notices are bounded to 10,000 entries and 256 MiB in
-aggregate. Root and `META-INF` LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY
+aggregate, and all dependency contents share a 2 GiB expanded-byte budget while
+retaining the 512 MiB per-JAR limit. Root and `META-INF` LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY
 basename families are namespaced by their full safe JAR path and digested.
 
 The extractor reads `BOOT-INF/classes/product.properties` from `ace.jar` and uses
@@ -161,7 +162,8 @@ complete and atomically published. That publication is independent of later scan
 policy, and generation steps: a complete new snapshot remains when any of those
 steps fails, and the previous version-directory snapshot has already been replaced.
 Interrupted or failed extraction removes its temporary tree; successful extraction
-is removed when the run returns after snapshot construction has consumed it. Version
+is removed immediately after snapshot construction has consumed it, before scan,
+policy, or rendering begins, with deferred cleanup retained as a failure fallback. Version
 directories remain covered by `cmd/fields/.gitignore` and are never included in
 commits, Actions artifacts, GitHub releases, or Go module source archives.
 

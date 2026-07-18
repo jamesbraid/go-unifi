@@ -201,6 +201,27 @@ func TestExtractUOSInstallerRejectsInvalidDependencyJarsAndNoticeLimits(t *testi
 	}
 }
 
+func TestExtractUOSInstallerRejectsAggregateNestedExpandedBytes(t *testing.T) {
+	internal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+	)
+	dependency := fixtureZip(t, fixtureEntry{name: "README", body: []byte("123456")})
+	installer := syntheticInstaller(t, installerFixtureOptions{aceEntries: []fixtureEntry{
+		{name: productPropsPath, body: []byte("version=10.4.57\n")},
+		{name: internalJarPath, body: internal},
+		{name: "BOOT-INF/lib/one.jar", body: dependency},
+		{name: "BOOT-INF/lib/two.jar", body: dependency},
+	}})
+	path := filepath.Join(t.TempDir(), "installer")
+	require.NoError(t, os.WriteFile(path, installer, 0o600))
+	limits := DefaultArchiveLimits()
+	limits.MaxNestedExpandedBytes = 12
+	_, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), limits)
+	require.ErrorContains(t, err, "nested dependency JARs exceed")
+}
+
 func corruptFixtureZipEntry(t *testing.T, archive []byte) []byte {
 	t.Helper()
 	corrupt := append([]byte(nil), archive...)
@@ -240,16 +261,18 @@ func TestExtractUOSInstallerDependencyNoticeInventoryIsOrderIndependent(t *testi
 func TestDependencyNoticePathFamiliesExcludeBinaryLookalikes(t *testing.T) {
 	for _, name := range []string{
 		"LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE.md",
-		"META-INF/LICENSE-2.0.txt", "META-INF/COPYING", "META-INF/COPYRIGHT",
+		"META-INF/LICENSE-2.0", "META-INF/LICENSE-2.0.txt", "META-INF/COPYING", "META-INF/COPYRIGHT",
 		"META-INF/THIRDPARTY", "META-INF/THIRD-PARTY-NOTICES.txt",
 	} {
 		assert.True(t, isDependencyNoticePath(name), name)
+		assert.True(t, isNoticePath(name), "direct: "+name)
 	}
 	for _, name := range []string{
 		"META-INF/LICENSE.class", "META-INF/NOTICE.properties", "LICENSE.bin",
 		"com/example/Copyright.class", "README.txt", "META-INF/THIRDPARTY.class",
 	} {
 		assert.False(t, isDependencyNoticePath(name), name)
+		assert.False(t, isNoticePath(name), "direct: "+name)
 	}
 }
 

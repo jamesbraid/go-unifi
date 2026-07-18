@@ -173,6 +173,9 @@ func runUOS(ctx context.Context, root string, source InstallerSource, installer 
 	if err != nil {
 		return fmt.Errorf("publish local snapshot: %w", err)
 	}
+	if err := definitions.Close(); err != nil {
+		return fmt.Errorf("clean extracted definitions after snapshot publication: %w", err)
+	}
 	snapshot := filepath.Join(fieldsRoot, "v"+manifest.NetworkVersion)
 	if err := deps.scan(snapshot); err != nil {
 		return fmt.Errorf("scan extracted inputs: %w", err)
@@ -463,8 +466,8 @@ func verifyRegeneratedTree(ctx context.Context, root string, deps runDeps, stdou
 	if err != nil {
 		return err
 	}
-	if err := RequireApprovedNoticeDigest(policy, source.NoticeDigest); err != nil {
-		return fmt.Errorf("verify regeneration notice approval: %w", err)
+	if _, err := ValidateSnapshotNoticeProvenance(snapshot, source.NetworkVersion, source.NoticeDigest, policy); err != nil {
+		return fmt.Errorf("verify regeneration snapshot provenance: %w", err)
 	}
 	raw, metadata, err := loadSensitivityInputs(snapshot)
 	if err != nil {

@@ -51,6 +51,7 @@ Default hard limits are:
 - image tar and individual OCI blob: 2 GiB each;
 - decompressed layer: 4 GiB;
 - extracted JAR target: 512 MiB;
+- all direct dependency JARs expanded: 2 GiB aggregate;
 - individual JSON artifact: 32 MiB;
 - aggregate captured notices: 256 MiB and 10,000 entries;
 - archive entries: 500,000;
@@ -59,8 +60,9 @@ Default hard limits are:
 - OCI control JSON: 8 MiB.
 
 Downloads, extraction trees, and generated staging trees use temporary files.
-Downloaded installers and extraction trees are removed when the run returns;
-staging trees are removed on success or failure. The completed
+Downloaded installers are removed when the run returns. Extraction trees are
+removed immediately after the snapshot consumes them, with deferred cleanup as
+a failure fallback; staging trees are removed on success or failure. The completed
 `cmd/fields/v<network>` snapshot is intentionally retained for offline
 verification and is gitignored. Snapshot publication is atomic and independent
 of tracked output publication: a complete new snapshot remains even if a later
@@ -110,7 +112,8 @@ The extractor checks direct entries in `ace.jar` and
 `internal-dependencies.jar`, then sequentially opens every direct dependency JAR
 beneath `ace.jar/BOOT-INF/lib`. It captures root or `META-INF` files in the
 LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY basename families, including
-reviewed `.txt`, `.md`, dash, and underscore variants. Binary and property-file
+reviewed `.txt`, `.md`, dash, and underscore variants such as `LICENSE-2.0`.
+Binary and property-file
 lookalikes are excluded. Every nested archive is still fully validated before
 non-notice entries are ignored.
 
@@ -124,6 +127,12 @@ reviewed set is
 `70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f`.
 A changed digest is rejected unless it appears in the required sorted
 `approved_notice_sha256` policy array.
+
+Offline regeneration does not trust the committed digest alone. It strictly loads
+the selected snapshot's `metadata/source.json`, recomputes the notice digest from
+the actual regular files beneath `metadata/notices`, rejects unsafe or colliding
+paths, and requires the actual, local-manifest, approved-policy, and committed
+provenance digests to agree before rendering.
 
 Notice bodies remain only in the local gitignored snapshot. They and the raw
 inventory are vendor-governed and are not committed or redistributed. This is

@@ -42,14 +42,15 @@ type ExtractedArtifact struct {
 }
 
 type ExtractedDefinitions struct {
-	NetworkVersion  string
-	Fields          map[string]ExtractedArtifact
-	Metadata        map[string]ExtractedArtifact
-	Notices         map[string]ExtractedArtifact
-	MissingOptional []string
-	extractionRoot  string
-	cleanupOnce     sync.Once
-	cleanupErr      error
+	NetworkVersion      string
+	Fields              map[string]ExtractedArtifact
+	Metadata            map[string]ExtractedArtifact
+	Notices             map[string]ExtractedArtifact
+	MissingOptional     []string
+	NestedExpandedBytes int64
+	extractionRoot      string
+	cleanupOnce         sync.Once
+	cleanupErr          error
 }
 
 // Close removes the temporary files owned by the extracted definitions. It is
@@ -165,9 +166,11 @@ func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, li
 	if err := noticeInventory.extract(ctx, aceEntries, "ace.jar", isNoticePath); err != nil {
 		return nil, err
 	}
-	if err := extractDependencyNotices(ctx, aceEntries, outRoot, limits, noticeInventory); err != nil {
+	nestedExpandedBytes, err := extractDependencyNotices(ctx, aceEntries, outRoot, limits, noticeInventory)
+	if err != nil {
 		return nil, err
 	}
+	result.NestedExpandedBytes = nestedExpandedBytes
 
 	internalEntry, ok := aceEntries[internalJarPath]
 	if !ok {
@@ -340,7 +343,7 @@ func (inventory *noticeInventory) extract(ctx context.Context, entries map[strin
 	return nil
 }
 
-func extractDependencyNotices(ctx context.Context, aceEntries map[string]*zip.File, outRoot string, limits ArchiveLimits, inventory *noticeInventory) error {
+func extractDependencyNotices(ctx context.Context, aceEntries map[string]*zip.File, outRoot string, limits ArchiveLimits, inventory *noticeInventory) (int64, error) {
 	jarNames := make([]string, 0)
 	jarDestinations := make(map[string]string)
 	for name, entry := range aceEntries {
@@ -349,27 +352,34 @@ func extractDependencyNotices(ctx context.Context, aceEntries map[string]*zip.Fi
 		}
 		folded := strings.ToLower(name)
 		if previous, exists := jarDestinations[folded]; exists {
-			return fmt.Errorf("dependency JAR namespace case-fold collision: %q and %q", previous, name)
+			return 0, fmt.Errorf("dependency JAR namespace case-fold collision: %q and %q", previous, name)
 		}
 		jarDestinations[folded] = name
 		jarNames = append(jarNames, name)
 	}
 	sort.Strings(jarNames)
 	if len(jarNames) > limits.MaxNestedArchives {
-		return fmt.Errorf("dependency JAR inventory exceeds %d archives", limits.MaxNestedArchives)
+		return 0, fmt.Errorf("dependency JAR inventory exceeds %d archives", limits.MaxNestedArchives)
 	}
+	var expandedBytes int64
 	for _, name := range jarNames {
-		if err := extractDependencyJarNotices(ctx, aceEntries[name], name, outRoot, limits, inventory); err != nil {
-			return err
+		remaining := limits.MaxNestedExpandedBytes - expandedBytes
+		if remaining <= 0 {
+			return 0, fmt.Errorf("nested dependency JARs exceed %d expanded bytes", limits.MaxNestedExpandedBytes)
 		}
+		expanded, err := extractDependencyJarNotices(ctx, aceEntries[name], name, outRoot, limits, remaining, inventory)
+		if err != nil {
+			return 0, err
+		}
+		expandedBytes += expanded
 	}
-	return nil
+	return expandedBytes, nil
 }
 
-func extractDependencyJarNotices(ctx context.Context, entry *zip.File, jarName, outRoot string, limits ArchiveLimits, inventory *noticeInventory) error {
+func extractDependencyJarNotices(ctx context.Context, entry *zip.File, jarName, outRoot string, limits ArchiveLimits, remainingExpanded int64, inventory *noticeInventory) (int64, error) {
 	spooled, err := spoolZipEntry(ctx, entry, outRoot, "dependency-*.jar", limits.MaxJarBytes)
 	if err != nil {
-		return fmt.Errorf("ace.jar %s: %w", jarName, err)
+		return 0, fmt.Errorf("ace.jar %s: %w", jarName, err)
 	}
 	spoolPath := spooled.Name()
 	defer func() {
@@ -378,26 +388,31 @@ func extractDependencyJarNotices(ctx context.Context, entry *zip.File, jarName, 
 	}()
 	stat, err := spooled.Stat()
 	if err != nil {
-		return fmt.Errorf("stat dependency JAR %s: %w", jarName, err)
+		return 0, fmt.Errorf("stat dependency JAR %s: %w", jarName, err)
 	}
 	archive, err := zip.NewReader(spooled, stat.Size())
 	if err != nil {
-		return fmt.Errorf("open dependency JAR %s: %w", jarName, err)
+		return 0, fmt.Errorf("open dependency JAR %s: %w", jarName, err)
 	}
 	entries, err := indexZipFiles(ctx, archive.File, limits.MaxEntries)
 	if err != nil {
-		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+		return 0, fmt.Errorf("dependency JAR %s: %w", jarName, err)
 	}
-	if err := validateZipEntryBodies(ctx, entries, limits.MaxJarBytes); err != nil {
-		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+	validationLimit := min(limits.MaxJarBytes, remainingExpanded)
+	expanded, err := validateZipEntryBodies(ctx, entries, validationLimit)
+	if err != nil {
+		if remainingExpanded < limits.MaxJarBytes {
+			return 0, fmt.Errorf("nested dependency JARs exceed %d expanded bytes: %w", limits.MaxNestedExpandedBytes, err)
+		}
+		return 0, fmt.Errorf("dependency JAR %s: %w", jarName, err)
 	}
 	if err := inventory.extract(ctx, entries, "ace.jar/"+jarName, isDependencyNoticePath); err != nil {
-		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+		return 0, fmt.Errorf("dependency JAR %s: %w", jarName, err)
 	}
-	return nil
+	return expanded, nil
 }
 
-func validateZipEntryBodies(ctx context.Context, entries map[string]*zip.File, maxBytes int64) error {
+func validateZipEntryBodies(ctx context.Context, entries map[string]*zip.File, maxBytes int64) (int64, error) {
 	names := make([]string, 0, len(entries))
 	for name := range entries {
 		names = append(names, name)
@@ -411,38 +426,37 @@ func validateZipEntryBodies(ctx context.Context, entries map[string]*zip.File, m
 		}
 		remaining := maxBytes - total
 		if remaining <= 0 || entry.UncompressedSize64 > uint64(remaining) {
-			return fmt.Errorf("expanded archive exceeds %d bytes", maxBytes)
+			return 0, fmt.Errorf("expanded archive exceeds %d bytes", maxBytes)
 		}
 		reader, err := entry.Open()
 		if err != nil {
-			return fmt.Errorf("open %s: %w", name, err)
+			return 0, fmt.Errorf("open %s: %w", name, err)
 		}
 		n, copyErr := copyBounded(io.Discard, &contextReader{ctx: ctx, r: reader}, remaining)
 		closeErr := reader.Close()
 		if copyErr != nil {
-			return fmt.Errorf("validate %s: %w", name, copyErr)
+			return 0, fmt.Errorf("validate %s: %w", name, copyErr)
 		}
 		if closeErr != nil {
-			return fmt.Errorf("close %s: %w", name, closeErr)
+			return 0, fmt.Errorf("close %s: %w", name, closeErr)
 		}
 		if n != int64(entry.UncompressedSize64) {
-			return fmt.Errorf("validate %s: entry size mismatch", name)
+			return 0, fmt.Errorf("validate %s: entry size mismatch", name)
 		}
 		total += n
 	}
-	return nil
+	return total, nil
 }
 
 func isNoticePath(name string) bool {
-	dir := path.Dir(name)
-	if dir != "." && dir != "META-INF" && !strings.HasPrefix(dir, "META-INF/") {
-		return false
-	}
-	base := strings.ToUpper(path.Base(name))
-	return strings.HasPrefix(base, "LICENSE") || strings.HasPrefix(base, "NOTICE")
+	return isReviewedNoticePath(name)
 }
 
 func isDependencyNoticePath(name string) bool {
+	return isReviewedNoticePath(name)
+}
+
+func isReviewedNoticePath(name string) bool {
 	dir := path.Dir(name)
 	if dir != "." && dir != "META-INF" && !strings.HasPrefix(dir, "META-INF/") {
 		return false
@@ -465,7 +479,10 @@ func hasNoticeBasename(name string, families []string) bool {
 		}
 		if remainder[0] == '-' || remainder[0] == '_' {
 			extension := strings.ToUpper(path.Ext(remainder))
-			if extension == "" || extension == ".TXT" || extension == ".MD" {
+			switch extension {
+			case ".CLASS", ".PROPERTIES", ".BIN":
+				continue
+			default:
 				return true
 			}
 		}
