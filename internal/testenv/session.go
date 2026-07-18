@@ -38,7 +38,10 @@ func NewSession(baseURL string) *Session {
 }
 
 // Login authenticates against the classic /api/login endpoint; the session
-// cookie is kept in the jar.
+// cookie is kept in the jar. HTTP 200 alone is not enough: while booting,
+// the controller answers every path — including /api/login — with a 200
+// HTML "Server status" placeholder page, so success additionally requires
+// a JSON body whose meta.rc is "ok".
 func (s *Session) Login(ctx context.Context, username, password string) error {
 	creds, err := json.Marshal(map[string]string{"username": username, "password": password})
 	if err != nil {
@@ -56,10 +59,25 @@ func (s *Session) Login(ctx context.Context, username, password string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("login returned HTTP %s", resp.Status)
+	}
+
+	var body struct {
+		Meta struct {
+			RC string `json:"rc"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return fmt.Errorf("login returned a non-JSON body (controller may still be booting): %w", err)
+	}
+	if body.Meta.RC != "ok" {
+		return fmt.Errorf("login returned meta.rc %q", body.Meta.RC)
 	}
 	return nil
 }

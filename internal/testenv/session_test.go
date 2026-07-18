@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -66,6 +67,42 @@ func TestSessionLoginRejected(t *testing.T) {
 	s := NewSession(srv.URL)
 	if err := s.Login(context.Background(), "admin", "wrong"); err == nil {
 		t.Fatal("expected login error")
+	}
+}
+
+// TestSessionLoginBootPlaceholder mimics the controller's boot window: for
+// the first ~25s it answers every path — including /api/login — with HTTP
+// 200 and an HTML "Server status" placeholder page. Login must not mistake
+// that for success.
+func TestSessionLoginBootPlaceholder(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html><html lang="en"><head><title>UniFi Network - Server status</title></head><body>starting up</body></html>`))
+	}))
+	defer srv.Close()
+
+	s := NewSession(srv.URL)
+	if err := s.Login(context.Background(), "admin", "admin"); err == nil {
+		t.Fatal("expected login error for HTML placeholder body")
+	}
+}
+
+// TestSessionLoginMetaRCError covers controllers that report failure inside
+// an HTTP 200 JSON envelope: meta.rc != "ok" must be a login error.
+func TestSessionLoginMetaRCError(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"meta":{"rc":"error"}}`))
+	}))
+	defer srv.Close()
+
+	s := NewSession(srv.URL)
+	err := s.Login(context.Background(), "admin", "admin")
+	if err == nil {
+		t.Fatal(`expected login error for meta.rc == "error"`)
+	}
+	if !strings.Contains(err.Error(), "error") {
+		t.Fatalf("error %q should include the rc value", err)
 	}
 }
 
