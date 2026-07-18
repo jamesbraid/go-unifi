@@ -30,6 +30,10 @@ func fetchFirmware(u *url.URL) (*firmwareUpdateApiResponse, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("firmware API %s: %s", u.Host+u.Path, resp.Status)
+	}
+
 	var respData firmwareUpdateApiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
 		return nil, err
@@ -86,8 +90,13 @@ func findOsServerRelease(want string) (*osServerRelease, error) {
 }
 
 func pickOsServerRelease(respData *firmwareUpdateApiResponse, want *version.Version) (*osServerRelease, error) {
+	// With want == nil the first platform match wins, which assumes the
+	// firmware-latest endpoint returns entries newest-first.
 	for _, firmware := range respData.Embedded.Firmware {
 		if firmware.Platform != osServerPlatform || firmware.Version == nil {
+			continue
+		}
+		if firmware.Links.Data.Href == nil {
 			continue
 		}
 		if want != nil && !firmware.Version.Equal(want) {
