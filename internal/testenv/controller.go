@@ -1,6 +1,7 @@
 package testenv
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
@@ -55,6 +56,8 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		return &Controller{BaseURL: strings.TrimRight(url, "/"), Username: demoUsername, Password: demoPassword, Site: demoSite}
 	}
 
+	skipUnlessDockerAvailable(ctx, t)
+
 	cfg := configFromEnv()
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
@@ -65,7 +68,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 			"PKGURL":       cfg.PkgURL,
 		},
 		Files: []testcontainers.ContainerFile{{
-			Reader:            strings.NewReader(string(demoModeScript)),
+			Reader:            bytes.NewReader(demoModeScript),
 			ContainerFilePath: "/unifi/init.d/demo-mode",
 			FileMode:          0o755,
 		}},
@@ -79,7 +82,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		Started:          true,
 	})
 	if err != nil {
-		t.Skipf("unable to start controller container (docker unavailable?): %v", err)
+		t.Fatalf("start controller container: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = container.Terminate(context.Background())
@@ -105,12 +108,37 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	deadline := time.Now().Add(4 * time.Minute)
 	for {
 		s := NewSession(c.BaseURL)
-		if err := s.Login(ctx, c.Username, c.Password); err == nil {
+		err := s.Login(ctx, c.Username, c.Password)
+		if err == nil {
 			return c
-		} else if time.Now().After(deadline) {
+		}
+		if ctx.Err() != nil {
 			t.Fatalf("controller never became ready: %v", err)
 		}
-		time.Sleep(3 * time.Second)
+		if time.Now().After(deadline) {
+			t.Fatalf("controller never became ready: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("controller never became ready: %v", ctx.Err())
+		case <-time.After(3 * time.Second):
+		}
+	}
+}
+
+// skipUnlessDockerAvailable probes the docker daemon before doing any real
+// work, so a missing/unreachable daemon is reported as a skip while every
+// other failure (bad image, crashing container, ...) surfaces as a hard
+// test failure instead of being mistaken for "docker isn't installed".
+func skipUnlessDockerAvailable(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	provider, err := testcontainers.NewDockerProvider()
+	if err != nil {
+		t.Skipf("docker unavailable: %v", err)
+	}
+	if err := provider.Health(ctx); err != nil {
+		t.Skipf("docker unavailable: %v", err)
 	}
 }
 
