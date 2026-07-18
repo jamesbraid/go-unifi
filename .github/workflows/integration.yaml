@@ -47,13 +47,14 @@ jobs:
 
       # Current jacobalberty/unifi images cannot run UniFi 10.4.x (needs
       # Java 25) and ignore a runtime PKGURL (no docker-build.sh in the
-      # image), so we build our own image instead. The starkjs fork of
-      # unifi-docker (feature/update_for_java25_24.04) rebases onto Ubuntu
-      # 24.04 with Java 25 and turns PKGURL into a build arg consumed by
-      # its docker-build.sh, so the exact artifact the schemas came from
-      # can be baked in at build time. The build context is a git URL
-      # pinned at an exact commit, matching the SHA-pinning we use for
-      # actions elsewhere in this workflow.
+      # image), so we build our own image instead. jamesbraid/unifi-docker
+      # is our fork of starkjs/unifi-docker whose
+      # feature/update_for_java25_24.04 branch rebases onto Ubuntu 24.04
+      # with Java 25 and turns PKGURL into a build arg consumed by its
+      # docker-build.sh, so the exact artifact the schemas came from can
+      # be baked in at build time. The build context is a git URL pinned
+      # at an exact commit, matching the SHA-pinning we use for actions
+      # elsewhere in this workflow.
       - name: Build pinned controller image
         id: controller-image
         run: |
@@ -63,7 +64,7 @@ jobs:
               if docker build \
                   --build-arg PKGURL="${artifact}" \
                   -t unifi-pinned:ci \
-                  "https://github.com/starkjs/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b"; then
+                  "https://github.com/jamesbraid/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b"; then
                 echo "image=unifi-pinned:ci" >> "$GITHUB_OUTPUT"
                 echo "expect=$(cat schemas/VERSION)" >> "$GITHUB_OUTPUT"
               else

@@ -72,14 +72,15 @@ build instead. To test the exact build the schemas came from:
 ```sh
 docker build --build-arg PKGURL="$(cat schemas/ARTIFACT)" \
   -t unifi-pinned:local \
-  https://github.com/starkjs/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b
+  https://github.com/jamesbraid/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b
 UNIFI_TEST_IMAGE=unifi-pinned:local \
   UNIFI_TEST_EXPECT_VERSION="$(cat schemas/VERSION)" \
   go test -tags integration ./internal/testenv/ ./cmd/fields/ -timeout 20m
 ```
 
-The starkjs fork (`feature/update_for_java25_24.04`, pinned at that
-commit) rebases the image onto Ubuntu 24.04 with Java 25 and turns
+`jamesbraid/unifi-docker` (our fork of starkjs/unifi-docker; branch
+`feature/update_for_java25_24.04`, pinned at that commit) rebases the
+image onto Ubuntu 24.04 with Java 25 and turns
 `PKGURL` into a build arg its `docker-build.sh` consumes at image build
 time, so this bakes in the exact artifact. `UNIFI_TEST_EXPECT_VERSION`
 makes the smoke test fail unless the booted controller reports exactly
