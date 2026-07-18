@@ -24,6 +24,51 @@
 [DNSRecord]
 path = "static-dns"
 
+# Definition imported from ubiquiti-community/unifi-api (see the README in
+# this directory). cleanName would render device_macs as DeviceMACs; pin the
+# name the hand-written type established so consumers don't break. Both
+# fields always serialize (an empty device list must reach the wire as []).
+[APGroup.field.device_macs]
+name = "DeviceMacs"
+omitempty = false
+
+[APGroup.field.name]
+omitempty = false
+
+# True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
+# attr_* envelope. Definition imported from ubiquiti-community/unifi-api
+# (see resources/../README.md).
+[NetworkMembersGroup]
+path = "network-members-groups"
+
+[NetworkMembersGroup.field._id]
+json = "id"
+
+[NetworkMembersGroup.field.site_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_delete]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_edit]
+remove = true
+
+# Always serialize, matching the previous hand-written wire behavior.
+[NetworkMembersGroup.field.name]
+omitempty = false
+
+[NetworkMembersGroup.field.members]
+omitempty = false
+
+[NetworkMembersGroup.field.type]
+omitempty = false
+
 [FirewallPolicy]
 path = "firewall-policies"
 

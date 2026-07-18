@@ -717,6 +717,8 @@ var v2Probes = []struct {
 	path       string
 	list       bool
 }{
+	{"ApGroups.json", "/v2/api/site/%s/apgroups", true},
+	{"NetworkMembersGroup.json", "/v2/api/site/%s/network-members-groups", true},
 	{"FirewallZone.json", "/v2/api/site/%s/firewall/zone", true},
 	{"FirewallPolicy.json", "/v2/api/site/%s/firewall-policies", true},
 	{"TrafficRoute.json", "/v2/api/site/%s/trafficroutes", true},

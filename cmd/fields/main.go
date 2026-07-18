@@ -938,12 +938,13 @@ func (r *ResourceInfo) IsDevice() bool {
 
 func (r *ResourceInfo) IsV2() bool {
 	return slices.Contains([]string{
-		"ApGroup",
+		"APGroup",
 		"BGPConfig",
 		"DNSRecord",
 		"FirewallPolicy",
 		"FirewallZone",
 		"Nat",
+		"NetworkMembersGroup",
 		"OSPFRouter",
 		"TrafficRoute",
 	}, r.StructName)
