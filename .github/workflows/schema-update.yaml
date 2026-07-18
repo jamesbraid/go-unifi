@@ -1,0 +1,258 @@
+---
+name: UniFi Schema Update
+
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+    inputs:
+      uos_version:
+        description: Exact UniFi OS Server version (empty selects latest)
+        required: false
+        type: string
+      installer_url:
+        description: Correlated official installer URL (mutually exclusive with version)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unifi-schema-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Select and resolve source
+        id: source
+        shell: bash
+        env:
+          INPUT_UOS_VERSION: ${{ inputs.uos_version }}
+          INPUT_INSTALLER_URL: ${{ inputs.installer_url }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$INPUT_UOS_VERSION" && -n "$INPUT_INSTALLER_URL" ]]; then
+            echo "uos_version and installer_url are mutually exclusive" >&2
+            exit 1
+          fi
+          if [[ -n "$INPUT_UOS_VERSION" ]]; then
+            selector=(-uos-version "$INPUT_UOS_VERSION")
+          elif [[ -n "$INPUT_INSTALLER_URL" ]]; then
+            selector=(-installer-url "$INPUT_INSTALLER_URL")
+          else
+            selector=(-uos-latest)
+          fi
+          printf '%s\0' "${selector[@]}" > "$RUNNER_TEMP/schema-selector"
+          set +e
+          automation_ref=$(git ls-remote --exit-code origin \
+            refs/heads/automation/unifi-schema-update | awk '{print $1}')
+          remote_status=$?
+          set -e
+          case "$remote_status" in
+            0)
+              git fetch --no-tags origin \
+                refs/heads/automation/unifi-schema-update:refs/remotes/origin/automation/unifi-schema-update
+              automation_sha=$(git show \
+                refs/remotes/origin/automation/unifi-schema-update:cmd/fields/schema-source.json |
+                jq -r .installer_sha256)
+              ;;
+            2) automation_ref=; automation_sha= ;;
+            *) echo "failed to inspect automation branch" >&2; exit 1 ;;
+          esac
+          go run ./cmd/fields -print-source "${selector[@]}" > "$RUNNER_TEMP/resolved-source.json"
+          jq -e '.installer_sha256 | test("^[0-9a-f]{64}$")' "$RUNNER_TEMP/resolved-source.json" > /dev/null
+          resolved_sha=$(jq -r .installer_sha256 "$RUNNER_TEMP/resolved-source.json")
+          committed_sha=$(jq -r .installer_sha256 cmd/fields/schema-source.json)
+          echo "remote_sha=$automation_ref" >> "$GITHUB_OUTPUT"
+          if [[ "$resolved_sha" == "$committed_sha" || "$resolved_sha" == "$automation_sha" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate canonical schema
+        if: steps.source.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t selector < "$RUNNER_TEMP/schema-selector"
+          go run ./cmd/fields "${selector[@]}" -generate-spec
+
+      - name: Verify deterministic regeneration twice
+        if: steps.source.outputs.changed == 'true'
+        run: |
+          go run ./cmd/fields -verify-regeneration
+          go run ./cmd/fields -verify-regeneration
+
+      - name: Verify committed provenance
+        if: steps.source.outputs.changed == 'true'
+        run: go run ./cmd/fields -verify-committed
+
+      - name: Run tests
+        if: steps.source.outputs.changed == 'true'
+        run: go test ./...
+
+      - name: Run vet
+        if: steps.source.outputs.changed == 'true'
+        run: go vet ./...
+
+      - name: Run pinned Go lint
+        if: steps.source.outputs.changed == 'true'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
+        with:
+          version: v2.11.4
+          args: --timeout=10m
+          skip-cache: true
+
+      - name: Run pinned YAML lint
+        if: steps.source.outputs.changed == 'true'
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
+
+      - name: Enforce generated path boundary
+        if: steps.source.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code origin/main -- cmd/fields/sensitive-policy.json
+          {
+            git diff --name-only -z --diff-filter=ACDMRTUXB origin/main
+            git ls-files --others --exclude-standard -z
+          } > "$RUNNER_TEMP/changed-paths"
+          test -s "$RUNNER_TEMP/changed-paths"
+          while IFS= read -r -d '' path; do
+            if [[ ! "$path" =~ ^(cmd/fields/schema-source\.json|specification\.json|unifi/[^/]+\.generated\.go|unifi/settings/[^/]+\.generated\.go)$ ]]; then
+              echo "unexpected generated path: $path" >&2
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/changed-paths"
+          git diff --check
+
+      - name: Compare Go API with clean main
+        if: steps.source.outputs.changed == 'true'
+        id: api
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/schema-base" origin/main
+          set +e
+          go run ./cmd/apicompat -base "$RUNNER_TEMP/schema-base" -candidate . \
+            -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          status=$?
+          set -e
+          case "$status" in
+            0) api_status=compatible ;;
+            2) api_status=breaking ;;
+            3) echo "API comparison was ambiguous" >&2; exit 3 ;;
+            *) echo "unexpected API comparison status: $status" >&2; exit 3 ;;
+          esac
+          echo "api_status=$api_status" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare reviewed commit and safe PR body
+        if: steps.source.outputs.changed == 'true'
+        id: candidate
+        shell: bash
+        env:
+          API_STATUS: ${{ steps.api.outputs.api_status }}
+        run: |
+          set -euo pipefail
+          os_version=$(jq -r .os_version cmd/fields/schema-source.json)
+          network_version=$(jq -r .network_version cmd/fields/schema-source.json)
+          installer_sha=$(jq -r .installer_sha256 cmd/fields/schema-source.json)
+          generated_digest=$(jq -r .generated_tree_digest cmd/fields/schema-source.json)
+          schema_digest=$(jq -r .schema_digest cmd/fields/schema-source.json)
+          sensitivity_digest=$(jq -r .sensitivity_digest cmd/fields/schema-source.json)
+          notice_digest=$(jq -r .notice_digest cmd/fields/schema-source.json)
+          git switch -C automation/unifi-schema-update
+          git config user.name 'unifi-schema-automation[bot]'
+          git config user.email 'unifi-schema-automation[bot]@users.noreply.github.com'
+          git add -A -- cmd/fields/schema-source.json specification.json \
+            ':(glob)unifi/*.generated.go' ':(glob)unifi/settings/*.generated.go'
+          git commit -m "chore: update UniFi Network schema to $network_version"
+          {
+            echo "Automated Internal API schema update."
+            echo
+            echo "- UniFi OS Server: \`$os_version\`"
+            echo "- UniFi Network: \`$network_version\`"
+            echo "- Installer SHA-256: \`$installer_sha\`"
+            echo "- Generated tree digest: \`$generated_digest\`"
+            echo "- Schema digest: \`$schema_digest\`"
+            echo "- Sensitivity digest: \`$sensitivity_digest\`"
+            echo "- Notice digest: \`$notice_digest\`"
+            echo "- API compatibility: \`$API_STATUS\`"
+            echo
+            echo "<!-- expected-generated-tree-digest: $generated_digest -->"
+            echo "<!-- api-compatibility: $API_STATUS -->"
+          } > "$RUNNER_TEMP/schema-pr-body.md"
+          echo "title=chore: update UniFi Network schema to $network_version" >> "$GITHUB_OUTPUT"
+
+      - name: Validation complete
+        if: steps.source.outputs.changed == 'true'
+        run: echo "Candidate contains only validated generated output"
+
+      - name: Mint GitHub App token
+        if: steps.source.outputs.changed == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.SCHEMA_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.SCHEMA_AUTOMATION_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Push and create or update stable pull request
+        if: steps.source.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_TITLE: ${{ steps.candidate.outputs.title }}
+          EXPECTED_REMOTE_SHA: ${{ steps.source.outputs.remote_sha }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git push \
+            --force-with-lease=refs/heads/automation/unifi-schema-update:"$EXPECTED_REMOTE_SHA" \
+            origin HEAD:refs/heads/automation/unifi-schema-update
+          pr_number=$(gh pr list --state open --base main --head automation/unifi-schema-update \
+            --json number --jq '.[0].number // empty')
+          if [[ -n "$pr_number" ]]; then
+            gh pr edit "$pr_number" --title "$PR_TITLE" --body-file "$RUNNER_TEMP/schema-pr-body.md"
+          else
+            gh pr create --base main --head automation/unifi-schema-update \
+              --title "$PR_TITLE" --body-file "$RUNNER_TEMP/schema-pr-body.md"
+          fi
+
+      - name: Enable compatible release auto-merge
+        if: >-
+          steps.source.outputs.changed == 'true' &&
+          steps.api.outputs.api_status == 'compatible' &&
+          vars.ALLOW_AUTOMATED_SCHEMA_RELEASES == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh pr merge --auto --rebase automation/unifi-schema-update
+
+      - name: Cleanup local schema inputs
+        if: always()
+        shell: bash
+        run: |
+          git worktree remove --force "$RUNNER_TEMP/schema-base" 2>/dev/null || true
+          git clean -fdX -- cmd/fields
+          rm -f "$RUNNER_TEMP/schema-selector" "$RUNNER_TEMP/resolved-source.json" \
+            "$RUNNER_TEMP/changed-paths" "$RUNNER_TEMP/api-compat.md" \
+            "$RUNNER_TEMP/schema-pr-body.md"

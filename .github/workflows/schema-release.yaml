@@ -1,0 +1,132 @@
+---
+name: UniFi Schema Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: unifi-schema-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.ALLOW_AUTOMATED_SCHEMA_RELEASES == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact trusted CI SHA
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Validate triggering SHA and merged automation PR
+        id: trust
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_SHA"
+          git merge-base --is-ancestor "$EXPECTED_SHA" origin/main
+
+          gh api -H 'Accept: application/vnd.github+json' \
+            "/repos/$REPOSITORY/commits/$EXPECTED_SHA/pulls" \
+            > "$RUNNER_TEMP/associated-prs.json"
+          test "$(jq 'length' "$RUNNER_TEMP/associated-prs.json")" -eq 1
+          jq -e --arg repo "$REPOSITORY" '
+            .[0].merged_at != null and
+            .[0].base.ref == "main" and
+            .[0].base.repo.full_name == $repo and
+            .[0].head.ref == "automation/unifi-schema-update" and
+            .[0].head.repo.full_name == $repo
+          ' "$RUNNER_TEMP/associated-prs.json" > /dev/null
+          pr_number=$(jq -r '.[0].number' "$RUNNER_TEMP/associated-prs.json")
+          pr_body=$(jq -r '.[0].body // ""' "$RUNNER_TEMP/associated-prs.json")
+          expected_digest=$(sed -n 's/.*expected-generated-tree-digest: \([0-9a-f]\{64\}\).*/\1/p' <<< "$pr_body")
+          test "$(wc -l <<< "$expected_digest" | tr -d ' ')" -eq 1
+          grep -Fx '<!-- api-compatibility: compatible -->' <<< "$pr_body"
+
+          gh pr checks "$pr_number" --json name,state > "$RUNNER_TEMP/pr-checks.json"
+          jq -e '[.[] | select(.name == "API Compatibility" and .state == "SUCCESS")] | length == 1' \
+            "$RUNNER_TEMP/pr-checks.json" > /dev/null
+
+          committed_digest=$(jq -r .generated_tree_digest cmd/fields/schema-source.json)
+          test "$expected_digest" = "$committed_digest"
+          parent_digest=$(git show HEAD^:cmd/fields/schema-source.json | jq -r .generated_tree_digest)
+          test "$parent_digest" != "$committed_digest"
+
+      - name: Verify committed generated tree
+        run: go run ./cmd/fields -verify-committed
+
+      - name: Allocate strict stable patch tag
+        id: tag
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          semver_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          existing=$(git tag --points-at "$EXPECTED_SHA" | grep -E "$semver_re" || true)
+          if [[ -n "$existing" ]]; then
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "Strict stable tag already exists at triggering SHA: $existing"
+            exit 0
+          fi
+          latest=$(git tag -l | grep -E "$semver_re" | sort -V | tail -n 1 || true)
+          if [[ -z "$latest" ]]; then
+            tag=v0.0.1
+          else
+            IFS=. read -r major minor patch <<< "${latest#v}"
+            tag="v$major.$minor.$((patch + 1))"
+          fi
+          grep -Eq "$semver_re" <<< "$tag"
+          ! git show-ref --verify --quiet "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validation complete
+        if: steps.tag.outputs.tag != ''
+        run: echo "Trusted main SHA is ready for an explicit stable tag"
+
+      - name: Mint GitHub App token
+        if: steps.tag.outputs.tag != ''
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.SCHEMA_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.SCHEMA_AUTOMATION_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Push exact triggering SHA tag
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh auth setup-git
+          git push origin "$SHA:refs/tags/$TAG"

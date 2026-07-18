@@ -185,7 +185,25 @@ same-version snapshot, regenerate it from its pinned version or verified local
 installer after correcting policy; do not copy a partially generated staging
 tree into place.
 
-Scheduled update, automatic merge, and automatic release controls remain
-disabled until the blocking CI, compatibility classification, GitHub App, and
-repository release opt-in have been reviewed and configured. Local generation
-does not authorize an automated release.
+## External automation configuration
+
+`UniFi Schema Update` performs daily discovery and can also be dispatched with
+an exact UniFi OS version or correlated installer URL. It creates or updates
+the same-repository `automation/unifi-schema-update` branch only after the
+generated-path boundary, deterministic regeneration, committed provenance,
+tests, vet, lint, and API comparison have completed. Breaking API changes are
+reported in a pull request but are never automatically merged.
+
+Both schema workflows need a narrowly installed GitHub App. Configure the
+repository secrets `SCHEMA_AUTOMATION_APP_ID` and
+`SCHEMA_AUTOMATION_PRIVATE_KEY`. The App installation needs Contents write
+access; the updater also needs Pull requests write access. Keep ordinary
+workflow permissions read-only and require the stable CI checks, including
+`API Compatibility`, on `main`.
+
+Automated merge and tagging remain
+disabled unless the repository variable `ALLOW_AUTOMATED_SCHEMA_RELEASES` has
+the exact value `true`. The workflows do not create or modify this variable:
+leave it unset until the App,
+branch-protection rules, release workflow, and first automation pull request
+have been reviewed. Local generation never authorizes an automated release.
