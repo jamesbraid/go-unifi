@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 type SensitivityPolicy struct {
 	Version                 string   `json:"version"`
 	ApprovedMetadataSHA256  []string `json:"approved_metadata_sha256"`
+	ApprovedNoticeSHA256    []string `json:"approved_notice_sha256"`
 	SecretPaths             []string `json:"secret_paths"`
 	NonGeneratedSecretPaths []string `json:"non_generated_secret_paths"`
 }
@@ -53,13 +55,23 @@ func LoadSensitivityPolicy(path string) (SensitivityPolicy, error) {
 	if policy.Version != "1" {
 		return SensitivityPolicy{}, fmt.Errorf("unsupported sensitivity policy version %q", policy.Version)
 	}
-	if policy.ApprovedMetadataSHA256 == nil || policy.SecretPaths == nil || policy.NonGeneratedSecretPaths == nil {
+	if policy.ApprovedMetadataSHA256 == nil || policy.ApprovedNoticeSHA256 == nil || policy.SecretPaths == nil || policy.NonGeneratedSecretPaths == nil {
 		return SensitivityPolicy{}, errors.New("sensitivity policy arrays must be present")
 	}
 	for _, digest := range policy.ApprovedMetadataSHA256 {
-		decoded, err := hex.DecodeString(digest)
-		if err != nil || len(decoded) != 32 || digest != strings.ToLower(digest) {
+		if !validSHA256(digest) {
 			return SensitivityPolicy{}, fmt.Errorf("invalid approved metadata SHA-256 %q", digest)
+		}
+	}
+	if !sort.StringsAreSorted(policy.ApprovedNoticeSHA256) {
+		return SensitivityPolicy{}, errors.New("approved notice SHA-256 values must be sorted")
+	}
+	for i, digest := range policy.ApprovedNoticeSHA256 {
+		if !validSHA256(digest) {
+			return SensitivityPolicy{}, fmt.Errorf("invalid approved notice SHA-256 %q", digest)
+		}
+		if i > 0 && digest == policy.ApprovedNoticeSHA256[i-1] {
+			return SensitivityPolicy{}, fmt.Errorf("duplicate approved notice SHA-256 %q", digest)
 		}
 	}
 	for _, secretPath := range policy.SecretPaths {
@@ -73,6 +85,21 @@ func LoadSensitivityPolicy(path string) (SensitivityPolicy, error) {
 		}
 	}
 	return policy, nil
+}
+
+func validSHA256(digest string) bool {
+	decoded, err := hex.DecodeString(digest)
+	return err == nil && len(decoded) == sha256.Size && digest == strings.ToLower(digest)
+}
+
+func RequireApprovedNoticeDigest(policy SensitivityPolicy, digest string) error {
+	if !validSHA256(digest) {
+		return fmt.Errorf("invalid notice digest %q", digest)
+	}
+	if !containsString(policy.ApprovedNoticeSHA256, digest) {
+		return fmt.Errorf("notice digest %s is not approved", digest)
+	}
+	return nil
 }
 
 func ParseSensitiveMetadata(data []byte) (SensitiveMetadata, error) {

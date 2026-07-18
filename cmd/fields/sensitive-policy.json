@@ -3,6 +3,9 @@
   "approved_metadata_sha256": [
     "7b1dfe4989af062a1bb1be0c40ffed90192cb615dffb698de090fb82db5b298c"
   ],
+  "approved_notice_sha256": [
+    "70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f"
+  ],
   "secret_paths": [
     "account.x_password",
     "device.lte_password",

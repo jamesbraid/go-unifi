@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-codegen-spec/datasource"
@@ -91,17 +92,39 @@ func TestParseSensitivityMetadata_RejectsIncompleteOrMalformedShape(t *testing.T
 func TestSensitivityPolicy_LoadAndValidate(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"version":"1","approved_metadata_sha256":[],"secret_paths":[],"non_generated_secret_paths":[]}`), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":"1","approved_metadata_sha256":[],"approved_notice_sha256":[],"secret_paths":[],"non_generated_secret_paths":[]}`), 0o600))
 	policy, err := LoadSensitivityPolicy(path)
 	require.NoError(t, err)
 	assert.Equal(t, "1", policy.Version)
 	assert.Empty(t, policy.ApprovedMetadataSHA256)
+	assert.Empty(t, policy.ApprovedNoticeSHA256)
 	assert.Empty(t, policy.SecretPaths)
 	assert.Empty(t, policy.NonGeneratedSecretPaths)
 
-	require.NoError(t, os.WriteFile(path, []byte(`{"version":"2","approved_metadata_sha256":[],"secret_paths":[],"non_generated_secret_paths":[]}`), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":"2","approved_metadata_sha256":[],"approved_notice_sha256":[],"secret_paths":[],"non_generated_secret_paths":[]}`), 0o600))
 	_, err = LoadSensitivityPolicy(path)
 	require.ErrorContains(t, err, "version")
+
+	for name, body := range map[string]string{
+		"missing":  `{"version":"1","approved_metadata_sha256":[],"secret_paths":[],"non_generated_secret_paths":[]}`,
+		"invalid":  `{"version":"1","approved_metadata_sha256":[],"approved_notice_sha256":["BAD"],"secret_paths":[],"non_generated_secret_paths":[]}`,
+		"unsorted": `{"version":"1","approved_metadata_sha256":[],"approved_notice_sha256":["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"secret_paths":[],"non_generated_secret_paths":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+			_, err := LoadSensitivityPolicy(path)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestRequireApprovedNoticeDigest(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	policy := SensitivityPolicy{ApprovedNoticeSHA256: []string{digest}}
+	require.NoError(t, RequireApprovedNoticeDigest(policy, digest))
+	err := RequireApprovedNoticeDigest(policy, strings.Repeat("b", 64))
+	require.ErrorContains(t, err, "notice digest")
+	require.ErrorContains(t, err, "is not approved")
 }
 
 func TestSensitivityPolicy_ApprovedUniFi10457(t *testing.T) {
@@ -109,6 +132,7 @@ func TestSensitivityPolicy_ApprovedUniFi10457(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "1", policy.Version)
 	assert.Equal(t, []string{"7b1dfe4989af062a1bb1be0c40ffed90192cb615dffb698de090fb82db5b298c"}, policy.ApprovedMetadataSHA256)
+	assert.Equal(t, []string{"70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f"}, policy.ApprovedNoticeSHA256)
 	assert.Len(t, policy.SecretPaths, 28)
 	assert.Len(t, policy.NonGeneratedSecretPaths, 36)
 	assert.True(t, slices.IsSorted(policy.SecretPaths))

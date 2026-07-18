@@ -185,6 +185,9 @@ func runUOS(ctx context.Context, root string, source InstallerSource, installer 
 	if err != nil {
 		return fmt.Errorf("load sensitivity policy after snapshot publication: %w", err)
 	}
+	if err := RequireApprovedNoticeDigest(policy, manifest.NoticeDigest); err != nil {
+		return fmt.Errorf("review extracted dependency notices after snapshot publication: %w", err)
+	}
 	return regenerateAndPublish(ctx, root, snapshot, source, *manifest, policy, stdout, deps)
 }
 
@@ -402,6 +405,13 @@ func verifyCommittedTree(root, sourceRel string) error {
 	if err := json.Unmarshal(body, &source); err != nil {
 		return fmt.Errorf("parse schema source: %w", err)
 	}
+	policy, err := LoadSensitivityPolicy(filepath.Join(root, "cmd", "fields", "sensitive-policy.json"))
+	if err != nil {
+		return fmt.Errorf("load review policy: %w", err)
+	}
+	if err := RequireApprovedNoticeDigest(policy, source.NoticeDigest); err != nil {
+		return fmt.Errorf("verify committed notice approval: %w", err)
+	}
 	files, digest, err := HashGeneratedFiles(root, "unifi", "specification.json")
 	if err != nil {
 		return fmt.Errorf("hash committed outputs: %w", err)
@@ -452,6 +462,9 @@ func verifyRegeneratedTree(ctx context.Context, root string, deps runDeps, stdou
 	policy, err := LoadSensitivityPolicy(filepath.Join(root, "cmd", "fields", "sensitive-policy.json"))
 	if err != nil {
 		return err
+	}
+	if err := RequireApprovedNoticeDigest(policy, source.NoticeDigest); err != nil {
+		return fmt.Errorf("verify regeneration notice approval: %w", err)
 	}
 	raw, metadata, err := loadSensitivityInputs(snapshot)
 	if err != nil {

@@ -55,6 +55,65 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Reviewed nested dependency notice gate
+
+The first local notice review counted 111 LICENSE/NOTICE entries, but that
+side-channel inventory was incomplete under the final extractor contract. The
+production matcher now inspects all 153 direct `ace.jar/BOOT-INF/lib/*.jar`
+archives and accepts root or `META-INF` LICENSE, NOTICE, COPYING, COPYRIGHT, and
+THIRD-PARTY families with exact, `.txt`, `.md`, dash, and underscore forms. It
+explicitly excludes `.class`, `.properties`, `.bin`, and unrelated basename
+lookalikes.
+
+The final retained-ace harness used the production indexer, sequential JAR spool,
+all-entry body/CRC validation, notice budget, artifact reader, and
+`CanonicalTreeDigest`. It found 138 entries across 73 matching JARs, totaling
+850,719 bytes: 77 LICENSE-family, 60 NOTICE-family, and one THIRDPARTY-family
+entry. The shape breakdown is 54 exact basenames, 66 `.txt`, 16 `.md`, one dash
+variant, and one exact THIRDPARTY name. The canonical reviewed digest is:
+
+```text
+70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f
+```
+
+The temporary absolute-path harness was deleted. No notice body, JAR, ZIP, tar,
+or raw inventory was added to the repository. Notice bodies remain in the local,
+gitignored snapshot and remain vendor-governed.
+
+Extraction now bounds nested archives to 1,024, captured notices to 10,000
+entries and 256 MiB aggregate, and each expanded dependency archive to the
+existing 512 MiB JAR limit. Every nested entry is streamed to EOF before notice
+filtering so CRC corruption in ignored entries also fails. Paths, entry types,
+duplicates, archive namespace case-fold collisions, and notice destination
+case-fold collisions fail deterministically. Each dependency spool is closed and
+removed before processing the next archive.
+
+The required, strictly validated and sorted `approved_notice_sha256` policy array
+contains exactly the reviewed digest. Generation checks it after atomic snapshot
+publication and input scan but before rendering tracked output. Both offline
+verification modes check the committed provenance digest against the same policy.
+An unknown digest leaves the complete new snapshot and prior tracked output in
+place and returns a first-class `notice digest ... is not approved` error.
+
+TDD first demonstrated missing nested limits/inventory and then showed that run,
+committed verification, and regeneration verification incorrectly accepted an
+unknown digest. Focused extraction, policy, run, verification, and documentation
+tests now pass:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(ExtractUOSInstaller|DependencyNoticePathFamilies|SensitivityPolicy|RequireApprovedNoticeDigest|RunUnapprovedNotice|VerificationModesReject|RunLocalInstaller|RunPolicyFailure|RunBoundary|SchemaGenerationDocumentation)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.911s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.635s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+raw archive and binary diff checks
+```
+
 ## Extracted-definition lifecycle and snapshot semantics
 
 The successful extractor path returned file-backed artifacts beneath a

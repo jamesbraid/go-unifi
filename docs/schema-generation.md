@@ -52,7 +52,9 @@ Default hard limits are:
 - decompressed layer: 4 GiB;
 - extracted JAR target: 512 MiB;
 - individual JSON artifact: 32 MiB;
+- aggregate captured notices: 256 MiB and 10,000 entries;
 - archive entries: 500,000;
+- direct dependency JARs: 1,024;
 - nested OCI index depth: 8;
 - OCI control JSON: 8 MiB.
 
@@ -104,20 +106,30 @@ input shape, or a changed notice digest stops generation for maintainer review.
 
 ## Notices and redistribution boundary
 
-The extractor records a digest for the relevant license/notice entries it
-captures directly from `ace.jar` and `internal-dependencies.jar`. For the
-reviewed 10.4.57 snapshot, that direct set is empty and its `NoticeDigest` is
-`2caaba0bb439038643b99decb6f1c5bcdd0179a1885190685e796ac0dbfaebe5`.
-This truthfully describes the extractor's reviewed direct set; it is not proof
-of a complete license inventory for every dependency nested under
-`ace.jar/BOOT-INF/lib`.
+The extractor checks direct entries in `ace.jar` and
+`internal-dependencies.jar`, then sequentially opens every direct dependency JAR
+beneath `ace.jar/BOOT-INF/lib`. It captures root or `META-INF` files in the
+LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY basename families, including
+reviewed `.txt`, `.md`, dash, and underscore variants. Binary and property-file
+lookalikes are excluded. Every nested archive is still fully validated before
+non-notice entries are ignored.
 
-The local review separately checked all 153 nested dependency JARs. Sixty-one
-JARs contained 111 matching entries (65 LICENSE-family and 46 NOTICE-family
-entries). Their sorted `jar name + entry name + content SHA-256` inventory has
-SHA-256 `72c3399fadddb2fcb513b2ec6c4dfbd1cefee05e0fe465c1fe48be82b8fcc3d2`.
-Those bodies and the raw inventory remain local and vendor-governed; they are
-not committed or redistributed. See [the licensing boundary](../LICENSES/README.md).
+The reviewed 10.4.57 input contains 153 direct dependency JARs. Seventy-three
+JARs contain 138 captured entries totaling 850,719 bytes: 77 LICENSE-family, 60
+NOTICE-family, and one THIRDPARTY-family entry. Of these, 54 use exact basenames,
+66 use `.txt`, 16 use `.md`, one uses a dash variant, and one is the exact
+THIRDPARTY name. This final matcher revealed that the earlier 111-entry local
+inventory was incomplete. The canonical snapshot `NoticeDigest` for the complete
+reviewed set is
+`70a014c0a8a3e9f3e91c48c6fb03811fbd15cbd8102a376e60dcc5253dc5a10f`.
+A changed digest is rejected unless it appears in the required sorted
+`approved_notice_sha256` policy array.
+
+Notice bodies remain only in the local gitignored snapshot. They and the raw
+inventory are vendor-governed and are not committed or redistributed. This is
+not proof
+of a complete license inventory beyond the bounded families above. See
+[the licensing boundary](../LICENSES/README.md).
 
 ## Verification and recovery
 

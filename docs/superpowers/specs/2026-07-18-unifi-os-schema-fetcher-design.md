@@ -127,8 +127,12 @@ The `image.tar` entry is streamed into a bounded temporary OCI layout. The extra
 parses `index.json`, selects the Linux x64 manifest, verifies descriptor sizes and
 digests, and processes layers in reverse overlay order while respecting OCI
 whiteouts. This avoids selecting a stale or deleted `ace.jar` from an older layer.
-`ace.jar` and the nested JAR are spooled to bounded temporary files so neither the
-880 MB installer nor its image layers are loaded into memory as whole byte slices.
+`ace.jar`, `internal-dependencies.jar`, and each direct dependency JAR are spooled
+sequentially to bounded temporary files so neither the 880 MB installer nor its
+image layers are loaded into memory as whole byte slices. At most 1,024 dependency
+JARs are inspected; captured notices are bounded to 10,000 entries and 256 MiB in
+aggregate. Root and `META-INF` LICENSE, NOTICE, COPYING, COPYRIGHT, and THIRD-PARTY
+basename families are namespaced by their full safe JAR path and digested.
 
 The extractor reads `BOOT-INF/classes/product.properties` from `ace.jar` and uses
 its `version` value as the UniFi Network version. Output directories are keyed by
@@ -292,7 +296,8 @@ provenance record containing the selected OS Server and Network versions, offici
 installer URL, firmware ID, byte length, SHA-256, release timestamps, canonical
 schema digest, and generated-tree digest. It contains no raw schema content or local
 paths. It also records the sensitivity-metadata digest and policy version without
-listing Ubiquiti's private-metadata paths. This file lets scheduled automation detect
+listing Ubiquiti's private-metadata paths. The policy contains a required sorted
+array of approved notice-tree SHA-256 digests. This file lets scheduled automation detect
 a new installer without repeatedly downloading the current 880 MB artifact. It also
 records the reviewed license/notice digest without copying the notices.
 

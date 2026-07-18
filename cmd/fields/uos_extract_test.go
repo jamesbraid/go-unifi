@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -128,4 +129,145 @@ func TestExtractUOSInstallerInventoriesNoticeBasenameSuffixes(t *testing.T) {
 	assert.Contains(t, result.Notices, "ace.jar/META-INF/notice_third-party")
 	assert.Contains(t, result.Notices, "internal-dependencies.jar/NOTICE-third-party")
 	assert.Contains(t, result.Notices, "internal-dependencies.jar/META-INF/LICENSE_BSD")
+}
+
+func TestExtractUOSInstallerInventoriesDirectDependencyNotices(t *testing.T) {
+	internal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+		fixtureEntry{name: "META-INF/NOTICE.txt", body: []byte("internal notice")},
+	)
+	dependency := fixtureZip(t,
+		fixtureEntry{name: "COPYING", body: []byte("copying terms")},
+		fixtureEntry{name: "META-INF/THIRD-PARTY-NOTICES.txt", body: []byte("third party terms")},
+		fixtureEntry{name: "README.txt", body: []byte("not a notice")},
+	)
+	installer := syntheticInstaller(t, installerFixtureOptions{aceEntries: []fixtureEntry{
+		{name: productPropsPath, body: []byte("version=10.4.57\n")},
+		{name: internalJarPath, body: internal},
+		{name: "BOOT-INF/lib/example.jar", body: dependency},
+	}})
+	installerPath := filepath.Join(t.TempDir(), "installer")
+	require.NoError(t, os.WriteFile(installerPath, installer, 0o600))
+
+	result, err := ExtractUOSInstaller(context.Background(), installerPath, t.TempDir(), DefaultArchiveLimits())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, result.Close()) })
+	assert.Contains(t, result.Notices, "internal-dependencies.jar/META-INF/NOTICE.txt")
+	assert.Contains(t, result.Notices, "ace.jar/BOOT-INF/lib/internal-dependencies.jar/META-INF/NOTICE.txt")
+	assert.Contains(t, result.Notices, "ace.jar/BOOT-INF/lib/example.jar/COPYING")
+	assert.Contains(t, result.Notices, "ace.jar/BOOT-INF/lib/example.jar/META-INF/THIRD-PARTY-NOTICES.txt")
+	assert.NotContains(t, result.Notices, "ace.jar/BOOT-INF/lib/example.jar/README.txt")
+}
+
+func TestExtractUOSInstallerRejectsInvalidDependencyJarsAndNoticeLimits(t *testing.T) {
+	validInternal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+	)
+	for _, tc := range []struct {
+		name       string
+		dependency []byte
+		mutate     func(*ArchiveLimits)
+	}{
+		{name: "corrupt", dependency: []byte("not a ZIP")},
+		{name: "CRC", dependency: corruptFixtureZipEntry(t, fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("terms that must verify")}))},
+		{name: "non-notice CRC", dependency: corruptFixtureZipEntry(t, fixtureZip(t, fixtureEntry{name: "README.txt", body: []byte("body that must verify")}))},
+		{name: "symlink", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("target"), typeflag: '2'})},
+		{name: "traversal", dependency: fixtureZip(t, fixtureEntry{name: "../LICENSE", body: []byte("terms")})},
+		{name: "duplicate", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("one")}, fixtureEntry{name: "./LICENSE", body: []byte("two")})},
+		{name: "case fold collision", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("one")}, fixtureEntry{name: "license", body: []byte("two")})},
+		{name: "archive limit", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("terms")}), mutate: func(l *ArchiveLimits) { l.MaxNestedArchives = 1 }},
+		{name: "notice entry limit", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("one")}, fixtureEntry{name: "NOTICE", body: []byte("two")}), mutate: func(l *ArchiveLimits) { l.MaxNoticeEntries = 1 }},
+		{name: "notice byte limit", dependency: fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("terms")}), mutate: func(l *ArchiveLimits) { l.MaxNoticeBytes = 4 }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			installer := syntheticInstaller(t, installerFixtureOptions{aceEntries: []fixtureEntry{
+				{name: productPropsPath, body: []byte("version=10.4.57\n")},
+				{name: internalJarPath, body: validInternal},
+				{name: "BOOT-INF/lib/example.jar", body: tc.dependency},
+			}})
+			path := filepath.Join(t.TempDir(), "installer")
+			require.NoError(t, os.WriteFile(path, installer, 0o600))
+			limits := DefaultArchiveLimits()
+			if tc.mutate != nil {
+				tc.mutate(&limits)
+			}
+			_, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), limits)
+			require.Error(t, err)
+		})
+	}
+}
+
+func corruptFixtureZipEntry(t *testing.T, archive []byte) []byte {
+	t.Helper()
+	corrupt := append([]byte(nil), archive...)
+	require.GreaterOrEqual(t, len(corrupt), 30)
+	nameLength := int(binary.LittleEndian.Uint16(corrupt[26:28]))
+	extraLength := int(binary.LittleEndian.Uint16(corrupt[28:30]))
+	dataOffset := 30 + nameLength + extraLength
+	require.Less(t, dataOffset, len(corrupt))
+	corrupt[dataOffset] ^= 0xff
+	return corrupt
+}
+
+func TestExtractUOSInstallerDependencyNoticeInventoryIsOrderIndependent(t *testing.T) {
+	internal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+	)
+	first := fixtureEntry{name: "BOOT-INF/lib/a.jar", body: fixtureZip(t, fixtureEntry{name: "LICENSE.txt", body: []byte("a")})}
+	second := fixtureEntry{name: "BOOT-INF/lib/b.jar", body: fixtureZip(t, fixtureEntry{name: "NOTICE.md", body: []byte("b")})}
+	extract := func(entries []fixtureEntry) map[string]string {
+		aceEntries := append([]fixtureEntry{{name: productPropsPath, body: []byte("version=10.4.57\n")}, {name: internalJarPath, body: internal}}, entries...)
+		path := filepath.Join(t.TempDir(), "installer")
+		require.NoError(t, os.WriteFile(path, syntheticInstaller(t, installerFixtureOptions{aceEntries: aceEntries}), 0o600))
+		result, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), DefaultArchiveLimits())
+		require.NoError(t, err)
+		defer func() { require.NoError(t, result.Close()) }()
+		hashes := make(map[string]string, len(result.Notices))
+		for name, artifact := range result.Notices {
+			hashes[name] = artifact.SHA256
+		}
+		return hashes
+	}
+	assert.Equal(t, extract([]fixtureEntry{first, second}), extract([]fixtureEntry{second, first}))
+}
+
+func TestDependencyNoticePathFamiliesExcludeBinaryLookalikes(t *testing.T) {
+	for _, name := range []string{
+		"LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE.md",
+		"META-INF/LICENSE-2.0.txt", "META-INF/COPYING", "META-INF/COPYRIGHT",
+		"META-INF/THIRDPARTY", "META-INF/THIRD-PARTY-NOTICES.txt",
+	} {
+		assert.True(t, isDependencyNoticePath(name), name)
+	}
+	for _, name := range []string{
+		"META-INF/LICENSE.class", "META-INF/NOTICE.properties", "LICENSE.bin",
+		"com/example/Copyright.class", "README.txt", "META-INF/THIRDPARTY.class",
+	} {
+		assert.False(t, isDependencyNoticePath(name), name)
+	}
+}
+
+func TestExtractUOSInstallerRejectsDependencyJarNamespaceCaseFoldCollision(t *testing.T) {
+	internal := fixtureZip(t,
+		fixtureEntry{name: "api/fields/Setting.json", body: []byte("{}")},
+		fixtureEntry{name: "api/fields/Device.json", body: []byte("{}")},
+		fixtureEntry{name: "sensitive_metadata.json", body: []byte("{}")},
+	)
+	dependency := fixtureZip(t, fixtureEntry{name: "LICENSE", body: []byte("terms")})
+	installer := syntheticInstaller(t, installerFixtureOptions{aceEntries: []fixtureEntry{
+		{name: productPropsPath, body: []byte("version=10.4.57\n")},
+		{name: internalJarPath, body: internal},
+		{name: "BOOT-INF/lib/Example.jar", body: dependency},
+		{name: "BOOT-INF/lib/example.jar", body: dependency},
+	}})
+	path := filepath.Join(t.TempDir(), "installer")
+	require.NoError(t, os.WriteFile(path, installer, 0o600))
+	_, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), DefaultArchiveLimits())
+	require.ErrorContains(t, err, "namespace case-fold collision")
 }

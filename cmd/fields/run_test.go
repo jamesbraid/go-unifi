@@ -49,7 +49,7 @@ func TestRunLocalInstallerEndToEndIsDeterministic(t *testing.T) {
 	require.NoError(t, os.WriteFile(installer, installerBody, 0o644))
 	digest, err := CanonicalJSONDigest(metadata)
 	require.NoError(t, err)
-	policyBody, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{digest}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
+	policyBody, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{digest}, ApprovedNoticeSHA256: []string{syntheticRunNoticeDigest(t)}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "sensitive-policy.json"), policyBody, 0o644))
 	deps := defaultRunDeps()
@@ -85,7 +85,7 @@ func TestRunPolicyFailureKeepsSnapshotAndPriorOutputs(t *testing.T) {
 	}})
 	installer := filepath.Join(root, "installer")
 	require.NoError(t, os.WriteFile(installer, body, 0o644))
-	policy, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
+	policy, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{}, ApprovedNoticeSHA256: []string{syntheticRunNoticeDigest(t)}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "sensitive-policy.json"), policy, 0o644))
 	deps := defaultRunDeps()
@@ -142,6 +142,44 @@ func TestRunBoundaryFailuresPreserveAllCommittedOutputs(t *testing.T) {
 	}
 }
 
+func TestRunUnapprovedNoticeDigestKeepsSnapshotAndPriorOutputs(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	policyPath := filepath.Join(root, "cmd", "fields", "sensitive-policy.json")
+	policy, err := LoadSensitivityPolicy(policyPath)
+	require.NoError(t, err)
+	policy.ApprovedNoticeSHA256 = []string{}
+	body, err := json.Marshal(policy)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(policyPath, body, 0o644))
+
+	err = runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
+	require.ErrorContains(t, err, "notice digest")
+	require.ErrorContains(t, err, "is not approved")
+	assertRunOutputsOld(t, root)
+	assertNoExtractArtifacts(t, deps.tempRoot)
+	_, statErr := os.Stat(filepath.Join(root, "cmd", "fields", "v10.4.57", "metadata", "source.json"))
+	require.NoError(t, statErr, "complete snapshot remains available for notice review")
+}
+
+func TestVerificationModesRejectUnapprovedSchemaSourceNoticeDigest(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	before := captureRunOutputs(t, root)
+	policyPath := filepath.Join(root, "cmd", "fields", "sensitive-policy.json")
+	policy, err := LoadSensitivityPolicy(policyPath)
+	require.NoError(t, err)
+	policy.ApprovedNoticeSHA256 = []string{}
+	body, err := json.Marshal(policy)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(policyPath, body, 0o644))
+
+	err = verifyCommittedTree(root, filepath.Join("cmd", "fields", "schema-source.json"))
+	require.ErrorContains(t, err, "notice digest")
+	err = verifyRegeneratedTree(context.Background(), root, deps, &bytes.Buffer{})
+	require.ErrorContains(t, err, "notice digest")
+	assert.Equal(t, before, captureRunOutputs(t, root))
+}
+
 func TestVerifyRegeneratedTreeNeverOverwritesAndReportsFirstPath(t *testing.T) {
 	root, installer, deps := newRunFailureFixture(t)
 	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
@@ -168,7 +206,7 @@ func newRunFailureFixture(t *testing.T) (string, string, runDeps) {
 	require.NoError(t, os.WriteFile(installer, body, 0o644))
 	digest, err := CanonicalJSONDigest(metadata)
 	require.NoError(t, err)
-	policy, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{digest}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
+	policy, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{digest}, ApprovedNoticeSHA256: []string{syntheticRunNoticeDigest(t)}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "sensitive-policy.json"), policy, 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
@@ -179,6 +217,13 @@ func newRunFailureFixture(t *testing.T) (string, string, runDeps) {
 	deps.moduleRoot = func() (string, error) { return root, nil }
 	deps.tempRoot = t.TempDir()
 	return root, installer, deps
+}
+
+func syntheticRunNoticeDigest(t *testing.T) string {
+	t.Helper()
+	digest, err := CanonicalTreeDigest(map[string][]byte{"ace.jar/META-INF/LICENSE": []byte("ace license")})
+	require.NoError(t, err)
+	return digest
 }
 func captureRunOutputs(t *testing.T, root string) map[string]string {
 	t.Helper()
@@ -230,10 +275,15 @@ func TestRunVerifyCommittedOfflineAndFirstDifference(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "specification.json"), []byte(`{}`), 0o644))
 	files, digest, err := HashGeneratedFiles(root, "unifi", "specification.json")
 	require.NoError(t, err)
-	source := SchemaSource{GeneratedTreeDigest: digest, GeneratedFiles: files}
+	noticeDigest := syntheticRunNoticeDigest(t)
+	source := SchemaSource{NoticeDigest: noticeDigest, GeneratedTreeDigest: digest, GeneratedFiles: files}
 	body, err := json.Marshal(source)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(root, "cmd-fields-schema-source.json"), body, 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "cmd", "fields"), 0o755))
+	policyBody, err := json.Marshal(SensitivityPolicy{Version: "1", ApprovedMetadataSHA256: []string{}, ApprovedNoticeSHA256: []string{noticeDigest}, SecretPaths: []string{}, NonGeneratedSecretPaths: []string{}})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "cmd", "fields", "sensitive-policy.json"), policyBody, 0o644))
 	deps := defaultRunDeps()
 	deps.moduleRoot = func() (string, error) { return root, nil }
 	deps.schemaSourcePath = "cmd-fields-schema-source.json"

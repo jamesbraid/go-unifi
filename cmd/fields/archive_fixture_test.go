@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"testing"
 
 	digest "github.com/opencontainers/go-digest"
@@ -64,7 +65,7 @@ func fixtureZip(t *testing.T, entries ...fixtureEntry) []byte {
 	for _, entry := range entries {
 		h := &zip.FileHeader{Name: entry.name, Method: zip.Deflate}
 		if entry.typeflag == tar.TypeSymlink {
-			h.SetMode(0o777 | 0o120000)
+			h.SetMode(os.ModeSymlink | 0o777)
 		}
 		zw, err := w.CreateHeader(h)
 		require.NoError(t, err)

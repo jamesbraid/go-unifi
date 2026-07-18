@@ -149,6 +149,7 @@ func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, li
 	result := &ExtractedDefinitions{
 		Fields: make(map[string]ExtractedArtifact), Metadata: make(map[string]ExtractedArtifact), Notices: make(map[string]ExtractedArtifact), extractionRoot: outRoot,
 	}
+	noticeInventory := newNoticeInventory(outRoot, limits, result.Notices)
 	props, ok := aceEntries[productPropsPath]
 	if !ok {
 		return nil, fmt.Errorf("ace.jar: %s is missing", productPropsPath)
@@ -161,7 +162,10 @@ func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, li
 	if err != nil {
 		return nil, fmt.Errorf("ace.jar %s: %w", productPropsPath, err)
 	}
-	if err := extractNotices(ctx, aceEntries, "ace.jar", outRoot, limits, result.Notices); err != nil {
+	if err := noticeInventory.extract(ctx, aceEntries, "ace.jar", isNoticePath); err != nil {
+		return nil, err
+	}
+	if err := extractDependencyNotices(ctx, aceEntries, outRoot, limits, noticeInventory); err != nil {
 		return nil, err
 	}
 
@@ -213,7 +217,7 @@ func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, li
 			}
 		}
 	}
-	if err := extractNotices(ctx, innerEntries, "internal-dependencies.jar", outRoot, limits, result.Notices); err != nil {
+	if err := noticeInventory.extract(ctx, innerEntries, "internal-dependencies.jar", isNoticePath); err != nil {
 		return nil, err
 	}
 	if _, ok := result.Fields["api/fields/Setting.json"]; !ok {
@@ -288,17 +292,143 @@ func parseNetworkVersion(body []byte) (string, error) {
 	return version, nil
 }
 
-func extractNotices(ctx context.Context, entries map[string]*zip.File, source, outRoot string, limits ArchiveLimits, notices map[string]ExtractedArtifact) error {
-	for name, entry := range entries {
-		if !isNoticePath(name) || entry.Mode().IsDir() {
+type noticeInventory struct {
+	outRoot      string
+	limits       ArchiveLimits
+	notices      map[string]ExtractedArtifact
+	destinations map[string]string
+	entries      int
+	bytes        int64
+}
+
+func newNoticeInventory(outRoot string, limits ArchiveLimits, notices map[string]ExtractedArtifact) *noticeInventory {
+	return &noticeInventory{outRoot: outRoot, limits: limits, notices: notices, destinations: make(map[string]string)}
+}
+
+func (inventory *noticeInventory) extract(ctx context.Context, entries map[string]*zip.File, source string, matches func(string) bool) error {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		entry := entries[name]
+		if !matches(name) || entry.Mode().IsDir() {
 			continue
 		}
 		key := source + "/" + name
-		artifact, err := extractZipArtifact(ctx, entry, key, outRoot, limits.MaxJSONBytes)
+		folded := strings.ToLower(key)
+		if previous, exists := inventory.destinations[folded]; exists {
+			return fmt.Errorf("notice destination case-fold collision: %q and %q", previous, key)
+		}
+		if inventory.entries >= inventory.limits.MaxNoticeEntries {
+			return fmt.Errorf("notice inventory exceeds %d entries", inventory.limits.MaxNoticeEntries)
+		}
+		remaining := inventory.limits.MaxNoticeBytes - inventory.bytes
+		if remaining <= 0 || entry.UncompressedSize64 > uint64(remaining) {
+			return fmt.Errorf("notice inventory exceeds %d bytes", inventory.limits.MaxNoticeBytes)
+		}
+		artifact, err := extractZipArtifact(ctx, entry, key, inventory.outRoot, remaining)
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", source, name, err)
 		}
-		notices[key] = artifact
+		inventory.destinations[folded] = key
+		inventory.notices[key] = artifact
+		inventory.entries++
+		inventory.bytes += artifact.Size
+	}
+	return nil
+}
+
+func extractDependencyNotices(ctx context.Context, aceEntries map[string]*zip.File, outRoot string, limits ArchiveLimits, inventory *noticeInventory) error {
+	jarNames := make([]string, 0)
+	jarDestinations := make(map[string]string)
+	for name, entry := range aceEntries {
+		if path.Dir(name) != "BOOT-INF/lib" || !strings.EqualFold(path.Ext(name), ".jar") || entry.Mode().IsDir() {
+			continue
+		}
+		folded := strings.ToLower(name)
+		if previous, exists := jarDestinations[folded]; exists {
+			return fmt.Errorf("dependency JAR namespace case-fold collision: %q and %q", previous, name)
+		}
+		jarDestinations[folded] = name
+		jarNames = append(jarNames, name)
+	}
+	sort.Strings(jarNames)
+	if len(jarNames) > limits.MaxNestedArchives {
+		return fmt.Errorf("dependency JAR inventory exceeds %d archives", limits.MaxNestedArchives)
+	}
+	for _, name := range jarNames {
+		if err := extractDependencyJarNotices(ctx, aceEntries[name], name, outRoot, limits, inventory); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func extractDependencyJarNotices(ctx context.Context, entry *zip.File, jarName, outRoot string, limits ArchiveLimits, inventory *noticeInventory) error {
+	spooled, err := spoolZipEntry(ctx, entry, outRoot, "dependency-*.jar", limits.MaxJarBytes)
+	if err != nil {
+		return fmt.Errorf("ace.jar %s: %w", jarName, err)
+	}
+	spoolPath := spooled.Name()
+	defer func() {
+		_ = spooled.Close()
+		_ = os.Remove(spoolPath)
+	}()
+	stat, err := spooled.Stat()
+	if err != nil {
+		return fmt.Errorf("stat dependency JAR %s: %w", jarName, err)
+	}
+	archive, err := zip.NewReader(spooled, stat.Size())
+	if err != nil {
+		return fmt.Errorf("open dependency JAR %s: %w", jarName, err)
+	}
+	entries, err := indexZipFiles(ctx, archive.File, limits.MaxEntries)
+	if err != nil {
+		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+	}
+	if err := validateZipEntryBodies(ctx, entries, limits.MaxJarBytes); err != nil {
+		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+	}
+	if err := inventory.extract(ctx, entries, "ace.jar/"+jarName, isDependencyNoticePath); err != nil {
+		return fmt.Errorf("dependency JAR %s: %w", jarName, err)
+	}
+	return nil
+}
+
+func validateZipEntryBodies(ctx context.Context, entries map[string]*zip.File, maxBytes int64) error {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var total int64
+	for _, name := range names {
+		entry := entries[name]
+		if entry.Mode().IsDir() {
+			continue
+		}
+		remaining := maxBytes - total
+		if remaining <= 0 || entry.UncompressedSize64 > uint64(remaining) {
+			return fmt.Errorf("expanded archive exceeds %d bytes", maxBytes)
+		}
+		reader, err := entry.Open()
+		if err != nil {
+			return fmt.Errorf("open %s: %w", name, err)
+		}
+		n, copyErr := copyBounded(io.Discard, &contextReader{ctx: ctx, r: reader}, remaining)
+		closeErr := reader.Close()
+		if copyErr != nil {
+			return fmt.Errorf("validate %s: %w", name, copyErr)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close %s: %w", name, closeErr)
+		}
+		if n != int64(entry.UncompressedSize64) {
+			return fmt.Errorf("validate %s: entry size mismatch", name)
+		}
+		total += n
 	}
 	return nil
 }
@@ -310,6 +440,37 @@ func isNoticePath(name string) bool {
 	}
 	base := strings.ToUpper(path.Base(name))
 	return strings.HasPrefix(base, "LICENSE") || strings.HasPrefix(base, "NOTICE")
+}
+
+func isDependencyNoticePath(name string) bool {
+	dir := path.Dir(name)
+	if dir != "." && dir != "META-INF" && !strings.HasPrefix(dir, "META-INF/") {
+		return false
+	}
+	return hasNoticeBasename(name, []string{"LICENSE", "NOTICE", "COPYING", "COPYRIGHT", "THIRD-PARTY", "THIRD_PARTY", "THIRDPARTY"})
+}
+
+func hasNoticeBasename(name string, families []string) bool {
+	base := strings.ToUpper(path.Base(name))
+	for _, family := range families {
+		if base == family {
+			return true
+		}
+		if !strings.HasPrefix(base, family) || len(base) == len(family) {
+			continue
+		}
+		remainder := base[len(family):]
+		if remainder == ".TXT" || remainder == ".MD" {
+			return true
+		}
+		if remainder[0] == '-' || remainder[0] == '_' {
+			extension := strings.ToUpper(path.Ext(remainder))
+			if extension == "" || extension == ".TXT" || extension == ".MD" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func extractZipArtifact(ctx context.Context, entry *zip.File, name, outRoot string, limit int64) (ExtractedArtifact, error) {
