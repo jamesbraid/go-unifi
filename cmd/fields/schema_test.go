@@ -359,3 +359,62 @@ func TestSpecification_JSONStructure(t *testing.T) {
 	resources := jsonMap["resources"].([]any)
 	assert.Len(t, resources, 1)
 }
+
+func TestSpecificationGenerator_SensitiveAttributes(t *testing.T) {
+	gen := NewSpecificationGenerator("unifi")
+
+	resource := NewResource("RadiusProfile", "radiusprofile")
+	base := resource.Types["RadiusProfile"]
+	auth := NewFieldInfo("AuthServers", "auth_servers", "RadiusProfileAuthServers", "", true, true, false, "")
+	auth.Fields = map[string]*FieldInfo{
+		"XSecret": NewFieldInfo("XSecret", "x_secret", "string", "", true, false, false, ""),
+	}
+	auth.Fields["XSecret"].Sensitive = true
+	base.Fields["AuthServers"] = auth
+	plain := NewFieldInfo("Name", "name", "string", "", false, false, false, "")
+	base.Fields["Name"] = plain
+	secret := NewFieldInfo("XPassword", "x_password", "string", "", true, false, false, "")
+	secret.Sensitive = true
+	base.Fields["XPassword"] = secret
+
+	gen.AddResource(resource)
+	spec := gen.Generate()
+
+	require.Len(t, spec.Resources, 1)
+	attrs := spec.Resources[0].Schema.Attributes
+
+	find := func(name string) *struct{ found, sensitive bool } {
+		for _, a := range attrs {
+			if a.Name == name {
+				s := false
+				switch {
+				case a.String != nil && a.String.Sensitive != nil:
+					s = *a.String.Sensitive
+				}
+				return &struct{ found, sensitive bool }{true, s}
+			}
+		}
+		return &struct{ found, sensitive bool }{}
+	}
+
+	assert.True(t, find("x_password").sensitive, "top-level sensitive")
+	assert.False(t, find("name").sensitive, "not sensitive")
+
+	// nested: auth_servers is a list_nested with x_secret inside
+	for _, a := range attrs {
+		if a.Name != "auth_servers" {
+			continue
+		}
+		require.NotNil(t, a.ListNested)
+		found := false
+		for _, na := range a.ListNested.NestedObject.Attributes {
+			if na.Name == "x_secret" {
+				found = true
+				require.NotNil(t, na.String)
+				require.NotNil(t, na.String.Sensitive)
+				assert.True(t, *na.String.Sensitive, "nested sensitive")
+			}
+		}
+		assert.True(t, found, "x_secret nested attr present")
+	}
+}

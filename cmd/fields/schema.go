@@ -179,8 +179,18 @@ func (g *SpecificationGenerator) generateDataSourceAttributes(r *ResourceInfo) [
 	return attrs
 }
 
-// fieldToDataSourceAttribute converts a FieldInfo to a datasource.Attribute.
+// fieldToDataSourceAttribute converts a FieldInfo to a datasource.Attribute,
+// applying the sensitive flag to whatever attribute type was built.
 func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, field *FieldInfo) *datasource.Attribute {
+	attr := g.buildDataSourceAttribute(r, field)
+	if attr != nil && field.Sensitive {
+		markDataSourceAttributeSensitive(attr)
+	}
+	return attr
+}
+
+// buildDataSourceAttribute converts a FieldInfo to a datasource.Attribute.
+func (g *SpecificationGenerator) buildDataSourceAttribute(r *ResourceInfo, field *FieldInfo) *datasource.Attribute {
 	if field == nil {
 		return nil
 	}
@@ -362,8 +372,18 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 	return attrs
 }
 
-// fieldToResourceAttribute converts a FieldInfo to a ResourceAttribute.
+// fieldToResourceAttribute converts a FieldInfo to a resource.Attribute,
+// applying the sensitive flag to whatever attribute type was built.
 func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
+	attr := g.buildResourceAttribute(r, field)
+	if attr != nil && field.Sensitive {
+		markResourceAttributeSensitive(attr)
+	}
+	return attr
+}
+
+// buildResourceAttribute converts a FieldInfo to a ResourceAttribute.
+func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
 	if field == nil {
 		return nil
 	}
@@ -848,6 +868,68 @@ func (g *SpecificationGenerator) WriteSpecification(outputPath string) error {
 	}
 
 	return nil
+}
+
+func markResourceAttributeSensitive(attr *resource.Attribute) {
+	switch {
+	case attr.Bool != nil:
+		attr.Bool.Sensitive = ptr(true)
+	case attr.Float64 != nil:
+		attr.Float64.Sensitive = ptr(true)
+	case attr.Int64 != nil:
+		attr.Int64.Sensitive = ptr(true)
+	case attr.List != nil:
+		attr.List.Sensitive = ptr(true)
+	case attr.ListNested != nil:
+		attr.ListNested.Sensitive = ptr(true)
+	case attr.Map != nil:
+		attr.Map.Sensitive = ptr(true)
+	case attr.MapNested != nil:
+		attr.MapNested.Sensitive = ptr(true)
+	case attr.Number != nil:
+		attr.Number.Sensitive = ptr(true)
+	case attr.Object != nil:
+		attr.Object.Sensitive = ptr(true)
+	case attr.Set != nil:
+		attr.Set.Sensitive = ptr(true)
+	case attr.SetNested != nil:
+		attr.SetNested.Sensitive = ptr(true)
+	case attr.SingleNested != nil:
+		attr.SingleNested.Sensitive = ptr(true)
+	case attr.String != nil:
+		attr.String.Sensitive = ptr(true)
+	}
+}
+
+func markDataSourceAttributeSensitive(attr *datasource.Attribute) {
+	switch {
+	case attr.Bool != nil:
+		attr.Bool.Sensitive = ptr(true)
+	case attr.Float64 != nil:
+		attr.Float64.Sensitive = ptr(true)
+	case attr.Int64 != nil:
+		attr.Int64.Sensitive = ptr(true)
+	case attr.List != nil:
+		attr.List.Sensitive = ptr(true)
+	case attr.ListNested != nil:
+		attr.ListNested.Sensitive = ptr(true)
+	case attr.Map != nil:
+		attr.Map.Sensitive = ptr(true)
+	case attr.MapNested != nil:
+		attr.MapNested.Sensitive = ptr(true)
+	case attr.Number != nil:
+		attr.Number.Sensitive = ptr(true)
+	case attr.Object != nil:
+		attr.Object.Sensitive = ptr(true)
+	case attr.Set != nil:
+		attr.Set.Sensitive = ptr(true)
+	case attr.SetNested != nil:
+		attr.SetNested.Sensitive = ptr(true)
+	case attr.SingleNested != nil:
+		attr.SingleNested.Sensitive = ptr(true)
+	case attr.String != nil:
+		attr.String.Sensitive = ptr(true)
+	}
 }
 
 func ptr[T any](in T) *T {
