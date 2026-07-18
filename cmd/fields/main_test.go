@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFieldInfoFromValidation(t *testing.T) {
@@ -158,4 +159,37 @@ func TestResourceTypes(t *testing.T) {
 		assert.Equal(t, expectation.ResourcePath, resource.ResourcePath)
 		assert.Equal(t, expectation.Types, resource.Types)
 	})
+}
+
+func TestResolveMode(t *testing.T) {
+	cases := []struct {
+		name      string
+		pos       string
+		latest    bool
+		osServer  string
+		rawURL    string
+		installer string
+		want      sourceMode
+		wantErr   bool
+	}{
+		{"deb", "9.5.21", false, "", "", "", modeDeb, false},
+		{"latest", "", true, "", "", "", modeInstallerLatest, false},
+		{"os-server", "", false, "5.1.21", "", "", modeInstallerVersion, false},
+		{"url", "", false, "", "https://x/y", "", modeInstallerURL, false},
+		{"installer", "", false, "", "", "/tmp/i", modeInstallerLocal, false},
+		{"none", "", false, "", "", "", 0, true},
+		{"version and latest", "9.5.21", true, "", "", "", 0, true},
+		{"url and installer", "", false, "", "https://x/y", "/tmp/i", 0, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveMode(tc.pos, tc.latest, tc.osServer, tc.rawURL, tc.installer)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

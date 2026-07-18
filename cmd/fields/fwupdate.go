@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-var firmwareUpdateApi = "https://fw-update.ubnt.com/api/firmware-latest"
 var firmwareLatestApi = "https://fw-update.ubnt.com/api/firmware-latest"
 var firmwareApi = "https://fw-update.ubnt.com/api/firmware"
 
@@ -18,7 +17,6 @@ const (
 	unifiControllerProduct = "unifi-controller"
 	osServerProduct        = "unifi-os-server"
 	osServerPlatform       = "linux-x64"
-	maxVersion             = "10.0.0"
 )
 
 type firmwareUpdateApiResponse struct {

@@ -26,6 +26,40 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
+type sourceMode int
+
+const (
+	modeDeb sourceMode = iota
+	modeInstallerLatest
+	modeInstallerVersion
+	modeInstallerURL
+	modeInstallerLocal
+)
+
+func resolveMode(positional string, latest bool, osServer, rawURL, installer string) (sourceMode, error) {
+	n := 0
+	for _, set := range []bool{positional != "", latest, osServer != "", rawURL != "", installer != ""} {
+		if set {
+			n++
+		}
+	}
+	if n != 1 {
+		return 0, fmt.Errorf("specify exactly one of: version, -latest, -os-server, -url, -installer")
+	}
+	switch {
+	case positional != "":
+		return modeDeb, nil
+	case latest:
+		return modeInstallerLatest, nil
+	case osServer != "":
+		return modeInstallerVersion, nil
+	case rawURL != "":
+		return modeInstallerURL, nil
+	default:
+		return modeInstallerLocal, nil
+	}
+}
+
 type replacement struct {
 	Old string
 	New string
@@ -297,7 +331,8 @@ func cleanName(name string, reps []replacement) string {
 }
 
 func usage() {
-	fmt.Printf("Usage: %s [OPTIONS] version\n", path.Base(os.Args[0]))
+	fmt.Printf("Usage: %s [OPTIONS] [version]\n", path.Base(os.Args[0]))
+	fmt.Println("Sources (exactly one): version (deb), -latest, -os-server, -url, -installer")
 	flag.PrintDefaults()
 }
 
@@ -314,6 +349,21 @@ func main() {
 		"Only download and build the fields JSON directory, do not generate",
 	)
 	useLatestVersion := flag.Bool("latest", false, "Use the latest available version")
+	osServerFlag := flag.String(
+		"os-server",
+		"",
+		"Fetch a specific UniFi OS Server release (installer path), e.g. 5.1.21",
+	)
+	urlFlag := flag.String(
+		"url",
+		"",
+		"Direct UniFi OS Server installer URL (installer path)",
+	)
+	installerFlag := flag.String(
+		"installer",
+		"",
+		"Path to a local UniFi OS Server installer (no download)",
+	)
 	generateSpec := flag.Bool(
 		"generate-spec",
 		false,
@@ -327,38 +377,15 @@ func main() {
 
 	flag.Parse()
 
-	specifiedVersion := flag.Arg(0)
-	if specifiedVersion != "" && *useLatestVersion {
-		fmt.Print("error: cannot specify version with latest\n\n")
-		usage()
-		os.Exit(1)
-	} else if specifiedVersion == "" && !*useLatestVersion {
-		fmt.Print("error: must specify version or latest\n\n")
+	mode, err := resolveMode(flag.Arg(0), *useLatestVersion, *osServerFlag, *urlFlag, *installerFlag)
+	if err != nil {
+		fmt.Printf("error: %s\n\n", err)
 		usage()
 		os.Exit(1)
 	}
 
 	var unifiVersion *version.Version
-	var unifiDownloadUrl *url.URL
-	var err error
-
-	if *useLatestVersion {
-		unifiVersion, unifiDownloadUrl, err = latestUnifiVersion()
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		unifiVersion, err = version.NewVersion(specifiedVersion)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		unifiDownloadUrl, err = url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", unifiVersion))
-		if err != nil {
-			panic(err)
-		}
-	}
+	osServerVersion := ""
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -371,45 +398,131 @@ func main() {
 	}
 
 	versionBaseDir := filepath.Dir(filename)
-
-	fieldsDir := filepath.Join(versionBaseDir, fmt.Sprintf("v%s", unifiVersion))
-
 	outDir := filepath.Join(wd, *outputDirFlag)
 
-	fieldsInfo, err := os.Stat(fieldsDir)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			panic(err)
+	var fieldsDir string
+
+	switch mode {
+	case modeDeb:
+		unifiVersion, err = version.NewVersion(flag.Arg(0))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
 		}
 
-		err = os.MkdirAll(fieldsDir, 0o755)
+		debURL, err := url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", unifiVersion))
 		if err != nil {
 			panic(err)
 		}
 
-		// download fields, create
-		jarFile, err := downloadJar(unifiDownloadUrl, fieldsDir)
+		fieldsDir = filepath.Join(versionBaseDir, fmt.Sprintf("v%s", unifiVersion))
+		if _, err := os.Stat(fieldsDir); err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				panic(err)
+			}
+
+			if err := os.MkdirAll(fieldsDir, 0o755); err != nil {
+				panic(err)
+			}
+
+			jarFile, err := downloadJar(debURL, fieldsDir)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := extractJSON(jarFile, fieldsDir); err != nil {
+				panic(err)
+			}
+		}
+
+	case modeInstallerLatest, modeInstallerVersion, modeInstallerURL, modeInstallerLocal:
+		// The work dir lives under versionBaseDir so publishFieldsDir's
+		// os.Rename never crosses filesystems (EXDEV on tmpfs /tmp,
+		// redirected $TMPDIR, or a repo on a separate mount).
+		workDir, err := os.MkdirTemp(versionBaseDir, ".unifi-fields-")
+		if err != nil {
+			panic(err)
+		}
+		defer os.RemoveAll(workDir)
+
+		var rel *osServerRelease
+		switch mode {
+		case modeInstallerLatest:
+			rel, err = latestOsServerRelease()
+		case modeInstallerVersion:
+			rel, err = findOsServerRelease(*osServerFlag)
+		}
 		if err != nil {
 			panic(err)
 		}
 
-		err = extractJSON(jarFile, fieldsDir)
+		installerPath := *installerFlag
+		dlURL, dlSHA := *urlFlag, ""
+		if rel != nil {
+			osServerVersion = rel.Version.String()
+			dlURL, dlSHA = rel.URL.String(), rel.SHA256
+			if cached := findCachedFieldsDir(versionBaseDir, osServerVersion, ""); cached != "" {
+				fmt.Printf("reusing cached %s\n", cached)
+				fieldsDir = cached
+				break
+			}
+			fmt.Printf("fetching UniFi OS Server %s: %s\n", osServerVersion, dlURL)
+		}
+
+		if mode == modeInstallerLocal {
+			osServerVersion = parseOsServerVersionFromName(filepath.Base(installerPath))
+		}
+		if mode == modeInstallerURL {
+			if cached := findCachedFieldsDir(versionBaseDir, "", dlURL); cached != "" {
+				fmt.Printf("reusing cached %s\n", cached)
+				fieldsDir = cached
+				break
+			}
+		}
+
+		if installerPath == "" {
+			installerPath, err = downloadInstaller(dlURL, dlSHA, workDir)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		staging, networkVersion, err := extractInstallerDefs(installerPath, workDir)
 		if err != nil {
 			panic(err)
 		}
 
-		fieldsInfo, err = os.Stat(fieldsDir)
+		unifiVersion, err = version.NewVersion(networkVersion)
+		if err != nil {
+			panic(fmt.Errorf("unable to parse network version %q: %w", networkVersion, err))
+		}
+
+		fieldsDir, err = publishFieldsDir(staging, versionBaseDir, networkVersion, sourceInfo{
+			OsServerVersion: osServerVersion,
+			NetworkVersion:  networkVersion,
+			URL:             dlURL,
+			SHA256:          dlSHA,
+		})
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	err = postProcessFieldsDir(fieldsDir)
+	if fieldsDir == "" {
+		panic("no fields dir resolved")
+	}
+
+	fieldsInfo, err := os.Stat(fieldsDir)
 	if err != nil {
 		panic(err)
 	}
 	if !fieldsInfo.IsDir() {
 		panic("version info isn't a directory")
+	}
+
+	err = postProcessFieldsDir(fieldsDir)
+	if err != nil {
+		panic(err)
 	}
 
 	if *downloadOnly {
@@ -430,7 +543,7 @@ func main() {
 		ext := filepath.Ext(name)
 
 		switch name {
-		case "AuthenticationRequest.json", "Setting.json", "Wall.json":
+		case "AuthenticationRequest.json", "Setting.json", "Wall.json", "source.json":
 			continue
 		}
 
@@ -688,14 +801,33 @@ func main() {
 		}
 	}
 
-	// Write version file.
+	// Write version file. On a fields-dir cache hit, unifiVersion is nil;
+	// recover both versions from source.json.
+	if unifiVersion == nil {
+		b, err := os.ReadFile(filepath.Join(fieldsDir, "source.json"))
+		if err != nil {
+			panic(fmt.Errorf("fields dir cache hit without version: %w", err))
+		}
+		var info sourceInfo
+		if err := json.Unmarshal(b, &info); err != nil {
+			panic(err)
+		}
+		unifiVersion, err = version.NewVersion(info.NetworkVersion)
+		if err != nil {
+			panic(err)
+		}
+		osServerVersion = info.OsServerVersion
+	}
+
 	versionGo := fmt.Appendf(nil, `
 // Generated code. DO NOT EDIT.
 
 package unifi
 
 const UnifiVersion = %q
-`, unifiVersion)
+
+const UnifiOsServerVersion = %q
+`, unifiVersion, osServerVersion)
 
 	versionGo, err = format.Source(versionGo)
 	if err != nil {
