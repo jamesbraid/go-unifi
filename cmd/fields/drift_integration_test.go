@@ -28,6 +28,8 @@ var v2Probes = []struct {
 	{"DnsRecord.json", "/v2/api/site/%s/static-dns"},
 	{"OSPFRouter.json", "/v2/api/site/%s/ospf/router"},
 	{"BgpConfig.json", "/v2/api/site/%s/bgp/config"},
+	{"ApGroups.json", "/v2/api/site/%s/apgroups"},
+	{"NetworkMembersGroup.json", "/v2/api/site/%s/network-members-groups"},
 }
 
 // TestIntegrationV2Drift compares the hand-written v2 schemas against what a
