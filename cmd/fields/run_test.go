@@ -39,6 +39,8 @@ func TestRunLocalInstallerEndToEndIsDeterministic(t *testing.T) {
 	root := t.TempDir()
 	fieldsRoot := filepath.Join(root, "cmd", "fields")
 	require.NoError(t, os.MkdirAll(filepath.Join(fieldsRoot, "custom"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "device.go"), []byte("package unifi\n"), 0o644))
 	metadata := []byte(`{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`)
 	installerBody := syntheticInstaller(t, installerFixtureOptions{innerEntries: []fixtureEntry{
 		{name: "api/fields/Setting.json", body: []byte(`{"system":{"enabled":"true|false"}}`)},
@@ -246,6 +248,7 @@ func newRunFailureFixture(t *testing.T) (string, string, runDeps) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "sensitive-policy.json"), policy, 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "device.go"), []byte("package unifi\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "old.generated.go"), []byte("old-go"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "specification.json"), []byte("old-spec"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(fieldsRoot, "schema-source.json"), []byte("old-source"), 0o644))
@@ -357,6 +360,98 @@ func TestPublishGeneratedTreePreservesHandWrittenAndRemovesStale(t *testing.T) {
 	body, err = os.ReadFile(filepath.Join(root, "unifi", "fresh.generated.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "fresh", string(body))
+}
+
+func TestRegenerateSeedsCanonicalHandWrittenImplementations(t *testing.T) {
+	root, snapshot := generationStageFixture(t)
+	implementation := []byte("package unifi\n// canonical BGP implementation\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "unifi", "bgp_config.go"), implementation, 0o644))
+	published := false
+	deps := defaultRunDeps()
+	deps.render = func(_ string, stage string, _ *version.Version, _ func([]*ResourceInfo) error) error {
+		body, err := os.ReadFile(filepath.Join(stage, "unifi", "bgp_config.go"))
+		require.NoError(t, err, "canonical hand-written implementation must be visible while rendering")
+		assert.Equal(t, implementation, body)
+		writeGenerationStageOutputs(t, stage)
+		return nil
+	}
+	deps.publish = func(string, string, string, string, string) error { published = true; return nil }
+	err := regenerateAndPublish(context.Background(), root, snapshot, InstallerSource{}, LocalManifest{NetworkVersion: "10.4.57"}, SensitivityPolicy{}, &bytes.Buffer{}, deps)
+	require.NoError(t, err)
+	assert.True(t, published)
+}
+
+func TestRegenerateRejectsNewHandWrittenImplementationScaffold(t *testing.T) {
+	root, snapshot := generationStageFixture(t)
+	knownGood := filepath.Join(root, "unifi", "known.generated.go")
+	require.NoError(t, os.WriteFile(knownGood, []byte("known-good"), 0o644))
+	published := false
+	deps := defaultRunDeps()
+	deps.render = func(_ string, stage string, _ *version.Version, _ func([]*ResourceInfo) error) error {
+		writeGenerationStageOutputs(t, stage)
+		require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "new_resource.go"), []byte("package unifi\n"), 0o644))
+		return nil
+	}
+	deps.publish = func(string, string, string, string, string) error { published = true; return nil }
+	err := regenerateAndPublish(context.Background(), root, snapshot, InstallerSource{}, LocalManifest{NetworkVersion: "10.4.57"}, SensitivityPolicy{}, &bytes.Buffer{}, deps)
+	require.ErrorContains(t, err, "new_resource.go")
+	require.ErrorContains(t, err, "canonical hand-written implementation")
+	assert.False(t, published)
+	body, readErr := os.ReadFile(knownGood)
+	require.NoError(t, readErr)
+	assert.Equal(t, "known-good", string(body))
+}
+
+func TestValidateStagedHandWrittenFilesRejectsChangedAndRemoved(t *testing.T) {
+	for _, mode := range []string{"changed", "removed"} {
+		t.Run(mode, func(t *testing.T) {
+			canonical := filepath.Join(t.TempDir(), "unifi")
+			staged := filepath.Join(t.TempDir(), "unifi")
+			require.NoError(t, os.MkdirAll(filepath.Join(canonical, "nested"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(canonical, "nested", "keep.go"), []byte("canonical"), 0o644))
+			require.NoError(t, copyTreeExcludingOwned(canonical, staged))
+			if mode == "changed" {
+				require.NoError(t, os.WriteFile(filepath.Join(staged, "nested", "keep.go"), []byte("changed"), 0o644))
+			} else {
+				require.NoError(t, os.Remove(filepath.Join(staged, "nested", "keep.go")))
+			}
+			err := validateStagedHandWrittenFiles(canonical, staged)
+			require.ErrorContains(t, err, "unifi/nested/keep.go")
+		})
+	}
+}
+
+func TestVerifyRegeneratedTreeSeedsAndRejectsUnexpectedImplementation(t *testing.T) {
+	root, installer, deps := newRunFailureFixture(t)
+	require.NoError(t, runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	before := captureRunOutputs(t, root)
+	deps.render = func(_ string, stage string, _ *version.Version, _ func([]*ResourceInfo) error) error {
+		require.FileExists(t, filepath.Join(stage, "unifi", "device.go"), "verification render must see canonical implementation")
+		writeGenerationStageOutputs(t, stage)
+		require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "unexpected.go"), []byte("package unifi\n"), 0o644))
+		return nil
+	}
+	err := verifyRegeneratedTree(context.Background(), root, deps, &bytes.Buffer{})
+	require.ErrorContains(t, err, "unifi/unexpected.go")
+	require.ErrorContains(t, err, "canonical hand-written implementation")
+	assert.Equal(t, before, captureRunOutputs(t, root))
+}
+
+func generationStageFixture(t *testing.T) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "unifi"), 0o755))
+	snapshot := filepath.Join(root, "snapshot")
+	require.NoError(t, os.MkdirAll(filepath.Join(snapshot, "metadata", "raw-fields"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(snapshot, "metadata", "sensitive_metadata.json"), []byte(`{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`), 0o644))
+	return root, snapshot
+}
+
+func writeGenerationStageOutputs(t *testing.T, stage string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(stage, "unifi"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stage, "unifi", "resource.generated.go"), []byte("package unifi\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(stage, "specification.json"), []byte(`{}`), 0o644))
 }
 
 func TestPublishGeneratedTreePreflightFailureAndFixedPathAreSafe(t *testing.T) {

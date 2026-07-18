@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -290,7 +291,7 @@ func regenerateAndPublish(ctx context.Context, root, snapshot string, source Ins
 	if err != nil {
 		return fmt.Errorf("parse Network version: %w", err)
 	}
-	if err := deps.render(snapshot, stage, v, prepare); err != nil {
+	if err := renderWithCanonicalImplementations(root, snapshot, stage, v, prepare, deps.render); err != nil {
 		return fmt.Errorf("render generated outputs: %w", err)
 	}
 	files, digest, err := HashGeneratedFiles(stage, "unifi", "specification.json")
@@ -310,6 +311,84 @@ func regenerateAndPublish(ctx context.Context, root, snapshot string, source Ins
 	}
 	fmt.Fprintf(stdout, "%s\n", filepath.Join(root, "unifi"))
 	return nil
+}
+
+func renderWithCanonicalImplementations(root, snapshot, stage string, v *version.Version, prepare func([]*ResourceInfo) error, render func(string, string, *version.Version, func([]*ResourceInfo) error) error) error {
+	canonical := filepath.Join(root, "unifi")
+	staged := filepath.Join(stage, "unifi")
+	if err := copyTreeExcludingOwned(canonical, staged); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("seed generation with canonical hand-written implementations: %w", err)
+	}
+	if err := render(snapshot, stage, v, prepare); err != nil {
+		return err
+	}
+	return validateStagedHandWrittenFiles(canonical, staged)
+}
+
+func validateStagedHandWrittenFiles(canonical, staged string) error {
+	canonicalFiles, err := collectHandWrittenFiles(canonical)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read canonical hand-written implementations: %w", err)
+	}
+	stagedFiles, err := collectHandWrittenFiles(staged)
+	if err != nil {
+		return fmt.Errorf("read staged hand-written implementations: %w", err)
+	}
+	paths := make([]string, 0, len(canonicalFiles)+len(stagedFiles))
+	seen := make(map[string]bool)
+	for name := range canonicalFiles {
+		seen[name] = true
+		paths = append(paths, name)
+	}
+	for name := range stagedFiles {
+		if !seen[name] {
+			paths = append(paths, name)
+		}
+	}
+	sort.Strings(paths)
+	for _, rel := range paths {
+		canonicalBody, canonicalOK := canonicalFiles[rel]
+		stagedBody, stagedOK := stagedFiles[rel]
+		switch {
+		case !canonicalOK:
+			return fmt.Errorf("generated implementation scaffold unifi/%s has no canonical hand-written implementation; add and review %s before generation", filepath.ToSlash(rel), filepath.Join(canonical, rel))
+		case !stagedOK:
+			return fmt.Errorf("canonical hand-written implementation unifi/%s was removed from the generation stage", filepath.ToSlash(rel))
+		case !bytes.Equal(canonicalBody, stagedBody):
+			return fmt.Errorf("staged hand-written implementation unifi/%s differs from canonical", filepath.ToSlash(rel))
+		}
+	}
+	return nil
+}
+
+func collectHandWrittenFiles(root string) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	err := filepath.WalkDir(root, func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".generated.go") {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("staged hand-written implementation is not regular: %s", name)
+		}
+		rel, err := filepath.Rel(root, name)
+		if err != nil {
+			return err
+		}
+		body, err := os.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		files[rel] = body
+		return nil
+	})
+	return files, err
 }
 
 func renderGeneratedStage(snapshot, stage string, v *version.Version, prepare func([]*ResourceInfo) error) error {
@@ -483,10 +562,10 @@ func verifyRegeneratedTree(ctx context.Context, root string, deps runDeps, stdou
 	if err != nil {
 		return err
 	}
-	if err := deps.render(snapshot, stage, v, func(resources []*ResourceInfo) error {
+	if err := renderWithCanonicalImplementations(root, snapshot, stage, v, func(resources []*ResourceInfo) error {
 		_, err := ApplySensitivity(resources, raw, metadata, policy)
 		return err
-	}); err != nil {
+	}, deps.render); err != nil {
 		return err
 	}
 	files, digest, err := HashGeneratedFiles(stage, "unifi", "specification.json")
