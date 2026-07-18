@@ -1,73 +1,198 @@
 ---
-name: CI/CD Checks
+name: CI
 
 on:
   pull_request: {}
   push:
     branches:
-      - 'main'
-    tags:
-      - 'v*'
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  generate:
+  verify-generated-tree:
+    name: Verify Generated Tree
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
-          ref: ${{ github.ref }}
-      
-      - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Generate
-        run: go generate ./...
-      
-      - name: Check for changes
-        run: git diff --compact-summary --exit-code
-        continue-on-error: true
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        continue-on-error: true
-        with:
-          version: latest
-          args: --timeout=10m
+      - name: Verify committed generated tree
+        run: go run ./cmd/fields -verify-committed
+
+      - name: Require clean tracked tree
+        run: git diff --exit-code
 
   test:
-    name: Test
+    name: Go Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
 
       - name: Run tests
         run: go test ./...
-        continue-on-error: true
+
+      - name: Require clean tracked tree
+        run: git diff --exit-code
+
+  vet:
+    name: Go Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Require clean tracked tree
+        run: git diff --exit-code
+
+  lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
+        with:
+          version: v2.11.4
+          args: --timeout=10m
+
+      - name: Require clean tracked tree
+        run: git diff --exit-code
 
   yamllint:
-    runs-on: 'ubuntu-latest'
+    name: YAML Lint
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # v3.1.1
-        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run yamllint
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
+
+      - name: Require clean tracked tree
+        run: git diff --exit-code
+
+  api-compatibility:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact base
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+          path: base
+          persist-credentials: false
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
+        with:
+          go-version-file: candidate/go.mod
+
+      - name: Compare pull request API
+        if: github.event_name == 'pull_request'
+        working-directory: base
+        shell: bash
+        run: |
+          set +e
+          go run ./cmd/apicompat -base . -candidate ../candidate \
+            -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          status=$?
+          set -e
+          if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
+            cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Compare push API
+        if: github.event_name == 'push'
+        working-directory: candidate
+        shell: bash
+        run: |
+          set +e
+          go run ./cmd/apicompat -base ../base -candidate . \
+            -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          status=$?
+          set -e
+          if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
+            cat "$RUNNER_TEMP/api-compat.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Require clean API comparison trees
+        run: |
+          git -C base diff --exit-code
+          git -C candidate diff --exit-code
+
+  tracked-diff:
+    name: Tracked Diff
+    if: always()
+    needs:
+      - verify-generated-tree
+      - test
+      - vet
+      - lint
+      - yamllint
+      - api-compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all mutation checks
+        env:
+          VERIFY_RESULT: ${{ needs.verify-generated-tree.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          VET_RESULT: ${{ needs.vet.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          YAMLLINT_RESULT: ${{ needs.yamllint.result }}
+          API_RESULT: ${{ needs.api-compatibility.result }}
+        run: |
+          test "$VERIFY_RESULT" = success
+          test "$TEST_RESULT" = success
+          test "$VET_RESULT" = success
+          test "$LINT_RESULT" = success
+          test "$YAMLLINT_RESULT" = success
+          test "$API_RESULT" = success
