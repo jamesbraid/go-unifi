@@ -1,5 +1,11 @@
-# Cache
-/fields/v*.*.*/
+# Extracted schema cache. Deliberately not committed: the definitions are
+# extracted from Ubiquiti's software at build time and not redistributed.
+# Only the VERSION/SOURCE markers and README are tracked.
+/schemas/fields/
+/schemas/metadata/
+
+# Legacy schema cache from an older layout; old checkouts may still have
+# these dirs (incl. the downloaded ace.jar).
 /cmd/fields/v*.*.*/
 
 # goreleaser
@@ -44,3 +50,4 @@ website/vendor
 *.winfile eol=crlf
 
 /scripts
+.claude/settings.local.json
