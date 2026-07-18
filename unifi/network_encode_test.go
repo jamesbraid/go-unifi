@@ -887,6 +887,227 @@ func TestMarshalNetworkCorporateMisc(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkWANInterfaceMtu guards the WAN interface MTU fields
+// wired in Task 4 -- live-verified PERSISTED.
+func TestMarshalNetworkWANInterfaceMtu(t *testing.T) {
+	mtu := int64(1400)
+	network := &Network{
+		ID:                  "507f1f77bcf86cd799439032",
+		Purpose:             PurposeWAN,
+		Enabled:             true,
+		WANType:             strPtr("dhcp"),
+		InterfaceMtu:        &mtu,
+		InterfaceMtuEnabled: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["interface_mtu"]; got != float64(1400) {
+		t.Errorf("interface_mtu = %v, want 1400", got)
+	}
+	if got := result["interface_mtu_enabled"]; got != true {
+		t.Errorf("interface_mtu_enabled = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["interface_mtu_enabled"]; got != false {
+		t.Errorf("interface_mtu_enabled = %v, want false", got)
+	}
+	if _, ok := result["interface_mtu"]; ok {
+		t.Errorf("interface_mtu serialized for nil value: %s", data)
+	}
+}
+
+// TestMarshalNetworkWANStaticAddressing guards the static WAN/WANv6
+// addressing fields (wan_type "static" / wan_type_v6 "static") wired in
+// Task 4 -- live-verified PERSISTED. wan_ipv6 and wan_gateway_v6 are plain
+// (non-pointer, no omitempty) strings on the generated struct, so they are
+// always present, empty when unset.
+func TestMarshalNetworkWANStaticAddressing(t *testing.T) {
+	prefixlen := int64(64)
+	network := &Network{
+		ID:           "507f1f77bcf86cd799439033",
+		Purpose:      PurposeWAN,
+		Enabled:      true,
+		WANType:      strPtr("static"),
+		WANTypeV6:    strPtr("static"),
+		WANIP:        strPtr("192.0.2.10"),
+		WANNetmask:   strPtr("255.255.255.0"),
+		WANGateway:   strPtr("192.0.2.1"),
+		WANIPV6:      "2001:db8::10",
+		WANGatewayV6: "2001:db8::1",
+		WANPrefixlen: &prefixlen,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_ip"]; got != "192.0.2.10" {
+		t.Errorf("wan_ip = %v, want 192.0.2.10", got)
+	}
+	if got := result["wan_netmask"]; got != "255.255.255.0" {
+		t.Errorf("wan_netmask = %v, want 255.255.255.0", got)
+	}
+	if got := result["wan_gateway"]; got != "192.0.2.1" {
+		t.Errorf("wan_gateway = %v, want 192.0.2.1", got)
+	}
+	if got := result["wan_ipv6"]; got != "2001:db8::10" {
+		t.Errorf("wan_ipv6 = %v, want 2001:db8::10", got)
+	}
+	if got := result["wan_gateway_v6"]; got != "2001:db8::1" {
+		t.Errorf("wan_gateway_v6 = %v, want 2001:db8::1", got)
+	}
+	if got := result["wan_prefixlen"]; got != float64(64) {
+		t.Errorf("wan_prefixlen = %v, want 64", got)
+	}
+
+	// Unset => pointer fields omitted; plain-string fields present but empty.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	for _, field := range []string{"wan_ip", "wan_netmask", "wan_gateway", "wan_prefixlen"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+	if got := result["wan_ipv6"]; got != "" {
+		t.Errorf("wan_ipv6 = %v, want empty string", got)
+	}
+	if got := result["wan_gateway_v6"]; got != "" {
+		t.Errorf("wan_gateway_v6 = %v, want empty string", got)
+	}
+}
+
+// TestMarshalNetworkWANPppoeCredentials guards the PPPoE credential fields
+// (wan_type "pppoe") wired in Task 4 -- live-verified PERSISTED. The
+// controller rejects a pppoe WAN unless BOTH wan_username and x_wan_password
+// are present (api.err.InvalidWanPppoeCredentials), which is why the encoder
+// must send both plain-string fields unconditionally rather than only when
+// set.
+func TestMarshalNetworkWANPppoeCredentials(t *testing.T) {
+	network := &Network{
+		ID:                      "507f1f77bcf86cd799439034",
+		Purpose:                 PurposeWAN,
+		Enabled:                 true,
+		WANType:                 strPtr("pppoe"),
+		WANUsername:             "pppoe-user",
+		WANPassword:             "pppoe-pass",
+		WANPppoeUsernameEnabled: true,
+		WANPppoePasswordEnabled: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_username"]; got != "pppoe-user" {
+		t.Errorf("wan_username = %v, want pppoe-user", got)
+	}
+	if got := result["x_wan_password"]; got != "pppoe-pass" {
+		t.Errorf("x_wan_password = %v, want pppoe-pass", got)
+	}
+	if got := result["wan_pppoe_username_enabled"]; got != true {
+		t.Errorf("wan_pppoe_username_enabled = %v, want true", got)
+	}
+	if got := result["wan_pppoe_password_enabled"]; got != true {
+		t.Errorf("wan_pppoe_password_enabled = %v, want true", got)
+	}
+
+	// Unset => bools false; plain-string fields present but empty.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["wan_username"]; got != "" {
+		t.Errorf("wan_username = %v, want empty string", got)
+	}
+	if got := result["x_wan_password"]; got != "" {
+		t.Errorf("x_wan_password = %v, want empty string", got)
+	}
+	if got := result["wan_pppoe_username_enabled"]; got != false {
+		t.Errorf("wan_pppoe_username_enabled = %v, want false", got)
+	}
+	if got := result["wan_pppoe_password_enabled"]; got != false {
+		t.Errorf("wan_pppoe_password_enabled = %v, want false", got)
+	}
+}
+
+// TestMarshalNetworkWANDSLite guards the DS-Lite fields (wan_type "dslite")
+// wired in Task 4 -- live-verified PERSISTED.
+func TestMarshalNetworkWANDSLite(t *testing.T) {
+	network := &Network{
+		ID:                      "507f1f77bcf86cd799439035",
+		Purpose:                 PurposeWAN,
+		Enabled:                 true,
+		WANType:                 strPtr("dslite"),
+		WANDsliteRemoteHost:     strPtr("aftr.example.net"),
+		WANDsliteRemoteHostAuto: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_dslite_remote_host"]; got != "aftr.example.net" {
+		t.Errorf("wan_dslite_remote_host = %v, want aftr.example.net", got)
+	}
+	if got := result["wan_dslite_remote_host_auto"]; got != true {
+		t.Errorf("wan_dslite_remote_host_auto = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["wan_dslite_remote_host_auto"]; got != false {
+		t.Errorf("wan_dslite_remote_host_auto = %v, want false", got)
+	}
+	if _, ok := result["wan_dslite_remote_host"]; ok {
+		t.Errorf("wan_dslite_remote_host serialized for nil value: %s", data)
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s
