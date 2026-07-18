@@ -138,10 +138,24 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: base
         shell: bash
+        env:
+          APICOMPAT_BOOTSTRAP_SHA256: f5729a9a15a6cda97b980e7e399384b6d3ea8332b40a3a41228e334eb0fb9228
         run: |
           set +e
-          go run ./cmd/apicompat -base . -candidate ../candidate \
-            -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          if [[ -f cmd/apicompat/main.go ]]; then
+            go run ./cmd/apicompat -base . -candidate ../candidate \
+              -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          else
+            bootstrap_sha256="$(sha256sum ../candidate/cmd/apicompat/main.go | cut -d ' ' -f 1)"
+            if [[ "$bootstrap_sha256" != "$APICOMPAT_BOOTSTRAP_SHA256" ]]; then
+              echo "refusing unreviewed API comparator bootstrap" >&2
+              exit 1
+            fi
+            GOWORK=off GOFLAGS=-mod=readonly \
+              go run ../candidate/cmd/apicompat/main.go \
+              -base . -candidate ../candidate \
+              -markdown "$RUNNER_TEMP/api-compat.md" > /dev/null
+          fi
           status=$?
           set -e
           if [[ -f "$RUNNER_TEMP/api-compat.md" ]]; then
