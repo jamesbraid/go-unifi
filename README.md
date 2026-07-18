@@ -8,10 +8,24 @@ Many of the naming adjustments are breaking changes, but to simplify things, tre
 
 ## Note on Code Generation
 
-The data models and basic REST methods are "generated" from JSON files in the JAR that show all fields and the associated regex/validation information.
+The data models and basic REST methods are generated from JSON field
+definition files shipped inside the UniFi Network application
+(`api/fields/*.json` in `internal-dependencies.jar`, bundled in `ace.jar`).
 
-To regenerate the code, you can bump the Unifi Controller version number in [unifi/gen.go] and run `go generate` inside the `unifi` directory.
+For UniFi Network 10 and later, `cmd/fields` downloads the UniFi OS Server
+installer from Ubiquiti's firmware API, extracts `ace.jar` from the OCI image
+inside, and pulls the definitions out. For Network 9 and earlier it can still
+fetch the legacy Debian package instead.
 
-This code generation is kind of gross, I wanted to switch to using the java classes in the jar like scala2go but the jar is obfuscated and I couldn't find a way to extract that information from anywhere else. Maybe it exists somewhere in the web UI, but I was unable to find it in there in a way that was extractable in a practical way.
+To regenerate, run `go generate` inside the `unifi` directory. Source modes:
 
-Still planning to dig through the bits some more later on.
+    fields -latest                # latest UniFi OS Server release
+    fields -os-server 5.1.21      # a specific UniFi OS Server release
+    fields -url <installer-url>   # direct installer URL
+    fields -installer <path>      # local installer file
+    fields 9.5.21                 # legacy deb, explicit Network version
+
+Extracted fields are cached in `cmd/fields/v<network-version>/` (gitignored),
+including a `metadata/` dir with upstream extras such as
+`sensitive_metadata.json`, which drives `Sensitive` flags in
+`specification.json`.
