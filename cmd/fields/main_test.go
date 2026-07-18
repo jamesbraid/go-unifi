@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,6 +14,40 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGenerateFromFieldsIncludesReviewedLegacySchemas(t *testing.T) {
+	fieldsDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Setting.json"), []byte(`{}`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "Account.json"), []byte(`{"name":""}`), 0o600))
+	outDir := t.TempDir()
+	specPath := filepath.Join(t.TempDir(), "specification.json")
+	require.NoError(t, generateFromFields(fieldsDir, outDir, version.Must(version.NewVersion("10.4.57")), true, specPath, io.Discard, nil))
+
+	body, err := os.ReadFile(specPath)
+	require.NoError(t, err)
+	var generated struct {
+		DataSources []struct {
+			Name string `json:"name"`
+		} `json:"datasources"`
+		Resources []struct {
+			Name string `json:"name"`
+		} `json:"resources"`
+	}
+	require.NoError(t, json.Unmarshal(body, &generated))
+	want := []string{"heat_map", "heat_map_point", "map", "tag", "virtual_device"}
+	for _, name := range want {
+		assert.True(t, slices.ContainsFunc(generated.DataSources, func(item struct {
+			Name string `json:"name"`
+		}) bool {
+			return item.Name == name
+		}), "missing datasource %s", name)
+		assert.True(t, slices.ContainsFunc(generated.Resources, func(item struct {
+			Name string `json:"name"`
+		}) bool {
+			return item.Name == name
+		}), "missing resource %s", name)
+	}
+}
 
 func TestGenerateFromFieldsGeneratesCurrentSettingRegistry(t *testing.T) {
 	fieldsDir := t.TempDir()

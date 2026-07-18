@@ -628,6 +628,7 @@ const UnifiVersion = %q
 
 	// Generate Terraform provider specification if requested
 	if generateSpec {
+		specGen.AddReviewedLegacySchemas()
 		if err := specGen.WriteSpecification(specOutputFile); err != nil {
 			return fmt.Errorf("write Terraform specification: %w", err)
 		}

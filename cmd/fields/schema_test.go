@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -21,6 +23,70 @@ func TestSpecificationGenerator_Generate_EmptyProvider(t *testing.T) {
 	assert.NotNil(t, spec.Provider.Schema)
 	assert.Len(t, spec.DataSources, 0)
 	assert.Len(t, spec.Resources, 0)
+}
+
+func TestSpecificationGenerator_PreservesReviewedLegacyAPIs(t *testing.T) {
+	gen := NewSpecificationGenerator("unifi")
+	gen.AddReviewedLegacySchemas()
+	generated := gen.Generate()
+
+	want := []string{"heat_map", "heat_map_point", "map", "tag", "virtual_device"}
+	gotDataSources := make([]string, 0, len(generated.DataSources))
+	for _, dataSource := range generated.DataSources {
+		gotDataSources = append(gotDataSources, dataSource.Name)
+	}
+	gotResources := make([]string, 0, len(generated.Resources))
+	for _, resource := range generated.Resources {
+		gotResources = append(gotResources, resource.Name)
+	}
+	assert.Equal(t, want, gotDataSources)
+	assert.Equal(t, want, gotResources)
+	require.NoError(t, generated.Validate(t.Context()))
+
+	wantDataSourceDigests := map[string]string{
+		"heat_map":       "9c18b547b35bc3b0d5e50e2816d1336241dc41bd47113c853b45e3892f98ab98",
+		"heat_map_point": "95d56842dd00a89bb7da1048b29057ba60b53df5423f67c9fcc2d7ec3e48ac63",
+		"map":            "af00b4234b63f1a33294afce9b15415b9f7abb77607c4a202db4af4f13ac4d7e",
+		"tag":            "664bb9cfcd960becf195c421dd072d0a1abe73bdcdc24ce4e714492809bb0ba2",
+		"virtual_device": "19cbac2d4f1f1a31b1e2ee9f5ca150e75236b3961b219e6edc3d39cdc09d656d",
+	}
+	wantResourceDigests := map[string]string{
+		"heat_map":       "db7ee36467ff48513616e923aedd2ab116b3d2c3882c3d4db7c60629d0c1fac0",
+		"heat_map_point": "f1ad804ab313dc70773ae55e0397aa4aa46b8b9c202ced8b7a0dda5cfe9c52e5",
+		"map":            "2b77527a56b423916bfecb657ac0197598e9d88bc45cd150e146735bce031125",
+		"tag":            "2cc8f7ed412c9d9c6956996b3edab63e4d53c116d11297afbb978d9995c41d32",
+		"virtual_device": "2b062e849ff29d0296458ae27c7425b4dfc3497a10e7d05777d45f2a1e990d61",
+	}
+	for _, dataSource := range generated.DataSources {
+		body, err := json.Marshal(dataSource)
+		require.NoError(t, err)
+		assert.Equal(t, wantDataSourceDigests[dataSource.Name], fmt.Sprintf("%x", sha256.Sum256(body)), "reviewed historical datasource %s changed", dataSource.Name)
+	}
+	for _, resource := range generated.Resources {
+		body, err := json.Marshal(resource)
+		require.NoError(t, err)
+		assert.Equal(t, wantResourceDigests[resource.Name], fmt.Sprintf("%x", sha256.Sum256(body)), "reviewed historical resource %s changed", resource.Name)
+	}
+}
+
+func TestSpecificationGenerator_LiveSchemaWinsOverReviewedLegacySchema(t *testing.T) {
+	gen := NewSpecificationGenerator("unifi")
+	live := NewResource("HeatMap", "heatmap")
+	live.Types["HeatMap"].Fields["LiveField"] = NewFieldInfo("LiveField", "live_field", "string", "", true, false, false, "")
+	gen.AddResource(live)
+	gen.AddReviewedLegacySchemas()
+
+	generated := gen.Generate()
+	count := 0
+	for _, resource := range generated.Resources {
+		if resource.Name != "heat_map" {
+			continue
+		}
+		count++
+		require.Len(t, resource.Schema.Attributes, 1)
+		assert.Equal(t, "live_field", resource.Schema.Attributes[0].Name)
+	}
+	assert.Equal(t, 1, count)
 }
 
 func TestSpecificationGenerator_Generate_ProviderAttributes(t *testing.T) {

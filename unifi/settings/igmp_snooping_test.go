@@ -20,7 +20,10 @@ func TestIgmpSnoopingRoundTrip(t *testing.T) {
 		"querier_mode": "CUSTOM",
 		"querier_subscription_mode": "ALL",
 		"querier_switches": ["d8:b3:70:11:a9:5c"],
-		"querier_addresses": ["192.0.2.1"],
+		"querier_addresses": [
+			{"mac": "d8:b3:70:11:a9:5c", "network_id": "681268c001e36a7836e21559", "querier_address": "192.0.2.1", "query_interval": 60},
+			{"mac": "d8:b3:70:11:a9:5d", "network_id": "6813e64a4ee8cb0f1f486ac8", "querier_address": "192.0.2.2", "query_interval": "90"}
+		],
 		"network_ids": ["681268c001e36a7836e21559", "6813e64a4ee8cb0f1f486ac8"]
 	}`
 
@@ -40,8 +43,11 @@ func TestIgmpSnoopingRoundTrip(t *testing.T) {
 	if s.SubscriptionMode != "ALL" || s.QuerierMode != "CUSTOM" {
 		t.Errorf("subscription_mode=%q querier_mode=%q", s.SubscriptionMode, s.QuerierMode)
 	}
-	if len(s.QuerierAddresses) != 1 || s.QuerierAddresses[0] != "192.0.2.1" {
+	if len(s.QuerierAddresses) != 2 || s.QuerierAddresses[0] != "192.0.2.1" || s.QuerierAddresses[1] != "192.0.2.2" {
 		t.Errorf("QuerierAddresses = %#v", s.QuerierAddresses)
+	}
+	if len(s.QuerierAddressDetails) != 2 || s.QuerierAddressDetails[0].MAC != "d8:b3:70:11:a9:5c" || s.QuerierAddressDetails[0].NetworkID != "681268c001e36a7836e21559" || s.QuerierAddressDetails[0].QueryInterval == nil || *s.QuerierAddressDetails[0].QueryInterval != 60 || s.QuerierAddressDetails[1].QueryInterval == nil || *s.QuerierAddressDetails[1].QueryInterval != 90 {
+		t.Errorf("QuerierAddressDetails = %#v", s.QuerierAddressDetails)
 	}
 
 	// GetSettingKey must resolve the type to the correct endpoint key.
@@ -60,5 +66,52 @@ func TestIgmpSnoopingRoundTrip(t *testing.T) {
 	}
 	if back["key"] != "igmp_snooping" || back["enabled"] != true {
 		t.Errorf("round-trip lost fields: key=%v enabled=%v", back["key"], back["enabled"])
+	}
+	addresses, ok := back["querier_addresses"].([]any)
+	if !ok || len(addresses) != 2 {
+		t.Errorf("round-trip querier_addresses = %#v", back["querier_addresses"])
+	} else {
+		first, firstOK := addresses[0].(map[string]any)
+		second, secondOK := addresses[1].(map[string]any)
+		if !firstOK || !secondOK || first["mac"] != "d8:b3:70:11:a9:5c" || first["network_id"] != "681268c001e36a7836e21559" || first["querier_address"] != "192.0.2.1" || first["query_interval"] != float64(60) || second["querier_address"] != "192.0.2.2" || second["query_interval"] != float64(90) {
+			t.Errorf("round-trip querier_addresses = %#v", back["querier_addresses"])
+		}
+	}
+}
+
+func TestIgmpSnoopingLegacyQuerierAddressesRemainStrings(t *testing.T) {
+	raw := `{"key":"igmp_snooping","querier_addresses":["192.0.2.1"]}`
+	var setting IgmpSnooping
+	if err := json.Unmarshal([]byte(raw), &setting); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(setting.QuerierAddressDetails) != 0 || len(setting.QuerierAddresses) != 1 || setting.QuerierAddresses[0] != "192.0.2.1" {
+		t.Fatalf("decoded legacy addresses = %#v details=%#v", setting.QuerierAddresses, setting.QuerierAddressDetails)
+	}
+	body, err := json.Marshal(&setting)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back map[string]any
+	if err := json.Unmarshal(body, &back); err != nil {
+		t.Fatalf("re-unmarshal: %v", err)
+	}
+	addresses, ok := back["querier_addresses"].([]any)
+	if !ok || len(addresses) != 1 || addresses[0] != "192.0.2.1" {
+		t.Fatalf("legacy round-trip addresses = %#v", back["querier_addresses"])
+	}
+}
+
+func TestIgmpSnoopingOmitsUnsetQuerierAddresses(t *testing.T) {
+	body, err := json.Marshal(&IgmpSnooping{})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, exists := decoded["querier_addresses"]; exists {
+		t.Fatalf("unset querier_addresses unexpectedly encoded: %s", body)
 	}
 }
