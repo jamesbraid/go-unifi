@@ -12,19 +12,9 @@ var (
 	_ context.Context
 )
 
-// This is a v2 API object, so manually coded for now, need to figure out generation...
-
-type APGroup struct {
-	ID string `json:"_id,omitempty"`
-
-	Hidden   bool   `json:"attr_hidden,omitempty"`
-	HiddenId string `json:"attr_hidden_id,omitempty"`
-	NoDelete bool   `json:"attr_no_delete,omitempty"`
-	NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-	Name       string   `json:"name"`
-	DeviceMacs []string `json:"device_macs"`
-}
+// The APGroup type is generated from overrides/resources/ApGroups.json; the
+// client methods stay hand-written because the v2 apgroups endpoint has no
+// per-id GET (see GetAPGroup).
 
 func (c *ApiClient) ListAPGroup(ctx context.Context, site string) ([]APGroup, error) {
 	var respBody []APGroup
