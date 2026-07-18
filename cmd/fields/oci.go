@@ -321,7 +321,7 @@ func scanLayer(r io.Reader, target, tempRoot string, limits ArchiveLimits) (*os.
 		if entries > limits.MaxEntries {
 			return candidate, false, fmt.Errorf("layer exceeds %d entries", limits.MaxEntries)
 		}
-		entryName, err := cleanArchiveName(h.Name)
+		entryName, err := cleanLayerHeaderName(h.Name, h.Typeflag == tar.TypeDir)
 		if err != nil {
 			return candidate, false, fmt.Errorf("invalid path %q: %w", h.Name, err)
 		}
@@ -463,6 +463,28 @@ func cleanArchiveName(name string) (string, error) {
 		return "", errors.New("path is empty or escapes root")
 	}
 	return strings.TrimSuffix(cleaned, "/"), nil
+}
+
+// cleanLayerHeaderName validates a POSIX tar header used only for comparisons
+// while scanning a container layer. A literal backslash is an ordinary POSIX
+// filename byte; unlike cleanArchiveName, this name is never converted to a
+// host path or used as a write destination.
+func cleanLayerHeaderName(name string, directory bool) (string, error) {
+	if name == "" || strings.HasPrefix(name, "/") || strings.ContainsRune(name, '\x00') {
+		return "", errors.New("path is not a relative POSIX name")
+	}
+	if directory && strings.HasSuffix(name, "/") && !strings.HasSuffix(name, "//") {
+		name = strings.TrimSuffix(name, "/")
+	}
+	for _, part := range strings.Split(name, "/") {
+		if part == "" || part == "." || part == ".." {
+			return "", errors.New("path contains a non-canonical or unsafe slash component")
+		}
+	}
+	if path.Clean(name) != name {
+		return "", errors.New("path is not canonical")
+	}
+	return name, nil
 }
 
 func copyBounded(dst io.Writer, src io.Reader, limit int64) (int64, error) {

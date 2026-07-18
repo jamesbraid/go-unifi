@@ -154,6 +154,48 @@ func TestFindFileInLayersCompressionOverlayAndWhiteouts(t *testing.T) {
 	}
 }
 
+func TestFindFileInLayersAllowsLiteralBackslashInUnrelatedPOSIXName(t *testing.T) {
+	layer := fixtureTar(t,
+		fixtureEntry{name: "lib/", typeflag: tar.TypeDir},
+		fixtureEntry{name: `lib/systemd/system/system-systemd\x2dcryptsetup.slice`, body: []byte("unit")},
+		fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")},
+	)
+	layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, ociFixtureOptions{layers: [][]byte{layer}})), t.TempDir(), DefaultArchiveLimits())
+	require.NoError(t, err)
+	image, err := ResolveImage(layout, v1.Platform{OS: "linux", Architecture: "amd64"})
+	require.NoError(t, err)
+	f, err := FindFileInLayers(image, aceJarPath, DefaultArchiveLimits())
+	require.NoError(t, err)
+	defer f.Close()
+	got, err := io.ReadAll(f)
+	require.NoError(t, err)
+	assert.Equal(t, "jar", string(got))
+}
+
+func TestFindFileInLayersRejectsMalformedOrDuplicateLayerNames(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		entries []fixtureEntry
+	}{
+		{"slash traversal", []fixtureEntry{{name: "../etc/passwd", body: []byte("x")}}},
+		{"absolute", []fixtureEntry{{name: "/etc/passwd", body: []byte("x")}}},
+		{"empty slash component", []fixtureEntry{{name: "usr//lib/unifi", body: []byte("x")}}},
+		{"dot slash component", []fixtureEntry{{name: "usr/./lib/unifi", body: []byte("x")}}},
+		{"duplicate", []fixtureEntry{{name: "usr/share/data", body: []byte("x")}, {name: "usr/share/data", body: []byte("y")}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entries := append(tc.entries, fixtureEntry{name: aceJarPath, body: []byte("jar")})
+			layer := fixtureTar(t, entries...)
+			layout, err := ImportOCI(bytes.NewReader(fixtureOCI(t, ociFixtureOptions{layers: [][]byte{layer}})), t.TempDir(), DefaultArchiveLimits())
+			require.NoError(t, err)
+			image, err := ResolveImage(layout, v1.Platform{OS: "linux", Architecture: "amd64"})
+			require.NoError(t, err)
+			_, err = FindFileInLayers(image, aceJarPath, DefaultArchiveLimits())
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestFindFileInLayersRejectsLayerMismatchUnsupportedTargetLinkAndLimits(t *testing.T) {
 	plain := fixtureTar(t, fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", body: []byte("jar")})
 	link := fixtureTar(t, fixtureEntry{name: "usr/lib/unifi/lib/ace.jar", typeflag: tar.TypeSymlink, linkname: "elsewhere"})

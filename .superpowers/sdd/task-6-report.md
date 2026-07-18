@@ -58,3 +58,66 @@ git diff --check
 The initial sandboxed full-suite run could not bind the tests' localhost
 `httptest` servers. The same suite passed with the required localhost
 permission; this was an environment restriction, not a product failure.
+
+## POSIX layer-name compatibility bugfix
+
+Root cause: `scanLayer` applied `cleanArchiveName` to every tar header even
+though unrelated layer paths are never staged or written. That validator
+intentionally rejects backslashes for host-path safety, but a backslash is an
+ordinary byte in a POSIX filename. The real image consequently stopped at the
+unrelated systemd-escaped name
+`lib/systemd/system/system-systemd\\x2dcryptsetup.slice` before it reached
+`ace.jar`.
+
+RED:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestFindFileInLayers(AllowsLiteralBackslash|RejectsMalformedOrDuplicateLayerNames)' -count=1
+--- FAIL: TestFindFileInLayersAllowsLiteralBackslashInUnrelatedPOSIXName
+    invalid path "lib/systemd/system/system-systemd\\x2dcryptsetup.slice": path is not relative slash-separated
+--- FAIL: TestFindFileInLayersRejectsMalformedOrDuplicateLayerNames/empty_slash_component
+--- FAIL: TestFindFileInLayersRejectsMalformedOrDuplicateLayerNames/dot_slash_component
+FAIL
+```
+
+GREEN uses a layer-only POSIX header validator. It permits literal backslashes
+and the conventional single trailing slash on tar directory headers, but
+rejects empty, absolute, NUL-containing, traversal, dot-component, redundant
+slash, and duplicate names. The requested target still uses strict
+`cleanArchiveName`; OCI and ZIP paths that can be staged or written are
+unchanged. Layer header names are only compared with slash-delimited targets,
+and extracted candidates are always written to `os.CreateTemp`, so a Windows
+host cannot turn the accepted layer name into an output path.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'TestFindFileInLayers' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.238s
+```
+
+A temporary, uncommitted test opened `/private/tmp/recheck/image.tar`, imported
+the layout, resolved linux/amd64, and called `FindFileInLayers` for
+`usr/lib/unifi/lib/ace.jar`. It extracted a non-empty `ace.jar` successfully:
+
+```text
+--- PASS: TestTask6RealImageTarValidation (9.91s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 10.124s
+```
+
+The temporary test containing the machine-local absolute path was removed
+before verification and commit.
+
+Final verification:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(ImportOCI|ResolveImage|FindFileInLayers|ExtractUOSInstaller|SyntheticInstaller)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.306s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.407s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+```
