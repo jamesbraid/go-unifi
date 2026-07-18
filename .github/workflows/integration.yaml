@@ -1,0 +1,66 @@
+---
+name: Integration
+
+# Boots a disposable simulation-mode controller (jacobalberty/unifi) and
+# runs the integration-tagged suite: harness smoke test + v2 schema drift
+# probe. PRs touching schema inputs/outputs get it as a gate; the nightly
+# run catches upstream drift and image rot independent of PRs.
+on:
+  pull_request:
+    paths:
+      - 'schemas/**'
+      - 'overrides/**'
+      - 'unifi/**'
+      - 'cmd/fields/**'
+      - 'internal/testenv/**'
+      - '.github/workflows/integration.yaml'
+  schedule:
+    - cron: 30 1 * * *
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      # Boot the exact build the schemas came from when it is a .deb; the
+      # UniFi OS Server installer cannot be installed into this image, so
+      # those artifacts fall back to the image's default controller.
+      - name: Pin controller build
+        id: pin
+        run: |
+          artifact="$(cat schemas/ARTIFACT 2>/dev/null || true)"
+          case "${artifact}" in
+            https://*.deb)
+              echo "pkgurl=${artifact}" >> "$GITHUB_OUTPUT"
+              echo "Pinning controller to ${artifact}"
+              ;;
+            *)
+              echo "pkgurl=" >> "$GITHUB_OUTPUT"
+              echo "No pinnable .deb artifact (${artifact:-none}); using image default"
+              ;;
+          esac
+
+      - name: Run integration suite
+        env:
+          UNIFI_TEST_PKGURL: ${{ steps.pin.outputs.pkgurl }}
+        run: >-
+          go test -tags integration -timeout 25m -v
+          ./internal/testenv/ ./cmd/fields/
+          -run 'TestIntegration'
