@@ -66,5 +66,8 @@ share a single budget. Pin the controller build with `UNIFI_TEST_IMAGE` or
 at an existing controller — targets used this way must accept the demo
 `admin`/`admin` credentials. Current jacobalberty/unifi images ignore a
 runtime `UNIFI_TEST_PKGURL` (no `docker-build.sh` in the image), so
-pinning a build only takes effect against an image that supports it; the
-smoke test fails if a requested pin is not honoured.
+pinning a build only takes effect against an image that supports it. Set
+`UNIFI_TEST_EXPECT_VERSION` to make the smoke test fail unless the booted
+controller reports exactly that version (CI would derive it from
+`schemas/VERSION` if runtime pinning ever returns); `UNIFI_TEST_PKGURL`
+alone is not verified.

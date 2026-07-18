@@ -56,8 +56,9 @@ jobs:
       # bundled build. UNIFI_TEST_PKGURL is still honoured by the
       # harness (internal/testenv/controller.go) for whenever an image
       # regains runtime install support; the smoke test added for that
-      # case (TestIntegrationControllerBoots) fails loudly if a pin is
-      # requested but not honoured, so re-enabling this is safe.
+      # case (TestIntegrationControllerBoots) fails loudly if
+      # UNIFI_TEST_EXPECT_VERSION is set and not honoured, so re-enabling
+      # this is safe.
       - name: Report controller provenance
         run: |
           artifact="$(cat schemas/ARTIFACT 2>/dev/null || true)"
