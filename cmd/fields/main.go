@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"go/format"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -343,7 +345,7 @@ func main() {
 	var err error
 
 	if *useLatestVersion {
-		unifiVersion, unifiDownloadUrl, err = latestUnifiVersion()
+		unifiVersion, unifiDownloadUrl, err = latestUnifiVersion(context.Background(), http.DefaultClient, firmwareUpdateApi)
 		if err != nil {
 			panic(err)
 		}

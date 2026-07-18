@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-var firmwareUpdateApi = "https://fw-update.ubnt.com/api/firmware-latest"
+const firmwareUpdateApi = "https://fw-update.ui.com/api/firmware-latest"
 
 const (
 	debianPlatform         = "debian"
@@ -26,13 +26,17 @@ type firmwareUpdateApiResponseEmbedded struct {
 }
 
 type firmwareUpdateApiResponseEmbeddedFirmware struct {
-	Channel  string                                         `json:"channel"`
-	Created  string                                         `json:"created"`
-	Id       string                                         `json:"id"`
-	Platform string                                         `json:"platform"`
-	Product  string                                         `json:"product"`
-	Version  *version.Version                               `json:"version"`
-	Links    firmwareUpdateApiResponseEmbeddedFirmwareLinks `json:"_links"`
+	Channel        string                                         `json:"channel"`
+	Created        string                                         `json:"created"`
+	Updated        string                                         `json:"updated"`
+	FileSize       int64                                          `json:"file_size"`
+	Id             string                                         `json:"id"`
+	MD5            string                                         `json:"md5"`
+	SHA256Checksum string                                         `json:"sha256_checksum"`
+	Platform       string                                         `json:"platform"`
+	Product        string                                         `json:"product"`
+	Version        *version.Version                               `json:"version"`
+	Links          firmwareUpdateApiResponseEmbeddedFirmwareLinks `json:"_links"`
 }
 
 type firmwareUpdateApiResponseEmbeddedFirmwareDataLink struct {

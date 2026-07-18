@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -71,6 +72,7 @@ func TestLatestUnifiVersion(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(schemaFetcherUserAgent, req.Header.Get("User-Agent"))
 		query := req.URL.Query()
 		assert.Contains(query["filter"], firmwareUpdateApiFilter("eq", "channel", releaseChannel))
 		assert.Contains(
@@ -87,8 +89,7 @@ func TestLatestUnifiVersion(t *testing.T) {
 	}))
 	defer server.Close()
 
-	firmwareUpdateApi = server.URL
-	gotVersion, gotDownload, err := latestUnifiVersion()
+	gotVersion, gotDownload, err := latestUnifiVersion(context.Background(), server.Client(), server.URL)
 	assert.NoError(err)
 
 	assert.Equal(fwVersion.Core(), gotVersion)
