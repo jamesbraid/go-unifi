@@ -526,6 +526,28 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		WANTypeV6       *string `json:"wan_type_v6,omitempty"`
 		WANNetworkGroup *string `json:"wan_networkgroup,omitempty"`
 
+		// Static addressing (wan_type "static" / wan_type_v6 "static")
+		WANIP        *string `json:"wan_ip,omitempty"`
+		WANNetmask   *string `json:"wan_netmask,omitempty"`
+		WANGateway   *string `json:"wan_gateway,omitempty"`
+		WANIPV6      string  `json:"wan_ipv6"`
+		WANGatewayV6 string  `json:"wan_gateway_v6"`
+		WANPrefixlen *int64  `json:"wan_prefixlen,omitempty"`
+
+		// PPPoE credentials (wan_type "pppoe")
+		WANUsername             string `json:"wan_username"`
+		WANPassword             string `json:"x_wan_password"`
+		WANPppoeUsernameEnabled bool   `json:"wan_pppoe_username_enabled"`
+		WANPppoePasswordEnabled bool   `json:"wan_pppoe_password_enabled"`
+
+		// DS-Lite (wan_type "dslite")
+		WANDsliteRemoteHost     *string `json:"wan_dslite_remote_host,omitempty"`
+		WANDsliteRemoteHostAuto bool    `json:"wan_dslite_remote_host_auto"`
+
+		// Interface MTU
+		InterfaceMtu        *int64 `json:"interface_mtu,omitempty"`
+		InterfaceMtuEnabled bool   `json:"interface_mtu_enabled"`
+
 		// VLAN fields
 		WANVLANEnabled bool   `json:"wan_vlan_enabled"`
 		WANVLAN        *int64 `json:"wan_vlan,omitempty"`
@@ -600,6 +622,28 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		WANType:         n.WANType,
 		WANTypeV6:       n.WANTypeV6,
 		WANNetworkGroup: n.WANNetworkGroup,
+
+		// Static addressing
+		WANIP:        n.WANIP,
+		WANNetmask:   n.WANNetmask,
+		WANGateway:   n.WANGateway,
+		WANIPV6:      n.WANIPV6,
+		WANGatewayV6: n.WANGatewayV6,
+		WANPrefixlen: n.WANPrefixlen,
+
+		// PPPoE credentials
+		WANUsername:             n.WANUsername,
+		WANPassword:             n.WANPassword,
+		WANPppoeUsernameEnabled: n.WANPppoeUsernameEnabled,
+		WANPppoePasswordEnabled: n.WANPppoePasswordEnabled,
+
+		// DS-Lite
+		WANDsliteRemoteHost:     n.WANDsliteRemoteHost,
+		WANDsliteRemoteHostAuto: n.WANDsliteRemoteHostAuto,
+
+		// Interface MTU
+		InterfaceMtu:        n.InterfaceMtu,
+		InterfaceMtuEnabled: n.InterfaceMtuEnabled,
 
 		// VLAN fields
 		WANVLANEnabled: n.WANVLANEnabled,

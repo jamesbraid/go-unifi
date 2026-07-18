@@ -113,11 +113,6 @@ var networkFieldCandidates = []fieldCandidate{
 	// suppression) is wired -- see marshalCorporate.
 	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil},
 
-	// WAN MTU. The coverage comment attributes this to marshalWAN, not
-	// corporate -- Purpose is PurposeWAN here.
-	{Wire: "interface_mtu", Purpose: PurposeWAN, Value: 1400, Prereq: map[string]any{"interface_mtu_enabled": true}},
-	{Wire: "interface_mtu_enabled", Purpose: PurposeWAN, Value: true, Prereq: nil},
-
 	// Advanced site-vpn IPsec options: IKE identifiers, tunnel IP, separate
 	// IKEv2 networks. All require vpn_type "ipsec-vpn" (the only IPsec value
 	// in the vpn_type enum) to be meaningful.
@@ -147,24 +142,6 @@ var networkFieldCandidates = []fieldCandidate{
 	// with api.err.RadiusProfileRequired unless radiusprofile_id references
 	// a real profile.
 	{Wire: "vpn_protocol", Purpose: PurposeUserVPN, Value: "UDP", Prereq: map[string]any{"vpn_type": "openvpn-server", "openvpn_mode": "server", "local_port": 1194, "radiusprofile_id": "@radiusprofile"}},
-
-	// marshalWAN sends wan_type but not the fields its "static", "pppoe", or
-	// "dslite" modes need, so only DHCP-style WANs round-trip fully.
-	{Wire: "wan_ip", Purpose: PurposeWAN, Value: "192.0.2.10", Prereq: map[string]any{"wan_type": "static", "wan_netmask": "255.255.255.0", "wan_gateway": "192.0.2.1"}},
-	{Wire: "wan_netmask", Purpose: PurposeWAN, Value: "255.255.255.0", Prereq: map[string]any{"wan_type": "static", "wan_ip": "192.0.2.10", "wan_gateway": "192.0.2.1"}},
-	{Wire: "wan_gateway", Purpose: PurposeWAN, Value: "192.0.2.1", Prereq: map[string]any{"wan_type": "static", "wan_ip": "192.0.2.10", "wan_netmask": "255.255.255.0"}},
-	{Wire: "wan_ipv6", Purpose: PurposeWAN, Value: "2001:db8::10", Prereq: map[string]any{"wan_type_v6": "static", "wan_gateway_v6": "2001:db8::1", "wan_prefixlen": 64}},
-	{Wire: "wan_gateway_v6", Purpose: PurposeWAN, Value: "2001:db8::1", Prereq: map[string]any{"wan_type_v6": "static", "wan_ipv6": "2001:db8::10", "wan_prefixlen": 64}},
-	{Wire: "wan_prefixlen", Purpose: PurposeWAN, Value: 64, Prereq: map[string]any{"wan_type_v6": "static", "wan_ipv6": "2001:db8::10", "wan_gateway_v6": "2001:db8::1"}},
-	{Wire: "wan_username", Purpose: PurposeWAN, Value: "pppoe-user", Prereq: map[string]any{"wan_type": "pppoe", "x_wan_password": "pppoe-pass", "wan_pppoe_username_enabled": true}},
-	{Wire: "x_wan_password", Purpose: PurposeWAN, Value: "pppoe-pass", Prereq: map[string]any{"wan_type": "pppoe", "wan_username": "pppoe-user", "wan_pppoe_password_enabled": true}},
-	// The controller rejects a pppoe WAN with api.err.InvalidWanPppoeCredentials
-	// unless BOTH wan_username and x_wan_password are present, even when only
-	// probing one enable flag.
-	{Wire: "wan_pppoe_username_enabled", Purpose: PurposeWAN, Value: true, Prereq: map[string]any{"wan_type": "pppoe", "wan_username": "pppoe-user", "x_wan_password": "pppoe-pass"}},
-	{Wire: "wan_pppoe_password_enabled", Purpose: PurposeWAN, Value: true, Prereq: map[string]any{"wan_type": "pppoe", "wan_username": "pppoe-user", "x_wan_password": "pppoe-pass"}},
-	{Wire: "wan_dslite_remote_host", Purpose: PurposeWAN, Value: "aftr.example.net", Prereq: map[string]any{"wan_type": "dslite", "wan_dslite_remote_host_auto": false}}, // AFTR hostname; no validation comment on the generated field
-	{Wire: "wan_dslite_remote_host_auto", Purpose: PurposeWAN, Value: true, Prereq: map[string]any{"wan_type": "dslite"}},
 }
 
 // TestFieldCandidatesCoverAllTODOs keeps networkFieldCandidates and

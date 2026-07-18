@@ -46,10 +46,6 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	// wired; see marshalCorporate).
 	"igmp_proxy_downstream_networkconf_ids",
 
-	// WAN MTU is a standard UI setting but is never sent by marshalWAN.
-	"interface_mtu",
-	"interface_mtu_enabled",
-
 	// advanced site-vpn IPsec options (IKE identifiers, tunnel IP, separate
 	// IKEv2 networks) are configurable in the UI but never sent by
 	// marshalSiteVPN.
@@ -71,23 +67,6 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	// OpenVPN server protocol (TCP/UDP) for remote-user-vpn is never sent
 	// even though openvpn_mode is.
 	"vpn_protocol",
-
-	// marshalWAN emits wan_type, whose schema allows "static", "pppoe", and
-	// "dslite", but the fields those modes need (static addressing, PPPoE
-	// credentials, DS-Lite remote host) are never sent, so only DHCP-style
-	// WANs round-trip fully.
-	"wan_gateway",
-	"wan_gateway_v6",
-	"wan_ip",
-	"wan_ipv6",
-	"wan_netmask",
-	"wan_prefixlen",
-	"wan_pppoe_password_enabled",
-	"wan_pppoe_username_enabled",
-	"wan_username",
-	"x_wan_password",
-	"wan_dslite_remote_host",
-	"wan_dslite_remote_host_auto",
 }
 
 // networkEncoderAllowlist contains generated wire names that are intentionally
