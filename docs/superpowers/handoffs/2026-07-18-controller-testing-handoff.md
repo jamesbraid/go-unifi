@@ -72,6 +72,32 @@ plan headers.
   kernel-style commit messages; integration tests behind
   `//go:build integration`.
 
+## Phase 4 (exploratory, not yet planned): crawler-assisted v2 schema population
+
+`ubiquiti-community/unifi-api` is NOT a better source for the v2 JSON
+definitions themselves — its `cmd/fields/custom/` carries the same
+hand-rolled files as our `overrides/resources/` (shared lineage), plus three
+we ship as hand-written Go instead (`ApGroups.json`,
+`NetworkMembersGroup.json`, `PowerSupervisor.json` — evaluating those as
+overrides to replace `unifi/ap_group.go` etc. is a quick win worth its own
+small task). What IS leverageable is `scripts/crawler/`: a Playwright-style
+crawler that drives the controller SPA exhaustively in simulation mode
+(MUTATE mode creates/updates/deletes through the UI, so payloads are always
+*valid* — the part our raw probes must otherwise guess) and exports a HAR of
+every XHR plus a deduplicated `api-endpoints.json`. Feeding those HAR
+request/response bodies into a derivation step could mechanically populate
+and refresh `overrides/resources/*.json` field sets (types and enums by
+sampling; validation regexes still need hands or frontend-bundle mining —
+the settings chunks carry zod form schemas, the richest-but-brittle
+validation source, proven when verifying `querier_addresses`).
+
+Sequencing: do this only after phase 1 (the drift probe tells you *when*
+population is needed) and consider a cheap intermediate first — extending
+the drift probe with a suggest mode that emits proposed JSON entries for
+LiveOnly fields with validation inferred from observed values. Run the
+crawler as-is from their repo against our harness rather than porting it;
+upstream fixes there (same org).
+
 ## Open questions the implementation will answer empirically
 
 - Which v2 endpoints the simulation controller actually serves (expect
