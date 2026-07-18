@@ -10,6 +10,29 @@ v2 drift probe) is merged.
 `/proxy/network`; deliberate deviations from the provider's compose wiring).
 This document only adds what a post-phase-1 agent needs.
 
+## Step minus one: wait until phase 1 has actually landed
+
+Do NOT start phase 2/3 against unlanded interfaces. The landing signal is
+the phase 1 code being present on the branch you'll build on:
+
+```sh
+git fetch origin
+# landed when BOTH exist on the target branch (check controller-testing
+# first, then main — phase 1 may merge either way):
+git cat-file -e origin/controller-testing:internal/testenv/controller.go
+git cat-file -e origin/controller-testing:internal/testenv/testenv_integration_test.go
+```
+
+If not landed yet: wait by polling, self-paced at ~20–30 minute intervals
+(ScheduleWakeup / a self-paced loop — long intervals, this is a
+hours-not-seconds wait). Each wake: fetch, re-check, report one line of
+status. While waiting, the only useful work is reading the two plans and
+this handoff — do not pre-implement against assumed interfaces, and do not
+"help" phase 1 along in its branch. If phase 1 hasn't landed after ~24
+hours of polling, stop and report instead of waiting forever — its branch
+may have stalled or been renamed (in that case, say what you looked for
+and where).
+
 ## Step zero: reconcile the plans with phase 1 as built
 
 The phase 2/3 plans were written against phase 1's *planned* interfaces.
