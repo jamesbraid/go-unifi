@@ -39,6 +39,16 @@ func TestDownloadInstallerHashMismatch(t *testing.T) {
 	assert.ErrorContains(t, err, "sha256 mismatch")
 }
 
+func TestDownloadInstallerHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+
+	_, err := downloadInstaller(server.URL, "", t.TempDir())
+	assert.ErrorContains(t, err, "unable to download installer")
+}
+
 func TestExtractInstallerDefsEndToEnd(t *testing.T) {
 	aceJar := buildTestAceJar(t, map[string]string{
 		"api/fields/NetworkConf.json": `{"name":".{1,128}"}`,
@@ -76,6 +86,25 @@ func TestPublishAndFindCachedFieldsDir(t *testing.T) {
 	assert.Equal(t, fieldsDir, findCachedFieldsDir(base, "", "https://example/installer"))
 	assert.Empty(t, findCachedFieldsDir(base, "9.9.9", ""))
 	assert.Empty(t, findCachedFieldsDir(base, "", "https://example/other"))
+}
+
+func TestPublishFieldsDirReplacesExisting(t *testing.T) {
+	base := t.TempDir()
+
+	staging1 := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(staging1, "NetworkConf.json"), []byte(`{"v":1}`), 0o644))
+	fieldsDir, err := publishFieldsDir(staging1, base, "10.4.57", sourceInfo{NetworkVersion: "10.4.57"})
+	require.NoError(t, err)
+
+	staging2 := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(staging2, "NetworkConf.json"), []byte(`{"v":2}`), 0o644))
+	fieldsDir2, err := publishFieldsDir(staging2, base, "10.4.57", sourceInfo{NetworkVersion: "10.4.57"})
+	require.NoError(t, err)
+	assert.Equal(t, fieldsDir, fieldsDir2)
+
+	got, err := os.ReadFile(filepath.Join(fieldsDir2, "NetworkConf.json"))
+	require.NoError(t, err)
+	assert.Equal(t, `{"v":2}`, string(got))
 }
 
 func TestParseOsServerVersionFromName(t *testing.T) {
