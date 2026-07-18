@@ -50,6 +50,50 @@ func TestScanExtractedInputsValidatesSourceMetadataURL(t *testing.T) {
 	require.ErrorContains(t, ScanExtractedInputs(root), "installer URL")
 }
 
+func TestScanExtractedInputsRejectsOpaqueValuesInEverySensitivePosition(t *testing.T) {
+	opaque := []struct{ name, body string }{
+		{"default name", `{"min_field_size":1,"default_names":["AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`},
+		{"system property", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":["abcdefabcdefabcdefabcdefabcdefabcdef"],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`},
+		{"collection key", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj":[]},"sensitive_distinct_db_fields_by_collection":{}}`},
+		{"field path", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{"site":["abcdefabcdefabcdefabcdefabcdefabcdef"]},"sensitive_distinct_db_fields_by_collection":{}}`},
+		{"distinct path", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{"site":"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"}}`}}
+	for _, tc := range opaque {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, "metadata/sensitive_metadata.json", tc.body)
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+
+func TestScanExtractedInputsRejectsOpaqueRadioBandAndSchemaTokens(t *testing.T) {
+	for _, tc := range []struct{ name, path, body string }{
+		{"radio band", "metadata/radio_specification.json", `{"na":{"20":{"36":{"lowerFrequency":1,"centerFrequency":2,"upperFrequency":3,"subChannels":[36],"band":"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj"}}}}`},
+		{"lower hex", "Device.json", `{"value":"abcdefabcdefabcdefabcdefabcdefabcdef.*"}`},
+		{"letters only", "Device.json", `{"value":"AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEfGhIj.*"}`}} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, tc.path, tc.body)
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+
+func TestScanExtractedInputsEnforcesObservedMetadataInvariants(t *testing.T) {
+	for _, tc := range []struct{ name, path, body string }{
+		{"country key", "metadata/country_codes_list.json", `[{"name":"Canada","key":"Canada","code":"124","hints":[],"afc":{}}]`},
+		{"country code", "metadata/country_codes_list.json", `[{"name":"Canada","key":"CA","code":"12x","hints":[],"afc":{}}]`},
+		{"event key mismatch", "metadata/event_defs.json", `{"EVT_AP_Test":{"subsystem":"wlan","alert_repeat":true,"alert_sendmail":false,"alert_subject":"Test","key":"EVT_AP_Other","event_enabled":true,"msg":"ok","is_alert":false,"is_negative":false}}`},
+		{"radio extra", "metadata/radio_specification.json", `{"ng":{"20":{"1":{"lowerFrequency":1,"centerFrequency":2,"upperFrequency":3,"subChannels":[1],"unexpected":true}}}}`},
+		{"radio band grammar", "metadata/radio_specification.json", `{"na":{"20":{"36":{"lowerFrequency":1,"centerFrequency":2,"upperFrequency":3,"subChannels":[36],"band":"other"}}}}`}} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, tc.path, tc.body)
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+
 func writeScanFixture(t *testing.T, root, name, body string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))

@@ -52,6 +52,14 @@ $ git diff --check
 (no output)
 ```
 
+## Metadata leaf-validation follow-up
+
+RED regressions demonstrated that valid top-level sensitivity and radio objects could still carry opaque values in unchecked string positions. The failing cases covered `default_names`, system properties, collection keys, ordinary and distinct field paths, radio band labels, lowercase hexadecimal runs, mixed-case letters-only runs embedded in schema expressions, country identity fields, event-key mismatch, and extra radio record keys.
+
+The scanner now validates every sensitivity string against its observed bounded grammar plus opaque-value detection. Radio records accept only the four required numeric/channel fields and optional observed `unii1` through `unii8` band labels (`unii2ext` is present in 10.4.57). Country keys are exactly two uppercase letters, country codes are decimal strings, and an event record's `key` must equal its containing `EVT_*` key.
+
+Entropy exemptions are position-specific: canonical provenance digests use exact lowercase-hex length validation; timezone values use bounded POSIX-TZ syntax; extension values use bounded MIME syntax; and human event subject/message strings use bounded printable-text validation. Opaque lowercase hex and mixed-case letters-only runs remain rejected in schema and sensitive-metadata positions. A second local scan of all real 10.4.57 metadata passed after these constraints were applied; the local absolute-path test was removed before commit.
+
 The full test run required the normal external sandbox profile because existing `httptest` tests bind loopback ports.
 
 ## Decisions and follow-ups

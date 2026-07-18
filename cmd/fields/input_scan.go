@@ -24,6 +24,14 @@ var (
 	endpointSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,34}$`)
 	eventNamePattern       = regexp.MustCompile(`^EVT_[A-Za-z0-9_]+$`)
 	numericKeyPattern      = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
+	sensitiveNamePattern   = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,256}$`)
+	countryKeyPattern      = regexp.MustCompile(`^[A-Z]{2}$`)
+	decimalStringPattern   = regexp.MustCompile(`^[0-9]+$`)
+	subsystemPattern       = regexp.MustCompile(`^[a-z0-9_-]*$`)
+	radioBandPattern       = regexp.MustCompile(`^unii[1-8](?:ext)?$`)
+	mimePattern            = regexp.MustCompile(`^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+*-]+$`)
+	posixTZPattern         = regexp.MustCompile(`^[A-Za-z0-9<>,.+:/_-]{1,256}$`)
+	lowerHexOpaquePattern  = regexp.MustCompile(`[0-9a-f]{32,}`)
 )
 
 var knownMetadataShapes = map[string]byte{
@@ -79,8 +87,11 @@ func ScanExtractedInputs(root string) error {
 				return fmt.Errorf("unexpected metadata file %s", rel)
 			}
 			if base == "sensitive_metadata.json" {
-				_, err := ParseSensitiveMetadata(body)
-				return err
+				metadata, err := ParseSensitiveMetadata(body)
+				if err != nil {
+					return err
+				}
+				return validateSensitiveMetadataStrings(metadata)
 			}
 			if !matchesJSONShape(value, shape) {
 				return fmt.Errorf("metadata %s has unexpected top-level structure", rel)
@@ -223,8 +234,44 @@ func validateSingleStringRecordMap(v any, field string) error {
 		if !ok || text == "" {
 			return fmt.Errorf("metadata record %s has invalid %s", key, field)
 		}
-		if err := validateConcreteString(text); err != nil {
-			return err
+		if field == "TZ" {
+			if !posixTZPattern.MatchString(text) {
+				return fmt.Errorf("metadata record %s has invalid POSIX timezone", key)
+			}
+		} else if len(text) > 256 || !mimePattern.MatchString(text) {
+			return fmt.Errorf("metadata record %s has invalid MIME", key)
+		}
+	}
+	return nil
+}
+
+func validateSensitiveMetadataStrings(metadata SensitiveMetadata) error {
+	for _, name := range metadata.DefaultNames {
+		if name == "" || len(name) > 128 || !isBoundedHumanText(name) || rejectHighEntropy(name) != nil {
+			return errors.New("invalid sensitive default name")
+		}
+	}
+	for _, name := range metadata.SystemProperties {
+		if !sensitiveNamePattern.MatchString(name) || rejectHighEntropy(name) != nil {
+			return errors.New("invalid sensitive system property")
+		}
+	}
+	for collection, paths := range metadata.DBFields {
+		if !sensitiveNamePattern.MatchString(collection) || rejectHighEntropy(collection) != nil {
+			return errors.New("invalid sensitive collection")
+		}
+		for _, fieldPath := range paths {
+			if !sensitiveNamePattern.MatchString(fieldPath) || rejectHighEntropy(fieldPath) != nil {
+				return errors.New("invalid sensitive field path")
+			}
+		}
+	}
+	for collection, fieldPath := range metadata.DistinctDBFields {
+		if !sensitiveNamePattern.MatchString(collection) || rejectHighEntropy(collection) != nil {
+			return errors.New("invalid distinct sensitive collection")
+		}
+		if !sensitiveNamePattern.MatchString(fieldPath) || rejectHighEntropy(fieldPath) != nil {
+			return errors.New("invalid distinct sensitive field path")
 		}
 	}
 	return nil
@@ -244,6 +291,12 @@ func validateCountryCodes(v any) error {
 			if err := validateConcreteString(text); err != nil {
 				return err
 			}
+		}
+		if !countryKeyPattern.MatchString(record["key"].(string)) {
+			return errors.New("country key must be two uppercase letters")
+		}
+		if !decimalStringPattern.MatchString(record["code"].(string)) {
+			return errors.New("country code must be decimal")
 		}
 		for key, field := range record {
 			switch {
@@ -315,8 +368,19 @@ func validateEventDefinitions(v any) error {
 				if !ok {
 					return fmt.Errorf("event %s field %s must be string", name, field)
 				}
-				if err := validateConcreteString(text); err != nil {
-					return err
+				switch field {
+				case "key":
+					if text != name {
+						return fmt.Errorf("event %s key does not match", name)
+					}
+				case "subsystem":
+					if len(text) > 32 || !subsystemPattern.MatchString(text) {
+						return fmt.Errorf("event %s subsystem invalid", name)
+					}
+				default:
+					if len(text) > 2048 || !isBoundedHumanText(text) {
+						return fmt.Errorf("event %s field %s invalid", name, field)
+					}
 				}
 			} else if _, ok := leaf.(bool); !ok {
 				return fmt.Errorf("event %s field %s must be boolean", name, field)
@@ -359,11 +423,15 @@ func validateRadioSpecification(v any) error {
 				if err := validateTypedArray(record["subChannels"], "number"); err != nil {
 					return err
 				}
-				if len(record) > 5 {
-					return errors.New("radio channel has unexpected fields")
+				allowed := map[string]bool{"lowerFrequency": true, "centerFrequency": true, "upperFrequency": true, "subChannels": true, "band": true}
+				for key := range record {
+					if !allowed[key] {
+						return fmt.Errorf("radio channel has unexpected field %s", key)
+					}
 				}
 				if label, exists := record["band"]; exists {
-					if _, ok := label.(string); !ok {
+					text, ok := label.(string)
+					if !ok || !radioBandPattern.MatchString(text) || rejectHighEntropy(text) != nil {
 						return errors.New("radio band label must be string")
 					}
 				}
@@ -375,6 +443,9 @@ func validateRadioSpecification(v any) error {
 
 func validateConcreteString(value string) error { return rejectHighEntropy(value) }
 func rejectHighEntropy(value string) error {
+	if lowerHexOpaquePattern.MatchString(value) {
+		return errors.New("contains high-entropy lowercase hexadecimal value")
+	}
 	for _, token := range base64Like.FindAllString(value, -1) {
 		upper, lower, encodedMarker := false, false, false
 		for _, r := range token {
@@ -382,11 +453,20 @@ func rejectHighEntropy(value string) error {
 			lower = lower || r >= 'a' && r <= 'z'
 			encodedMarker = encodedMarker || r >= '0' && r <= '9' || strings.ContainsRune("=+/", r)
 		}
-		if upper && lower && encodedMarker && shannonEntropy(token) >= 4 {
+		if upper && lower && (encodedMarker || shannonEntropy(token) >= 4) && shannonEntropy(token) >= 4 {
 			return errors.New("contains high-entropy base64-like value")
 		}
 	}
 	return nil
+}
+
+func isBoundedHumanText(value string) bool {
+	for _, r := range value {
+		if r < 0x20 && r != '\t' && r != '\n' {
+			return false
+		}
+	}
+	return true
 }
 func shannonEntropy(value string) float64 {
 	counts := map[rune]int{}
