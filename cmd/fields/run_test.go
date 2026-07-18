@@ -57,9 +57,11 @@ func TestRunLocalInstallerEndToEndIsDeterministic(t *testing.T) {
 	deps.tempRoot = t.TempDir()
 	args := []string{"-installer", installer, "-generate-spec"}
 	require.NoError(t, runWithDeps(context.Background(), args, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	assertNoExtractArtifacts(t, deps.tempRoot)
 	first, firstDigest, err := HashGeneratedFiles(root, "unifi", "specification.json")
 	require.NoError(t, err)
 	require.NoError(t, runWithDeps(context.Background(), args, &bytes.Buffer{}, &bytes.Buffer{}, deps))
+	assertNoExtractArtifacts(t, deps.tempRoot)
 	second, secondDigest, err := HashGeneratedFiles(root, "unifi", "specification.json")
 	require.NoError(t, err)
 	assert.Equal(t, firstDigest, secondDigest)
@@ -91,6 +93,7 @@ func TestRunPolicyFailureKeepsSnapshotAndPriorOutputs(t *testing.T) {
 	deps.tempRoot = t.TempDir()
 	err = runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
 	require.ErrorContains(t, err, "not approved")
+	assertNoExtractArtifacts(t, deps.tempRoot)
 	_, err = os.Stat(filepath.Join(fieldsRoot, "v10.4.57", "metadata", "source.json"))
 	require.NoError(t, err)
 	got, err := os.ReadFile(filepath.Join(root, "unifi", "version.generated.go"))
@@ -128,6 +131,13 @@ func TestRunBoundaryFailuresPreserveAllCommittedOutputs(t *testing.T) {
 			err := runWithDeps(context.Background(), []string{"-installer", installer, "-generate-spec"}, &bytes.Buffer{}, &bytes.Buffer{}, deps)
 			require.ErrorContains(t, err, injected.Error())
 			assertRunOutputsOld(t, root)
+			if boundary == "snapshot" || boundary == "scan" || boundary == "render" {
+				assertNoExtractArtifacts(t, deps.tempRoot)
+			}
+			if boundary == "scan" || boundary == "render" {
+				_, statErr := os.Stat(filepath.Join(root, "cmd", "fields", "v10.4.57", "metadata", "source.json"))
+				require.NoError(t, statErr, "published snapshot remains available after %s failure", boundary)
+			}
 		})
 	}
 }
@@ -197,6 +207,13 @@ func captureRunOutputs(t *testing.T, root string) map[string]string {
 func assertRunOutputsOld(t *testing.T, root string) {
 	t.Helper()
 	assert.Equal(t, map[string]string{"unifi/old.generated.go": "old-go", "specification.json": "old-spec", "cmd/fields/schema-source.json": "old-source"}, captureRunOutputs(t, root))
+}
+
+func assertNoExtractArtifacts(t *testing.T, tempRoot string) {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(tempRoot, "uos-extract-*"))
+	require.NoError(t, err)
+	assert.Empty(t, matches, "temporary extracted definitions must be cleaned")
 }
 
 func TestRunTerminalModesRejectSelectors(t *testing.T) {

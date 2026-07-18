@@ -16,13 +16,15 @@ func TestSyntheticInstallerFixtureIsELFPrefixedZIP(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, installer, 0o600))
 	result, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), DefaultArchiveLimits())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, result.Close()) })
 	assert.Equal(t, "10.4.57", result.NetworkVersion)
 }
 
 func TestExtractUOSInstallerExtractsRequiredArtifactsAndNotices(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "unifi-os-server")
 	require.NoError(t, os.WriteFile(path, syntheticInstaller(t, installerFixtureOptions{}), 0o600))
-	result, err := ExtractUOSInstaller(context.Background(), path, t.TempDir(), DefaultArchiveLimits())
+	tempRoot := t.TempDir()
+	result, err := ExtractUOSInstaller(context.Background(), path, tempRoot, DefaultArchiveLimits())
 	require.NoError(t, err)
 	assert.Equal(t, "10.4.57", result.NetworkVersion)
 	assert.Contains(t, result.Fields, "api/fields/Setting.json")
@@ -39,6 +41,12 @@ func TestExtractUOSInstallerExtractsRequiredArtifactsAndNotices(t *testing.T) {
 			assert.FileExists(t, artifact.Path)
 		}
 	}
+	require.NoError(t, result.Close())
+	require.NoError(t, result.Close(), "cleanup is idempotent")
+	assert.FileExists(t, path, "cleanup must not remove the caller-owned installer")
+	matches, err := filepath.Glob(filepath.Join(tempRoot, "uos-extract-*"))
+	require.NoError(t, err)
+	assert.Empty(t, matches)
 }
 
 func TestExtractUOSInstallerRejectsMissingRequiredArtifacts(t *testing.T) {
@@ -115,6 +123,7 @@ func TestExtractUOSInstallerInventoriesNoticeBasenameSuffixes(t *testing.T) {
 
 	result, err := ExtractUOSInstaller(context.Background(), installerPath, t.TempDir(), DefaultArchiveLimits())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, result.Close()) })
 	assert.Contains(t, result.Notices, "ace.jar/LICENSE-APACHE")
 	assert.Contains(t, result.Notices, "ace.jar/META-INF/notice_third-party")
 	assert.Contains(t, result.Notices, "internal-dependencies.jar/NOTICE-third-party")

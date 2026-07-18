@@ -30,7 +30,8 @@ not migrate the provider or SDK to filipowm's architecture.
   committed provenance hashes, while keeping ordinary unit tests fully offline.
 - Automate schema-update pull requests and patch releases for backward-compatible
   generated API changes.
-- Fail safely without replacing the last known-good snapshot or release.
+- Fail safely: snapshot publication is atomic, later failures retain the complete
+  new snapshot, and tracked release output remains last-known-good.
 
 ## Non-goals
 
@@ -151,10 +152,14 @@ The builder stages a complete local version directory beside the final path. It:
 6. Validates the staged tree.
 7. Atomically renames the staged directory into place.
 
-The old local snapshot remains untouched until every step succeeds. Interrupted or
-failed runs remove their temporary staging directories. Version directories remain
-covered by `cmd/fields/.gitignore` and are never included in commits, Actions
-artifacts, GitHub releases, or Go module source archives.
+The old local snapshot remains untouched until the staged snapshot itself is
+complete and atomically published. That publication is independent of later scan,
+policy, and generation steps: a complete new snapshot remains when any of those
+steps fails, and the previous version-directory snapshot has already been replaced.
+Interrupted or failed extraction removes its temporary tree; successful extraction
+is removed when the run returns after snapshot construction has consumed it. Version
+directories remain covered by `cmd/fields/.gitignore` and are never included in
+commits, Actions artifacts, GitHub releases, or Go module source archives.
 
 ### Existing generator
 
@@ -311,7 +316,9 @@ rather than risking an unmasked secret.
 Errors identify the failed boundary and source, for example firmware resolution,
 download verification, appended ZIP, OCI image, layer, `ace.jar`, nested JAR,
 required artifact validation, custom overlay, or atomic publication. Automation
-must keep the last known-good snapshot and release when any boundary fails.
+must keep the last known-good tracked release when any boundary fails. A failure
+before atomic snapshot publication leaves the prior snapshot intact; a later
+failure leaves the newly published complete snapshot as the canonical review input.
 
 ## Automated Regeneration
 
@@ -469,7 +476,9 @@ installer is committed to the repository.
 - A new sensitivity-metadata digest fails until its policy is reviewed and approved.
 - The metadata mapper covers every classified path without relying on substring
   inference.
-- Atomic publication and preservation of the prior snapshot after failure.
+- Atomic snapshot publication, including prior-snapshot restoration when the
+  publication operation itself fails and retention of the new complete snapshot
+  when a later boundary fails.
 - End-to-end generation from a tiny synthetic installer.
 - Two consecutive generations from the same pinned installer produce byte-identical
   generated output and matching digests.

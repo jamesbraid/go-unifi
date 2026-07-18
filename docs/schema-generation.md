@@ -56,13 +56,19 @@ Default hard limits are:
 - nested OCI index depth: 8;
 - OCI control JSON: 8 MiB.
 
-Downloads, extraction trees, and generated staging trees use temporary files
-and are removed on success or failure. The completed `cmd/fields/v<network>`
-snapshot is retained locally for offline verification and is gitignored. A
-failed build never replaces the last complete snapshot; a failed generation
-never publishes a partial tracked tree. If a temporary file was removed or a
-download was interrupted, rerun the same pinned selector. That redownload is
-intentional: partial downloads are never trusted or resumed as verified input.
+Downloads, extraction trees, and generated staging trees use temporary files.
+Downloaded installers and extraction trees are removed when the run returns;
+staging trees are removed on success or failure. The completed
+`cmd/fields/v<network>` snapshot is intentionally retained for offline
+verification and is gitignored. Snapshot publication is atomic and independent
+of tracked output publication: a complete new snapshot remains even if a later
+scan, policy, or generation step fails. Publishing that snapshot replaces the
+previous snapshot for the same version; it does not retain the previous one.
+Tracked generated output is replaced only after generation finishes, so a later
+failure never publishes a partial tracked tree. If a temporary file was removed
+or a download was interrupted, rerun the same pinned selector. That redownload
+is intentional: partial downloads are never trusted or resumed as verified
+input.
 
 ## Validation and review gates
 
@@ -128,7 +134,8 @@ go run ./cmd/fields -verify-regeneration
 Both modes report the first differing path. For a reviewed update, run the
 local regeneration check twice, `go test ./...`, `go vet ./...`, and
 `git diff --check`. If review fails, keep the prior tracked generated tree and
-the last complete snapshot. Re-run from the pinned version or verified local
+inspect or reuse the newly published complete snapshot. To recover the earlier
+same-version snapshot, regenerate it from its pinned version or verified local
 installer after correcting policy; do not copy a partially generated staging
 tree into place.
 

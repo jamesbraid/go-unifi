@@ -156,11 +156,16 @@ func runWithDeps(ctx context.Context, args []string, stdout, stderr io.Writer, d
 	return runLegacy(ctx, root, source, installer, *downloadOnly, *generateSpec, *outputDir, *specOutput, stdout)
 }
 
-func runUOS(ctx context.Context, root string, source InstallerSource, installer *MaterializedInstaller, downloadOnly bool, deps runDeps, stdout io.Writer) error {
+func runUOS(ctx context.Context, root string, source InstallerSource, installer *MaterializedInstaller, downloadOnly bool, deps runDeps, stdout io.Writer) (retErr error) {
 	definitions, err := deps.extractUOS(ctx, installer.Path, deps.tempRoot, DefaultArchiveLimits())
 	if err != nil {
 		return fmt.Errorf("extract UniFi OS installer: %w", err)
 	}
+	defer func() {
+		if err := definitions.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("clean extracted definitions: %w", err)
+		}
+	}()
 	fieldsRoot := filepath.Join(root, "cmd", "fields")
 	policyPath := filepath.Join(fieldsRoot, "sensitive-policy.json")
 	policyVersion := bestEffortPolicyVersion(policyPath)

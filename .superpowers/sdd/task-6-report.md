@@ -55,6 +55,44 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Extracted-definition lifecycle and snapshot semantics
+
+The successful extractor path returned file-backed artifacts beneath a
+`uos-extract-*` directory without returning ownership of that directory to the
+caller. Consequently every successful run leaked its extraction tree, including
+runs that later stopped at snapshot, scan, sensitivity-policy, or generation
+boundaries.
+
+RED run lifecycle tests asserted that no extraction tree remains after a complete
+run or after each post-extraction failure boundary. They failed with the surviving
+`uos-extract-*` paths. `ExtractedDefinitions` now owns that directory through
+idempotent `Close` and `Cleanup` methods. `runUOS` defers `Close` immediately after
+successful extraction, so all later returns clean the artifacts while leaving the
+caller-owned installer and the atomically published snapshot untouched. Direct
+extractor tests close successful results and prove both idempotency and installer
+preservation.
+
+The operator and design documentation now distinguishes the two publication
+boundaries. A same-version snapshot atomically replaces its predecessor as soon as
+snapshot construction succeeds and remains available if later scan, policy, or
+generation work fails. Tracked generated output is independently staged and keeps
+its prior state until final publication.
+
+Verification:
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(ExtractUOSInstaller|SyntheticInstaller|RunLocalInstallerEndToEndIsDeterministic|RunPolicyFailureKeepsSnapshotAndPriorOutputs|RunBoundaryFailuresPreserveAllCommittedOutputs|SchemaGenerationDocumentationSafetyBoundaries)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.763s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.524s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+```
+
 ## Policy and documentation verification
 
 No snapshot-dependent or machine-absolute test remains in the tree. The

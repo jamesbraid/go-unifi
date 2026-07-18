@@ -12,6 +12,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -46,6 +47,29 @@ type ExtractedDefinitions struct {
 	Metadata        map[string]ExtractedArtifact
 	Notices         map[string]ExtractedArtifact
 	MissingOptional []string
+	extractionRoot  string
+	cleanupOnce     sync.Once
+	cleanupErr      error
+}
+
+// Close removes the temporary files owned by the extracted definitions. It is
+// safe to call more than once. The source installer is owned by the caller and
+// is never removed here.
+func (d *ExtractedDefinitions) Close() error {
+	if d == nil {
+		return nil
+	}
+	d.cleanupOnce.Do(func() {
+		if d.extractionRoot != "" {
+			d.cleanupErr = os.RemoveAll(d.extractionRoot)
+		}
+	})
+	return d.cleanupErr
+}
+
+// Cleanup is an alias for Close.
+func (d *ExtractedDefinitions) Cleanup() error {
+	return d.Close()
 }
 
 func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, limits ArchiveLimits) (_ *ExtractedDefinitions, retErr error) {
@@ -123,7 +147,7 @@ func ExtractUOSInstaller(ctx context.Context, installerPath, tempRoot string, li
 	}
 
 	result := &ExtractedDefinitions{
-		Fields: make(map[string]ExtractedArtifact), Metadata: make(map[string]ExtractedArtifact), Notices: make(map[string]ExtractedArtifact),
+		Fields: make(map[string]ExtractedArtifact), Metadata: make(map[string]ExtractedArtifact), Notices: make(map[string]ExtractedArtifact), extractionRoot: outRoot,
 	}
 	props, ok := aceEntries[productPropsPath]
 	if !ok {

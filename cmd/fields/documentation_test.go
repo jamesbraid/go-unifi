@@ -14,7 +14,7 @@ func TestSchemaGenerationDocumentationSafetyBoundaries(t *testing.T) {
 	}{
 		{"../../README.md", []string{"independent and unofficial", "not affiliated", "not redistributed", "still\nexist in state"}},
 		{"../../LICENSES/README.md", []string{"not covered by this", "repository's MPL-2.0 license", "only to the extent", "not redistributed"}},
-		{"../../docs/schema-generation.md", []string{"8-10 GiB", "-verify-committed", "-verify-regeneration", "does not encrypt, redact, or remove", "not proof\nof a complete license inventory", "remain\ndisabled"}},
+		{"../../docs/schema-generation.md", []string{"8-10 GiB", "-verify-committed", "-verify-regeneration", "does not encrypt, redact, or remove", "not proof\nof a complete license inventory", "remain\ndisabled", "complete new snapshot remains", "replaces the\nprevious snapshot"}},
 	} {
 		body, err := os.ReadFile(tc.name)
 		require.NoError(t, err)
