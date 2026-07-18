@@ -248,6 +248,7 @@ type SensitivityPolicy struct {
 	Version string `json:"version"`
 	ApprovedMetadataSHA256 []string `json:"approved_metadata_sha256"`
 	SecretPaths []string `json:"secret_paths"`
+	NonGeneratedSecretPaths []string `json:"non_generated_secret_paths"`
 }
 
 type SensitiveMetadata struct {
@@ -267,7 +268,7 @@ func ParseSensitiveMetadata(data []byte) (SensitiveMetadata, error)
 func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadata []byte, policy SensitivityPolicy) (SensitivityCoverage, error)
 ```
 
-Add `SourceFileBase string` to `ResourceInfo` when it is created from each upstream JSON filename, before replacements or route overrides. The committed policy contains only reviewed metadata digests and exact secret paths. A new digest fails before fields mutate. Match collections case-insensitively against `SourceFileBase`, inspect raw schemas before `Setting.json` is split or custom files replace fields, and traverse generated children by `JSONName`. Record paths in skipped/non-generated collections, reject malformed or ambiguous paths, require every secret policy path to land on exactly one generated leaf, and set only that terminal `FieldInfo.Sensitive`.
+Add `SourceFileBase string` to `ResourceInfo` when it is created from each upstream JSON filename, before replacements or route overrides. The committed policy contains only reviewed metadata digests, exact generated secret paths, and exact non-generated secret paths. A new digest fails before fields mutate. Match collections case-insensitively against `SourceFileBase`, inspect raw schemas before `Setting.json` is split or custom files replace fields, and traverse generated children by `JSONName`. Record paths in skipped/non-generated collections and reject malformed or ambiguous paths. Every `secret_paths` entry must land on exactly one Terraform-emitted leaf; every `non_generated_secret_paths` entry must remain non-generated. A path moving between those states fails until reviewed. Set `FieldInfo.Sensitive` only on terminal generated-secret leaves.
 
 - [ ] **Step 3: Write failing specification tests**
 
@@ -372,7 +373,7 @@ Expected: verified OS Server 5.1.21, extracted Network 10.4.57, then an intentio
 
 - [ ] **Step 4: Review and approve sensitivity**
 
-Classify every local metadata path as secret or private, commit the canonical digest and exact secret paths, then rerun. Verify `networkconf.x_wireguard_private_key`, `radiusprofile.auth_servers.x_secret`, provider `password`, and provider `api_key` are sensitive while `networkconf.name` remains visible.
+Classify every local metadata path as generated secret, non-generated secret, or private metadata; commit the canonical digest and both exact secret lists, then rerun. Verify `networkconf.x_wireguard_private_key`, `radiusprofile.auth_servers.x_secret`, provider `password`, and provider `api_key` are sensitive while `networkconf.name` remains visible. Verify absent setting, device, and token secrets are recorded as non-generated rather than mislabeled private.
 
 - [ ] **Step 5: Prove raw artifacts are absent and output is reproducible**
 

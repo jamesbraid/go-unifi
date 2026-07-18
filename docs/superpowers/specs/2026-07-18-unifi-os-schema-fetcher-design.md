@@ -199,20 +199,23 @@ substring. Only the leaf attribute is marked sensitive, so a nested object remai
 readable while the secret value is masked.
 
 The repository commits a minimal provider-owned policy containing the approved
-secret paths and the digest of each reviewed canonical sensitivity dataset. It does
-not commit the raw Ubiquiti metadata or enumerate private metadata. During local or
-CI generation, the policy mapper:
+generated secret paths, reviewed non-generated secret paths, and the digest of each
+reviewed canonical sensitivity dataset. It does not commit the raw Ubiquiti metadata
+or enumerate private metadata. During local or CI generation, the policy mapper:
 
 1. Parses every Ubiquiti classification and checks it against the raw upstream
    schema set before settings are split, collections are skipped, or custom files
    are overlaid.
 2. Records whether each path maps to a generated field or to a classified
    non-generated collection; malformed and ambiguous paths are errors.
-3. Applies `Sensitive: true` to exact secret-policy matches, at any nesting depth,
-   and fails if a secret-policy path does not land on one generated leaf.
-4. Treats the remaining classified paths as reviewed private metadata only when the
+3. Applies `Sensitive: true` to exact generated-secret matches, at any nesting
+   depth, and fails unless each lands on one generated leaf.
+4. Requires every reviewed non-generated secret to remain non-generated. A path
+   moving between generated and non-generated states blocks generation until the
+   policy is reviewed, preventing silent loss of masking or stale classifications.
+5. Treats the remaining classified paths as reviewed private metadata only when the
    canonical metadata digest has already been approved.
-5. Fails generation when the sensitivity dataset digest is new, requiring review
+6. Fails generation when the sensitivity dataset digest is new, requiring review
    and a policy update before automated merge or release.
 
 Provider credentials that are not sourced from Ubiquiti metadata, including the
@@ -461,7 +464,8 @@ installer is committed to the repository.
   sensitive.
 - Malformed or ambiguous sensitivity paths fail; classified paths in skipped,
   split, or non-generated collections are recorded in coverage.
-- Every secret-policy path must land on exactly one generated leaf.
+- Every generated-secret path must land on exactly one generated leaf, and every
+  reviewed non-generated secret must remain non-generated.
 - A new sensitivity-metadata digest fails until its policy is reviewed and approved.
 - The metadata mapper covers every classified path without relying on substring
   inference.
