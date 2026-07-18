@@ -13,7 +13,9 @@ import (
 // overrides/fields.toml.
 type fieldOverride struct {
 	Add           bool   `toml:"add"`
+	Remove        bool   `toml:"remove"`
 	Name          string `toml:"name"`
+	JSON          string `toml:"json"`
 	Type          string `toml:"type"`
 	Validation    string `toml:"validation"`
 	OmitEmpty     *bool  `toml:"omitempty"`
@@ -78,12 +80,24 @@ func (r *ResourceInfo) applyOverrides() error {
 	for jsonName, fo := range override.Field {
 		key, exists := keysByJSON[jsonName]
 		switch {
+		case exists && fo.Remove:
+			// Envelope fields the resource's wire format doesn't carry
+			// (true-v2 objects lack _id/site_id/attr_*).
+			delete(base.Fields, key)
+			continue
 		case exists:
 			f := base.Fields[key]
 			if fo.Name != "" && fo.Name != f.FieldName {
 				delete(base.Fields, key)
 				f.FieldName = fo.Name
 				base.Fields[fo.Name] = f
+			}
+			if fo.JSON != "" && fo.JSON != f.JSONName {
+				// Retag the wire name (true-v2 objects use "id", not "_id").
+				if !jsonNameRe.MatchString(fo.JSON) {
+					return fmt.Errorf("%s field %q: unsafe json retag %q", r.StructName, jsonName, fo.JSON)
+				}
+				f.JSONName = fo.JSON
 			}
 			if fo.Type != "" {
 				f.FieldType = fo.Type
