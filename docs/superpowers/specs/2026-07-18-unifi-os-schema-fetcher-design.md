@@ -6,9 +6,10 @@ Extend the existing Go schema fetcher and Internal API generator so it can rebui
 `go-unifi` from the API definitions bundled with current UniFi OS Server releases.
 The new path reads the nested `internal-dependencies.jar` found in UniFi Network
 10.x, makes supporting metadata such as `sensitive_metadata.json` available to
-local users, and leaves the existing Internal API code-generation architecture
-intact. Vendor installers, JARs, raw schemas, and raw metadata remain untracked and
-are never redistributed by the project.
+the generator, and leaves the existing Internal API code-generation architecture
+intact. Secret-bearing attributes are marked sensitive in the generated Terraform
+specification from the first release. Vendor installers, JARs, raw schemas, and raw
+metadata remain untracked and are never redistributed by the project.
 
 This change does not adopt or generate the Official UniFi OpenAPI surface. It does
 not migrate the provider or SDK to filipowm's architecture.
@@ -23,6 +24,8 @@ not migrate the provider or SDK to filipowm's architecture.
   metadata from the newer nested archive layout.
 - Publish inputs in the flat layout the existing generator consumes, with custom
   definitions overlaid exactly as they are today.
+- Preserve every Ubiquiti sensitivity classification for coverage, while marking
+  only explicitly reviewed secret-bearing attributes as Terraform-sensitive.
 - Preserve reproducible generation from a pinned official installer and its
   committed provenance hashes, while keeping ordinary unit tests fully offline.
 - Automate schema-update pull requests and patch releases for backward-compatible
@@ -33,8 +36,8 @@ not migrate the provider or SDK to filipowm's architecture.
 
 - Generating clients from `integration.json` or any other Official API schema.
 - Migrating to `filipowm/go-unifi` or `filipowm/terraform-provider-unifi`.
-- Making `sensitive_metadata.json` drive Terraform sensitivity or runtime payload
-  redaction in this change. It is retained as a future generation input.
+- Runtime request, response, or log redaction outside the generated Terraform
+  specification.
 - Scraping the Ubiquiti Community site or the client-rendered downloads page.
 - Supporting macOS, Windows, or Linux ARM installers in the first implementation.
 - Committing or releasing verbatim Ubiquiti schemas, metadata, installers, or JARs.
@@ -163,8 +166,52 @@ it against the committed size and SHA-256.
 
 Generated output is limited to facts necessary for interoperability: API and wire
 names, primitive and container types, routes, required/optional behavior, and
-functional validation constraints. It does not copy vendor prose, examples,
-messages, metadata ordering, or unrelated internal datasets.
+functional validation constraints, including whether a Terraform attribute contains
+a secret. It does not copy vendor prose, examples, messages, metadata ordering, or
+unrelated internal datasets.
+
+### Sensitivity policy and specification generation
+
+Ubiquiti's `sensitive_metadata.json` is a privacy and sanitization classification,
+not a direct Terraform schema policy. It includes both secret-bearing values and
+ordinary private metadata. Mapping every classified value to Terraform `Sensitive`
+would hide routine values such as names and descriptions in plans and propagate
+sensitivity into expressions and outputs.
+
+The generator therefore uses two classifications:
+
+- **Secret:** passwords, passphrases, private keys, pre-shared keys, authentication
+  keys and tokens, RADIUS shared secrets, certificate private material, and PINs.
+  The corresponding generated Terraform attribute has `Sensitive: true`.
+- **Private metadata:** names, descriptions, email addresses, hostnames, usernames,
+  serial numbers, and other identifiers that should be sanitized in diagnostics or
+  fixtures but are useful in an ordinary Terraform plan. These remain visible in
+  Terraform and are not marked `Sensitive`.
+
+Classification is by exact collection and dotted JSON path, including paths such as
+`radiusprofile.auth_servers.x_secret`; it is never inferred solely from a field-name
+substring. Only the leaf attribute is marked sensitive, so a nested object remains
+readable while the secret value is masked.
+
+The repository commits a minimal provider-owned policy containing the approved
+secret paths and the digest of each reviewed canonical sensitivity dataset. It does
+not commit the raw Ubiquiti metadata or enumerate private metadata. During local or
+CI generation, the policy mapper:
+
+1. Parses every Ubiquiti classification and resolves its collection and dotted path
+   to exactly one field in the extracted schema.
+2. Rejects missing, ambiguous, or structurally incompatible paths.
+3. Applies `Sensitive: true` to exact secret-policy matches, at any nesting depth.
+4. Treats the remaining classified paths as reviewed private metadata only when the
+   canonical metadata digest has already been approved.
+5. Fails generation when the sensitivity dataset digest is new, requiring review
+   and a policy update before automated merge or release.
+
+Provider credentials that are not sourced from Ubiquiti metadata, including the
+existing provider `password` and `api_key` attributes, remain explicitly sensitive.
+Terraform sensitivity masks values in CLI and UI output but does not remove or
+encrypt them in state; the documentation continues to require protected state
+storage.
 
 ## Go Library Selection
 
@@ -218,6 +265,7 @@ stable source facts:
 - Ubiquiti's release creation and update timestamps.
 - SHA-256 hashes of extracted schemas and metadata artifacts.
 - A digest of the canonical schema set used to decide whether generation changed.
+- The canonical sensitivity-metadata digest and approved policy version.
 - Names of known optional metadata artifacts absent from the source.
 
 It contains no generation timestamp or machine-local path.
@@ -226,8 +274,9 @@ The repository separately commits `cmd/fields/schema-source.json`, a small
 provenance record containing the selected OS Server and Network versions, official
 installer URL, firmware ID, byte length, SHA-256, release timestamps, canonical
 schema digest, and generated-tree digest. It contains no raw schema content or local
-paths. This file lets scheduled automation detect a new installer without repeatedly
-downloading the current 880 MB artifact.
+paths. It also records the sensitivity-metadata digest and policy version without
+listing Ubiquiti's private-metadata paths. This file lets scheduled automation detect
+a new installer without repeatedly downloading the current 880 MB artifact.
 
 ## Extraction Contract and Failure Behavior
 
@@ -242,6 +291,9 @@ The following are required:
 
 The other known metadata artifacts are retained when present. Their absence is
 recorded in the manifest and reported as a warning but does not block generation.
+Every sensitivity path must resolve uniquely, and the sensitivity-metadata digest
+must be present in the approved policy. A new or malformed dataset blocks generation
+rather than risking an unmasked secret.
 
 Errors identify the failed boundary and source, for example firmware resolution,
 download verification, appended ZIP, OCI image, layer, `ace.jar`, nested JAR,
@@ -258,13 +310,17 @@ with an optional pinned OS Server version or explicit installer URL.
    `cmd/fields/schema-source.json`.
 3. Stop without downloading when it is unchanged.
 4. Download, verify, extract, and stage a changed installer.
-5. Compare the canonical schema digest.
-6. If only provenance changed, update the small committed manifest without
+5. Compare the canonical schema and sensitivity-metadata digests.
+6. If the sensitivity-metadata digest is not in the approved policy, stop with an
+   actionable review error before changing the committed manifest or generated
+   tree. A maintainer reviews the local metadata, updates the policy, and reruns the
+   workflow.
+7. If only provenance changed, update the small committed manifest without
    releasing or publishing extracted artifacts.
-7. If schemas changed, regenerate the Internal API code.
-8. Run formatting, full tests, lint, pinned-source regeneration, generated-tree
+8. If schemas changed, regenerate the Internal API code and Terraform specification.
+9. Run formatting, full tests, lint, pinned-source regeneration, generated-tree
    digest verification, and exported API compatibility checks.
-9. Open or update one stable schema-update pull request.
+10. Open or update one stable schema-update pull request.
 
 The workflow uses the same Go entry point as local development. There is no
 workflow-only extractor. It deletes the downloaded installer and extracted tree at
@@ -296,6 +352,9 @@ or updates the verified pull request but leaves merge and release to a maintaine
   enabled, merge automatically and publish the next patch release; otherwise wait
   for a maintainer.
 - Provenance or metadata-only change: merge without a Go module release.
+- New sensitivity-metadata digest: publish no changes until a maintainer reviews the
+  extracted metadata and updates the policy, even when the exported Go API would
+  otherwise remain compatible.
 - Removed exported symbol, changed exported type/signature, or ambiguous API change:
   leave the pull request open for manual review and an explicit version decision.
 - Extraction or verification failure: publish nothing and surface a failed workflow
@@ -316,9 +375,9 @@ boundary, not a legal conclusion.
 - Installers are downloaded only from Ubiquiti and are never mirrored.
 - Installers, JARs, raw `api/fields` JSON, and ancillary metadata remain local or
   ephemeral and are never committed, uploaded, or released.
-- `sensitive_metadata.json` is available to local extraction users. A future change
-  may consume only the minimal sensitivity facts necessary for generated behavior;
-  it will not publish the source file.
+- `sensitive_metadata.json` is consumed locally. Only the minimal reviewed secret
+  paths, approved dataset digests, and generated `Sensitive` flags necessary for
+  provider behavior are committed; the source file is not published.
 - Automated discovery runs at most daily, avoids a download when the checksum is
   unchanged, uses an identifying User-Agent with project contact information, and
   honors errors and rate limits.
@@ -382,6 +441,14 @@ installer is committed to the repository.
 - Local metadata layout, stable local manifest hashes, and the minimized committed
   provenance manifest.
 - Optional metadata omissions are recorded deterministically.
+- Top-level and nested exact-path sensitivity mappings mark only secret leaves in
+  the generated specification.
+- Private metadata remains visible, while existing provider credentials remain
+  sensitive.
+- Missing, ambiguous, and structurally incompatible sensitivity paths fail.
+- A new sensitivity-metadata digest fails until its policy is reviewed and approved.
+- The metadata mapper covers every classified path without relying on substring
+  inference.
 - Atomic publication and preservation of the prior snapshot after failure.
 - End-to-end generation from a tiny synthetic installer.
 - Two consecutive generations from the same pinned installer produce byte-identical
@@ -402,8 +469,9 @@ continuing live integration path.
 
 1. Land the source resolver, materializer, extractor, snapshot builder, and offline
    tests without changing the scheduled release policy.
-2. Run the 5.1.21 real-data pilot and commit only the reviewed generated output,
-   minimized provenance manifest, and notice; keep the 10.4.57 raw extraction local.
+2. Run the 5.1.21 real-data pilot, review the 10.4.57 sensitivity classifications,
+   and commit only the minimal secret policy, generated output, minimized provenance
+   manifest, and notice; keep the raw extraction and metadata local.
 3. Make CI failures blocking and add deterministic generation and API compatibility
    checks.
 4. Enable scheduled schema-update pull requests.
