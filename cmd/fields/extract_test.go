@@ -27,4 +27,24 @@ func TestPostProcessFieldsDir(t *testing.T) {
 	// custom files copied from cmd/fields/custom
 	assert.FileExists(t, filepath.Join(fieldsDir, "DnsRecord.json"))
 	assert.FileExists(t, filepath.Join(fieldsDir, "FirewallPolicy.json"))
+
+	// idempotent: re-running (cache-hit path) must not error or change output
+	require.NoError(t, postProcessFieldsDir(fieldsDir))
+	b2, err := os.ReadFile(filepath.Join(fieldsDir, "SettingUsg.json"))
+	require.NoError(t, err)
+	assert.Equal(t, b, b2)
+}
+
+func TestPostProcessFieldsDirNoSettingJSON(t *testing.T) {
+	fieldsDir := t.TempDir()
+
+	require.NoError(t, postProcessFieldsDir(fieldsDir))
+
+	// custom defs are still copied
+	assert.FileExists(t, filepath.Join(fieldsDir, "DnsRecord.json"))
+
+	// no Setting*.json files appear
+	matches, err := filepath.Glob(filepath.Join(fieldsDir, "Setting*.json"))
+	require.NoError(t, err)
+	assert.Empty(t, matches)
 }

@@ -137,6 +137,7 @@ func extractJSON(jarFile, fieldsDir string) error {
 // postProcessFieldsDir applies the shared post-extraction steps used by both
 // the deb and installer paths: split Setting.json into per-key Setting*.json
 // files and copy the hand-written custom/*.json definitions.
+// It must stay idempotent: main.go calls it on every run, including cache hits.
 func postProcessFieldsDir(fieldsDir string) error {
 	settingsData, err := os.ReadFile(filepath.Join(fieldsDir, "Setting.json"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
