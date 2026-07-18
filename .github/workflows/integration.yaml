@@ -45,33 +45,44 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      # Current jacobalberty/unifi images (v10.0.162 and latest, which
-      # bundles the same build) cannot install a runtime PKGURL: the
-      # entrypoint only runs /usr/local/bin/docker-build.sh "$PKGURL" if
-      # that script exists, and it does not in either tag, so PKGURL is
-      # silently ignored. Even a manual dpkg -i of a 10.4.x deb leaves
-      # unifi unconfigured (needs Java 25, absent from the image). So
-      # rather than claim a pin that never applies, just report what the
-      # schemas were built from and let the suite run the image's
-      # bundled build. UNIFI_TEST_PKGURL is still honoured by the
-      # harness (internal/testenv/controller.go) for whenever an image
-      # regains runtime install support; the smoke test added for that
-      # case (TestIntegrationControllerBoots) fails loudly if
-      # UNIFI_TEST_EXPECT_VERSION is set and not honoured, so re-enabling
-      # this is safe.
-      - name: Report controller provenance
+      # Current jacobalberty/unifi images cannot run UniFi 10.4.x (needs
+      # Java 25) and ignore a runtime PKGURL (no docker-build.sh in the
+      # image), so we build our own image instead. The starkjs fork of
+      # unifi-docker (feature/update_for_java25_24.04) rebases onto Ubuntu
+      # 24.04 with Java 25 and turns PKGURL into a build arg consumed by
+      # its docker-build.sh, so the exact artifact the schemas came from
+      # can be baked in at build time. The build context is a git URL
+      # pinned at an exact commit, matching the SHA-pinning we use for
+      # actions elsewhere in this workflow.
+      - name: Build pinned controller image
+        id: controller-image
         run: |
           artifact="$(cat schemas/ARTIFACT 2>/dev/null || true)"
           case "${artifact}" in
             https://*.deb)
-              echo "::warning title=Controller pin unavailable::schemas built from ${artifact} but current jacobalberty/unifi images cannot install it at runtime (docker-build.sh removed; 10.4.x needs Java 25). Suite runs the image default build."
+              if docker build \
+                  --build-arg PKGURL="${artifact}" \
+                  -t unifi-pinned:ci \
+                  "https://github.com/starkjs/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b"; then
+                echo "image=unifi-pinned:ci" >> "$GITHUB_OUTPUT"
+                echo "expect=$(cat schemas/VERSION)" >> "$GITHUB_OUTPUT"
+              else
+                echo "::warning title=Controller pin unavailable::docker build failed for ${artifact}; suite falls back to the harness default image."
+                echo "image=" >> "$GITHUB_OUTPUT"
+                echo "expect=" >> "$GITHUB_OUTPUT"
+              fi
               ;;
             *)
-              echo "No pinnable .deb artifact (${artifact:-none}); using image default"
+              echo "::warning title=Controller pin unavailable::no pinnable .deb artifact (${artifact:-none}); suite falls back to the harness default image."
+              echo "image=" >> "$GITHUB_OUTPUT"
+              echo "expect=" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
       - name: Run integration suite
+        env:
+          UNIFI_TEST_IMAGE: ${{ steps.controller-image.outputs.image }}
+          UNIFI_TEST_EXPECT_VERSION: ${{ steps.controller-image.outputs.expect }}
         run: >-
           go test -tags integration -p 1 -timeout 25m -v
           ./internal/testenv/ ./cmd/fields/

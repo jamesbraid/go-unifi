@@ -65,9 +65,22 @@ share a single budget. Pin the controller build with `UNIFI_TEST_IMAGE` or
 `UNIFI_TEST_PKGURL` (a UniFi Network .deb URL), or point `UNIFI_TEST_URL`
 at an existing controller — targets used this way must accept the demo
 `admin`/`admin` credentials. Current jacobalberty/unifi images ignore a
-runtime `UNIFI_TEST_PKGURL` (no `docker-build.sh` in the image), so
-pinning a build only takes effect against an image that supports it. Set
-`UNIFI_TEST_EXPECT_VERSION` to make the smoke test fail unless the booted
-controller reports exactly that version (CI would derive it from
-`schemas/VERSION` if runtime pinning ever returns); `UNIFI_TEST_PKGURL`
-alone is not verified.
+runtime `UNIFI_TEST_PKGURL` (no `docker-build.sh` in the image) and can't
+run UniFi 10.4.x (needs Java 25), so pinning a build takes a real image
+build instead. To test the exact build the schemas came from:
+
+```sh
+docker build --build-arg PKGURL="$(cat schemas/ARTIFACT)" \
+  -t unifi-pinned:local \
+  https://github.com/starkjs/unifi-docker.git#924776c994a0541c66660d256324406d29431d4b
+UNIFI_TEST_IMAGE=unifi-pinned:local \
+  UNIFI_TEST_EXPECT_VERSION="$(cat schemas/VERSION)" \
+  go test -tags integration ./internal/testenv/ ./cmd/fields/ -timeout 20m
+```
+
+The starkjs fork (`feature/update_for_java25_24.04`, pinned at that
+commit) rebases the image onto Ubuntu 24.04 with Java 25 and turns
+`PKGURL` into a build arg its `docker-build.sh` consumes at image build
+time, so this bakes in the exact artifact. `UNIFI_TEST_EXPECT_VERSION`
+makes the smoke test fail unless the booted controller reports exactly
+that version — this is how CI verifies the pin actually took.
