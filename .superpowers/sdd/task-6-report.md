@@ -55,6 +55,168 @@ GOCACHE=/tmp/go-build-task6 go vet ./...
 git diff --check
 ```
 
+## Policy and documentation verification
+
+No snapshot-dependent or machine-absolute test remains in the tree. The
+committed policy test is compact and repository-portable; it checks the pinned
+digest, sorted and disjoint 28/36 lists, required examples, and explicit
+private-visible exclusions. Documentation tests guard the redistribution,
+state-security, incomplete-notice, verification, disk-space, and automation
+boundaries. Existing provider schema tests verify both `password` and `api_key`
+remain Sensitive.
+
+```text
+GOCACHE=/tmp/go-build-task6 go test ./cmd/fields -run 'Test(SensitivityPolicy_ApprovedUniFi10457|ApplySensitivity_ClassifiesExactLeavesAndCoverage|SpecificationGenerator_Generate_Provider|SchemaGenerationDocumentationSafetyBoundaries)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.212s
+
+GOCACHE=/tmp/go-build-task6 go test ./...
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 1.503s
+ok github.com/ubiquiti-community/go-unifi/unifi (cached)
+ok github.com/ubiquiti-community/go-unifi/unifi/settings (cached)
+
+GOCACHE=/tmp/go-build-task6 go vet ./...
+git diff --check
+git ls-files | rg '(^|/)(v10\.4\.57|ace\.jar|internal-dependencies\.jar|image\.tar|sensitive_metadata\.json)'
+# no output
+```
+
+## UniFi Network 10.4.57 sensitivity classification
+
+The actual generator parse path loaded the raw schemas and canonical
+`sensitive_metadata.json` from the local 10.4.57 snapshot. Its canonical digest
+matches the reviewed value
+`7b1dfe4989af062a1bb1be0c40ffed90192cb615dffb698de090fb82db5b298c`.
+
+Before provider policy extensions, vendor metadata covers 39 generated and 43
+non-generated paths. A semantic review also inspected credential-bearing raw
+schema paths not present in that privacy metadata. The final exact policy adds
+28 generated secrets and 36 non-generated secrets. The mapper accepted every
+proposed path with no generated/non-generated deviations. Final coverage is:
+
+- 51 generated paths: 28 secret, 23 private-visible;
+- 63 non-generated paths: 36 secret, 27 private;
+- 114 canonical reviewed paths in total.
+
+Generated secrets:
+
+```text
+account.x_password
+device.lte_password
+device.lte_sim_pin
+device.mbb_overrides.sim.current_apn.password
+device.nut_server.password
+device.x_baresip_password
+dynamicdns.x_password
+hotspotop.x_password
+networkconf.wireguard_client_preshared_key
+networkconf.x_auth_key
+networkconf.x_ca_key
+networkconf.x_ipsec_pre_shared_key
+networkconf.x_openvpn_password
+networkconf.x_openvpn_shared_secret_key
+networkconf.x_pptpc_password
+networkconf.x_server_key
+networkconf.x_shared_client_key
+networkconf.x_wan_password
+networkconf.x_wireguard_private_key
+radiusprofile.acct_servers.x_secret
+radiusprofile.auth_servers.x_secret
+radiusprofile.x_client_private_key
+radiusprofile.x_client_private_key_password
+wlanconf.private_preshared_keys.password
+wlanconf.sae_psk.psk
+wlanconf.x_iapp_key
+wlanconf.x_passphrase
+wlanconf.x_wep
+```
+
+Non-generated secrets:
+
+```text
+authenticationrequest.password
+authenticationrequest.sso_token
+authenticationrequest.ubic_2fa_token
+device.x_authkey
+device.x_ble_adopt_key
+device.x_ble_auth_key
+device.x_ssh_hostkey
+device.x_vwirekey
+setting.connectivity.x_mesh_psk
+setting.element_adopt.x_element_psk
+setting.guest_access.x_authorize_transactionkey
+setting.guest_access.x_facebook_app_secret
+setting.guest_access.x_google_client_secret
+setting.guest_access.x_merchantwarrior_apikey
+setting.guest_access.x_merchantwarrior_apipassphrase
+setting.guest_access.x_password
+setting.guest_access.x_paypal_password
+setting.guest_access.x_quickpay_apikey
+setting.guest_access.x_stripe_api_key
+setting.guest_access.x_wechat_app_secret
+setting.guest_access.x_wechat_secret_key
+setting.mgmt.x_mgmt_key
+setting.mgmt.x_ssh_md5passwd
+setting.mgmt.x_ssh_password
+setting.mgmt.x_ssh_sha512passwd
+setting.radius.x_secret
+setting.snmp.x_password
+setting.super_cloudaccess.x_private_key
+setting.super_mgmt.google_maps_api_key
+setting.super_mgmt.x_ssh_password
+setting.super_sdn.auth_token
+setting.super_smtp.x_password
+setting.x_api_token
+setting.x_sso_token
+setting.x_stunnel_key
+teleport_token.secret_verifier_encoded
+```
+
+The review conservatively treats `device.x_ssh_hostkey` and the teleport secret
+verifier as authentication material. It excludes `networkconf.x_dh_key` as
+public DH parameters, and excludes public certificates/keys, names, emails,
+usernames, hostnames, IPs, serial/SIM identifiers, and
+`setting.super_cloudaccess.device_auth` pending evidence that it contains a
+credential rather than an authentication setting. Required examples resolve as
+expected: the WireGuard private key and RADIUS auth-server secret are generated
+secrets; absent device/root-setting tokens are non-generated; `networkconf.name`
+is visible. Provider `password` and `api_key` remain independently hand-coded
+Sensitive attributes.
+
+## Local license and notice inventory
+
+Read-only review used `/private/tmp/recheck/layer/usr/lib/unifi/lib/ace.jar`,
+the extracted `ace/BOOT-INF/lib/*.jar` set, and the extracted internal dependency
+tree. All 153 nested dependency JARs passed `unzip -tqq`.
+
+- direct matching entries in `ace.jar`: 0;
+- direct matching entries in `internal-dependencies.jar`: 0;
+- matching files in the extracted internal tree: 0;
+- nested dependency JARs inspected: 153;
+- nested JARs with matches: 61;
+- matching nested entries: 111 (65 LICENSE-family, 46 NOTICE-family).
+
+For each nested match, the local inventory records the JAR basename, entry name,
+and SHA-256 of the streamed entry body. The sorted inventory's aggregate SHA-256
+is `72c3399fadddb2fcb513b2ec6c4dfbd1cefee05e0fe465c1fe48be82b8fcc3d2`.
+Representative entry hashes are:
+
+```text
+angus-activation-2.0.3.jar  META-INF/LICENSE.md  87eba02f8a415f1a25de6ca3ac6b5c77eb33f33f00ae5a5f9d6ee963147f7956
+angus-activation-2.0.3.jar  META-INF/NOTICE.md   203414df1bdc467ff3d2c53e44ed7a7b9bcba90067bd2f3442b1d509a308b21e
+commons-codec-1.18.0.jar    META-INF/LICENSE.txt cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
+commons-codec-1.18.0.jar    META-INF/NOTICE.txt  b64933ee1d36d14659156223a2604edadb60bffdd465d5368ff422d7689db5fb
+spring-core-6.2.17.jar      META-INF/license.txt 955e3c35f8b685c46bf2d6e5d7eea44ce2f83aaef947a3571b9bddacca577d8a
+spring-core-6.2.17.jar      META-INF/notice.txt  05de3a2336d1f58c0ae8d43237e050043dce669f985e108378b52fda10f5bd73
+```
+
+The snapshot has no extracted notice bodies because the extractor inventories
+only direct relevant entries at its two reviewed JAR boundaries. Its
+`NoticeDigest`
+`2caaba0bb439038643b99decb6f1c5bcdd0179a1885190685e796ac0dbfaebe5`
+therefore truthfully identifies an empty direct set. It is not evidence of a
+complete nested dependency license inventory. Nested bodies remain local and
+vendor-governed and are not committed.
+
 ## Metadata-backed absent non-generated secrets
 
 Real sensitivity metadata classifies historical/device and root-setting secret

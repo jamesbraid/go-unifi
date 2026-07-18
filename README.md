@@ -8,10 +8,18 @@ Many of the naming adjustments are breaking changes, but to simplify things, tre
 
 ## Note on Code Generation
 
-The data models and basic REST methods are "generated" from JSON files in the JAR that show all fields and the associated regex/validation information.
+The data models and basic REST methods are generated from JSON field definitions
+bundled with UniFi Network. Current UniFi OS Server releases, pinned/offline
+regeneration, validation gates, sensitivity review, and recovery procedures are
+documented in [docs/schema-generation.md](docs/schema-generation.md).
 
-To regenerate the code, you can bump the Unifi Controller version number in [unifi/gen.go] and run `go generate` inside the `unifi` directory.
+This project remains focused on the Internal API used by the existing SDK and
+Terraform provider; it does not switch to the Official UniFi API.
 
-This code generation is kind of gross, I wanted to switch to using the java classes in the jar like scala2go but the jar is obfuscated and I couldn't find a way to extract that information from anywhere else. Maybe it exists somewhere in the web UI, but I was unable to find it in there in a way that was extractable in a practical way.
+`go-unifi` is independent and unofficial, and is not affiliated with or endorsed
+by Ubiquiti. Installers and extracted vendor materials are downloaded by the user,
+remain vendor-governed, and are not redistributed. See
+[LICENSES/README.md](LICENSES/README.md) for the licensing boundary.
 
-Still planning to dig through the bits some more later on.
+Terraform `Sensitive` attributes are masked in display, but their values still
+exist in state. Use protected state storage and access controls.

@@ -104,13 +104,33 @@ func TestSensitivityPolicy_LoadAndValidate(t *testing.T) {
 	require.ErrorContains(t, err, "version")
 }
 
-func TestSensitivityPolicy_BootstrapFile(t *testing.T) {
+func TestSensitivityPolicy_ApprovedUniFi10457(t *testing.T) {
 	policy, err := LoadSensitivityPolicy("sensitive-policy.json")
 	require.NoError(t, err)
 	assert.Equal(t, "1", policy.Version)
-	assert.Empty(t, policy.ApprovedMetadataSHA256)
-	assert.Empty(t, policy.SecretPaths)
-	assert.Empty(t, policy.NonGeneratedSecretPaths)
+	assert.Equal(t, []string{"7b1dfe4989af062a1bb1be0c40ffed90192cb615dffb698de090fb82db5b298c"}, policy.ApprovedMetadataSHA256)
+	assert.Len(t, policy.SecretPaths, 28)
+	assert.Len(t, policy.NonGeneratedSecretPaths, 36)
+	assert.True(t, slices.IsSorted(policy.SecretPaths))
+	assert.True(t, slices.IsSorted(policy.NonGeneratedSecretPaths))
+	generated := make(map[string]struct{}, len(policy.SecretPaths))
+	for _, path := range policy.SecretPaths {
+		_, duplicate := generated[path]
+		assert.False(t, duplicate, "duplicate generated secret %s", path)
+		generated[path] = struct{}{}
+	}
+	for _, path := range policy.NonGeneratedSecretPaths {
+		_, overlap := generated[path]
+		assert.False(t, overlap, "secret path appears in both policy lists: %s", path)
+	}
+	assert.Contains(t, policy.SecretPaths, "networkconf.x_wireguard_private_key")
+	assert.Contains(t, policy.SecretPaths, "radiusprofile.auth_servers.x_secret")
+	assert.Contains(t, policy.NonGeneratedSecretPaths, "device.x_authkey")
+	assert.Contains(t, policy.NonGeneratedSecretPaths, "setting.x_api_token")
+	assert.Contains(t, policy.NonGeneratedSecretPaths, "teleport_token.secret_verifier_encoded")
+	assert.NotContains(t, policy.SecretPaths, "networkconf.name")
+	assert.NotContains(t, policy.SecretPaths, "networkconf.x_ca_crt")
+	assert.NotContains(t, policy.SecretPaths, "networkconf.x_dh_key")
 }
 
 func TestApplySensitivity_ClassifiesExactLeavesAndCoverage(t *testing.T) {
