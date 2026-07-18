@@ -58,6 +58,34 @@ func fakeController(t *testing.T) *httptest.Server {
 			panic(err)
 		}
 	})
+	mux.HandleFunc("/api/s/default/rest/networkconf", func(w http.ResponseWriter, r *http.Request) {
+		if c, err := r.Cookie("unifises"); err != nil || c.Value != "fake-session" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.Method {
+		case http.MethodPost:
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body == nil {
+				// A non-object body (or a decode error) leaves body nil;
+				// initialize it rather than panic on assignment below.
+				body = map[string]any{}
+			}
+			body["_id"] = "new-id"
+			resp := map[string]any{"meta": map[string]any{"rc": "ok"}, "data": []any{body}}
+			_ = json.NewEncoder(w).Encode(resp)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/s/default/rest/networkconf/new-id", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.Write([]byte(`{"meta":{"rc":"ok"},"data":[]}`))
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
 	// Unknown paths: a real controller answers with a JSON error envelope,
 	// not the plain-text page Go's ServeMux defaults to — model that so
 	// GetJSON callers see a genuine 404 rather than a spurious ErrNotJSON.
@@ -253,5 +281,31 @@ func TestSessionGetJSONNotJSON(t *testing.T) {
 	}
 	if body != nil {
 		t.Fatalf("body = %#v, want nil", body)
+	}
+}
+
+func TestSessionPostAndDeleteJSON(t *testing.T) {
+	srv := fakeController(t)
+	defer srv.Close()
+	ctx := context.Background()
+
+	s := NewSession(srv.URL)
+	if err := s.Login(ctx, "admin", "admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	body, status, err := s.PostJSON(ctx, "/api/s/default/rest/networkconf", map[string]any{"name": "probe"})
+	if err != nil || status != 200 {
+		t.Fatalf("post: status=%d err=%v", status, err)
+	}
+	wrapped := body.(map[string]any)
+	created := wrapped["data"].([]any)[0].(map[string]any)
+	if created["_id"] != "new-id" || created["name"] != "probe" {
+		t.Fatalf("created = %#v", created)
+	}
+
+	_, status, err = s.DeleteJSON(ctx, "/api/s/default/rest/networkconf/new-id")
+	if err != nil || status != 200 {
+		t.Fatalf("delete: status=%d err=%v", status, err)
 	}
 }
