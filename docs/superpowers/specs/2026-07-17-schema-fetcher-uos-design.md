@@ -112,9 +112,13 @@ caught even without the prefix.
   - Caveat: `integration.yaml` is path-filtered; a required check that a
     PR's paths never trigger hangs forever on "Expected — Integration".
     The filter covers go.mod/go.sum and all workflow files, so
-    dependabot PRs are safe, but docs-only PRs are not — add a same-name
-    no-op workflow on the inverse paths if those ever need to merge
-    under the required check.
+    dependabot PRs are safe, but docs-only PRs are not on their own —
+    `integration-noop.yaml` covers them: its `paths-ignore` is the exact
+    inverse of `integration.yaml`'s `paths` filter, and its job's
+    display name is also `Integration`, so exactly one of the two
+    workflows always reports that check name on any given PR. Keep the
+    two filters in sync when editing either — a same-name job that
+    stops running on some PR shape reopens the original hang.
 
 ## Licensing posture
 

@@ -142,12 +142,9 @@ jobs:
       # required (the Test and Integration jobs); without that protection
       # rule it merges immediately, ungated. Breaking API changes skip
       # auto-merge entirely (see the Flag breaking change step below).
-      # NOTE: integration.yaml is path-filtered; a required check that a
-      # PR's paths never trigger hangs forever on "Expected —
-      # Integration". The filter covers go.mod/go.sum and all workflow
-      # files, so dependabot PRs are safe, but docs-only PRs are not —
-      # add a same-name no-op workflow on the inverse paths if those
-      # ever need to merge under the required check.
+      # NOTE: integration.yaml is path-filtered; integration-noop.yaml
+      # covers every other PR so the required Integration check always
+      # reports. Full rationale: docs/superpowers/specs/2026-07-17-schema-fetcher-uos-design.md
       - name: Create pull request
         if: steps.check.outputs.changed == 'true'
         id: pr

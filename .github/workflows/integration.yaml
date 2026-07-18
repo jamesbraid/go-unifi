@@ -6,13 +6,9 @@ name: Integration
 # probe. PRs touching schema inputs/outputs get it as a gate; the nightly
 # run catches upstream drift and image rot independent of PRs.
 #
-# go.mod/go.sum and all workflow files are in the filter so dependabot
-# PRs (gomod and github-actions bumps) still get the check once branch
-# protection requires it — a required, path-filtered check never reports
-# on non-matching PRs and they hang on "Expected". Docs-only PRs remain
-# outside the filter; if those ever need to merge under a required
-# Integration check, add a same-name no-op workflow on the inverse
-# paths.
+# Path-filtered so it stays fast, which means integration-noop.yaml must
+# cover every PR outside this filter — see the design doc for why:
+# docs/superpowers/specs/2026-07-17-schema-fetcher-uos-design.md
 on:
   pull_request:
     paths:
@@ -76,6 +72,6 @@ jobs:
 
       - name: Run integration suite
         run: >-
-          go test -tags integration -timeout 25m -v
+          go test -tags integration -p 1 -timeout 25m -v
           ./internal/testenv/ ./cmd/fields/
           -run 'TestIntegration'

@@ -56,9 +56,12 @@ generator fails with a collision error naming the offending file).
 boots a disposable simulation-mode controller (jacobalberty/unifi via
 testcontainers; `admin`/`admin`) and compares the hand-written v2 schemas
 in `overrides/resources/` against what the live API serves. The explicit
-`-timeout` matters: the two packages each boot their own container, and
-two container boots can together exceed Go's default 10-minute test
-timeout. Pin the controller build with `UNIFI_TEST_IMAGE` or
+`-timeout` matters: `go test -timeout` applies per test *binary*, and
+`internal/testenv` and `cmd/fields` are separate binaries that each boot
+their own container — worst case, up to 5 minutes waiting for the port
+plus a 4-minute login poll, around 9 minutes per package. `-timeout 20m`
+covers one worst-case boot per binary with margin; the two packages never
+share a single budget. Pin the controller build with `UNIFI_TEST_IMAGE` or
 `UNIFI_TEST_PKGURL` (a UniFi Network .deb URL), or point `UNIFI_TEST_URL`
 at an existing controller — targets used this way must accept the demo
 `admin`/`admin` credentials. Current jacobalberty/unifi images ignore a
