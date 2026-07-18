@@ -1170,6 +1170,60 @@ func TestMarshalNetworkSiteVPNIkeIdentifiers(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkUserVPNAdvanced guards the remote-user-vpn fields wired
+// in Task 4: the WireGuard client-configuration remote-IP-override enable
+// flag, the L2TP MS-CHAPv2 requirement, and the OpenVPN server protocol --
+// live-verified PERSISTED.
+func TestMarshalNetworkUserVPNAdvanced(t *testing.T) {
+	network := &Network{
+		ID:                                     "507f1f77bcf86cd799439037",
+		Purpose:                                PurposeUserVPN,
+		Enabled:                                true,
+		VPNType:                                strPtr("wireguard-server"),
+		VPNClientConfigurationRemoteIPOverride: strPtr("192.0.2.55"),
+		VPNClientConfigurationRemoteIPOverrideEnabled: true,
+		RequireMschapv2: true,
+		VPNProtocol:     strPtr("UDP"),
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["vpn_client_configuration_remote_ip_override_enabled"]; got != true {
+		t.Errorf("vpn_client_configuration_remote_ip_override_enabled = %v, want true", got)
+	}
+	if got := result["require_mschapv2"]; got != true {
+		t.Errorf("require_mschapv2 = %v, want true", got)
+	}
+	if got := result["vpn_protocol"]; got != "UDP" {
+		t.Errorf("vpn_protocol = %v, want UDP", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeUserVPN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["vpn_client_configuration_remote_ip_override_enabled"]; got != false {
+		t.Errorf("vpn_client_configuration_remote_ip_override_enabled = %v, want false", got)
+	}
+	if got := result["require_mschapv2"]; got != false {
+		t.Errorf("require_mschapv2 = %v, want false", got)
+	}
+	if _, ok := result["vpn_protocol"]; ok {
+		t.Errorf("vpn_protocol serialized for nil value: %s", data)
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s
