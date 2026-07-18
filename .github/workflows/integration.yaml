@@ -5,6 +5,14 @@ name: Integration
 # runs the integration-tagged suite: harness smoke test + v2 schema drift
 # probe. PRs touching schema inputs/outputs get it as a gate; the nightly
 # run catches upstream drift and image rot independent of PRs.
+#
+# go.mod/go.sum and all workflow files are in the filter so dependabot
+# PRs (gomod and github-actions bumps) still get the check once branch
+# protection requires it — a required, path-filtered check never reports
+# on non-matching PRs and they hang on "Expected". Docs-only PRs remain
+# outside the filter; if those ever need to merge under a required
+# Integration check, add a same-name no-op workflow on the inverse
+# paths.
 on:
   pull_request:
     paths:
@@ -13,7 +21,9 @@ on:
       - 'unifi/**'
       - 'cmd/fields/**'
       - 'internal/testenv/**'
-      - '.github/workflows/integration.yaml'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
   schedule:
     - cron: 30 1 * * *
   workflow_dispatch: {}

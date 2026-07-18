@@ -109,12 +109,12 @@ caught even without the prefix.
 - Full hands-off needs repo settings: `SCHEMA_UPDATE_TOKEN` (PAT/App,
   contents+pull-requests write), allow auto-merge, and required checks
   `Test` + `Integration` on main.
-  - Caveat: `integration.yaml` is path-filtered, so a PR that doesn't
-    touch those paths (e.g. a dependabot go.mod bump — go.mod is not in
-    the filter) never triggers it and hangs forever on "Expected —
-    Integration" once the check is required. Either add go.mod/go.sum to
-    the filter or add a same-name no-op workflow on the inverse paths
-    before requiring it.
+  - Caveat: `integration.yaml` is path-filtered; a required check that a
+    PR's paths never trigger hangs forever on "Expected — Integration".
+    The filter covers go.mod/go.sum and all workflow files, so
+    dependabot PRs are safe, but docs-only PRs are not — add a same-name
+    no-op workflow on the inverse paths if those ever need to merge
+    under the required check.
 
 ## Licensing posture
 
