@@ -68,68 +68,42 @@ func mergeRouteBasedPrereq(extra map[string]any) map[string]any {
 }
 
 // networkFieldCandidates lists every networkEncoderAllowlist entry in
-// network_encode_coverage_test.go marked "TODO: possibly a real gap" -- one
-// fieldCandidate per wire name, enumerated in the same order and grouping as
-// that file. Values follow the generated struct's type and validation
-// comment for each wire name (see network.generated.go); Prereq carries the
-// sibling fields (mode selectors, enable flags) the controller needs before
-// it will accept the candidate value at all.
+// network_encode_coverage_test.go that is still a TODO after Task 4's wiring
+// pass -- one fieldCandidate per wire name that came back STRIPPED or
+// REJECTED from the live probe (see network_encode_coverage_test.go for the
+// measured outcome of each). Values follow the generated struct's type and
+// validation comment for each wire name (see network.generated.go); Prereq
+// carries the sibling fields (mode selectors, enable flags) the controller
+// needs before it will accept the candidate value at all.
 //
-// The vpn_client_configuration_remote_ip_override_enabled, vpn_protocol,
-// require_mschapv2, wan_pppoe_username_enabled, wan_pppoe_password_enabled,
-// and all seven ipsec_*/remote_vpn_dynamic_subnets_enabled candidates were
-// initially rejected by the live controller (api.err.MissingLocalPort,
-// api.err.L2tpPskRequired, api.err.InvalidWanPppoeCredentials, api.err.Invalid
-// respectively) because their Prereq payloads were missing sibling fields the
-// controller requires before it will accept the base config at all -- not
-// because the candidate field itself was rejected. Prereqs below were
-// enriched with those siblings (a local_port, an L2TP PSK, both PPPoE
-// credentials, a real radiusprofile_id, or a fuller site-vpn base config) and
-// the probe re-run; see field-probe.log for the resulting classification.
+// This table originally held 39 entries (one per allowlisted wire name at
+// the start of Task 4). 35 came back PERSISTED -- some only after their
+// Prereq was enriched with a sibling the controller required first (a
+// local_port, an L2TP PSK, both PPPoE credentials, a real radiusprofile_id,
+// or a fuller site-vpn base config; see the corresponding git history for
+// the before/after) -- and were wired into network_encode.go and removed
+// from both this table and networkEncoderPresenceAllowlistTODOs. The 4
+// remaining below stayed STRIPPED/REJECTED after that same enrichment
+// treatment.
 var networkFieldCandidates = []fieldCandidate{
-	// vpn_client_configuration_remote_ip_override is already emitted for
-	// remote-user-vpn (grouped under WireGuard Server Configuration in
-	// marshalUserVPN); its enable flag is not. The controller rejects a
-	// wireguard-server network with api.err.MissingLocalPort and
-	// api.err.WireguardMissingPrivateKey unless local_port and
-	// x_wireguard_private_key are present.
-	{Wire: "vpn_client_configuration_remote_ip_override_enabled", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{"vpn_type": "wireguard-server", "vpn_client_configuration_remote_ip_override": "192.0.2.55", "local_port": 51820, "x_wireguard_private_key": "wGwQ7hjIRMxERjBS+iaGXfDcnTAtoQAaHXqIisVWWXg="}},
-
-	// igmp_proxy_downstream_networkconf_ids: shape of a referenced
-	// networkconf id; a real id must be substituted to test acceptance live.
-	// The rest of this group (fast leave, querier, flood control,
-	// suppression) is wired -- see marshalCorporate.
+	// igmp_proxy_downstream_networkconf_ids: shape of a referenced networkconf
+	// id; a real id must be substituted to test acceptance live.
 	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil},
 
-	// Advanced site-vpn IPsec route-based (dynamic routing) options: tunnel
-	// IP requires vpn_type "ipsec-vpn" and a real ipsec_local_ip to be
-	// meaningful.
+	// Route-based (dynamic routing) site-vpn tunnel IP. Requires vpn_type
+	// "ipsec-vpn" and ipsec_dynamic_routing true to be meaningful.
 	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: "192.0.2.4/30", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true})},
 	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip": "192.0.2.4/30"})},
 
 	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle;
-	// pairs naturally with the ipsec_dynamic_routing flag the encoder
-	// already sends. Requires a tunnel IP (api.err.IpsecDynamicSubnetsRequireTunnelIp).
+	// pairs naturally with the ipsec_dynamic_routing flag the encoder already
+	// sends. Requires a tunnel IP (api.err.IpsecDynamicSubnetsRequireTunnelIp).
 	{
 		Wire:    "remote_vpn_dynamic_subnets_enabled",
 		Purpose: PurposeSiteVPN,
 		Value:   true,
 		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true, "ipsec_tunnel_ip": "192.0.2.4/30"}),
 	},
-
-	// L2TP remote-user-vpn RADIUS option; the other l2tp_* fields are
-	// already emitted. The controller rejects an l2tp-server network with
-	// api.err.L2tpPskRequired unless the PSK is present, then with
-	// api.err.RadiusProfileRequired unless radiusprofile_id references a
-	// real profile ("@radiusprofile" resolves live to the site's default).
-	{Wire: "require_mschapv2", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{"vpn_type": "l2tp-server", "l2tp_interface": "wan", "x_ipsec_pre_shared_key": "l2tp-s3cret-psk", "radiusprofile_id": "@radiusprofile"}},
-
-	// OpenVPN server protocol for remote-user-vpn; openvpn_mode is already
-	// emitted. The controller rejects an openvpn-server network with
-	// api.err.MissingLocalPort unless a server local_port is present, then
-	// with api.err.RadiusProfileRequired unless radiusprofile_id references
-	// a real profile.
-	{Wire: "vpn_protocol", Purpose: PurposeUserVPN, Value: "UDP", Prereq: map[string]any{"vpn_type": "openvpn-server", "openvpn_mode": "server", "local_port": 1194, "radiusprofile_id": "@radiusprofile"}},
 }
 
 // TestFieldCandidatesCoverAllTODOs keeps networkFieldCandidates and

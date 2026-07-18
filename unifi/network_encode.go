@@ -314,6 +314,21 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 }
 
 // marshalGuest marshals a Guest network.
+//
+// Guest shares the networkconf collection with Corporate, and the phase 2
+// field probe (see docs/superpowers/handoffs/2026-07-18-controller-testing-
+// handoff.md) only exercised purpose=corporate. The following field groups
+// were live-verified and wired into marshalCorporate/marshalWAN/
+// marshalSiteVPN/marshalUserVPN but were deliberately NOT mirrored here:
+// dhcpd_time_offset (paired with dhcpd_time_offset_enabled, which this
+// struct already emits), mac_override_enabled (paired with mac_override,
+// which this struct already emits), firewall_zone_id, upnp_lan_enabled, the
+// advanced IGMP fields (igmp_fastleave, igmp_flood_unknown_multicast,
+// igmp_groupmembership, igmp_maxresponse, igmp_mcrtrexpiretime,
+// igmp_querier_switches, igmp_supression), and the ipv6 single-network pair
+// (ipv6_single_network_interface, single_network_lan). Do not port these
+// without a guest-purpose probe pass to confirm they persist the same way
+// on this purpose.
 func (n *Network) marshalGuest() ([]byte, error) {
 	var defaultStart, defaultEnd string
 	if n.IPSubnet != nil {
@@ -916,24 +931,27 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		RADIUSProfileID *string `json:"radiusprofile_id,omitempty"`
 
 		// WireGuard Server Configuration
-		WireguardInterface                     *string `json:"wireguard_interface,omitempty"`
-		WireguardPrivateKey                    *string `json:"x_wireguard_private_key,omitempty"`
-		WireguardLocalWANIP                    *string `json:"wireguard_local_wan_ip,omitempty"`
-		LocalPort                              *int64  `json:"local_port,omitempty"`
-		WireguardInterfaceBindingModeIPVersion *string `json:"wireguard_interface_binding_mode_ip_version,omitempty"`
-		VPNClientConfigurationRemoteIPOverride *string `json:"vpn_client_configuration_remote_ip_override,omitempty"`
+		WireguardInterface                            *string `json:"wireguard_interface,omitempty"`
+		WireguardPrivateKey                           *string `json:"x_wireguard_private_key,omitempty"`
+		WireguardLocalWANIP                           *string `json:"wireguard_local_wan_ip,omitempty"`
+		LocalPort                                     *int64  `json:"local_port,omitempty"`
+		WireguardInterfaceBindingModeIPVersion        *string `json:"wireguard_interface_binding_mode_ip_version,omitempty"`
+		VPNClientConfigurationRemoteIPOverride        *string `json:"vpn_client_configuration_remote_ip_override,omitempty"`
+		VPNClientConfigurationRemoteIPOverrideEnabled bool    `json:"vpn_client_configuration_remote_ip_override_enabled"`
 
 		// L2TP Server Configuration
 		L2TpInterface        *string `json:"l2tp_interface,omitempty"`
 		L2TpLocalWANIP       *string `json:"l2tp_local_wan_ip,omitempty"`
 		L2TpAllowWeakCiphers bool    `json:"l2tp_allow_weak_ciphers"`
 		IPSecPreSharedKey    *string `json:"x_ipsec_pre_shared_key,omitempty"`
+		RequireMschapv2      bool    `json:"require_mschapv2"`
 
 		// OpenVPN Server Configuration
 		OpenVPNInterface        *string `json:"openvpn_interface,omitempty"`
 		OpenVPNLocalWANIP       *string `json:"openvpn_local_wan_ip,omitempty"`
 		OpenVPNMode             *string `json:"openvpn_mode,omitempty"`
 		OpenVPNEncryptionCipher *string `json:"openvpn_encryption_cipher,omitempty"`
+		VPNProtocol             *string `json:"vpn_protocol,omitempty"`
 
 		// OpenVPN Certificates and Keys
 		ServerCrt       *string `json:"x_server_crt,omitempty"`
@@ -982,24 +1000,27 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		RADIUSProfileID: n.RADIUSProfileID,
 
 		// WireGuard Server Configuration
-		WireguardInterface:                     n.WireguardInterface,
-		WireguardPrivateKey:                    n.WireguardPrivateKey,
-		WireguardLocalWANIP:                    n.WireguardLocalWANIP,
-		LocalPort:                              n.LocalPort,
-		WireguardInterfaceBindingModeIPVersion: n.WireguardInterfaceBindingModeIPVersion,
-		VPNClientConfigurationRemoteIPOverride: n.VPNClientConfigurationRemoteIPOverride,
+		WireguardInterface:                            n.WireguardInterface,
+		WireguardPrivateKey:                           n.WireguardPrivateKey,
+		WireguardLocalWANIP:                           n.WireguardLocalWANIP,
+		LocalPort:                                     n.LocalPort,
+		WireguardInterfaceBindingModeIPVersion:        n.WireguardInterfaceBindingModeIPVersion,
+		VPNClientConfigurationRemoteIPOverride:        n.VPNClientConfigurationRemoteIPOverride,
+		VPNClientConfigurationRemoteIPOverrideEnabled: n.VPNClientConfigurationRemoteIPOverrideEnabled,
 
 		// L2TP Server Configuration
 		L2TpInterface:        n.L2TpInterface,
 		L2TpLocalWANIP:       n.L2TpLocalWANIP,
 		L2TpAllowWeakCiphers: n.L2TpAllowWeakCiphers,
 		IPSecPreSharedKey:    n.IPSecPreSharedKey,
+		RequireMschapv2:      n.RequireMschapv2,
 
 		// OpenVPN Server Configuration
 		OpenVPNInterface:        n.OpenVPNInterface,
 		OpenVPNLocalWANIP:       n.OpenVPNLocalWANIP,
 		OpenVPNMode:             n.OpenVPNMode,
 		OpenVPNEncryptionCipher: n.OpenVPNEncryptionCipher,
+		VPNProtocol:             n.VPNProtocol,
 
 		// OpenVPN Certificates and Keys
 		ServerCrt:       n.ServerCrt,
