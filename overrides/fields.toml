@@ -14,6 +14,12 @@
 # always win. Anything conditional on the schema-derived type, pattern-based
 # renames, or nested fields stays in the FieldProcessor cases in main.go —
 # see the "Override layers" section of schemas/README.md.
+#
+# When maintaining the v2 definitions in resources/, Ubiquiti's official
+# Integration API spec (https://developer.ui.com/network/<ver>/openapi.json)
+# is a useful *semantic* reference for the firewall zone/policy domains — but
+# it describes a different API (/proxy/network/integration, camelCase wire
+# names), so shapes cannot be copied from it verbatim.
 
 [DNSRecord]
 path = "static-dns"
