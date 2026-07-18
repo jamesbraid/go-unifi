@@ -166,7 +166,7 @@ func (g *SpecificationGenerator) generateDataSourceAttributes(r *ResourceInfo) [
 
 	for _, fieldName := range fieldNames {
 		field := baseType.Fields[fieldName]
-		if field == nil || strings.HasPrefix(fieldName, " ") || strings.HasSuffix(fieldName, "_Spacer") {
+		if !isTerraformTopLevelField(fieldName, field) {
 			continue
 		}
 
@@ -358,7 +358,7 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 
 	for _, fieldName := range fieldNames {
 		field := baseType.Fields[fieldName]
-		if field == nil || strings.HasPrefix(fieldName, " ") || strings.HasSuffix(fieldName, "_Spacer") {
+		if !isTerraformTopLevelField(fieldName, field) {
 			continue
 		}
 
@@ -486,6 +486,10 @@ func sensitivePtr(field *FieldInfo) *bool {
 		return nil
 	}
 	return ptr(true)
+}
+
+func isTerraformTopLevelField(mapName string, field *FieldInfo) bool {
+	return field != nil && !strings.HasPrefix(mapName, " ") && !strings.HasSuffix(mapName, "_Spacer")
 }
 
 // generateNestedResourceAttributes generates nested attributes for resources.

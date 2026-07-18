@@ -103,3 +103,50 @@ Task 4 deliberately does not wire parse/apply/write orchestration; Task 5 owns t
 boundary. The bootstrap policy intentionally approves no real metadata digest and
 contains no real secret paths; Task 6 must review the local 10.4.57 metadata and
 populate both policy path lists.
+
+## Follow-up review fixes
+
+Two Important review findings were fixed after the initial Task 4 commit.
+
+### RED evidence
+
+The generated resolver incorrectly applied the top-level ordering-key skip rule to
+nested children, although both resource and data-source generators emit every
+non-nil nested child. The case-path tests also proved that lowercasing the complete
+dotted path collapsed two distinct raw JSON leaves, and collection-case aliases
+were silently deduplicated:
+
+```text
+$ GOCACHE=/tmp/go-build-task4 go test ./cmd/fields -run 'TestApplySensitivity_(MatchesTopLevelAndNestedEmissionRules|PreservesCaseSensitiveFieldSegments|RejectsCanonicalCollectionCollision)' -count=1
+--- FAIL: TestApplySensitivity_MatchesTopLevelAndNestedEmissionRules
+    policy secret "networkconf.container.space_secret" does not resolve to exactly one generated leaf
+--- FAIL: TestApplySensitivity_PreservesCaseSensitiveFieldSegments
+    expected: []string{"networkconf.Token", "networkconf.token"}
+    actual:   []string{"networkconf.token"}
+--- FAIL: TestApplySensitivity_RejectsCanonicalCollectionCollision
+    Error: An error is expected but got nil.
+FAIL github.com/ubiquiti-community/go-unifi/cmd/fields
+```
+
+### GREEN evidence
+
+The schema generators and sensitivity resolver now share one top-level emitted
+field predicate; nested traversal emits every non-nil child exactly as the schema
+generators do. Canonical coverage lowercases only collection identity, preserves
+field-segment case, and rejects distinct inputs that collide after collection
+normalization.
+
+```text
+$ GOCACHE=/tmp/go-build-task4 go test ./cmd/fields -run 'TestApplySensitivity_(MatchesTopLevelAndNestedEmissionRules|PreservesCaseSensitiveFieldSegments|RejectsCanonicalCollectionCollision)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.206s
+
+$ GOCACHE=/tmp/go-build-task4 go test ./cmd/fields -run 'Test(ParseSensitivity|ApplySensitivity|SensitivityPolicy|SpecificationGenerator_.*Sensitive|Specification_JSONStructure)' -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.204s
+
+$ GOCACHE=/tmp/go-build-task4 go test ./... -count=1
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.961s
+ok github.com/ubiquiti-community/go-unifi/unifi 1.758s
+ok github.com/ubiquiti-community/go-unifi/unifi/settings 0.169s
+```
+
+`go vet ./...` and `git diff --check` also passed after the fixes.

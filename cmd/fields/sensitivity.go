@@ -182,6 +182,7 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 
 	generated := make(map[string]struct{})
 	nonGenerated := make(map[string]struct{})
+	canonicalPaths := make(canonicalPathRegistry)
 	classified := make([]string, 0)
 	collections := make([]string, 0, len(metadata.DBFields))
 	for collection := range metadata.DBFields {
@@ -202,10 +203,15 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 		classified = append(classified, collection+"."+metadata.DistinctDBFields[collection])
 	}
 	for _, property := range metadata.SystemProperties {
-		if _, err := splitPathSegments(property); err != nil {
+		segments, err := splitPathSegments(property)
+		if err != nil {
 			return SensitivityCoverage{}, fmt.Errorf("invalid sensitive system property %q: %w", property, err)
 		}
-		nonGenerated["systemproperty."+strings.ToLower(property)] = struct{}{}
+		canonical := canonicalSensitivityPath("systemproperty", segments)
+		if err := canonicalPaths.add(canonical, "systemproperty."+property); err != nil {
+			return SensitivityCoverage{}, err
+		}
+		nonGenerated[canonical] = struct{}{}
 	}
 
 	for _, path := range classified {
@@ -214,10 +220,20 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 			return SensitivityCoverage{}, err
 		}
 		if len(resolved) == 0 {
+			if err := canonicalPaths.add(missing, path); err != nil {
+				return SensitivityCoverage{}, err
+			}
 			nonGenerated[missing] = struct{}{}
 			continue
 		}
 		for _, rawPath := range resolved {
+			origin, err := canonicalOrigin(path, rawPath.segments)
+			if err != nil {
+				return SensitivityCoverage{}, err
+			}
+			if err := canonicalPaths.add(rawPath.canonical, origin); err != nil {
+				return SensitivityCoverage{}, err
+			}
 			field, found, err := resolver.resolveGenerated(rawPath)
 			if err != nil {
 				return SensitivityCoverage{}, err
@@ -240,6 +256,13 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 		}
 		if len(resolved) != 1 {
 			return SensitivityCoverage{}, fmt.Errorf("policy secret %q resolves to %d raw fields", secretPath, len(resolved))
+		}
+		origin, err := canonicalOrigin(secretPath, resolved[0].segments)
+		if err != nil {
+			return SensitivityCoverage{}, err
+		}
+		if err := canonicalPaths.add(resolved[0].canonical, origin); err != nil {
+			return SensitivityCoverage{}, err
 		}
 		field, found, err := resolver.resolveGenerated(resolved[0])
 		if err != nil {
@@ -266,6 +289,9 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 			if resolver.hasRawCollection(collection) {
 				return SensitivityCoverage{}, fmt.Errorf("non-generated policy secret %q no longer resolves in its raw collection", secretPath)
 			}
+			if err := canonicalPaths.add(missing, secretPath); err != nil {
+				return SensitivityCoverage{}, err
+			}
 			field, found, err := resolver.resolveGenerated(resolvedRawPath{
 				collection: collection,
 				segments:   segments,
@@ -283,6 +309,13 @@ func ApplySensitivity(resources []*ResourceInfo, raw RawSchemaIndex, metadataBod
 		}
 		if len(resolved) != 1 {
 			return SensitivityCoverage{}, fmt.Errorf("non-generated policy secret %q resolves to %d raw fields", secretPath, len(resolved))
+		}
+		origin, err := canonicalOrigin(secretPath, resolved[0].segments)
+		if err != nil {
+			return SensitivityCoverage{}, err
+		}
+		if err := canonicalPaths.add(resolved[0].canonical, origin); err != nil {
+			return SensitivityCoverage{}, err
 		}
 		field, found, err := resolver.resolveGenerated(resolved[0])
 		if err != nil {
@@ -477,9 +510,7 @@ func (r *sensitivityResolver) resolveGenerated(rawPath resolvedRawPath) (*FieldI
 			if field == nil {
 				continue
 			}
-			// The code generator uses space-prefixed entries as ordering-only
-			// compatibility fields and does not emit them into Terraform schemas.
-			if strings.HasPrefix(mapName, " ") || strings.HasSuffix(mapName, "_Spacer") {
+			if index == 0 && !isTerraformTopLevelField(mapName, field) {
 				continue
 			}
 			if _, duplicate := byJSON[field.JSONName]; duplicate {
@@ -542,7 +573,25 @@ func splitPathSegments(path string) ([]string, error) {
 }
 
 func canonicalSensitivityPath(collection string, segments []string) string {
-	return strings.ToLower(collection + "." + strings.Join(segments, "."))
+	return strings.ToLower(collection) + "." + strings.Join(segments, ".")
+}
+
+type canonicalPathRegistry map[string]string
+
+func (r canonicalPathRegistry) add(canonical, origin string) error {
+	if previous, ok := r[canonical]; ok && previous != origin {
+		return fmt.Errorf("canonical sensitivity path collision %q from %q and %q", canonical, previous, origin)
+	}
+	r[canonical] = origin
+	return nil
+}
+
+func canonicalOrigin(input string, resolvedSegments []string) (string, error) {
+	collection, _, err := splitSensitivityPath(input)
+	if err != nil {
+		return "", err
+	}
+	return collection + "." + strings.Join(resolvedSegments, "."), nil
 }
 
 func hasPathPrefix(path, prefix []string) bool {

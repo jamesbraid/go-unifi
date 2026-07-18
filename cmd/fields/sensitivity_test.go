@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-codegen-spec/datasource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -300,6 +302,83 @@ func TestApplySensitivity_DeduplicatesAliasesAndClearsStaleFlags(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, base.Fields["Secret"].Sensitive)
 	assert.False(t, old.Sensitive)
+}
+
+func TestApplySensitivity_MatchesTopLevelAndNestedEmissionRules(t *testing.T) {
+	rawBody := `{"top_secret":".*","container":{"space_secret":".*","spacer_secret":".*"}}`
+	r := NewResource("Network", "network")
+	r.SourceFileBase = "NetworkConf"
+	base := r.Types[r.StructName]
+	base.Fields[" TopSecret"] = NewFieldInfo("TopSecret", "top_secret", "string", "", false, false, false, "")
+	container := NewFieldInfo("Container", "container", "NetworkContainer", "", true, false, false, "")
+	spaceSecret := NewFieldInfo("SpaceSecret", "space_secret", "string", "", false, false, false, "")
+	spacerSecret := NewFieldInfo("SpacerSecret", "spacer_secret", "string", "", false, false, false, "")
+	container.Fields = map[string]*FieldInfo{
+		" SpaceSecret":        spaceSecret,
+		"OrderingOnly_Spacer": spacerSecret,
+	}
+	base.Fields["Container"] = container
+	r.Types[container.FieldType] = container
+	metadata := sensitivityMetadata(t, map[string][]string{"networkconf": {
+		"top_secret", "container.space_secret", "container.spacer_secret",
+	}}, nil, nil)
+	policy := approvedPolicy(t, metadata, "networkconf.container.space_secret", "networkconf.container.spacer_secret")
+	policy.NonGeneratedSecretPaths = []string{"networkconf.top_secret"}
+
+	coverage, err := ApplySensitivity([]*ResourceInfo{r}, rawSchemas(map[string]string{"NetworkConf": rawBody}), metadata, policy)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"networkconf.container.space_secret", "networkconf.container.spacer_secret"}, coverage.SecretGenerated)
+	assert.Equal(t, []string{"networkconf.top_secret"}, coverage.SecretNonGenerated)
+	assert.True(t, spaceSecret.Sensitive)
+	assert.True(t, spacerSecret.Sensitive)
+
+	generated := NewSpecificationGenerator("unifi")
+	generated.AddResource(r)
+	specification := generated.Generate()
+	resourceAttrs := specification.Resources[0].Schema.Attributes
+	assert.Equal(t, -1, slices.IndexFunc(resourceAttrs, findAttr("top_secret")))
+	containerResource := resourceAttrs[slices.IndexFunc(resourceAttrs, findAttr("container"))]
+	require.NotNil(t, containerResource.SingleNested)
+	assert.Len(t, containerResource.SingleNested.Attributes, 2)
+	datasourceAttrs := specification.DataSources[0].Schema.Attributes
+	assert.Equal(t, -1, slices.IndexFunc(datasourceAttrs, func(attr datasource.Attribute) bool { return attr.Name == "top_secret" }))
+	containerDatasource := datasourceAttrs[slices.IndexFunc(datasourceAttrs, func(attr datasource.Attribute) bool { return attr.Name == "container" })]
+	require.NotNil(t, containerDatasource.SingleNested)
+	assert.Len(t, containerDatasource.SingleNested.Attributes, 2)
+}
+
+func TestApplySensitivity_PreservesCaseSensitiveFieldSegments(t *testing.T) {
+	rawBody := `{"token":".*","Token":".*"}`
+	r := NewResource("Network", "network")
+	r.SourceFileBase = "NetworkConf"
+	lower := NewFieldInfo("LowerToken", "token", "string", "", false, false, false, "")
+	upper := NewFieldInfo("UpperToken", "Token", "string", "", false, false, false, "")
+	r.Types[r.StructName].Fields["LowerToken"] = lower
+	r.Types[r.StructName].Fields["UpperToken"] = upper
+	metadata := sensitivityMetadata(t, map[string][]string{"networkconf": {"token", "Token"}}, nil, nil)
+
+	coverage, err := ApplySensitivity([]*ResourceInfo{r}, rawSchemas(map[string]string{"NetworkConf": rawBody}), metadata,
+		approvedPolicy(t, metadata, "networkconf.Token"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"networkconf.Token", "networkconf.token"}, coverage.Generated)
+	assert.Equal(t, []string{"networkconf.Token"}, coverage.SecretGenerated)
+	assert.Equal(t, []string{"networkconf.token"}, coverage.PrivateGenerated)
+	assert.True(t, upper.Sensitive)
+	assert.False(t, lower.Sensitive)
+}
+
+func TestApplySensitivity_RejectsCanonicalCollectionCollision(t *testing.T) {
+	rawBody := `{"token":".*"}`
+	r := NewResource("Network", "network")
+	r.SourceFileBase = "NetworkConf"
+	r.Types[r.StructName].Fields["Token"] = NewFieldInfo("Token", "token", "string", "", false, false, false, "")
+	metadata := sensitivityMetadata(t, map[string][]string{
+		"NetworkConf": {"token"},
+		"networkconf": {"token"},
+	}, nil, nil)
+
+	_, err := ApplySensitivity([]*ResourceInfo{r}, rawSchemas(map[string]string{"NetworkConf": rawBody}), metadata, approvedPolicy(t, metadata))
+	require.ErrorContains(t, err, "canonical sensitivity path collision")
 }
 
 func TestResourceSourceIdentity_SettingUsesUnsplitRawKey(t *testing.T) {
