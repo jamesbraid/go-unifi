@@ -190,11 +190,21 @@ func materializeSnapshot(ctx context.Context, stage string, options SnapshotOpti
 
 	metadataBodies := make(map[string][]byte, len(definitions.Metadata))
 	metadataNames := sortedArtifactNames(definitions.Metadata)
-	metadataBasenames := make(map[string]string)
+	metadataDestinations := make(map[string]snapshotDestination, len(metadataNames)+3)
+	for _, reserved := range []string{"metadata/source.json", "metadata/raw-fields", "metadata/notices"} {
+		if err := addSnapshotDestination(metadataDestinations, reserved, "generated "+reserved); err != nil {
+			return nil, err
+		}
+	}
 	for _, name := range metadataNames {
 		if err := validateDigestPath(name); err != nil {
 			return nil, fmt.Errorf("invalid metadata path: %w", err)
 		}
+		if err := addSnapshotDestination(metadataDestinations, path.Join("metadata", path.Base(name)), name); err != nil {
+			return nil, err
+		}
+	}
+	for _, name := range metadataNames {
 		artifact := definitions.Metadata[name]
 		body, err := readArtifact(artifact)
 		if err != nil {
@@ -204,11 +214,6 @@ func materializeSnapshot(ctx context.Context, stage string, options SnapshotOpti
 		if basename == "." || basename == "" {
 			return nil, fmt.Errorf("invalid metadata name %q", name)
 		}
-		folded := strings.ToLower(basename)
-		if previous, exists := metadataBasenames[folded]; exists {
-			return nil, fmt.Errorf("metadata basename collision between %s and %s", previous, name)
-		}
-		metadataBasenames[folded] = name
 		metadataBodies[basename] = body
 		if err := addArtifactHash(artifacts, name, artifact.SHA256); err != nil {
 			return nil, err
@@ -226,11 +231,18 @@ func materializeSnapshot(ctx context.Context, stage string, options SnapshotOpti
 		return nil, fmt.Errorf("canonicalize sensitive_metadata.json: %w", err)
 	}
 
-	noticeBodies := make(map[string][]byte, len(definitions.Notices))
-	for _, name := range sortedArtifactNames(definitions.Notices) {
+	noticeNames := sortedArtifactNames(definitions.Notices)
+	noticeDestinations := make(map[string]snapshotDestination, len(noticeNames))
+	for _, name := range noticeNames {
 		if err := validateNoticeName(name); err != nil {
 			return nil, err
 		}
+		if err := addSnapshotDestination(noticeDestinations, path.Join("metadata/notices", name), name); err != nil {
+			return nil, err
+		}
+	}
+	noticeBodies := make(map[string][]byte, len(definitions.Notices))
+	for _, name := range noticeNames {
 		artifact := definitions.Notices[name]
 		body, err := readArtifact(artifact)
 		if err != nil {
@@ -297,6 +309,20 @@ func validateNoticeName(name string) error {
 	if len(parts) < 2 || parts[0] == "" {
 		return fmt.Errorf("notice path %q is missing its source namespace", name)
 	}
+	return nil
+}
+
+type snapshotDestination struct {
+	path, source string
+}
+
+func addSnapshotDestination(destinations map[string]snapshotDestination, destination, source string) error {
+	normalized := path.Clean(destination)
+	key := strings.ToLower(normalized)
+	if previous, exists := destinations[key]; exists {
+		return fmt.Errorf("snapshot destination collision between %q (%s) and %q (%s)", previous.source, previous.path, source, normalized)
+	}
+	destinations[key] = snapshotDestination{path: normalized, source: source}
 	return nil
 }
 

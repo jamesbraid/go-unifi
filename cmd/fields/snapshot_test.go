@@ -146,6 +146,50 @@ func TestBuildSnapshotRejectsUnsafeMetadataNames(t *testing.T) {
 	}
 }
 
+func TestBuildSnapshotRejectsCaseFoldedNoticeDestinations(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	defs := snapshotDefinitions(t, root, []byte(`{"a":{}}`), []byte(`{}`), []byte(`{}`))
+	secondName := "ace.jar/meta-inf/notice.TXT"
+	secondBody := []byte("other notice")
+	secondPath := filepath.Join(root, "artifacts", "notices", "case-only-notice")
+	mustWriteTestFile(t, secondPath, secondBody)
+	defs.Notices[secondName] = ExtractedArtifact{
+		Name: secondName, Path: secondPath, Size: int64(len(secondBody)), SHA256: rawSHA(secondBody),
+	}
+
+	_, err := BuildSnapshot(context.Background(), SnapshotOptions{
+		Root: root, CustomDir: emptyCustom(t, root), Installer: &MaterializedInstaller{}, Definitions: defs,
+	})
+	if err == nil {
+		t.Fatal("expected case-folded notice destination collision")
+	}
+	for _, name := range []string{"ace.jar/META-INF/NOTICE.txt", secondName} {
+		if !strings.Contains(err.Error(), name) {
+			t.Fatalf("collision error %q does not name %q", err, name)
+		}
+	}
+}
+
+func TestBuildSnapshotRejectsMetadataCollisionWithGeneratedSource(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	defs := definitionsFromBodies(t, root,
+		map[string][]byte{"api/fields/Setting.json": []byte(`{"a":{}}`), "api/fields/Device.json": []byte(`{}`)},
+		map[string][]byte{"sensitive_metadata.json": []byte(`{}`), "SOURCE.JSON": []byte(`{"vendor":true}`)}, nil)
+	_, err := BuildSnapshot(context.Background(), SnapshotOptions{
+		Root: root, CustomDir: emptyCustom(t, root), Installer: &MaterializedInstaller{}, Definitions: defs,
+	})
+	if err == nil {
+		t.Fatal("expected metadata collision with generated source.json")
+	}
+	if !strings.Contains(err.Error(), "SOURCE.JSON") || !strings.Contains(err.Error(), "metadata/source.json") {
+		t.Fatalf("collision error does not identify both sources: %v", err)
+	}
+}
+
 func TestBuildSnapshotRejectsUnsafeCustomOverlays(t *testing.T) {
 	t.Parallel()
 
