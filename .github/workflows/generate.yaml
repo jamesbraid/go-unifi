@@ -142,6 +142,12 @@ jobs:
       # required (the Test and Integration jobs); without that protection
       # rule it merges immediately, ungated. Breaking API changes skip
       # auto-merge entirely (see the Flag breaking change step below).
+      # NOTE: integration.yaml is path-filtered, so a PR that doesn't touch
+      # those paths (e.g. a dependabot go.mod bump — go.mod is not in the
+      # filter) never triggers it and hangs forever on "Expected —
+      # Integration" once the check is required. Either add go.mod/go.sum
+      # to the filter or add a same-name no-op workflow on the inverse
+      # paths before requiring it on main.
       - name: Create pull request
         if: steps.check.outputs.changed == 'true'
         id: pr
