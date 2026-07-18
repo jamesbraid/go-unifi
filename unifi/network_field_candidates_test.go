@@ -1,5 +1,7 @@
 package unifi
 
+import "testing"
+
 // fieldCandidate is one encoder-allowlist wire field to verify against a
 // live controller: create a network of Purpose with Value (plus Prereq
 // siblings), read back, and see whether the controller kept it.
@@ -99,4 +101,33 @@ var networkFieldCandidates = []fieldCandidate{
 	{Wire: "wan_pppoe_password_enabled", Purpose: PurposeWAN, Value: true, Prereq: map[string]any{"wan_type": "pppoe", "x_wan_password": "pppoe-pass"}},
 	{Wire: "wan_dslite_remote_host", Purpose: PurposeWAN, Value: "aftr.example.net", Prereq: map[string]any{"wan_type": "dslite", "wan_dslite_remote_host_auto": false}}, // AFTR hostname; no validation comment on the generated field
 	{Wire: "wan_dslite_remote_host_auto", Purpose: PurposeWAN, Value: true, Prereq: map[string]any{"wan_type": "dslite"}},
+}
+
+// TestFieldCandidatesCoverAllTODOs keeps networkFieldCandidates and
+// networkEncoderPresenceAllowlistTODOs (network_encode_coverage_test.go) in
+// lockstep: every TODO wire name must have exactly one candidate, and every
+// candidate must correspond to a TODO wire name (not an already-wired or
+// stale entry).
+func TestFieldCandidatesCoverAllTODOs(t *testing.T) {
+	want := map[string]bool{}
+	for _, w := range networkEncoderPresenceAllowlistTODOs {
+		want[w] = true
+	}
+	got := map[string]bool{}
+	for _, c := range networkFieldCandidates {
+		if got[c.Wire] {
+			t.Errorf("duplicate candidate %q", c.Wire)
+		}
+		got[c.Wire] = true
+	}
+	for w := range want {
+		if !got[w] {
+			t.Errorf("allowlist TODO %q has no candidate entry", w)
+		}
+	}
+	for w := range got {
+		if !want[w] {
+			t.Errorf("candidate %q is not an allowlist TODO (already wired or stale?)", w)
+		}
+	}
 }
