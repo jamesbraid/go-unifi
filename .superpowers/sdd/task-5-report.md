@@ -82,6 +82,22 @@ ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.313s
 
 The absolute-path harness was removed immediately after this run and is not part of the committed test suite.
 
+## Entropy-scope follow-up
+
+RED fixtures demonstrated that block-cased high-entropy runs (`UPPER...lower...` and the reverse) could pass the global transition heuristic in both schema and sensitivity positions. Global alphabetic entropy rejection is now unconditional. The natural CamelCase allowance is scoped only to grammar-validated `EVT_*` identifiers and bounded human event subject/message positions; alternating opaque runs remain rejected there.
+
+After this change, the temporary harness again passed all eight real files through the production dispatch:
+
+```text
+$ GOCACHE=/tmp/go-cache go test ./cmd/fields -run TestLocalAllEightProductionDispatch -count=1 -v
+=== RUN   TestLocalAllEightProductionDispatch
+--- PASS: TestLocalAllEightProductionDispatch (0.08s)
+PASS
+ok github.com/ubiquiti-community/go-unifi/cmd/fields 0.304s
+```
+
+The absolute-path harness was removed before commit.
+
 The full test run required the normal external sandbox profile because existing `httptest` tests bind loopback ports.
 
 ## Decisions and follow-ups

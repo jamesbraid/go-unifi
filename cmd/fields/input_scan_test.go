@@ -82,6 +82,25 @@ func TestScanExtractedInputsRejectsOpaqueRadioBandAndSchemaTokens(t *testing.T) 
 	}
 }
 
+func TestScanExtractedInputsRejectsBlockCaseOpaqueSchemaAndSensitivity(t *testing.T) {
+	for _, tc := range []struct{ name, path, body string }{
+		{"upper then lower schema", "Device.json", `{"value":"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop.*"}`}, {"lower then upper schema", "Device.json", `{"value":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP.*"}`}, {"upper then lower sensitive", "metadata/sensitive_metadata.json", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"],"sensitive_db_fields_by_collection":{},"sensitive_distinct_db_fields_by_collection":{}}`}, {"lower then upper sensitive", "metadata/sensitive_metadata.json", `{"min_field_size":1,"default_names":[],"sensitive_system_properties":[],"sensitive_db_fields_by_collection":{"site":["abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP"]},"sensitive_distinct_db_fields_by_collection":{}}`}} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeScanFixture(t, root, tc.path, tc.body)
+			require.Error(t, ScanExtractedInputs(root))
+		})
+	}
+}
+
+func TestScanExtractedInputsAllowsObservedLongEventIdentifier(t *testing.T) {
+	root := t.TempDir()
+	body := eventFixture("Auto backup failed", "backup failed")
+	body = strings.Replace(body, "EVT_AP_Test", "EVT_AD_AutoBackupFailedCloudKeySDCardNotFound", 2)
+	writeScanFixture(t, root, "metadata/event_defs.json", body)
+	require.NoError(t, ScanExtractedInputs(root))
+}
+
 func TestScanExtractedInputsEnforcesObservedMetadataInvariants(t *testing.T) {
 	for _, tc := range []struct{ name, path, body string }{
 		{"country key", "metadata/country_codes_list.json", `[{"name":"Canada","key":"Canada","code":"124","hints":[],"afc":{}}]`},

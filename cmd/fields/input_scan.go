@@ -397,7 +397,7 @@ func validateEventDefinitions(v any) error {
 	events := v.(map[string]any)
 	allowed := map[string]string{"subsystem": "string", "alert_repeat": "bool", "alert_sendmail": "bool", "alert_subject": "string", "key": "string", "event_enabled": "bool", "msg": "string", "is_alert": "bool", "is_negative": "bool"}
 	for name, value := range events {
-		if !eventNamePattern.MatchString(name) || rejectHighEntropy(name) != nil {
+		if !eventNamePattern.MatchString(name) || rejectNaturalTextOpaque(name) != nil {
 			return fmt.Errorf("invalid event name %s", name)
 		}
 		record, ok := value.(map[string]any)
@@ -424,7 +424,7 @@ func validateEventDefinitions(v any) error {
 						return fmt.Errorf("event %s subsystem invalid", name)
 					}
 				default:
-					if len(text) > 2048 || !isBoundedHumanText(text) || rejectHighEntropy(text) != nil {
+					if len(text) > 2048 || !isBoundedHumanText(text) || rejectNaturalTextOpaque(text) != nil {
 						return fmt.Errorf("event %s field %s invalid", name, field)
 					}
 				}
@@ -493,7 +493,7 @@ func rejectHighEntropy(value string) error {
 		return errors.New("contains high-entropy lowercase hexadecimal value")
 	}
 	for _, token := range alphabeticOpaquePattern.FindAllString(value, -1) {
-		if shannonEntropy(token) >= 3.75 && opaqueAlphabeticRun(token) {
+		if shannonEntropy(token) >= 3.75 {
 			return errors.New("contains high-entropy alphabetic value")
 		}
 	}
@@ -512,6 +512,30 @@ func rejectHighEntropy(value string) error {
 		}, token)
 		if upper && lower && shannonEntropy(token) >= 4 && (encodedMarker || opaqueAlphabeticRun(letters)) {
 			return errors.New("contains high-entropy base64-like value")
+		}
+	}
+	return nil
+}
+
+func rejectNaturalTextOpaque(value string) error {
+	if lowerHexOpaquePattern.MatchString(value) {
+		return errors.New("contains high-entropy lowercase hexadecimal value")
+	}
+	for _, token := range base64Like.FindAllString(value, -1) {
+		encoded := strings.ContainsAny(token, "=+/")
+		letters := strings.Map(func(r rune) rune {
+			if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' {
+				return r
+			}
+			return -1
+		}, token)
+		if shannonEntropy(token) >= 4 && (encoded || opaqueAlphabeticRun(letters)) {
+			return errors.New("contains opaque token")
+		}
+	}
+	for _, token := range alphabeticOpaquePattern.FindAllString(value, -1) {
+		if shannonEntropy(token) >= 3.75 && opaqueAlphabeticRun(token) {
+			return errors.New("contains opaque alphabetic token")
 		}
 	}
 	return nil
