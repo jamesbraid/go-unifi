@@ -131,72 +131,41 @@ func extractJSON(jarFile, fieldsDir string) error {
 		}
 	}
 
+	return nil
+}
+
+// postProcessFieldsDir applies the shared post-extraction steps used by both
+// the deb and installer paths: split Setting.json into per-key Setting*.json
+// files and copy the hand-written custom/*.json definitions.
+func postProcessFieldsDir(fieldsDir string) error {
 	settingsData, err := os.ReadFile(filepath.Join(fieldsDir, "Setting.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("unable to open settings file: %w", err)
 	}
-
-	var settings map[string]any
-	err = json.Unmarshal(settingsData, &settings)
-	if err != nil {
-		return fmt.Errorf("unable to unmarshal settings: %w", err)
-	}
-
-	for k, v := range settings {
-		fileName := fmt.Sprintf("Setting%s.json", strcase.ToCamel(k))
-
-		data, err := json.MarshalIndent(v, "", "  ")
-		if err != nil {
-			return fmt.Errorf("unable to marshal setting %q: %w", k, err)
+	if err == nil {
+		var settings map[string]any
+		if err := json.Unmarshal(settingsData, &settings); err != nil {
+			return fmt.Errorf("unable to unmarshal settings: %w", err)
 		}
 
-		err = os.WriteFile(filepath.Join(fieldsDir, fileName), data, 0o755)
-		if err != nil {
-			return fmt.Errorf("unable to write new settings file: %w", err)
-		}
-	}
+		for k, v := range settings {
+			fileName := fmt.Sprintf("Setting%s.json", strcase.ToCamel(k))
 
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	rootDir := findModuleRoot(wd)
-	srcDir := path.Join(rootDir, "cmd", "fields")
-
-	files, err := os.ReadDir(path.Join(srcDir, "custom"))
-	if err != nil {
-		return fmt.Errorf("unable to read custom directory: %w", err)
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
-			fs, err := os.Open(path.Join(srcDir, "custom", file.Name()))
+			data, err := json.MarshalIndent(v, "", "  ")
 			if err != nil {
-				return fmt.Errorf("unable to open file: %w", err)
+				return fmt.Errorf("unable to marshal setting %q: %w", k, err)
 			}
-			defer fs.Close()
-			rf, err := os.Create(filepath.Join(fieldsDir, file.Name()))
-			if err != nil {
-				return fmt.Errorf("unable to create file: %w", err)
-			}
-			defer rf.Close()
-			_, err = io.Copy(rf, fs)
-			if err != nil {
-				return fmt.Errorf("unable to copy file: %w", err)
-			}
-			_, err = io.ReadAll(fs)
-			if err != nil {
-				return fmt.Errorf("unable to read file: %w", err)
+
+			if err := os.WriteFile(filepath.Join(fieldsDir, fileName), data, 0o644); err != nil {
+				return fmt.Errorf("unable to write new settings file: %w", err)
 			}
 		}
-		fmt.Println(file.Name(), file.IsDir())
 	}
 
-	// TODO: cleanup JSON
+	if err := copyCustom(fieldsDir); err != nil {
+		return err
+	}
+
 	return nil
 }
 

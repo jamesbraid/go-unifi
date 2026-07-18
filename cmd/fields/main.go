@@ -398,22 +398,15 @@ func main() {
 			panic(err)
 		}
 
-		// defer func() {
-		// 	err = os.RemoveAll(fieldsDir)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// }()
-
-		err = copyCustom(fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
 		fieldsInfo, err = os.Stat(fieldsDir)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	err = postProcessFieldsDir(fieldsDir)
+	if err != nil {
+		panic(err)
 	}
 	if !fieldsInfo.IsDir() {
 		panic("version info isn't a directory")
