@@ -33,6 +33,16 @@ func TestVersionFromPkgURL(t *testing.T) {
 			url:  "https://host/fa30-debian-10.4.57.deb",
 			want: "10.4.57",
 		},
+		{
+			name: "canonical dl.ui.com URL carries the version in a directory segment",
+			url:  "https://dl.ui.com/unifi/10.4.57/unifi_sysvinit_all.deb",
+			want: "10.4.57",
+		},
+		{
+			name: "query string must not pollute the filename heuristic",
+			url:  "https://fw-download.ubnt.com/data/unifi-controller/fa30-debian-10.4.57-86432683-a50a-4fd9-8e7b-21180c41611b.deb?token=abc-1.2.3-def",
+			want: "10.4.57",
+		},
 	}
 
 	for _, tt := range tests {
