@@ -10,7 +10,7 @@ import (
 )
 
 func TestSpecificationGenerator_Generate_EmptyProvider(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 	spec := gen.Generate()
 
 	assert.Equal(t, SpecVersion, spec.Version)
@@ -22,7 +22,7 @@ func TestSpecificationGenerator_Generate_EmptyProvider(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_ProviderAttributes(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 	spec := gen.Generate()
 
 	require.NotNil(t, spec.Provider.Schema)
@@ -42,7 +42,7 @@ func TestSpecificationGenerator_Generate_ProviderAttributes(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_SimpleResource(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a simple resource
 	resource := NewResource("Network", "network")
@@ -79,7 +79,7 @@ func TestSpecificationGenerator_Generate_SimpleResource(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_ArrayAttribute(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a resource with an array attribute
 	resource := NewResource("FirewallGroup", "firewallgroup")
@@ -97,7 +97,7 @@ func TestSpecificationGenerator_Generate_ArrayAttribute(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_NestedAttribute(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a resource with a nested attribute
 	resource := NewResource("Device", "device")
@@ -127,7 +127,7 @@ func TestSpecificationGenerator_Generate_NestedAttribute(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_NestedArrayAttribute(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a resource with a nested array attribute
 	resource := NewResource("WLAN", "wlan")
@@ -155,7 +155,7 @@ func TestSpecificationGenerator_Generate_NestedArrayAttribute(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_SkipsSettings(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a regular resource
 	resource := NewResource("Network", "network")
@@ -175,7 +175,7 @@ func TestSpecificationGenerator_Generate_SkipsSettings(t *testing.T) {
 }
 
 func TestAssociatedExternalType_Formatting(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	resource := NewResource("Network", "network")
 
@@ -231,7 +231,7 @@ func TestToTerraformName(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_DetermineComputedOptionalRequired(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	tests := []struct {
 		name     string
@@ -274,7 +274,7 @@ func TestSpecificationGenerator_Generate_DetermineComputedOptionalRequired(t *te
 }
 
 func TestSpecificationGenerator_Generate_ValidJSON(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Add a simple resource
 	resource := NewResource("Network", "network")
@@ -293,7 +293,7 @@ func TestSpecificationGenerator_Generate_ValidJSON(t *testing.T) {
 }
 
 func TestSpecificationGenerator_Generate_SortedOutput(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Add resources in non-alphabetical order
 	gen.AddResource(NewResource("WLAN", "wlan"))
@@ -316,7 +316,7 @@ func TestSpecificationGenerator_Generate_SortedOutput(t *testing.T) {
 }
 
 func TestSpecification_JSONStructure(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi")
+	gen := NewSpecificationGenerator("unifi", nil)
 
 	// Create a comprehensive resource
 	resource := NewResource("Network", "network")

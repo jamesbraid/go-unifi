@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildStringValidators(t *testing.T) {
-	gen := NewSpecificationGenerator("test")
+	gen := NewSpecificationGenerator("test", nil)
 
 	tests := []struct {
 		name       string
@@ -109,7 +109,7 @@ func TestBuildStringValidators(t *testing.T) {
 }
 
 func TestBuildInt64Validators(t *testing.T) {
-	gen := NewSpecificationGenerator("test")
+	gen := NewSpecificationGenerator("test", nil)
 
 	tests := []struct {
 		name       string

@@ -4,6 +4,12 @@
 /schemas/fields/
 /schemas/metadata/
 
+# Workspace scratch for the generator (downloads, jar extraction, staging).
+# Same filesystem as schemas/ so the cache swap is an atomic rename; the Go
+# toolchain ignores dot-directories. No auto-sweep: a hard-killed run can
+# leave debris here - delete freely.
+/.tmp/
+
 # Legacy schema cache from an older layout; old checkouts may still have
 # these dirs (incl. the downloaded ace.jar).
 /cmd/fields/v*.*.*/

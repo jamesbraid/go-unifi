@@ -1,6 +1,8 @@
 {{- $structName := .StructName }}
 
 {{ define "field" }}
+	{{- if .Doc }}
+	// {{ .Doc }}{{ end }}
 	{{ .FieldName }} {{ if .IsArray }}[]{{end}}{{ if and (.OmitEmpty) (.IsPointer) }}*{{ end }}{{ .FieldType }} `json:"{{ .JSONName }}{{ if .OmitEmpty }},omitempty{{ end }}"` {{ if .FieldValidation }}// {{ .FieldValidation }}{{ end }} {{- end }}
 {{ define "field-customUnmarshalType" }}
 	{{- if eq .CustomUnmarshalType "" }}{{else}}
