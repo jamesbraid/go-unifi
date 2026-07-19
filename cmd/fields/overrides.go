@@ -15,7 +15,9 @@ import (
 // overrides/fields.toml.
 type fieldOverride struct {
 	Add           bool   `toml:"add"`
+	Remove        bool   `toml:"remove"`
 	Name          string `toml:"name"`
+	JSON          string `toml:"json"`
 	Type          string `toml:"type"`
 	Validation    string `toml:"validation"`
 	OmitEmpty     *bool  `toml:"omitempty"`
@@ -79,11 +81,28 @@ func (r *ResourceInfo) applyOverrides() error {
 		}
 	}
 
-	// Deterministic application: entries in wire-name order — map iteration
-	// order must never decide the outcome when overrides interact.
+	// Deterministic application: removals first, then everything else in
+	// wire-name order — map iteration order must never decide the outcome
+	// of a remove/rename interaction.
 	names := slices.Sorted(maps.Keys(override.Field))
 	for _, jsonName := range names {
 		fo := override.Field[jsonName]
+		if !fo.Remove {
+			continue
+		}
+		if key, exists := keysByJSON[jsonName]; exists {
+			// Envelope fields the resource's wire format doesn't carry
+			// (true-v2 objects lack _id/site_id/attr_*).
+			delete(base.Fields, key)
+			delete(keysByJSON, jsonName)
+		}
+	}
+
+	for _, jsonName := range names {
+		fo := override.Field[jsonName]
+		if fo.Remove {
+			continue
+		}
 		key, exists := keysByJSON[jsonName]
 		switch {
 		case exists:
@@ -95,6 +114,13 @@ func (r *ResourceInfo) applyOverrides() error {
 				delete(base.Fields, key)
 				f.FieldName = fo.Name
 				base.Fields[fo.Name] = f
+			}
+			if fo.JSON != "" && fo.JSON != f.JSONName {
+				// Retag the wire name (true-v2 objects use "id", not "_id").
+				if !jsonNameRe.MatchString(fo.JSON) {
+					return fmt.Errorf("%s field %q: unsafe json retag %q", r.StructName, jsonName, fo.JSON)
+				}
+				f.JSONName = fo.JSON
 			}
 			if fo.Type != "" {
 				f.FieldType = fo.Type
