@@ -6,23 +6,192 @@ on:
     - cron: 0 0 * * *
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   fields:
     runs-on: ubuntu-latest
+    # Bounds the damage of a malformed artifact: the download and nested
+    # decompression are otherwise unbounded work.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      
+        with:
+          # Full history so the release tags are available as the API
+          # compatibility baseline.
+          fetch-depth: 0
+
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
 
+      # The extracted definitions are a gitignored local cache (they are not
+      # committed or redistributed); restore it so only runs that encounter
+      # a new release download an artifact. Restore and save are split
+      # because generation rewrites schemas/SOURCE: the save key must be
+      # computed from the NEW marker or a fresh extraction would be saved
+      # under the previous release's (already existing, immutable) key.
+      - name: Restore schema cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            schemas/fields
+            schemas/metadata
+          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+
+      # Compare the latest release on the firmware update API with the
+      # tracked cache markers so unchanged nights skip the download.
+      - name: Check for a new controller release
+        id: check
+        run: |
+          latest="$(go run ./cmd/fields -print-latest)"
+          current="$(cat schemas/SOURCE 2>/dev/null || true)"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+          if [ "${latest}" = "${current}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Schema cache already current (${current})"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "New release ${latest} (cache: ${current:-none})"
+          fi
+
       - name: Generate
+        if: steps.check.outputs.changed == 'true'
         run: go generate ./...
 
-      # TODO: Automatically merge the PR if tests pass.
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      - name: Save schema cache
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
+          path: |
+            schemas/fields
+            schemas/metadata
+          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+
+      # Controller schema drift can break the public Go API (removed
+      # fields, type changes such as []string -> []struct). Compare the
+      # regenerated working tree against the latest release tag with
+      # apidiff. The baseline is extracted from the local tag via git
+      # archive rather than fetched through the module proxy: gorelease
+      # cannot do that, and the proxy may not yet serve (or may have
+      # cached a 404 for) a tag that auto-release pushed recently.
+      # cmd/ holds main packages, which are not importable API, so
+      # incompatibilities there are ignored.
+      - name: Check API compatibility
+        if: steps.check.outputs.changed == 'true'
+        id: compat
+        env:
+          APIDIFF: golang.org/x/exp/cmd/apidiff@v0.0.0-20260709172345-9ea1abe57597
+          MODULE: github.com/ubiquiti-community/go-unifi
+        run: |
+          base="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+          tmp="$(mktemp -d)"
+          breaking_file="${tmp}/breaking.txt"
+          if [ -n "${base}" ]; then
+            mkdir "${tmp}/base"
+            git archive "${base}" | tar -x -C "${tmp}/base"
+            (cd "${tmp}/base" && go run "${APIDIFF}" -m -w "${tmp}/base.export" "${MODULE}")
+            go run "${APIDIFF}" -m -incompatible "${tmp}/base.export" "${MODULE}" > "${tmp}/incompatible.txt"
+            grep -v '^- \./cmd/' "${tmp}/incompatible.txt" > "${breaking_file}" || true
+          else
+            : > "${breaking_file}"
+          fi
+          if [ -s "${breaking_file}" ]; then
+            echo "breaking=true" >> "$GITHUB_OUTPUT"
+            echo "Breaking API changes against ${base}:"
+            cat "${breaking_file}"
+          else
+            echo "breaking=false" >> "$GITHUB_OUTPUT"
+            echo "No breaking API changes against ${base:-<no release tags>}"
+          fi
+          {
+            echo 'summary<<APIDIFF_SUMMARY'
+            if [ -s "${breaking_file}" ]; then
+              echo "**Breaking API changes** against \`${base}\` (apidiff):"
+              echo
+              echo '```'
+              head -n 100 "${breaking_file}"
+              total="$(wc -l < "${breaking_file}")"
+              if [ "${total}" -gt 100 ]; then
+                echo "... (${total} incompatible changes total)"
+              fi
+              echo '```'
+              echo
+              echo 'Auto-merge is disabled; a maintainer must review. After a'
+              echo 'manual merge the auto-release workflow will refuse to tag,'
+              echo 'so tag by hand (accepted minor, or a /v2 major).'
+            else
+              echo "No breaking API changes against \`${base:-any release tag}\`;"
+              echo 'auto-merge and auto-release proceed as usual.'
+            fi
+            echo 'APIDIFF_SUMMARY'
+          } >> "$GITHUB_OUTPUT"
+
+      # A SCHEMA_UPDATE_TOKEN secret (PAT with contents+pull-requests write)
+      # lets the PR run CI to completion and auto-merge once checks pass;
+      # with the default token the PR is still created, but its CI runs are
+      # either not triggered or held for approval (GitHub's behavior has
+      # changed over time), so it needs manual attention either way.
+      # NOTE: auto-merge only waits for checks that branch protection marks
+      # required (the Test job); without that protection rule it merges
+      # immediately, ungated. Breaking API changes skip auto-merge entirely
+      # (see the Flag breaking change step below).
+      - name: Create pull request
+        if: steps.check.outputs.changed == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          branch: schema-update
           delete-branch: true
-          title: 'Update to latest controller version'
+          title: Update to ${{ steps.check.outputs.latest }}
+          commit-message: |
+            schemas: update to ${{ steps.check.outputs.latest }}
+
+            Automated regeneration from the latest controller release on
+            the firmware update API.
+          body: |
+            Automated schema refresh for `${{ steps.check.outputs.latest }}`.
+
+            ${{ steps.compat.outputs.summary }}
+
+      - name: Enable auto-merge
+        if: >-
+          steps.check.outputs.changed == 'true' &&
+          steps.pr.outputs.pull-request-number != '' &&
+          steps.compat.outputs.breaking != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+        run: >-
+          gh pr merge --auto --squash
+          --repo "${{ github.repository }}"
+          "${{ steps.pr.outputs.pull-request-number }}"
+
+      # Breaking drift still gets a PR, but a human decides the merge and
+      # the version bump. The label makes the state visible at a glance;
+      # the apidiff output is already in the PR body (updated in place on
+      # every rerun, unlike comments, which would pile up nightly).
+      - name: Flag breaking change
+        if: >-
+          steps.check.outputs.changed == 'true' &&
+          steps.pr.outputs.pull-request-number != '' &&
+          steps.compat.outputs.breaking == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+        run: |
+          gh label create breaking-schema-change \
+            --repo "${{ github.repository }}" \
+            --color B60205 \
+            --description "Schema drift breaks the public Go API" \
+            --force
+          gh pr edit "${{ steps.pr.outputs.pull-request-number }}" \
+            --repo "${{ github.repository }}" \
+            --add-label breaking-schema-change
