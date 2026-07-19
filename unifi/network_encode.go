@@ -67,6 +67,9 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		IPSubnet                *string                         `json:"ip_subnet,omitempty"`
 		VLAN                    *int64                          `json:"vlan,omitempty"`
 		VLANEnabled             bool                            `json:"vlan_enabled"`
+		L3InterfaceType         *string                         `json:"l3_interface_type,omitempty"`
+		RoutedPortIDX           *int64                          `json:"routed_port_idx,omitempty"`
+		RoutedLagIDX            *int64                          `json:"routed_lag_idx,omitempty"`
 		DomainName              *string                         `json:"domain_name,omitempty"`
 		AutoScaleEnabled        bool                            `json:"auto_scale_enabled"`
 		GatewayType             *string                         `json:"gateway_type,omitempty"`
@@ -78,6 +81,7 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		MdnsEnabled             bool                            `json:"mdns_enabled"`
 		LteLanEnabled           bool                            `json:"lte_lan_enabled"`
 		IPAliases               []string                        `json:"ip_aliases"`
+		IPV6Aliases             []string                        `json:"ipv6_aliases"`
 		NATOutboundIPAddresses  []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
 		MACOverride             string                          `json:"mac_override,omitempty"`
 
@@ -153,6 +157,9 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		IPSubnet:                valueOrDefault(n.IPSubnet, ""),
 		VLAN:                    n.VLAN,
 		VLANEnabled:             n.VLANEnabled,
+		L3InterfaceType:         n.L3InterfaceType,
+		RoutedPortIDX:           n.RoutedPortIDX,
+		RoutedLagIDX:            n.RoutedLagIDX,
 		DomainName:              valueOrDefault(n.DomainName, ""),
 		AutoScaleEnabled:        n.AutoScaleEnabled,
 		GatewayType:             valueOrDefault(n.GatewayType, "default"),
@@ -164,6 +171,7 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		MdnsEnabled:             n.MdnsEnabled,
 		LteLanEnabled:           n.LteLanEnabled,
 		IPAliases:               orEmptySlice(n.IPAliases),
+		IPV6Aliases:             orEmptySlice(n.IPV6Aliases),
 		NATOutboundIPAddresses:  orEmptyNATSlice(n.NATOutboundIPAddresses),
 		MACOverride:             n.MACOverride,
 
@@ -305,6 +313,9 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		IPSubnet                *string                         `json:"ip_subnet,omitempty"`
 		VLAN                    *int64                          `json:"vlan,omitempty"`
 		VLANEnabled             bool                            `json:"vlan_enabled"`
+		L3InterfaceType         *string                         `json:"l3_interface_type,omitempty"`
+		RoutedPortIDX           *int64                          `json:"routed_port_idx,omitempty"`
+		RoutedLagIDX            *int64                          `json:"routed_lag_idx,omitempty"`
 		DomainName              *string                         `json:"domain_name,omitempty"`
 		AutoScaleEnabled        bool                            `json:"auto_scale_enabled"`
 		GatewayType             *string                         `json:"gateway_type,omitempty"`
@@ -316,6 +327,7 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		MdnsEnabled             bool                            `json:"mdns_enabled"`
 		LteLanEnabled           bool                            `json:"lte_lan_enabled"`
 		IPAliases               []string                        `json:"ip_aliases"`
+		IPV6Aliases             []string                        `json:"ipv6_aliases"`
 		NATOutboundIPAddresses  []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
 		MACOverride             string                          `json:"mac_override,omitempty"`
 
@@ -391,6 +403,9 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		IPSubnet:                valueOrDefault(n.IPSubnet, ""),
 		VLAN:                    n.VLAN,
 		VLANEnabled:             n.VLANEnabled,
+		L3InterfaceType:         n.L3InterfaceType,
+		RoutedPortIDX:           n.RoutedPortIDX,
+		RoutedLagIDX:            n.RoutedLagIDX,
 		DomainName:              valueOrDefault(n.DomainName, ""),
 		AutoScaleEnabled:        n.AutoScaleEnabled,
 		GatewayType:             valueOrDefault(n.GatewayType, "default"),
@@ -402,6 +417,7 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		MdnsEnabled:             n.MdnsEnabled,
 		LteLanEnabled:           n.LteLanEnabled,
 		IPAliases:               orEmptySlice(n.IPAliases),
+		IPV6Aliases:             orEmptySlice(n.IPV6Aliases),
 		NATOutboundIPAddresses:  orEmptyNATSlice(n.NATOutboundIPAddresses),
 		MACOverride:             n.MACOverride,
 
@@ -514,6 +530,12 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		WANSmartQUpRate     *int64 `json:"wan_smartq_up_rate,omitempty"`
 		WANSmartQDownRate   *int64 `json:"wan_smartq_down_rate,omitempty"`
 
+		// MSS clamping fields
+		MssClamp        *string `json:"mss_clamp,omitempty"`
+		MssClampMss     *int64  `json:"mss_clamp_mss,omitempty"`
+		MssClampIPV6    *string `json:"mss_clamp_ipv6,omitempty"`
+		MssClampMssIPV6 *int64  `json:"mss_clamp_mss_ipv6,omitempty"`
+
 		// UPnP fields
 		UPnPEnabled       *bool   `json:"upnp_enabled,omitempty"`
 		UPnPWANInterface  *string `json:"upnp_wan_interface,omitempty"`
@@ -582,6 +604,12 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		WANSmartQEnabled:    n.WANSmartQEnabled,
 		WANSmartQUpRate:     n.WANSmartQUpRate,
 		WANSmartQDownRate:   n.WANSmartQDownRate,
+
+		// MSS clamping fields
+		MssClamp:        n.MssClamp,
+		MssClampMss:     n.MssClampMss,
+		MssClampIPV6:    n.MssClampIPV6,
+		MssClampMssIPV6: n.MssClampMssIPV6,
 
 		// UPnP fields
 		UPnPEnabled:       n.UPnPEnabled,
@@ -782,6 +810,16 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		// VPN Type
 		VPNType *string `json:"vpn_type,omitempty"`
 
+		// How the VPN server binds to a WAN address: static (IP), interface, or any
+		VPNBindingMode *string `json:"vpn_binding_mode,omitempty"`
+
+		// MSS clamping: live 10.4.57 controllers report mss_clamp on
+		// remote-user-vpn networks (tunnel MTU), not only on WANs.
+		MssClamp        *string `json:"mss_clamp,omitempty"`
+		MssClampMss     *int64  `json:"mss_clamp_mss,omitempty"`
+		MssClampIPV6    *string `json:"mss_clamp_ipv6,omitempty"`
+		MssClampMssIPV6 *int64  `json:"mss_clamp_mss_ipv6,omitempty"`
+
 		// DNS
 		DHCPDDNS1       string `json:"dhcpd_dns_1,omitempty"`
 		DHCPDDNS2       string `json:"dhcpd_dns_2,omitempty"`
@@ -839,6 +877,14 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 
 		// VPN Type
 		VPNType: n.VPNType,
+
+		// VPN server WAN binding
+		VPNBindingMode: n.VPNBindingMode,
+
+		MssClamp:        n.MssClamp,
+		MssClampMss:     n.MssClampMss,
+		MssClampIPV6:    n.MssClampIPV6,
+		MssClampMssIPV6: n.MssClampMssIPV6,
 
 		// DNS
 		DHCPDDNS1:       n.DHCPDDNS1,
