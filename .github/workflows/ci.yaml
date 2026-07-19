@@ -17,18 +17,50 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.ref }}
-      
+
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
 
+      # Gitignored extracted-definitions cache; a hit avoids re-downloading
+      # the controller artifact on every PR.
+      - name: Restore schema cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            schemas/fields
+            schemas/metadata
+          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+
       - name: Generate
-        run: go generate ./...
-      
+        id: generate
+        run: |
+          before="$(cat schemas/SOURCE 2>/dev/null || true)"
+          go generate ./...
+          after="$(cat schemas/SOURCE 2>/dev/null || true)"
+          if [ "${before}" = "${after}" ]; then
+            echo "upstream_moved=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "upstream_moved=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream published ${after} since this PR's ${before}"
+          fi
+
+      # Blocking when the PR's tracked SOURCE still matches upstream: drift
+      # then means the PR changed generator inputs without committing the
+      # regenerated output. status --porcelain (not diff) so NEWLY generated
+      # untracked files count as drift too. Skipped when a new controller
+      # release appeared mid-PR, so unrelated PRs aren't failed by upstream
+      # timing.
       - name: Check for changes
-        run: git diff --compact-summary --exit-code
-        continue-on-error: true
+        if: steps.generate.outputs.upstream_moved != 'true'
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            git diff --compact-summary
+            echo "::error::generated output is not in sync with generator inputs"
+            exit 1
+          fi
 
   lint:
     name: Lint
@@ -61,9 +93,9 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
+      # Blocking: this is the check that gates auto-merged schema updates.
       - name: Run tests
         run: go test ./...
-        continue-on-error: true
 
   yamllint:
     runs-on: 'ubuntu-latest'

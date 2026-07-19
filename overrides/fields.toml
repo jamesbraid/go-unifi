@@ -1,0 +1,275 @@
+# Declarative resource and field overrides, applied on top of the extracted
+# schema. Three kinds of entry:
+#
+#   [Resource]                REST path when it differs from the lowercased
+#                             schema file name
+#   [Resource.field.<wire>]   shape pins for a schema-defined field (matched
+#                             by wire/JSON name on the top-level struct)
+#   [Resource.field.<wire>]   with add = true: compat or manual fields the
+#                             schema does not (or no longer does) define;
+#                             ignored when the schema defines the field, so
+#                             the schema's validation wins when it exists
+#
+# Field entries are applied AFTER the resource's FieldProcessor, so they
+# always win. Anything conditional on the schema-derived type, pattern-based
+# renames, or nested fields stays in the FieldProcessor cases in main.go —
+# see the "Override layers" section of schemas/README.md.
+#
+# When maintaining the v2 definitions in resources/, Ubiquiti's official
+# Integration API spec (https://developer.ui.com/network/<ver>/openapi.json)
+# is a useful *semantic* reference for the firewall zone/policy domains — but
+# it describes a different API (/proxy/network/integration, camelCase wire
+# names), so shapes cannot be copied from it verbatim.
+
+[DNSRecord]
+path = "static-dns"
+
+# Definition imported from ubiquiti-community/unifi-api (see the README in
+# this directory). cleanName would render device_macs as DeviceMACs; pin the
+# name the hand-written type established so consumers don't break. Both
+# fields always serialize (an empty device list must reach the wire as []).
+[APGroup.field.device_macs]
+name = "DeviceMacs"
+omitempty = false
+
+[APGroup.field.name]
+omitempty = false
+
+# True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
+# attr_* envelope. Definition imported from ubiquiti-community/unifi-api
+# (see resources/../README.md).
+[NetworkMembersGroup]
+path = "network-members-groups"
+
+[NetworkMembersGroup.field._id]
+json = "id"
+
+[NetworkMembersGroup.field.site_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_delete]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_edit]
+remove = true
+
+# Always serialize, matching the previous hand-written wire behavior.
+[NetworkMembersGroup.field.name]
+omitempty = false
+
+[NetworkMembersGroup.field.members]
+omitempty = false
+
+[NetworkMembersGroup.field.type]
+omitempty = false
+
+[FirewallPolicy]
+path = "firewall-policies"
+
+[OSPFRouter]
+path = "ospf/router"
+
+[TrafficRoute]
+path = "trafficroutes"
+
+[BGPConfig]
+path = "bgp/config"
+
+[FirewallZone]
+path = "firewall/zone"
+
+# default_zone is server-computed/read-only. Sending it in the create body
+# makes UniFi Network 10.4.x reject the POST with "Unrecognized field
+# default_zone" (terraform-provider-unifi#310); a *bool with omitempty keeps
+# an unset value out of the payload.
+[FirewallZone.field.default_zone]
+omitempty = true
+pointer = true
+
+# network_ids must always be present in the create body: the v2
+# firewall/zone POST returns HTTP 500 when the field is omitted, and an
+# empty list must serialize as "network_ids":[].
+[FirewallZone.field.network_ids]
+omitempty = false
+
+# Fields the 10.x schema does not define but the controller still accepts
+# (or older controllers require).
+[Network.field.wan_egress_qos_enabled]
+add = true
+name = "WANEgressQOSEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_enabled]
+add = true
+name = "UPnPEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_wan_interface]
+add = true
+name = "UPnPWANInterface"
+type = "string"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_nat_pmp_enabled]
+add = true
+name = "UPnPNatPMPEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_secure_mode]
+add = true
+name = "UPnPSecureMode"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.ip_aliases]
+add = true
+name = "IPAliases"
+type = "string"
+omitempty = true
+array = true
+
+[Network.field.dhcp_relay_servers]
+add = true
+name = "DHCPRelayServers"
+type = "string"
+omitempty = true
+array = true
+
+# The schema defines this since 10.x (in which case only the rename applies
+# and the schema's validation is kept); the add covers older controllers.
+# The rename undoes cleanName's IPVersion->Version rewrite, which is meant
+# for the firewall policy source/destination and mangles this field into a
+# duplicate JSON tag otherwise.
+[Network.field.wireguard_interface_binding_mode_ip_version]
+add = true
+name = "WireguardInterfaceBindingModeIPVersion"
+type = "string"
+validation = "v4|v6"
+omitempty = true
+pointer = true
+
+# Removed from the 10.x schema (mDNS moved to the site-level "mdns"
+# setting); retained for backwards compatibility.
+[Network.field.mdns_enabled]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "MdnsEnabled"
+type = "bool"
+
+# Deprecated: removed from the 10.x schema along with the maps feature, but
+# they are plain device-object properties; retained so existing consumers
+# keep compiling. Review for sunset next controller train.
+[Device.field.x]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "X"
+type = "float64"
+omitempty = true
+
+[Device.field.y]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "Y"
+type = "float64"
+omitempty = true
+
+[Device.field.map_id]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "MapID"
+type = "string"
+omitempty = true
+
+[Device.field.heightInMeters]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "HeightInMeters"
+type = "float64"
+omitempty = true
+
+# Device state and identity fields the ace.jar schema does not describe.
+[Device.field.port_table]
+add = true
+name = "PortTable"
+type = "[]DevicePortTable"
+omitempty = true
+
+[Device.field.adopted]
+add = true
+name = "Adopted"
+type = "bool"
+
+[Device.field.model]
+add = true
+name = "Model"
+type = "string"
+omitempty = true
+
+[Device.field.state]
+add = true
+name = "State"
+type = "DeviceState"
+
+[Device.field.type]
+add = true
+name = "Type"
+type = "string"
+omitempty = true
+
+[Device.field.inform_ip]
+add = true
+name = "InformIP"
+type = "string"
+omitempty = true
+
+[Device.field.ip]
+add = true
+name = "IP"
+type = "string"
+omitempty = true
+
+# The controller reports the client's most recent IP on /rest/user but
+# ace.jar has no schema for it; surface it as a read-only field.
+[Client.field.last_ip]
+add = true
+name = "LastIP"
+type = "string"
+validation = "non-generated field"
+omitempty = true
+
+# Removed in v6, retained for backwards compatibility.
+[WLAN.field.wlangroup_id]
+add = true
+doc = "Deprecated: removed in UniFi Network 6; retained for backwards compatibility."
+name = "WLANGroupID"
+type = "string"
+omitempty = true
+
+# Removed in v7, retained for backwards compatibility.
+[SettingUsg.field.mdns_enabled]
+add = true
+doc = "Deprecated: removed in UniFi Network 7; retained for backwards compatibility."
+name = "MdnsEnabled"
+type = "bool"
+
+# querier_addresses changed wire shape in 10.x: pre-10.x controllers (and
+# databases upgraded from them) carry an array of address strings, 10.x an
+# array of {mac, network_id, querier_address} objects. Decode elements
+# tolerantly via a hand-written helper in the settings package.
+[SettingIgmpSnooping.field.querier_addresses]
+unmarshal_type = "json.RawMessage"
+unmarshal_func = "querierAddressesFromRaw"

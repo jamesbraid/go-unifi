@@ -7,14 +7,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -115,8 +117,12 @@ var fileReps = []replacement{
 }
 
 type ResourceInfo struct {
-	StructName     string
+	StructName string
+	// ResourcePath is the REST path segment, which several resources
+	// override; Collection keeps the controller's collection name (the
+	// lowercased schema file base name) for sensitive_metadata lookups.
 	ResourcePath   string
+	Collection     string
 	Types          map[string]*FieldInfo
 	FieldProcessor func(name string, f *FieldInfo) error
 }
@@ -132,6 +138,9 @@ type FieldInfo struct {
 	Fields              map[string]*FieldInfo
 	CustomUnmarshalType string
 	CustomUnmarshalFunc string
+	// Doc renders as a doc comment above the generated field (e.g. a
+	// "Deprecated:" marker on compat pins); set from overrides/fields.toml.
+	Doc string
 }
 
 func NewResource(structName string, resourcePath string) *ResourceInfo {
@@ -139,6 +148,7 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	resource := &ResourceInfo{
 		StructName:   structName,
 		ResourcePath: resourcePath,
+		Collection:   resourcePath,
 		Types: map[string]*FieldInfo{
 			structName: baseType,
 		},
@@ -168,38 +178,7 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	case resource.IsSetting():
 		resource.ResourcePath = strcase.ToSnake(strings.TrimPrefix(structName, "Setting"))
 		baseType.Fields[" Key"] = NewFieldInfo("Key", "key", fields.String, "", false, false, false, "")
-		if resource.StructName == "SettingUsg" {
-			// Removed in v7, retaining for backwards compatibility
-			baseType.Fields["MdnsEnabled"] = NewFieldInfo("MdnsEnabled", "mdns_enabled", fields.Bool, "", false, false, false, "")
-		}
-	case resource.StructName == "DNSRecord":
-		resource.ResourcePath = "static-dns"
-	case resource.StructName == "FirewallZone":
-		resource.ResourcePath = "firewall/zone"
-		resource.FieldProcessor = func(name string, f *FieldInfo) error {
-			// default_zone is server-computed/read-only. Sending it in the
-			// create body makes UniFi Network 10.4.x reject the POST with
-			// "Unrecognized field default_zone" (terraform-provider-unifi#310).
-			// Make it a *bool with omitempty so an unset value is omitted.
-			if name == "DefaultZone" {
-				f.OmitEmpty = true
-				f.IsPointer = true
-			}
-			// network_ids must always be present in the create body. The v2
-			// firewall/zone POST returns HTTP 500 when the field is omitted
-			// entirely, and the default codegen marks slices omitempty — which
-			// drops an empty []string and breaks creating a zone that has no
-			// networks assigned yet. Keep it always serialized so an empty list
-			// is sent as "network_ids":[] (which the controller accepts).
-			if name == "NetworkIDs" {
-				f.OmitEmpty = false
-			}
-			return nil
-		}
-	case resource.StructName == "OSPFRouter":
-		resource.ResourcePath = "ospf/router"
 	case resource.StructName == "FirewallPolicy":
-		resource.ResourcePath = "firewall-policies"
 		resource.FieldProcessor = func(name string, f *FieldInfo) error {
 			// The source/destination `port` is not a single number: the
 			// firmware stores and expects it as a string, and it may carry a
@@ -218,49 +197,33 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 			}
 			return nil
 		}
-	case resource.StructName == "TrafficRoute":
-		resource.ResourcePath = "trafficroutes"
-	case resource.StructName == "Network":
-		baseType.Fields["WANEgressQOSEnabled"] = NewFieldInfo("WANEgressQOSEnabled", "wan_egress_qos_enabled", fields.Bool, "", true, false, true, "")
-		baseType.Fields["UPnPEnabled"] = NewFieldInfo("UPnPEnabled", "upnp_enabled", fields.Bool, "", true, false, true, "")
-		baseType.Fields["UPnPWANInterface"] = NewFieldInfo("UPnPWANInterface", "upnp_wan_interface", fields.String, "", true, false, true, "")
-		baseType.Fields["UPnPNatPMPEnabled"] = NewFieldInfo("UPnPNatPMPEnabled", "upnp_nat_pmp_enabled", fields.Bool, "", true, false, true, "")
-		baseType.Fields["UPnPSecureMode"] = NewFieldInfo("UPnPSecureMode", "upnp_secure_mode", fields.Bool, "", true, false, true, "")
-		baseType.Fields["IPAliases"] = NewFieldInfo("IPAliases", "ip_aliases", fields.String, "", true, true, false, "")
-		baseType.Fields["DHCPRelayServers"] = NewFieldInfo("DHCPRelayServers", "dhcp_relay_servers", fields.String, "", true, true, false, "")
-		baseType.Fields["WireguardInterfaceBindingModeIPVersion"] = NewFieldInfo(
-			"WireguardInterfaceBindingModeIPVersion",
-			"wireguard_interface_binding_mode_ip_version",
-			fields.String,
-			"v4|v6",
-			true,
-			false,
-			true,
-			"",
-		)
 	case resource.StructName == "Device":
-		baseType.Fields["PortTable"] = NewFieldInfo("PortTable", "port_table", "[]DevicePortTable", "", true, false, false, "")
+		// Keyed with a leading space so it sorts to the top of the struct;
+		// stays here rather than overrides/fields.toml for that reason.
 		baseType.Fields[" MAC"] = NewFieldInfo("MAC", "mac", fields.String, "", true, false, false, "")
-		baseType.Fields["Adopted"] = NewFieldInfo("Adopted", "adopted", fields.Bool, "", false, false, false, "")
-		baseType.Fields["Model"] = NewFieldInfo("Model", "model", fields.String, "", true, false, false, "")
-		baseType.Fields["State"] = NewFieldInfo("State", "state", "DeviceState", "", false, false, false, "")
-		baseType.Fields["Type"] = NewFieldInfo("Type", "type", fields.String, "", true, false, false, "")
-		baseType.Fields["InformIP"] = NewFieldInfo("InformIP", "inform_ip", fields.String, "", true, false, false, "")
-		baseType.Fields["IP"] = NewFieldInfo("IP", "ip", fields.String, "", true, false, false, "")
 	case resource.StructName == "Client":
 		baseType.Fields[" DisplayName"] = NewFieldInfo("DisplayName", "display_name", fields.String, "non-generated field", true, false, false, "")
-		// The controller reports the client's most recent IP on /rest/user but
-		// ace.jar has no schema for it; surface it as a read-only field.
-		baseType.Fields["LastIP"] = NewFieldInfo("LastIP", "last_ip", fields.String, "non-generated field", true, false, false, "")
-	case resource.StructName == "WLAN":
-		// this field removed in v6, retaining for backwards compatibility
-		baseType.Fields["WLANGroupID"] = NewFieldInfo("WLANGroupID", "wlangroup_id", fields.String, "", true, false, false, "")
-	case resource.StructName == "BGPConfig":
-		resource.ResourcePath = "bgp/config"
+	}
+
+	// REST paths that differ from the schema name come from
+	// overrides/fields.toml.
+	if override, ok := resourceOverrides()[structName]; ok && override.Path != "" {
+		resource.ResourcePath = override.Path
 	}
 
 	return resource
 }
+
+// jsonNameRe bounds what a schema wire name may contain. Names are rendered
+// into struct tags (inside backtick-quoted literals) and identifiers, so
+// anything outside this set could inject Go source into the generated code,
+// which CI compiles and runs.
+var jsonNameRe = regexp.MustCompile(`^[A-Za-z0-9_.:+-]+$`)
+
+// newlineRe collapses line breaks in validation strings, which are rendered
+// into // comments in the generated code — a newline there would escape the
+// comment.
+var newlineRe = regexp.MustCompile(`[\r\n\x60]+`)
 
 func NewFieldInfo(
 	fieldName string,
@@ -272,11 +235,15 @@ func NewFieldInfo(
 	isPointer bool,
 	customUnmarshalType string,
 ) *FieldInfo {
+	if !jsonNameRe.MatchString(jsonName) {
+		panic(fmt.Sprintf("refusing to generate code for unsafe schema field name %q", jsonName))
+	}
+
 	return &FieldInfo{
 		FieldName:           fieldName,
 		JSONName:            jsonName,
 		FieldType:           fieldType,
-		FieldValidation:     fieldValidation,
+		FieldValidation:     newlineRe.ReplaceAllString(fieldValidation, " "),
 		OmitEmpty:           omitempty,
 		IsArray:             isArray,
 		IsPointer:           isPointer,
@@ -301,6 +268,188 @@ func usage() {
 	flag.PrintDefaults()
 }
 
+// buildSchemas obtains a controller artifact (downloading it unless a local
+// file is given), extracts the field definitions and metadata into the
+// schemas directory, and records the UniFi Network version it found there.
+func buildSchemas(
+	schemasDir, fieldsDir, metadataDir, customDir string,
+	localFile string,
+	downloadURL *url.URL,
+	requestedVersion *version.Version,
+) (*version.Version, error) {
+	// Scratch space lives inside the workspace (gitignored .tmp/) rather
+	// than the system temp dir: it keeps multi-GB transients off tmpfs
+	// /tmp mounts and, being on the same filesystem as schemas/, lets the
+	// cache be swapped in with atomic renames below.
+	tmpRoot := filepath.Join(filepath.Dir(schemasDir), ".tmp")
+	if err := os.MkdirAll(tmpRoot, 0o755); err != nil {
+		return nil, err
+	}
+	workDir, err := os.MkdirTemp(tmpRoot, "schema-run-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(workDir)
+
+	artifactPath := localFile
+	if artifactPath == "" {
+		fmt.Printf("downloading %s\n", downloadURL)
+		artifactPath, err = downloadArtifact(downloadURL, workDir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	arts, err := extractArtifacts(artifactPath, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	networkVersion, err := readNetworkVersion(arts.aceJar)
+	if err != nil {
+		if requestedVersion == nil {
+			return nil, fmt.Errorf("unable to determine UniFi Network version: %w", err)
+		}
+		networkVersion = requestedVersion
+	}
+	if requestedVersion != nil && !networkVersion.Equal(requestedVersion) {
+		fmt.Printf("warning: artifact reports version %s, requested %s\n", networkVersion, requestedVersion)
+	}
+	fmt.Printf("UniFi Network version: %s\n", networkVersion)
+
+	defsJar, err := resolveDefsJar(arts, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract into staging first, then swap the cache in with renames.
+	// Staging lives in workDir (same filesystem as schemas/), so each swap
+	// is an atomic rename; invalidating the markers before the swap is the
+	// belt to that suspender - a crash between the two renames still
+	// leaves a cache the next run refuses to trust.
+	stagingFields := filepath.Join(workDir, "fields")
+	stagingMetadata := filepath.Join(workDir, "metadata")
+	if err := extractSchemas(defsJar, stagingFields, stagingMetadata, customDir); err != nil {
+		return nil, err
+	}
+
+	for _, marker := range []string{"VERSION", "SOURCE"} {
+		if err := os.Remove(filepath.Join(schemasDir, marker)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
+	for _, swap := range []struct{ from, to string }{
+		{stagingFields, fieldsDir},
+		{stagingMetadata, metadataDir},
+	} {
+		if err := os.RemoveAll(swap.to); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(swap.from, swap.to); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := writeMarker(schemasDir, "VERSION", networkVersion.String()); err != nil {
+		return nil, err
+	}
+
+	return networkVersion, nil
+}
+
+var handWrittenTypesCache = map[string]map[string]string{}
+
+// handWrittenTypes returns every type declared by non-generated .go files in
+// dir (any declaration form, via go/parser), mapped to the declaring file
+// name. Results are cached per directory.
+func handWrittenTypes(dir string) map[string]string {
+	if cached, ok := handWrittenTypesCache[dir]; ok {
+		return cached
+	}
+
+	decls := map[string]string{}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		handWrittenTypesCache[dir] = decls
+		return decls
+	}
+
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || filepath.Ext(name) != ".go" || strings.HasSuffix(name, ".generated.go") {
+			continue
+		}
+
+		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		if err != nil {
+			panic(fmt.Sprintf("unable to parse %s for the type-collision check: %v", filepath.Join(dir, name), err))
+		}
+		for _, decl := range file.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					decls[typeSpec.Name.Name] = name
+				}
+			}
+		}
+	}
+
+	handWrittenTypesCache[dir] = decls
+	return decls
+}
+
+func readMarker(dir, name string) string {
+	b, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func writeMarker(dir, name, value string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, name), []byte(value+"\n"), 0o644)
+}
+
+func dirExists(dir string) bool {
+	fi, err := os.Stat(dir)
+	return err == nil && fi.IsDir()
+}
+
+// cacheFieldsValid guards the cache-hit path with the same bar the fresh
+// extraction enforces: the manifest must exist, list a plausible number of
+// definitions, and every listed file must be present — a partial or legacy
+// cache must trigger a rebuild, not generate (and delete resources) from an
+// incomplete schema set.
+func cacheFieldsValid(fieldsDir string) bool {
+	manifest, err := os.ReadFile(filepath.Join(fieldsDir, extractedManifest))
+	if err != nil {
+		return false
+	}
+
+	names := strings.Fields(string(manifest))
+	if len(names) < minFieldFiles {
+		return false
+	}
+	for _, name := range names {
+		if !fileExists(filepath.Join(fieldsDir, name)) {
+			return false
+		}
+	}
+	return true
+}
+
+func fileExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && !fi.IsDir()
+}
+
 func main() {
 	flag.Usage = usage
 	outputDirFlag := flag.String(
@@ -314,6 +463,16 @@ func main() {
 		"Only download and build the fields JSON directory, do not generate",
 	)
 	useLatestVersion := flag.Bool("latest", false, "Use the latest available version")
+	localFile := flag.String(
+		"file",
+		"",
+		"Extract schemas from a local UniFi .deb or UniFi OS Server installer instead of downloading",
+	)
+	printLatest := flag.Bool(
+		"print-latest",
+		false,
+		"Print the latest available release (product and version) and exit",
+	)
 	generateSpec := flag.Bool(
 		"generate-spec",
 		false,
@@ -327,37 +486,29 @@ func main() {
 
 	flag.Parse()
 
+	if *printLatest {
+		rel, err := latestRelease()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(rel.ID())
+		return
+	}
+
 	specifiedVersion := flag.Arg(0)
-	if specifiedVersion != "" && *useLatestVersion {
+	switch {
+	case *localFile != "" && (specifiedVersion != "" || *useLatestVersion):
+		fmt.Print("error: cannot combine -file with a version or -latest\n\n")
+		usage()
+		os.Exit(1)
+	case *localFile == "" && specifiedVersion != "" && *useLatestVersion:
 		fmt.Print("error: cannot specify version with latest\n\n")
 		usage()
 		os.Exit(1)
-	} else if specifiedVersion == "" && !*useLatestVersion {
-		fmt.Print("error: must specify version or latest\n\n")
+	case *localFile == "" && specifiedVersion == "" && !*useLatestVersion:
+		fmt.Print("error: must specify version, latest, or a local file\n\n")
 		usage()
 		os.Exit(1)
-	}
-
-	var unifiVersion *version.Version
-	var unifiDownloadUrl *url.URL
-	var err error
-
-	if *useLatestVersion {
-		unifiVersion, unifiDownloadUrl, err = latestUnifiVersion()
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		unifiVersion, err = version.NewVersion(specifiedVersion)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		unifiDownloadUrl, err = url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", unifiVersion))
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	wd, err := os.Getwd()
@@ -365,58 +516,83 @@ func main() {
 		panic(err)
 	}
 
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("Unable to get the current filename")
+	moduleRoot := findModuleRoot(wd)
+	if moduleRoot == "" {
+		panic("unable to locate the module root (go.mod)")
 	}
 
-	versionBaseDir := filepath.Dir(filename)
-
-	fieldsDir := filepath.Join(versionBaseDir, fmt.Sprintf("v%s", unifiVersion))
-
+	schemasDir := filepath.Join(moduleRoot, "schemas")
+	fieldsDir := filepath.Join(schemasDir, "fields")
+	metadataDir := filepath.Join(schemasDir, "metadata")
+	customDir := filepath.Join(moduleRoot, "overrides", "resources")
 	outDir := filepath.Join(wd, *outputDirFlag)
 
-	fieldsInfo, err := os.Stat(fieldsDir)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			panic(err)
-		}
+	// Resolve where the schemas should come from. The source ID recorded in
+	// schemas/SOURCE lets repeat runs skip the download when the snapshot is
+	// already current.
+	var source string
+	var downloadURL *url.URL
+	var requestedVersion *version.Version
 
-		err = os.MkdirAll(fieldsDir, 0o755)
+	switch {
+	case *localFile != "":
+		// Local artifacts are always re-extracted.
+	case *useLatestVersion:
+		rel, err := latestRelease()
 		if err != nil {
 			panic(err)
 		}
+		source = rel.ID()
+		downloadURL = rel.URL
+		if rel.Product == unifiControllerProduct {
+			requestedVersion = rel.Version
+		}
+	default:
+		requestedVersion, err = version.NewVersion(specifiedVersion)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-		// download fields, create
-		jarFile, err := downloadJar(unifiDownloadUrl, fieldsDir)
+		downloadURL, err = url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", requestedVersion))
 		if err != nil {
 			panic(err)
 		}
-
-		err = extractJSON(jarFile, fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
-		// defer func() {
-		// 	err = os.RemoveAll(fieldsDir)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// }()
-
-		err = copyCustom(fieldsDir)
-		if err != nil {
-			panic(err)
-		}
-
-		fieldsInfo, err = os.Stat(fieldsDir)
-		if err != nil {
-			panic(err)
-		}
+		source = fmt.Sprintf("%s %s", unifiControllerProduct, requestedVersion)
 	}
-	if !fieldsInfo.IsDir() {
-		panic("version info isn't a directory")
+
+	var unifiVersion *version.Version
+
+	snapshotCurrent := source != "" &&
+		source == readMarker(schemasDir, "SOURCE") &&
+		readMarker(schemasDir, "VERSION") != "" &&
+		cacheFieldsValid(fieldsDir) &&
+		fileExists(filepath.Join(metadataDir, "sensitive_metadata.json"))
+
+	if snapshotCurrent {
+		unifiVersion, err = version.NewVersion(readMarker(schemasDir, "VERSION"))
+		if err != nil {
+			panic(err)
+		}
+
+		// The cache only tracks the upstream release; the overlay under
+		// overrides/resources can change independently, so re-sync it even
+		// when skipping the download.
+		if err := syncCustom(customDir, fieldsDir); err != nil {
+			panic(err)
+		}
+	} else {
+		unifiVersion, err = buildSchemas(schemasDir, fieldsDir, metadataDir, customDir, *localFile, downloadURL, requestedVersion)
+		if err != nil {
+			panic(err)
+		}
+
+		if source == "" {
+			source = fmt.Sprintf("local %s", unifiVersion)
+		}
+		if err := writeMarker(schemasDir, "SOURCE", source); err != nil {
+			panic(err)
+		}
 	}
 
 	if *downloadOnly {
@@ -429,8 +605,16 @@ func main() {
 		panic(err)
 	}
 
+	// Tracks every .generated.go written this run so files whose schema
+	// disappeared upstream can be removed afterwards.
+	writtenGenerated := map[string]bool{}
+
 	// Initialize specification generator
-	specGen := NewSpecificationGenerator("unifi")
+	sensitive, err := loadSensitiveMetadata(filepath.Join(metadataDir, "sensitive_metadata.json"))
+	if err != nil {
+		panic(err)
+	}
+	specGen := NewSpecificationGenerator("unifi", sensitive)
 
 	for _, fieldsFile := range fieldsFiles {
 		name := fieldsFile.Name()
@@ -539,6 +723,13 @@ func main() {
 					"DHCPDTFTPServer", "DHCPDWins1", "DHCPDWins2", "DHCPDWPAdUrl", "DomainName", "DHCPDGateway", "DHCPDNtp1", "DHCPDNtp2":
 					f.OmitEmpty = true
 					f.IsPointer = true
+				case "DHCPDDNS1", "DHCPDDNS2":
+					// The 10.x schema dropped the IPv4 validation on these two
+					// (dhcpd_dns_3/4 keep it); pin the pre-10.x plain-string
+					// shape so the field type stays stable for consumers and
+					// the hand-written network encoder.
+					f.OmitEmpty = false
+					f.IsPointer = false
 				case "Purpose":
 					f.OmitEmpty = false
 					f.IsPointer = false
@@ -651,6 +842,10 @@ func main() {
 			}
 		}
 
+		if err := resource.applyOverrides(); err != nil {
+			panic(err)
+		}
+
 		// Add resource to specification generator
 		specGen.AddResource(resource)
 
@@ -671,10 +866,24 @@ func main() {
 			targetDir = outDir
 		}
 
+		// A schema update can start defining a type that was previously
+		// hand-written (e.g. IgmpSnooping when 10.x added its schema). Fail
+		// with the resolution instead of leaving a duplicate declaration for
+		// the compiler to trip over.
+		for typeName := range resource.Types {
+			if declFile, ok := handWrittenTypes(targetDir)[typeName]; ok {
+				panic(fmt.Sprintf(
+					"generated type %s (from %s) collides with the hand-written declaration in %s; the schema now defines it - remove or rename the hand-written type",
+					typeName, fieldsFile.Name(), declFile,
+				))
+			}
+		}
+
 		_ = os.Remove(filepath.Join(targetDir, goFile))
 		if err := os.WriteFile(filepath.Join(targetDir, goFile), ([]byte)(code), 0o644); err != nil {
 			panic(err)
 		}
+		writtenGenerated[filepath.Join(targetDir, goFile)] = true
 
 		if !resource.IsSetting() {
 			implFile := strcase.ToSnake(structName) + ".go"
@@ -712,6 +921,42 @@ const UnifiVersion = %q
 	if err := os.WriteFile(filepath.Join(outDir, "version.generated.go"), versionGo, 0o644); err != nil {
 		panic(err)
 	}
+	writtenGenerated[filepath.Join(outDir, "version.generated.go")] = true
+
+	// A resource that left the schema must also leave the SDK, or the public
+	// API silently diverges from the controller (and apidiff never sees the
+	// removal). Delete generated files no schema produced this run, and fail
+	// when a hand-written companion would be orphaned so a maintainer
+	// removes it deliberately.
+	var orphans []string
+	for _, dir := range []string{outDir, filepath.Join(outDir, "settings")} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".generated.go") || writtenGenerated[filepath.Join(dir, name)] {
+				continue
+			}
+
+			fmt.Printf("removing %s: its schema no longer exists upstream\n", name)
+			if err := os.Remove(filepath.Join(dir, name)); err != nil {
+				panic(err)
+			}
+
+			companion := strings.TrimSuffix(name, ".generated.go") + ".go"
+			if fileExists(filepath.Join(dir, companion)) {
+				orphans = append(orphans, filepath.Join(dir, companion))
+			}
+		}
+	}
+	if len(orphans) > 0 {
+		panic(fmt.Sprintf(
+			"hand-written files reference resources whose schema was removed upstream; delete them (and their tests) to match: %s",
+			strings.Join(orphans, ", "),
+		))
+	}
 
 	// Generate Terraform provider specification if requested
 	if *generateSpec {
@@ -738,12 +983,13 @@ func (r *ResourceInfo) IsDevice() bool {
 
 func (r *ResourceInfo) IsV2() bool {
 	return slices.Contains([]string{
-		"ApGroup",
+		"APGroup",
 		"BGPConfig",
 		"DNSRecord",
 		"FirewallPolicy",
 		"FirewallZone",
 		"Nat",
+		"NetworkMembersGroup",
 		"OSPFRouter",
 		"TrafficRoute",
 	}, r.StructName)

@@ -24,7 +24,7 @@ var (
 	_ strings.Builder
 )
 
-type Tag struct {
+type APGroup struct {
 	ID     string `json:"_id,omitempty"`
 	SiteID string `json:"site_id,omitempty"`
 
@@ -33,12 +33,12 @@ type Tag struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	MemberTable []string `json:"member_table,omitempty"`
-	Name        string   `json:"name,omitempty"`
+	DeviceMacs []string `json:"device_macs"`
+	Name       string   `json:"name"`
 }
 
-func (dst *Tag) UnmarshalJSON(b []byte) error {
-	type Alias Tag
+func (dst *APGroup) UnmarshalJSON(b []byte) error {
+	type Alias APGroup
 	aux := &struct {
 		*Alias
 	}{
@@ -53,20 +53,17 @@ func (dst *Tag) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listTag(
+func (c *ApiClient) listAPGroup(
 	ctx context.Context,
 	site string,
 	query ...map[string]string,
-) ([]Tag, error) {
-	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
-	}
+) ([]APGroup, error) {
+	var respBody []APGroup
 
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/tag", site),
+		fmt.Sprintf("v2/api/site/%s/apgroups", site),
 		nil,
 		&respBody,
 		query...,
@@ -74,37 +71,33 @@ func (c *ApiClient) listTag(
 	if err != nil {
 		return nil, err
 	}
-	return respBody.Data, nil
+	return respBody, nil
 }
 
-func (c *ApiClient) getTag(
+func (c *ApiClient) getAPGroup(
 	ctx context.Context,
 	site string,
 	id string,
-) (*Tag, error) {
-	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, id),
-		nil,
-		&respBody,
-	)
+) (*APGroup, error) {
+	respBody, err := c.listAPGroup(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	if len(respBody.Data) != 1 {
+
+	if len(respBody) == 0 {
 		return nil, &NotFoundError{}
 	}
 
-	d := respBody.Data[0]
-	return &d, nil
+	for _, val := range respBody {
+		if val.ID == id {
+			return &val, nil
+		}
+	}
+
+	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteTag(
+func (c *ApiClient) deleteAPGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -112,7 +105,7 @@ func (c *ApiClient) deleteTag(
 	err := c.do(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, id),
+		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, id),
 		struct{}{},
 		nil,
 	)
@@ -122,20 +115,17 @@ func (c *ApiClient) deleteTag(
 	return nil
 }
 
-func (c *ApiClient) createTag(
+func (c *ApiClient) createAPGroup(
 	ctx context.Context,
 	site string,
-	d *Tag,
-) (*Tag, error) {
-	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
-	}
+	d *APGroup,
+) (*APGroup, error) {
+	var respBody APGroup
 
 	err := c.do(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/tag", site),
+		fmt.Sprintf("v2/api/site/%s/apgroups", site),
 		d,
 		&respBody,
 	)
@@ -143,28 +133,19 @@ func (c *ApiClient) createTag(
 		return nil, err
 	}
 
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+	return &respBody, nil
 }
 
-func (c *ApiClient) updateTag(
+func (c *ApiClient) updateAPGroup(
 	ctx context.Context,
 	site string,
-	d *Tag,
-) (*Tag, error) {
-	var respBody struct {
-		Meta meta  `json:"meta"`
-		Data []Tag `json:"data"`
-	}
+	d *APGroup,
+) (*APGroup, error) {
+	var respBody APGroup
 	err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/tag/%s", site, d.ID),
+		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID),
 		d,
 		&respBody,
 	)
@@ -172,17 +153,5 @@ func (c *ApiClient) updateTag(
 		return nil, err
 	}
 
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.getTag(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+	return &respBody, nil
 }

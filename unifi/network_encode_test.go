@@ -522,6 +522,217 @@ func TestMarshalNetworkSiteVPN(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkRoutedInterfaceAndIPv6Aliases guards fields added in
+// controller 10.4.57: the L3 routed interface attachment
+// (l3_interface_type/routed_port_idx/routed_lag_idx) and ipv6_aliases (the
+// v6 analog of ip_aliases). The marshalers serialize a curated subset of the
+// generated struct, so new fields are silently dropped on write unless
+// explicitly added.
+// TestMarshalNetworkDHCPRelayServers guards against the corporate marshaler
+// sourcing dhcp_relay_servers from the wrong struct field (it used to copy
+// RemoteVPNSubnets).
+func TestMarshalNetworkDHCPRelayServers(t *testing.T) {
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest} {
+		t.Run(purpose, func(t *testing.T) {
+			network := &Network{
+				ID:               "507f1f77bcf86cd799439021",
+				Purpose:          purpose,
+				Enabled:          true,
+				IPSubnet:         strPtr("192.168.5.0/24"),
+				DHCPRelayServers: []string{"192.168.1.5", "192.168.1.6"},
+				RemoteVPNSubnets: []string{"10.99.0.0/16"},
+			}
+
+			data, err := json.Marshal(network)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			relays, ok := result["dhcp_relay_servers"].([]any)
+			if !ok || len(relays) != 2 || relays[0] != "192.168.1.5" || relays[1] != "192.168.1.6" {
+				t.Errorf("dhcp_relay_servers = %v, want the DHCPRelayServers values", result["dhcp_relay_servers"])
+			}
+		})
+	}
+}
+
+func TestMarshalNetworkRoutedInterfaceAndIPv6Aliases(t *testing.T) {
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest} {
+		t.Run(purpose, func(t *testing.T) {
+			routedPort := int64(8)
+			network := &Network{
+				ID:              "507f1f77bcf86cd799439020",
+				Purpose:         purpose,
+				Enabled:         true,
+				IPSubnet:        strPtr("192.168.5.0/24"),
+				IPAliases:       []string{"192.168.6.1/24"},
+				IPV6Aliases:     []string{"2001:db8::1/64"},
+				L3InterfaceType: strPtr("port"),
+				RoutedPortIDX:   &routedPort,
+			}
+
+			data, err := json.Marshal(network)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			if got := result["l3_interface_type"]; got != "port" {
+				t.Errorf("l3_interface_type = %v, want port", got)
+			}
+			if got := result["routed_port_idx"]; got != float64(8) {
+				t.Errorf("routed_port_idx = %v, want 8", got)
+			}
+			if aliases, ok := result["ipv6_aliases"].([]any); !ok || len(aliases) != 1 || aliases[0] != "2001:db8::1/64" {
+				t.Errorf("ipv6_aliases = %v, want [2001:db8::1/64]", result["ipv6_aliases"])
+			}
+			// RoutedLagIDX was not set, so it must be omitted.
+			if _, ok := result["routed_lag_idx"]; ok {
+				t.Errorf("routed_lag_idx serialized for nil value: %s", data)
+			}
+
+			// Unset => pointer fields omitted; ipv6_aliases still emitted as
+			// an empty array, mirroring ip_aliases.
+			data, err = json.Marshal(&Network{ID: "x", Purpose: purpose, Enabled: true})
+			if err != nil {
+				t.Fatalf("marshal (unset): %v", err)
+			}
+			result = map[string]any{}
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal (unset): %v", err)
+			}
+			for _, field := range []string{"l3_interface_type", "routed_port_idx", "routed_lag_idx"} {
+				if _, ok := result[field]; ok {
+					t.Errorf("%s serialized for nil value: %s", field, data)
+				}
+			}
+			if aliases, ok := result["ipv6_aliases"].([]any); !ok || len(aliases) != 0 {
+				t.Errorf("Expected empty array for ipv6_aliases, got %v", result["ipv6_aliases"])
+			}
+		})
+	}
+}
+
+// TestMarshalNetworkWANMssClamp guards the MSS clamping fields added in
+// controller 10.4.57 (mss_clamp/mss_clamp_mss and their IPv6 variants) on
+// the WAN marshaler.
+func TestMarshalNetworkWANMssClamp(t *testing.T) {
+	mss := int64(1452)
+	mssV6 := int64(1432)
+	network := &Network{
+		ID:              "507f1f77bcf86cd799439021",
+		Purpose:         PurposeWAN,
+		Enabled:         true,
+		WANType:         strPtr("dhcp"),
+		MssClamp:        strPtr("custom"),
+		MssClampMss:     &mss,
+		MssClampIPV6:    strPtr("custom"),
+		MssClampMssIPV6: &mssV6,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got := result["mss_clamp"]; got != "custom" {
+		t.Errorf("mss_clamp = %v, want custom", got)
+	}
+	if got := result["mss_clamp_mss"]; got != float64(1452) {
+		t.Errorf("mss_clamp_mss = %v, want 1452", got)
+	}
+	if got := result["mss_clamp_ipv6"]; got != "custom" {
+		t.Errorf("mss_clamp_ipv6 = %v, want custom", got)
+	}
+	if got := result["mss_clamp_mss_ipv6"]; got != float64(1432) {
+		t.Errorf("mss_clamp_mss_ipv6 = %v, want 1432", got)
+	}
+
+	// Unset => omitted, no perpetual diff against the API.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	for _, field := range []string{"mss_clamp", "mss_clamp_mss", "mss_clamp_ipv6", "mss_clamp_mss_ipv6"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
+// TestMarshalNetworkUserVPNBindingMode guards vpn_binding_mode (added in
+// controller 10.4.57), which selects how the remote-user VPN server binds to
+// a WAN address (static|interface|any).
+func TestMarshalNetworkUserVPNBindingMode(t *testing.T) {
+	network := &Network{
+		ID:             "507f1f77bcf86cd799439022",
+		Purpose:        PurposeUserVPN,
+		Enabled:        true,
+		VPNType:        strPtr("wireguard-server"),
+		VPNBindingMode: strPtr("interface"),
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["vpn_binding_mode"]; got != "interface" {
+		t.Errorf("vpn_binding_mode = %v, want interface", got)
+	}
+
+	// MSS clamping is reported on remote-user-vpn networks by live 10.4.57
+	// controllers; make sure the user-VPN marshaler sends it.
+	clampMss := int64(1400)
+	network.MssClamp = strPtr("custom")
+	network.MssClampMss = &clampMss
+	data, err = json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal (mss clamp): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (mss clamp): %v", err)
+	}
+	if got := result["mss_clamp"]; got != "custom" {
+		t.Errorf("mss_clamp = %v, want custom", got)
+	}
+	if got := result["mss_clamp_mss"]; got != float64(1400) {
+		t.Errorf("mss_clamp_mss = %v, want 1400", got)
+	}
+
+	// Unset => omitted.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeUserVPN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if _, ok := result["vpn_binding_mode"]; ok {
+		t.Errorf("vpn_binding_mode serialized for nil value: %s", data)
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s

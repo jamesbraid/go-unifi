@@ -14,7 +14,8 @@ const (
 	debianPlatform         = "debian"
 	releaseChannel         = "release"
 	unifiControllerProduct = "unifi-controller"
-	maxVersion             = "10.0.0"
+	uosServerProduct       = "unifi-os-server"
+	uosServerPlatform      = "linux-x64"
 )
 
 type firmwareUpdateApiResponse struct {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,15 +31,85 @@ const (
 type SpecificationGenerator struct {
 	ProviderName string
 	Resources    []*ResourceInfo
+	Sensitive    sensitiveIndex
 }
 
 // NewSpecificationGenerator creates a new specification generator.
-func NewSpecificationGenerator(providerName string) *SpecificationGenerator {
+func NewSpecificationGenerator(providerName string, sensitive sensitiveIndex) *SpecificationGenerator {
 	return &SpecificationGenerator{
 		ProviderName: providerName,
 		Resources:    make([]*ResourceInfo, 0),
+		Sensitive:    sensitive,
 	}
 }
+
+// sensitiveIndex maps a controller collection name (lowercased schema file
+// base name, e.g. "wlanconf") to the set of wire field leaf names UniFi
+// lists in sensitive_metadata.json.
+type sensitiveIndex map[string]map[string]bool
+
+// loadSensitiveMetadata builds a sensitiveIndex from the controller's
+// sensitive_metadata.json. A missing file yields a nil index (only the x_
+// prefix rule applies then).
+func loadSensitiveMetadata(path string) (sensitiveIndex, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Values are usually lists of field names, but single-field entries ship
+	// as a bare string (e.g. "rogue": "essid" in the distinct section).
+	var meta struct {
+		ByCollection         map[string]any `json:"sensitive_db_fields_by_collection"`
+		DistinctByCollection map[string]any `json:"sensitive_distinct_db_fields_by_collection"`
+	}
+	if err := json.Unmarshal(b, &meta); err != nil {
+		return nil, fmt.Errorf("unable to parse sensitive metadata: %w", err)
+	}
+
+	index := make(sensitiveIndex)
+	addLeaf := func(collection string, field string) {
+		leaves := index[collection]
+		if leaves == nil {
+			leaves = make(map[string]bool)
+			index[collection] = leaves
+		}
+		// Nested entries are dotted paths (auth_servers.x_secret);
+		// FieldInfo carries leaf wire names, so index the leaf.
+		parts := strings.Split(field, ".")
+		leaves[parts[len(parts)-1]] = true
+	}
+
+	for _, byCollection := range []map[string]any{meta.ByCollection, meta.DistinctByCollection} {
+		for collection, value := range byCollection {
+			switch entry := value.(type) {
+			case string:
+				addLeaf(collection, entry)
+			case []any:
+				for _, field := range entry {
+					name, ok := field.(string)
+					if !ok {
+						return nil, fmt.Errorf("unexpected sensitive metadata entry %v for %s", field, collection)
+					}
+					addLeaf(collection, name)
+				}
+			default:
+				return nil, fmt.Errorf("unexpected sensitive metadata shape %T for %s", value, collection)
+			}
+		}
+	}
+
+	return index, nil
+}
+
+// secretNameRe separates secret material from the anonymization-only entries
+// in sensitive_metadata.json (name, hostname, serial, usernames,
+// certificates, ...). ipsec_key_exchange is a protocol setting, which is why
+// the key match is suffix-anchored.
+var secretNameRe = regexp.MustCompile(`(?i)passw|passphrase|secret|token|psk|sim_pin|private_key|auth_?key|_key$`)
 
 // AddResource adds a resource to the specification generator.
 func (g *SpecificationGenerator) AddResource(r *ResourceInfo) {
@@ -134,6 +205,27 @@ func (g *SpecificationGenerator) generateProviderAttributes() []provider.Attribu
 	}
 }
 
+// sensitivePtr marks secret-bearing attributes. Two rules, union:
+//
+//  1. UniFi's own convention: an x_ prefix on secret wire fields
+//     (x_passphrase, x_auth_key, ...).
+//  2. Fields the controller's sensitive_metadata.json lists for this
+//     resource's collection, filtered to secret-looking names — the metadata
+//     is a support-file anonymization list, so it also names fields (name,
+//     hostname, wan_username, certificates) that must stay visible in
+//     Terraform plans. The intersection currently adds lte_password,
+//     lte_sim_pin, and secret_verifier_encoded, and catches future secrets
+//     that ship without the x_ prefix.
+func (g *SpecificationGenerator) sensitivePtr(r *ResourceInfo, field *FieldInfo) *bool {
+	if strings.HasPrefix(field.JSONName, "x_") {
+		return ptr(true)
+	}
+	if r != nil && g.Sensitive[r.Collection][field.JSONName] && secretNameRe.MatchString(field.JSONName) {
+		return ptr(true)
+	}
+	return nil
+}
+
 // generateDataSource generates a data source specification from a resource.
 func (g *SpecificationGenerator) generateDataSource(r *ResourceInfo) datasource.DataSource {
 	name := toTerraformName(r.StructName)
@@ -212,6 +304,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 				ComputedOptionalRequired: "computed",
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 		return attr
@@ -234,11 +327,13 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		attr.Bool = &datasource.BoolAttribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "int64":
 		intAttr := &datasource.Int64Attribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
 		// 	intAttr.Validators = validators
@@ -248,11 +343,13 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		attr.Float64 = &datasource.Float64Attribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &datasource.StringAttribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
 		// 	strAttr.Validators = validators
@@ -272,6 +369,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			attr.String = &datasource.StringAttribute{
 				ComputedOptionalRequired: "computed",
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 	}
@@ -396,6 +494,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 				ComputedOptionalRequired: computedOptionalRequired,
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 		return attr
@@ -418,11 +517,13 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 		attr.Bool = &resource.BoolAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case fields.Int:
 		intAttr := &resource.Int64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
 		// 	intAttr.Validators = validators
@@ -432,11 +533,13 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 		attr.Float64 = &resource.Float64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &resource.StringAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
 		// 	strAttr.Validators = validators
@@ -456,6 +559,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			attr.String = &resource.StringAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 	}
