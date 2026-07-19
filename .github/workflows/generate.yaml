@@ -133,21 +133,36 @@ jobs:
             echo 'APIDIFF_SUMMARY'
           } >> "$GITHUB_OUTPUT"
 
-      # A SCHEMA_UPDATE_TOKEN secret (PAT with contents+pull-requests write)
-      # lets the PR run CI to completion and auto-merge once checks pass;
-      # with the default token the PR is still created, but its CI runs are
-      # either not triggered or held for approval (GitHub's behavior has
-      # changed over time), so it needs manual attention either way.
+      # PRs created with the default workflow token cannot run CI to
+      # completion unattended (runs are either not triggered or held for
+      # approval), so the PR is opened with a bot identity when one is
+      # configured. Preferred: a GitHub App ("schema bot") — set the
+      # SCHEMA_BOT_APP_ID repo *variable* and SCHEMA_BOT_PRIVATE_KEY repo
+      # *secret*, and the step below mints a short-lived installation
+      # token. Fallbacks: a SCHEMA_UPDATE_TOKEN PAT secret, then the
+      # default token (PR still appears, needs manual attention).
       # NOTE: auto-merge only waits for checks that branch protection marks
       # required (the Test job); without that protection rule it merges
       # immediately, ungated. Breaking API changes skip auto-merge entirely
       # (see the Flag breaking change step below).
+      # continue-on-error keeps the fallback chain real: a missing/invalid
+      # private key degrades to the PAT/default token (visible as a failed
+      # step) instead of killing the whole nightly run.
+      - name: Mint bot token
+        if: steps.check.outputs.changed == 'true' && vars.SCHEMA_BOT_APP_ID != ''
+        id: bot
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SCHEMA_BOT_APP_ID }}
+          private-key: ${{ secrets.SCHEMA_BOT_PRIVATE_KEY }}
+
       - name: Create pull request
         if: steps.check.outputs.changed == 'true'
         id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          token: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
           branch: schema-update
           delete-branch: true
           title: Update to ${{ steps.check.outputs.latest }}
@@ -168,7 +183,7 @@ jobs:
           steps.compat.outputs.breaking != 'true'
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
         run: >-
           gh pr merge --auto --squash
           --repo "${{ github.repository }}"
@@ -185,7 +200,7 @@ jobs:
           steps.compat.outputs.breaking == 'true'
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
         run: |
           gh label create breaking-schema-change \
             --repo "${{ github.repository }}" \
