@@ -1,6 +1,28 @@
 {
   "datasources": [
     {
+      "name": "ap_group",
+      "schema": {
+        "attributes": [
+          {
+            "name": "device_macs",
+            "list": {
+              "computed_optional_required": "computed",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "account",
       "schema": {
         "attributes": [
@@ -5785,6 +5807,34 @@
           },
           {
             "name": "wireguard_public_key",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "network_members_group",
+      "schema": {
+        "attributes": [
+          {
+            "name": "members",
+            "list": {
+              "computed_optional_required": "computed",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "type",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -8196,6 +8246,28 @@
   },
   "resources": [
     {
+      "name": "ap_group",
+      "schema": {
+        "attributes": [
+          {
+            "name": "device_macs",
+            "list": {
+              "computed_optional_required": "optional",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "optional"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "account",
       "schema": {
         "attributes": [
@@ -13982,6 +14054,34 @@
             "name": "wireguard_public_key",
             "string": {
               "computed_optional_required": "computed_optional"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "network_members_group",
+      "schema": {
+        "attributes": [
+          {
+            "name": "members",
+            "list": {
+              "computed_optional_required": "optional",
+              "element_type": {
+                "string": {}
+              }
+            }
+          },
+          {
+            "name": "name",
+            "string": {
+              "computed_optional_required": "optional"
+            }
+          },
+          {
+            "name": "type",
+            "string": {
+              "computed_optional_required": "optional"
             }
           }
         ]
