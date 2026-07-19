@@ -13,6 +13,8 @@ are published.
 
 Many of the naming adjustments are breaking changes, but to simplify things, treating naming errors as minor changes for the 1.0.0 version (probably should have just started at 0.1.0).
 
+See [COMPATIBILITY.md](COMPATIBILITY.md) for the full policy: one tested controller train per release, how upstream schema drift is absorbed, and why controller-forced breaking changes ship in documented minor releases.
+
 ## Note on Code Generation
 
 The data models and basic REST methods are generated from the JSON field definitions the controller ships in `internal-dependencies.jar` (field names plus regex/enum validation). The definitions are extracted transiently into a gitignored cache under [schemas/](schemas/); only the controller version markers are tracked, and the extracted files are never committed.
