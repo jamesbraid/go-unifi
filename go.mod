@@ -2,6 +2,8 @@ module github.com/ubiquiti-community/go-unifi
 
 go 1.25.0
 
+toolchain go1.26.5
+
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/go-version v1.9.0
