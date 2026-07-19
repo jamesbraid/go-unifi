@@ -170,6 +170,37 @@ doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for back
 name = "MdnsEnabled"
 type = "bool"
 
+# Deprecated: removed from the 10.x schema along with the maps feature, but
+# they are plain device-object properties; retained so existing consumers
+# keep compiling. Review for sunset next controller train.
+[Device.field.x]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "X"
+type = "float64"
+omitempty = true
+
+[Device.field.y]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "Y"
+type = "float64"
+omitempty = true
+
+[Device.field.map_id]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "MapID"
+type = "string"
+omitempty = true
+
+[Device.field.heightInMeters]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "HeightInMeters"
+type = "float64"
+omitempty = true
+
 # Device state and identity fields the ace.jar schema does not describe.
 [Device.field.port_table]
 add = true
@@ -234,3 +265,11 @@ add = true
 doc = "Deprecated: removed in UniFi Network 7; retained for backwards compatibility."
 name = "MdnsEnabled"
 type = "bool"
+
+# querier_addresses changed wire shape in 10.x: pre-10.x controllers (and
+# databases upgraded from them) carry an array of address strings, 10.x an
+# array of {mac, network_id, querier_address} objects. Decode elements
+# tolerantly via a hand-written helper in the settings package.
+[SettingIgmpSnooping.field.querier_addresses]
+unmarshal_type = "json.RawMessage"
+unmarshal_func = "querierAddressesFromRaw"

@@ -5,6 +5,42 @@ import (
 	"testing"
 )
 
+// TestIgmpSnoopingLegacyQuerierAddresses covers the pre-10.x wire shape:
+// querier_addresses as plain address strings (also seen in databases
+// upgraded from old controllers). The tolerant decode maps each string to
+// an entry with only QuerierAddress set.
+func TestIgmpSnoopingLegacyQuerierAddresses(t *testing.T) {
+	raw := `{
+		"key": "igmp_snooping",
+		"enabled": true,
+		"querier_addresses": ["10.0.0.1", "10.0.0.2"]
+	}`
+
+	var s IgmpSnooping
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatalf("unmarshal legacy shape: %v", err)
+	}
+	if len(s.QuerierAddresses) != 2 {
+		t.Fatalf("QuerierAddresses = %v, want 2 entries", s.QuerierAddresses)
+	}
+	if s.QuerierAddresses[0].QuerierAddress != "10.0.0.1" || s.QuerierAddresses[1].QuerierAddress != "10.0.0.2" {
+		t.Errorf("addresses = %v", s.QuerierAddresses)
+	}
+	if s.QuerierAddresses[0].MAC != "" {
+		t.Errorf("legacy entries should carry only the address, got %+v", s.QuerierAddresses[0])
+	}
+
+	// null elements are skipped, not turned into empty entries; legacy
+	// strings re-marshal as objects (normalization is one-way by design).
+	var nulls IgmpSnooping
+	if err := json.Unmarshal([]byte(`{"key":"igmp_snooping","querier_addresses":[null,"10.0.0.3"]}`), &nulls); err != nil {
+		t.Fatalf("unmarshal with null: %v", err)
+	}
+	if len(nulls.QuerierAddresses) != 1 || nulls.QuerierAddresses[0].QuerierAddress != "10.0.0.3" {
+		t.Errorf("null handling: %v", nulls.QuerierAddresses)
+	}
+}
+
 // TestIgmpSnoopingRoundTrip checks the site-level igmp_snooping setting
 // (un)marshals correctly, using a payload shaped like a real UniFi 10.x
 // controller response. Guards ubiquiti-community/terraform-provider-unifi#164.

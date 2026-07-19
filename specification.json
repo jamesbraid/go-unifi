@@ -829,6 +829,12 @@
             }
           },
           {
+            "name": "height_in_meters",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
             "name": "hostname",
             "string": {
               "computed_optional_required": "computed"
@@ -1018,6 +1024,12 @@
           },
           {
             "name": "lte_username",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "map_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -2294,6 +2306,18 @@
           {
             "name": "volume",
             "int64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "x",
+            "float64": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "y",
+            "float64": {
               "computed_optional_required": "computed"
             }
           }
@@ -9074,6 +9098,12 @@
             }
           },
           {
+            "name": "height_in_meters",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
             "name": "hostname",
             "string": {
               "computed_optional_required": "computed_optional"
@@ -9263,6 +9293,12 @@
           },
           {
             "name": "lte_username",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "map_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -10539,6 +10575,18 @@
           {
             "name": "volume",
             "int64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "x",
+            "float64": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "y",
+            "float64": {
               "computed_optional_required": "computed_optional"
             }
           }

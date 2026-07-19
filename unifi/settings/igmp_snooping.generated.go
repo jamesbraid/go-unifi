@@ -43,6 +43,8 @@ type IgmpSnooping struct {
 func (dst *IgmpSnooping) UnmarshalJSON(b []byte) error {
 	type Alias IgmpSnooping
 	aux := &struct {
+		QuerierAddresses []json.RawMessage `json:"querier_addresses"`
+
 		*Alias
 	}{
 		Alias: (*Alias)(dst),
@@ -57,6 +59,7 @@ func (dst *IgmpSnooping) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
 	}
+	dst.QuerierAddresses = querierAddressesFromRaw(aux.QuerierAddresses)
 
 	return nil
 }
