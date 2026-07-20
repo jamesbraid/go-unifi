@@ -42,7 +42,7 @@ jobs:
           path: |
             schemas/fields
             schemas/metadata
-          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+          key: schemas-${{ hashFiles('schemas/SOURCE', 'cmd/fields/**/*.go') }}
 
       # Compare the latest release on the firmware update API with the
       # tracked cache markers so unchanged nights skip the download.
@@ -71,7 +71,7 @@ jobs:
           path: |
             schemas/fields
             schemas/metadata
-          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+          key: schemas-${{ hashFiles('schemas/SOURCE', 'cmd/fields/**/*.go') }}
 
       # Controller schema drift can break the public Go API (removed
       # fields, type changes such as []string -> []struct). Compare the

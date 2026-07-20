@@ -24,14 +24,19 @@ jobs:
           go-version-file: 'go.mod'
 
       # Gitignored extracted-definitions cache; a hit avoids re-downloading
-      # the controller artifact on every PR.
+      # the controller artifact on every PR. The extractor source is in the
+      # key too: a PR that changes cmd/fields without bumping SOURCE would
+      # otherwise restore a cache the old extractor built and skip
+      # extraction (snapshotCurrent), so the new extractor never runs and
+      # the drift check passes against stale output. Busting the cache forces
+      # a re-extraction with the changed code.
       - name: Restore schema cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             schemas/fields
             schemas/metadata
-          key: schemas-${{ hashFiles('schemas/SOURCE') }}
+          key: schemas-${{ hashFiles('schemas/SOURCE', 'cmd/fields/**/*.go') }}
 
       - name: Generate
         id: generate
