@@ -1,0 +1,33 @@
+---
+name: Integration (no-op)
+
+# integration.yaml is path-filtered, but branch protection needs a
+# required check that reports on every PR — a path-filtered required
+# check never reports on non-matching PRs and they hang forever on
+# "Expected". This workflow's paths-ignore is the exact inverse of
+# integration.yaml's paths filter, and its job's display name matches
+# ("Integration"), so exactly one of the two always reports that same
+# check name. Keep the two filters in sync when editing either.
+on:
+  pull_request:
+    paths-ignore:
+      - 'schemas/**'
+      - 'overrides/**'
+      - 'unifi/**'
+      - 'cmd/fields/**'
+      - 'internal/controllertest/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  integration-noop:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: No-op
+        run: echo "No integration-relevant paths changed; check satisfied."

@@ -143,6 +143,29 @@ type FieldInfo struct {
 	Doc string
 }
 
+// Controller envelope JSON keys the generator adds to every resource
+// itself (see baseType.Fields below). This is the single source of truth
+// for them: drift.go's driftIgnoredKeys is derived from envelopeJSONKeys
+// so the schema-drift probe can never fall out of sync with what the
+// generator actually emits.
+const (
+	envelopeIDKey       = "_id"
+	envelopeSiteIDKey   = "site_id"
+	envelopeHiddenKey   = "attr_hidden"
+	envelopeHiddenIDKey = "attr_hidden_id"
+	envelopeNoDeleteKey = "attr_no_delete"
+	envelopeNoEditKey   = "attr_no_edit"
+)
+
+var envelopeJSONKeys = []string{
+	envelopeIDKey,
+	envelopeSiteIDKey,
+	envelopeHiddenKey,
+	envelopeHiddenIDKey,
+	envelopeNoDeleteKey,
+	envelopeNoEditKey,
+}
+
 func NewResource(structName string, resourcePath string) *ResourceInfo {
 	baseType := NewFieldInfo(structName, resourcePath, "struct", "", false, false, false, "")
 	resource := &ResourceInfo{
@@ -161,14 +184,14 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	//
 	// This hack is here for stability of the generatd code, but can be removed if desired.
 	baseType.Fields = map[string]*FieldInfo{
-		"   ID":      NewFieldInfo("ID", "_id", fields.String, "", true, false, false, ""),
-		"   SiteID":  NewFieldInfo("SiteID", "site_id", fields.String, "", true, false, false, ""),
+		"   ID":      NewFieldInfo("ID", envelopeIDKey, fields.String, "", true, false, false, ""),
+		"   SiteID":  NewFieldInfo("SiteID", envelopeSiteIDKey, fields.String, "", true, false, false, ""),
 		"   _Spacer": nil,
 
-		"  Hidden":   NewFieldInfo("Hidden", "attr_hidden", fields.Bool, "", true, false, false, ""),
-		"  HiddenID": NewFieldInfo("HiddenID", "attr_hidden_id", fields.String, "", true, false, false, ""),
-		"  NoDelete": NewFieldInfo("NoDelete", "attr_no_delete", fields.Bool, "", true, false, false, ""),
-		"  NoEdit":   NewFieldInfo("NoEdit", "attr_no_edit", fields.Bool, "", true, false, false, ""),
+		"  Hidden":   NewFieldInfo("Hidden", envelopeHiddenKey, fields.Bool, "", true, false, false, ""),
+		"  HiddenID": NewFieldInfo("HiddenID", envelopeHiddenIDKey, fields.String, "", true, false, false, ""),
+		"  NoDelete": NewFieldInfo("NoDelete", envelopeNoDeleteKey, fields.Bool, "", true, false, false, ""),
+		"  NoEdit":   NewFieldInfo("NoEdit", envelopeNoEditKey, fields.Bool, "", true, false, false, ""),
 		"  _Spacer":  nil,
 
 		" _Spacer": nil,
@@ -270,7 +293,8 @@ func usage() {
 
 // buildSchemas obtains a controller artifact (downloading it unless a local
 // file is given), extracts the field definitions and metadata into the
-// schemas directory, and records the UniFi Network version it found there.
+// schemas directory, and records the UniFi Network version it found there,
+// along with the source artifact (URL or local path) as the ARTIFACT marker.
 func buildSchemas(
 	schemasDir, fieldsDir, metadataDir, customDir string,
 	localFile string,
@@ -333,7 +357,7 @@ func buildSchemas(
 		return nil, err
 	}
 
-	for _, marker := range []string{"VERSION", "SOURCE"} {
+	for _, marker := range []string{"VERSION", "SOURCE", "ARTIFACT"} {
 		if err := os.Remove(filepath.Join(schemasDir, marker)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
@@ -351,6 +375,14 @@ func buildSchemas(
 	}
 
 	if err := writeMarker(schemasDir, "VERSION", networkVersion.String()); err != nil {
+		return nil, err
+	}
+
+	artifact := "local " + filepath.Base(artifactPath)
+	if downloadURL != nil {
+		artifact = downloadURL.String()
+	}
+	if err := writeMarker(schemasDir, "ARTIFACT", artifact); err != nil {
 		return nil, err
 	}
 
