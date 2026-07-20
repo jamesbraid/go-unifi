@@ -49,3 +49,26 @@ compat fields in `fields.toml`), with conditional logic in
 `unifi/`. See the comments at the top of `overrides/fields.toml` for the
 selection rules; hand-written files must not re-declare generated types (the
 generator fails with a collision error naming the offending file).
+
+## Live verification
+
+`go test -tags integration ./internal/controllertest/ ./cmd/fields/` boots a
+disposable simulation-mode controller and compares the hand-written v2
+schemas in `overrides/resources/` against what the live API serves. The
+default image is already the published simulation image of the current
+schema build (`admin`/`admin`, no setup wizard), so a bare run tests the
+right version with no setup.
+
+To pin explicitly, or test another build:
+
+```sh
+UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:$(cat schemas/VERSION)-sim" \
+  UNIFI_TEST_EXPECT_VERSION="$(cat schemas/VERSION)" \
+  go test -tags integration ./internal/controllertest/ ./cmd/fields/
+```
+
+Images are published by github.com/jamesbraid/unifi-containers.
+`UNIFI_TEST_EXPECT_VERSION` makes the smoke test fail unless the booted
+controller reports exactly that version — this is how CI verifies the pin
+actually took. Or point `UNIFI_TEST_URL` at an existing controller —
+targets used this way must accept the demo `admin`/`admin` credentials.
