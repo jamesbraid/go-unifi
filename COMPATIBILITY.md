@@ -8,9 +8,9 @@ contract *we* offer instead.
 
 Each SDK release is generated from exactly one UniFi Network version
 (`unifi.UnifiVersion`; named in every release's notes) and tested against
-it — schema-level and unit tests today, with a live-controller integration
-gate landing separately (see the controller-testing work). "Supported"
-means "tested at that level" — other controller versions usually work for
+it — unit and schema tests, plus a live-controller integration gate that
+runs on every schema change. "Supported" means "tested at that level" —
+other controller versions usually work for
 overlapping features, but that is best-effort, not a promise.
 
 **Running an older controller? Pin an older SDK tag.** The tag history is
