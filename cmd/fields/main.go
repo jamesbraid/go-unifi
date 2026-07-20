@@ -449,11 +449,6 @@ func writeMarker(dir, name, value string) error {
 	return os.WriteFile(filepath.Join(dir, name), []byte(value+"\n"), 0o644)
 }
 
-func dirExists(dir string) bool {
-	fi, err := os.Stat(dir)
-	return err == nil && fi.IsDir()
-}
-
 // cacheFieldsValid guards the cache-hit path with the same bar the fresh
 // extraction enforces: the manifest must exist, list a plausible number of
 // definitions, and every listed file must be present — a partial or legacy
