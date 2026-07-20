@@ -1,0 +1,63 @@
+---
+name: Integration
+
+# Pulls the published simulation image matching schemas/VERSION and runs
+# the integration-tagged suite against it: harness smoke test + v2 schema
+# drift probe. The image is version-pinned and the smoke test enforces
+# the version it reports, so there's no build step — just a pull. PRs
+# touching schema inputs/outputs get it as a gate; the nightly run
+# catches upstream drift and image rot independent of PRs.
+#
+# Path-filtered so it stays fast, which means integration-noop.yaml must
+# cover every PR outside this filter — see that file's comment for why.
+on:
+  pull_request:
+    paths:
+      - 'schemas/**'
+      - 'overrides/**'
+      - 'unifi/**'
+      - 'cmd/fields/**'
+      - 'internal/controllertest/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
+  schedule:
+    - cron: 30 1 * * *
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      # No build step: the tag is derived straight from schemas/VERSION.
+      # Images are published by jamesbraid/unifi-containers' own update
+      # automation, so a tag missing here (schemas ahead of published
+      # images) fails the pull inside the harness — a red check, which is
+      # the honest outcome. UNIFI_TEST_REQUIRE turns the harness's local
+      # docker-unavailable skip into a failure: a required gate must never
+      # be satisfiable by a skip.
+      - name: Run integration suite
+        run: |
+          version="$(cat schemas/VERSION)"
+          UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim" \
+          UNIFI_TEST_EXPECT_VERSION="${version}" \
+          UNIFI_TEST_REQUIRE=1 \
+            go test -tags integration -p 1 -timeout 25m -v \
+            ./internal/controllertest/ ./cmd/fields/ -run 'TestIntegration'

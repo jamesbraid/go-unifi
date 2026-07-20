@@ -142,9 +142,12 @@ jobs:
       # token. Fallbacks: a SCHEMA_UPDATE_TOKEN PAT secret, then the
       # default token (PR still appears, needs manual attention).
       # NOTE: auto-merge only waits for checks that branch protection marks
-      # required (the Test job); without that protection rule it merges
-      # immediately, ungated. Breaking API changes skip auto-merge entirely
-      # (see the Flag breaking change step below).
+      # required (the Test and Integration jobs); without that protection
+      # rule it merges immediately, ungated. Breaking API changes skip
+      # auto-merge entirely (see the Flag breaking change step below).
+      # NOTE: integration.yaml is path-filtered; integration-noop.yaml
+      # covers every other PR so the required Integration check always
+      # reports — see that file's comment for the full rationale.
       # continue-on-error keeps the fallback chain real: a missing/invalid
       # private key degrades to the PAT/default token (visible as a failed
       # step) instead of killing the whole nightly run.
