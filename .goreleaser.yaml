@@ -45,9 +45,9 @@ changelog:
       - go mod tidy
 
 release:
-  github:
-    owner: ubiquiti-community
-    name: go-unifi
+  # No github owner/name: goreleaser infers the target repo from the git
+  # remote, so the release lands wherever the workflow runs rather than a
+  # hardcoded upstream the fork's token cannot write to.
   draft: false
   prerelease: auto
   mode: append
@@ -64,5 +64,5 @@ release:
     go get github.com/ubiquiti-community/go-unifi@{{ .Tag }}
     ```
 
-    **Full Changelog**: https://github.com/ubiquiti-community/go-unifi/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY }}/compare/{{ .PreviousTag }}...{{ .Tag }}
   name_template: "{{ .Tag }}"
