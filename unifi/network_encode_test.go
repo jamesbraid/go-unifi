@@ -423,6 +423,83 @@ func TestMarshalNetworkGuest(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkGuestParity verifies the advanced corporate-family fields
+// a live guest-purpose probe confirmed PERSISTED (see
+// TestIntegrationGuestParityProbe) are emitted by marshalGuest, matching
+// marshalCorporate. Guards against the encoder silently dropping a field the
+// controller accepts on a guest network.
+func TestMarshalNetworkGuestParity(t *testing.T) {
+	groupmembership := int64(260)
+	maxresponse := int64(10)
+	mcrtrexpiretime := int64(300)
+	timeOffset := int64(3600)
+
+	network := &Network{
+		Name:                      strPtr("Guest Parity"),
+		Purpose:                   PurposeGuest,
+		Enabled:                   true,
+		IPSubnet:                  strPtr("192.168.101.0/24"),
+		FirewallZoneID:            strPtr("507f1f77bcf86cd799439abc"),
+		IGMPFastleave:             true,
+		IGMPFloodUnknownMulticast: true,
+		IGMPGroupmembership:       &groupmembership,
+		IGMPMaxresponse:           &maxresponse,
+		IGMPMcrtrexpiretime:       &mcrtrexpiretime,
+		IGMPQuerierSwitches:       []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}},
+		IGMPSuppression:           true,
+		UPnPLanEnabled:            true,
+		MACOverride:               "02:00:00:00:00:01",
+		MACOverrideEnabled:        true,
+		DHCPDTimeOffsetEnabled:    true,
+		DHCPDTimeOffset:           &timeOffset,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal guest network: %v", err)
+	}
+
+	checkJSONFields(t, data, []string{
+		"firewall_zone_id",
+		"igmp_fastleave",
+		"igmp_flood_unknown_multicast",
+		"igmp_groupmembership",
+		"igmp_maxresponse",
+		"igmp_mcrtrexpiretime",
+		"igmp_querier_switches",
+		"igmp_supression",
+		"upnp_lan_enabled",
+		"mac_override_enabled",
+		"dhcpd_time_offset",
+	}, []string{})
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if result["firewall_zone_id"] != "507f1f77bcf86cd799439abc" {
+		t.Errorf("firewall_zone_id = %v", result["firewall_zone_id"])
+	}
+	if result["igmp_supression"] != true {
+		t.Errorf("igmp_supression = %v, want true", result["igmp_supression"])
+	}
+	if result["upnp_lan_enabled"] != true {
+		t.Errorf("upnp_lan_enabled = %v, want true", result["upnp_lan_enabled"])
+	}
+	if result["mac_override_enabled"] != true {
+		t.Errorf("mac_override_enabled = %v, want true", result["mac_override_enabled"])
+	}
+	if result["dhcpd_time_offset"] != float64(3600) {
+		t.Errorf("dhcpd_time_offset = %v, want 3600", result["dhcpd_time_offset"])
+	}
+	if result["igmp_groupmembership"] != float64(260) {
+		t.Errorf("igmp_groupmembership = %v, want 260", result["igmp_groupmembership"])
+	}
+	if sw, ok := result["igmp_querier_switches"].([]any); !ok || len(sw) != 1 {
+		t.Fatalf("igmp_querier_switches = %v, want 1-element array", result["igmp_querier_switches"])
+	}
+}
+
 // TestMarshalNetworkIPv6ClientAddressAssignment guards that the corporate and
 // guest marshalers emit ipv6_client_address_assignment when set, and omit it
 // when nil. The field lives on the generated Network struct but the marshalers
