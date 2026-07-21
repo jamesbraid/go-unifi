@@ -315,20 +315,17 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 
 // marshalGuest marshals a Guest network.
 //
-// Guest shares the networkconf collection with Corporate, and the phase 2
-// field probe (see docs/superpowers/handoffs/2026-07-18-controller-testing-
-// handoff.md) only exercised purpose=corporate. The following field groups
-// were live-verified and wired into marshalCorporate/marshalWAN/
-// marshalSiteVPN/marshalUserVPN but were deliberately NOT mirrored here:
-// dhcpd_time_offset (paired with dhcpd_time_offset_enabled, which this
-// struct already emits), mac_override_enabled (paired with mac_override,
-// which this struct already emits), firewall_zone_id, upnp_lan_enabled, the
-// advanced IGMP fields (igmp_fastleave, igmp_flood_unknown_multicast,
-// igmp_groupmembership, igmp_maxresponse, igmp_mcrtrexpiretime,
-// igmp_querier_switches, igmp_supression), and the ipv6 single-network pair
-// (ipv6_single_network_interface, single_network_lan). Do not port these
-// without a guest-purpose probe pass to confirm they persist the same way
-// on this purpose.
+// Guest shares the networkconf collection with Corporate. A guest-purpose
+// probe pass (TestIntegrationGuestParityProbe) confirmed the controller
+// persists the same advanced fields on a guest network as on a corporate
+// one, so these are mirrored from marshalCorporate: dhcpd_time_offset
+// (paired with dhcpd_time_offset_enabled), mac_override_enabled (paired with
+// mac_override), firewall_zone_id, upnp_lan_enabled, and the advanced IGMP
+// fields (igmp_fastleave, igmp_flood_unknown_multicast, igmp_groupmembership,
+// igmp_maxresponse, igmp_mcrtrexpiretime, igmp_querier_switches,
+// igmp_supression). The ipv6 single-network pair
+// (ipv6_single_network_interface, single_network_lan) is NOT emitted here: it
+// was not part of the guest probe and is corporate-specific ipv6 addressing.
 func (n *Network) marshalGuest() ([]byte, error) {
 	var defaultStart, defaultEnd string
 	if n.IPSubnet != nil {
@@ -347,30 +344,40 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		NoDelete bool   `json:"attr_no_delete,omitempty"`
 		NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-		Name                    *string                         `json:"name,omitempty"`
-		Purpose                 string                          `json:"purpose"`
-		Enabled                 bool                            `json:"enabled"`
-		NetworkGroup            *string                         `json:"networkgroup,omitempty"`
-		IPSubnet                *string                         `json:"ip_subnet,omitempty"`
-		VLAN                    *int64                          `json:"vlan,omitempty"`
-		VLANEnabled             bool                            `json:"vlan_enabled"`
-		L3InterfaceType         *string                         `json:"l3_interface_type,omitempty"`
-		RoutedPortIDX           *int64                          `json:"routed_port_idx,omitempty"`
-		RoutedLagIDX            *int64                          `json:"routed_lag_idx,omitempty"`
-		DomainName              *string                         `json:"domain_name,omitempty"`
-		AutoScaleEnabled        bool                            `json:"auto_scale_enabled"`
-		GatewayType             *string                         `json:"gateway_type,omitempty"`
-		InternetAccessEnabled   bool                            `json:"internet_access_enabled"`
-		NetworkIsolationEnabled bool                            `json:"network_isolation_enabled"`
-		SettingPreference       *string                         `json:"setting_preference,omitempty"`
-		IGMPSnooping            bool                            `json:"igmp_snooping"`
-		DHCPguardEnabled        bool                            `json:"dhcpguard_enabled"`
-		MdnsEnabled             bool                            `json:"mdns_enabled"`
-		LteLanEnabled           bool                            `json:"lte_lan_enabled"`
-		IPAliases               []string                        `json:"ip_aliases"`
-		IPV6Aliases             []string                        `json:"ipv6_aliases"`
-		NATOutboundIPAddresses  []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
-		MACOverride             string                          `json:"mac_override,omitempty"`
+		Name                      *string                         `json:"name,omitempty"`
+		Purpose                   string                          `json:"purpose"`
+		Enabled                   bool                            `json:"enabled"`
+		NetworkGroup              *string                         `json:"networkgroup,omitempty"`
+		IPSubnet                  *string                         `json:"ip_subnet,omitempty"`
+		VLAN                      *int64                          `json:"vlan,omitempty"`
+		VLANEnabled               bool                            `json:"vlan_enabled"`
+		L3InterfaceType           *string                         `json:"l3_interface_type,omitempty"`
+		RoutedPortIDX             *int64                          `json:"routed_port_idx,omitempty"`
+		RoutedLagIDX              *int64                          `json:"routed_lag_idx,omitempty"`
+		DomainName                *string                         `json:"domain_name,omitempty"`
+		AutoScaleEnabled          bool                            `json:"auto_scale_enabled"`
+		GatewayType               *string                         `json:"gateway_type,omitempty"`
+		InternetAccessEnabled     bool                            `json:"internet_access_enabled"`
+		NetworkIsolationEnabled   bool                            `json:"network_isolation_enabled"`
+		SettingPreference         *string                         `json:"setting_preference,omitempty"`
+		FirewallZoneID            *string                         `json:"firewall_zone_id,omitempty"`
+		IGMPSnooping              bool                            `json:"igmp_snooping"`
+		IGMPFastleave             bool                            `json:"igmp_fastleave"`
+		IGMPFloodUnknownMulticast bool                            `json:"igmp_flood_unknown_multicast"`
+		IGMPGroupmembership       *int64                          `json:"igmp_groupmembership,omitempty"`
+		IGMPMaxresponse           *int64                          `json:"igmp_maxresponse,omitempty"`
+		IGMPMcrtrexpiretime       *int64                          `json:"igmp_mcrtrexpiretime,omitempty"`
+		IGMPQuerierSwitches       []NetworkIGMPQuerierSwitches    `json:"igmp_querier_switches,omitempty"`
+		IGMPSuppression           bool                            `json:"igmp_supression"`
+		DHCPguardEnabled          bool                            `json:"dhcpguard_enabled"`
+		MdnsEnabled               bool                            `json:"mdns_enabled"`
+		LteLanEnabled             bool                            `json:"lte_lan_enabled"`
+		UPnPLanEnabled            bool                            `json:"upnp_lan_enabled"`
+		IPAliases                 []string                        `json:"ip_aliases"`
+		IPV6Aliases               []string                        `json:"ipv6_aliases"`
+		NATOutboundIPAddresses    []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
+		MACOverride               string                          `json:"mac_override,omitempty"`
+		MACOverrideEnabled        bool                            `json:"mac_override_enabled"`
 
 		// DHCP Server
 		DHCPDEnabled           bool    `json:"dhcpd_enabled"`
@@ -391,6 +398,7 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPDWins1             *string `json:"dhcpd_wins_1,omitempty"`
 		DHCPDWins2             *string `json:"dhcpd_wins_2,omitempty"`
 		DHCPDTimeOffsetEnabled bool    `json:"dhcpd_time_offset_enabled"`
+		DHCPDTimeOffset        *int64  `json:"dhcpd_time_offset,omitempty"`
 		DHCPDConflictChecking  bool    `json:"dhcpd_conflict_checking"`
 		DHCPDBootEnabled       bool    `json:"dhcpd_boot_enabled"`
 		DHCPDBootServer        string  `json:"dhcpd_boot_server,omitempty"`
@@ -437,30 +445,40 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:                    n.Name,
-		Purpose:                 n.Purpose,
-		Enabled:                 n.Enabled,
-		NetworkGroup:            valueOrDefault(n.NetworkGroup, "LAN"),
-		IPSubnet:                valueOrDefault(n.IPSubnet, ""),
-		VLAN:                    n.VLAN,
-		VLANEnabled:             n.VLANEnabled,
-		L3InterfaceType:         n.L3InterfaceType,
-		RoutedPortIDX:           n.RoutedPortIDX,
-		RoutedLagIDX:            n.RoutedLagIDX,
-		DomainName:              valueOrDefault(n.DomainName, ""),
-		AutoScaleEnabled:        n.AutoScaleEnabled,
-		GatewayType:             valueOrDefault(n.GatewayType, "default"),
-		InternetAccessEnabled:   n.InternetAccessEnabled,
-		NetworkIsolationEnabled: n.NetworkIsolationEnabled,
-		SettingPreference:       valueOrDefault(n.SettingPreference, "auto"),
-		IGMPSnooping:            n.IGMPSnooping,
-		DHCPguardEnabled:        n.DHCPguardEnabled,
-		MdnsEnabled:             n.MdnsEnabled,
-		LteLanEnabled:           n.LteLanEnabled,
-		IPAliases:               orEmptySlice(n.IPAliases),
-		IPV6Aliases:             orEmptySlice(n.IPV6Aliases),
-		NATOutboundIPAddresses:  orEmptyNATSlice(n.NATOutboundIPAddresses),
-		MACOverride:             n.MACOverride,
+		Name:                      n.Name,
+		Purpose:                   n.Purpose,
+		Enabled:                   n.Enabled,
+		NetworkGroup:              valueOrDefault(n.NetworkGroup, "LAN"),
+		IPSubnet:                  valueOrDefault(n.IPSubnet, ""),
+		VLAN:                      n.VLAN,
+		VLANEnabled:               n.VLANEnabled,
+		L3InterfaceType:           n.L3InterfaceType,
+		RoutedPortIDX:             n.RoutedPortIDX,
+		RoutedLagIDX:              n.RoutedLagIDX,
+		DomainName:                valueOrDefault(n.DomainName, ""),
+		AutoScaleEnabled:          n.AutoScaleEnabled,
+		GatewayType:               valueOrDefault(n.GatewayType, "default"),
+		InternetAccessEnabled:     n.InternetAccessEnabled,
+		NetworkIsolationEnabled:   n.NetworkIsolationEnabled,
+		SettingPreference:         valueOrDefault(n.SettingPreference, "auto"),
+		FirewallZoneID:            n.FirewallZoneID,
+		IGMPSnooping:              n.IGMPSnooping,
+		IGMPFastleave:             n.IGMPFastleave,
+		IGMPFloodUnknownMulticast: n.IGMPFloodUnknownMulticast,
+		IGMPGroupmembership:       n.IGMPGroupmembership,
+		IGMPMaxresponse:           n.IGMPMaxresponse,
+		IGMPMcrtrexpiretime:       n.IGMPMcrtrexpiretime,
+		IGMPQuerierSwitches:       n.IGMPQuerierSwitches,
+		IGMPSuppression:           n.IGMPSuppression,
+		DHCPguardEnabled:          n.DHCPguardEnabled,
+		MdnsEnabled:               n.MdnsEnabled,
+		LteLanEnabled:             n.LteLanEnabled,
+		UPnPLanEnabled:            n.UPnPLanEnabled,
+		IPAliases:                 orEmptySlice(n.IPAliases),
+		IPV6Aliases:               orEmptySlice(n.IPV6Aliases),
+		NATOutboundIPAddresses:    orEmptyNATSlice(n.NATOutboundIPAddresses),
+		MACOverride:               n.MACOverride,
+		MACOverrideEnabled:        n.MACOverrideEnabled,
 
 		// DHCP Server with defaults
 		DHCPDEnabled:           n.DHCPDEnabled,
@@ -481,6 +499,7 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPDWins1:             valueOrDefault(n.DHCPDWins1, ""),
 		DHCPDWins2:             valueOrDefault(n.DHCPDWins2, ""),
 		DHCPDTimeOffsetEnabled: n.DHCPDTimeOffsetEnabled,
+		DHCPDTimeOffset:        n.DHCPDTimeOffset,
 		DHCPDConflictChecking:  n.DHCPDConflictChecking,
 		DHCPDBootEnabled:       n.DHCPDBootEnabled,
 		DHCPDBootServer:        n.DHCPDBootServer,
