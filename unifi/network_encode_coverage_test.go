@@ -41,9 +41,11 @@ var networkEncoderPurposes = []string{
 // fieldCandidate in networkFieldCandidates (network_field_candidates_test.go);
 // TestFieldCandidatesCoverAllTODOs keeps the two lists in lockstep.
 var networkEncoderPresenceAllowlistTODOs = []string{
-	// probe 2026-07 (10.0.162 sim controller): STRIPPED. Create succeeds but
-	// the field is absent/empty on read-back regardless of value sent; a real
-	// referenced networkconf id might behave differently on real hardware.
+	// probe 2026-07 (sim controller): STRIPPED. Create succeeds but the field
+	// is absent on read-back even with a real referenced networkconf id and
+	// igmp_snooping enabled (re-probed 2026-07-21, three prereq combinations) --
+	// the simulation controller does not persist it. Real gateway hardware,
+	// which actually forwards multicast, might.
 	"igmp_proxy_downstream_networkconf_ids",
 
 	// probe 2026-07 (10.0.162 sim controller): REJECTED, api.err.UnrecognizedLocalIp
