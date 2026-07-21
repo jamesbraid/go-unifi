@@ -1,26 +1,23 @@
 ---
 name: Integration
 
-# Pulls the published simulation image matching schemas/VERSION and runs
-# the integration-tagged suite against it: harness smoke test + v2 schema
-# drift probe. The image is version-pinned and the smoke test enforces
-# the version it reports, so there's no build step — just a pull. PRs
-# touching schema inputs/outputs get it as a gate; the nightly run
-# catches upstream drift and image rot independent of PRs.
+# Runs the integration-tagged suite (harness smoke test + v2 schema drift
+# probe) against the published simulation image matching schemas/VERSION.
+# The image is version-pinned and the smoke test enforces the version it
+# reports, so there is no build step -- just a pull.
 #
-# Path-filtered so it stays fast, which means integration-noop.yaml must
-# cover every PR outside this filter — see that file's comment for why.
+# This is a single always-on job on purpose. Branch protection requires a
+# check named "Integration", and a path-filtered required check never
+# reports on non-matching PRs -- they hang forever on "Expected". The
+# earlier design worked around that with a path-filtered workflow plus a
+# no-op twin sharing this job's name, but the two double-fired on PRs
+# touching both integration-relevant and irrelevant paths (two check runs
+# of the same name, whose combined required-status is ambiguous). Instead
+# this job always reports and decides internally whether to boot a
+# controller, so exactly one "Integration" check exists on every PR.
 on:
   pull_request:
-    paths:
-      - 'schemas/**'
-      - 'overrides/**'
-      - 'unifi/**'
-      - 'cmd/fields/**'
-      - 'internal/controllertest/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/**'
+    types: [opened, synchronize, reopened]
   schedule:
     - cron: 30 1 * * *
   workflow_dispatch: {}
@@ -40,8 +37,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      # The suite only needs to run when the tree it exercises changed:
+      # schema inputs/outputs, the harness, the probed Go, or CI itself.
+      # On schedule/dispatch there is no PR diff, so always run. On a PR,
+      # diff the base against HEAD; if the diff cannot be computed, fall
+      # back to running rather than silently skipping a required gate.
+      - name: Decide whether to run the suite
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base='${{ github.event.pull_request.base.sha }}'
+          if ! changed="$(git diff --name-only "${base}...HEAD")"; then
+            echo "could not compute diff; running suite to be safe"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "${changed}"
+          if printf '%s\n' "${changed}" | grep -qE '^(schemas/|overrides/|unifi/|cmd/fields/|internal/controllertest/|go\.mod$|go\.sum$|\.github/workflows/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no integration-relevant paths changed; skipping suite"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Go
+        if: steps.decide.outputs.run == 'true'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
@@ -49,11 +76,12 @@ jobs:
       # No build step: the tag is derived straight from schemas/VERSION.
       # Images are published by jamesbraid/unifi-containers' own update
       # automation, so a tag missing here (schemas ahead of published
-      # images) fails the pull inside the harness — a red check, which is
+      # images) fails the pull inside the harness -- a red check, which is
       # the honest outcome. UNIFI_TEST_REQUIRE turns the harness's local
       # docker-unavailable skip into a failure: a required gate must never
       # be satisfiable by a skip.
       - name: Run integration suite
+        if: steps.decide.outputs.run == 'true'
         run: |
           version="$(cat schemas/VERSION)"
           UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim" \
