@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,21 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+// StartForHarness boots the controller selected by UNIFI_TEST_HARNESS: "uos"
+// boots UniFi OS Server (StartUOS), anything else — including unset — boots
+// the standalone Network app -sim (Start). It lets one integration suite run
+// against both harnesses by varying the env per CI job, so the encoder and
+// drift checks run against the full UOS stack as well as the standalone
+// controller. Tests that are inherently one-harness (e.g. the UOS gateway
+// probe) call Start / StartUOS directly instead.
+func StartForHarness(ctx context.Context, t *testing.T) *Controller {
+	t.Helper()
+	if strings.EqualFold(os.Getenv("UNIFI_TEST_HARNESS"), "uos") {
+		return StartUOS(ctx, t)
+	}
+	return Start(ctx, t)
+}
 
 const (
 	// uosDefaultImage is the UniFi OS Server simulation image. Unlike the

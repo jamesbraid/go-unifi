@@ -29,7 +29,7 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
-	c := controllertest.Start(ctx, t)
+	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
 	// Resolve "@..." placeholders to real referenced-object ids once, so

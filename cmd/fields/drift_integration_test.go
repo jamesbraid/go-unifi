@@ -40,7 +40,7 @@ func TestIntegrationV2Drift(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	c := controllertest.Start(ctx, t)
+	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
 	// A fresh simulation controller starts with every v2 collection empty, so

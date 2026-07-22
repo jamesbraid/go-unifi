@@ -28,7 +28,7 @@ func TestIntegrationWANEncoderUnset(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	c := controllertest.Start(ctx, t)
+	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
 	// A plain DHCP WAN with no static/PPPoE/DS-Lite settings: every
