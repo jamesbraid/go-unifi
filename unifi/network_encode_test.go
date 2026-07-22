@@ -423,6 +423,83 @@ func TestMarshalNetworkGuest(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkGuestParity verifies the advanced corporate-family fields
+// a live guest-purpose probe confirmed PERSISTED (see
+// TestIntegrationGuestParityProbe) are emitted by marshalGuest, matching
+// marshalCorporate. Guards against the encoder silently dropping a field the
+// controller accepts on a guest network.
+func TestMarshalNetworkGuestParity(t *testing.T) {
+	groupmembership := int64(260)
+	maxresponse := int64(10)
+	mcrtrexpiretime := int64(300)
+	timeOffset := int64(3600)
+
+	network := &Network{
+		Name:                      strPtr("Guest Parity"),
+		Purpose:                   PurposeGuest,
+		Enabled:                   true,
+		IPSubnet:                  strPtr("192.168.101.0/24"),
+		FirewallZoneID:            strPtr("507f1f77bcf86cd799439abc"),
+		IGMPFastleave:             true,
+		IGMPFloodUnknownMulticast: true,
+		IGMPGroupmembership:       &groupmembership,
+		IGMPMaxresponse:           &maxresponse,
+		IGMPMcrtrexpiretime:       &mcrtrexpiretime,
+		IGMPQuerierSwitches:       []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}},
+		IGMPSuppression:           true,
+		UPnPLanEnabled:            true,
+		MACOverride:               "02:00:00:00:00:01",
+		MACOverrideEnabled:        true,
+		DHCPDTimeOffsetEnabled:    true,
+		DHCPDTimeOffset:           &timeOffset,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal guest network: %v", err)
+	}
+
+	checkJSONFields(t, data, []string{
+		"firewall_zone_id",
+		"igmp_fastleave",
+		"igmp_flood_unknown_multicast",
+		"igmp_groupmembership",
+		"igmp_maxresponse",
+		"igmp_mcrtrexpiretime",
+		"igmp_querier_switches",
+		"igmp_supression",
+		"upnp_lan_enabled",
+		"mac_override_enabled",
+		"dhcpd_time_offset",
+	}, []string{})
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if result["firewall_zone_id"] != "507f1f77bcf86cd799439abc" {
+		t.Errorf("firewall_zone_id = %v", result["firewall_zone_id"])
+	}
+	if result["igmp_supression"] != true {
+		t.Errorf("igmp_supression = %v, want true", result["igmp_supression"])
+	}
+	if result["upnp_lan_enabled"] != true {
+		t.Errorf("upnp_lan_enabled = %v, want true", result["upnp_lan_enabled"])
+	}
+	if result["mac_override_enabled"] != true {
+		t.Errorf("mac_override_enabled = %v, want true", result["mac_override_enabled"])
+	}
+	if result["dhcpd_time_offset"] != float64(3600) {
+		t.Errorf("dhcpd_time_offset = %v, want 3600", result["dhcpd_time_offset"])
+	}
+	if result["igmp_groupmembership"] != float64(260) {
+		t.Errorf("igmp_groupmembership = %v, want 260", result["igmp_groupmembership"])
+	}
+	if sw, ok := result["igmp_querier_switches"].([]any); !ok || len(sw) != 1 {
+		t.Fatalf("igmp_querier_switches = %v, want 1-element array", result["igmp_querier_switches"])
+	}
+}
+
 // TestMarshalNetworkIPv6ClientAddressAssignment guards that the corporate and
 // guest marshalers emit ipv6_client_address_assignment when set, and omit it
 // when nil. The field lives on the generated Network struct but the marshalers
@@ -730,6 +807,497 @@ func TestMarshalNetworkUserVPNBindingMode(t *testing.T) {
 	}
 	if _, ok := result["vpn_binding_mode"]; ok {
 		t.Errorf("vpn_binding_mode serialized for nil value: %s", data)
+	}
+}
+
+// TestMarshalNetworkCorporateIGMPAdvanced guards the advanced multicast
+// fields added to the corporate marshaler in Task 4 (fast leave, flood
+// control, querier interval/response/expire timers, querier switches,
+// suppression) -- live-verified PERSISTED against a simulation-mode 10.0.162
+// controller (network_field_probe_integration_test.go).
+func TestMarshalNetworkCorporateIGMPAdvanced(t *testing.T) {
+	groupmembership := int64(260)
+	maxresponse := int64(10)
+	mcrtrexpiretime := int64(300)
+
+	network := &Network{
+		ID:                        "507f1f77bcf86cd799439030",
+		Purpose:                   PurposeCorporate,
+		Enabled:                   true,
+		IGMPFastleave:             true,
+		IGMPFloodUnknownMulticast: true,
+		IGMPGroupmembership:       &groupmembership,
+		IGMPMaxresponse:           &maxresponse,
+		IGMPMcrtrexpiretime:       &mcrtrexpiretime,
+		IGMPQuerierSwitches:       []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}},
+		IGMPSuppression:           true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got := result["igmp_fastleave"]; got != true {
+		t.Errorf("igmp_fastleave = %v, want true", got)
+	}
+	if got := result["igmp_flood_unknown_multicast"]; got != true {
+		t.Errorf("igmp_flood_unknown_multicast = %v, want true", got)
+	}
+	if got := result["igmp_groupmembership"]; got != float64(260) {
+		t.Errorf("igmp_groupmembership = %v, want 260", got)
+	}
+	if got := result["igmp_maxresponse"]; got != float64(10) {
+		t.Errorf("igmp_maxresponse = %v, want 10", got)
+	}
+	if got := result["igmp_mcrtrexpiretime"]; got != float64(300) {
+		t.Errorf("igmp_mcrtrexpiretime = %v, want 300", got)
+	}
+	if got := result["igmp_supression"]; got != true {
+		t.Errorf("igmp_supression = %v, want true", got)
+	}
+	switches, ok := result["igmp_querier_switches"].([]any)
+	if !ok || len(switches) != 1 {
+		t.Fatalf("igmp_querier_switches = %v, want 1 entry", result["igmp_querier_switches"])
+	}
+	entry, ok := switches[0].(map[string]any)
+	if !ok || entry["querier_address"] != "10.0.0.254" {
+		t.Errorf("igmp_querier_switches[0] = %v, want querier_address 10.0.0.254", switches[0])
+	}
+
+	// Unset => bools false, pointers/slices omitted.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeCorporate, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["igmp_fastleave"]; got != false {
+		t.Errorf("igmp_fastleave = %v, want false", got)
+	}
+	if got := result["igmp_supression"]; got != false {
+		t.Errorf("igmp_supression = %v, want false", got)
+	}
+	for _, field := range []string{"igmp_groupmembership", "igmp_maxresponse", "igmp_mcrtrexpiretime", "igmp_querier_switches"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
+// TestMarshalNetworkCorporateMisc guards the remaining corporate fields
+// wired in Task 4: DHCP time offset value, MAC override enable flag,
+// zone-based firewall assignment, per-LAN UPnP, and the ipv6_interface_type
+// "single_network" companion fields -- live-verified PERSISTED.
+func TestMarshalNetworkCorporateMisc(t *testing.T) {
+	timeOffset := int64(3600)
+	zoneID := "64f0000000000000000000aa"
+	lanID := "64f0000000000000000000bb"
+
+	network := &Network{
+		ID:                         "507f1f77bcf86cd799439031",
+		Purpose:                    PurposeCorporate,
+		Enabled:                    true,
+		DHCPDTimeOffset:            &timeOffset,
+		MACOverride:                "02:00:00:00:00:01",
+		MACOverrideEnabled:         true,
+		FirewallZoneID:             &zoneID,
+		UPnPLanEnabled:             true,
+		IPV6InterfaceType:          strPtr("single_network"),
+		IPV6SingleNetworkInterface: strPtr("wan"),
+		SingleNetworkLan:           &lanID,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if got := result["dhcpd_time_offset"]; got != float64(3600) {
+		t.Errorf("dhcpd_time_offset = %v, want 3600", got)
+	}
+	if got := result["mac_override_enabled"]; got != true {
+		t.Errorf("mac_override_enabled = %v, want true", got)
+	}
+	if got := result["firewall_zone_id"]; got != zoneID {
+		t.Errorf("firewall_zone_id = %v, want %s", got, zoneID)
+	}
+	if got := result["upnp_lan_enabled"]; got != true {
+		t.Errorf("upnp_lan_enabled = %v, want true", got)
+	}
+	if got := result["ipv6_single_network_interface"]; got != "wan" {
+		t.Errorf("ipv6_single_network_interface = %v, want wan", got)
+	}
+	if got := result["single_network_lan"]; got != lanID {
+		t.Errorf("single_network_lan = %v, want %s", got, lanID)
+	}
+
+	// Unset => omitted/false, no perpetual diff against the API.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeCorporate, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["mac_override_enabled"]; got != false {
+		t.Errorf("mac_override_enabled = %v, want false", got)
+	}
+	if got := result["upnp_lan_enabled"]; got != false {
+		t.Errorf("upnp_lan_enabled = %v, want false", got)
+	}
+	for _, field := range []string{"dhcpd_time_offset", "firewall_zone_id", "ipv6_single_network_interface", "single_network_lan"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
+// TestMarshalNetworkWANInterfaceMtu guards the WAN interface MTU fields
+// wired in Task 4 -- live-verified PERSISTED.
+func TestMarshalNetworkWANInterfaceMtu(t *testing.T) {
+	mtu := int64(1400)
+	network := &Network{
+		ID:                  "507f1f77bcf86cd799439032",
+		Purpose:             PurposeWAN,
+		Enabled:             true,
+		WANType:             strPtr("dhcp"),
+		InterfaceMtu:        &mtu,
+		InterfaceMtuEnabled: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["interface_mtu"]; got != float64(1400) {
+		t.Errorf("interface_mtu = %v, want 1400", got)
+	}
+	if got := result["interface_mtu_enabled"]; got != true {
+		t.Errorf("interface_mtu_enabled = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["interface_mtu_enabled"]; got != false {
+		t.Errorf("interface_mtu_enabled = %v, want false", got)
+	}
+	if _, ok := result["interface_mtu"]; ok {
+		t.Errorf("interface_mtu serialized for nil value: %s", data)
+	}
+}
+
+// TestMarshalNetworkWANStaticAddressing guards the static WAN/WANv6
+// addressing fields (wan_type "static" / wan_type_v6 "static") wired in
+// Task 4 -- live-verified PERSISTED. wan_ipv6 and wan_gateway_v6 are plain
+// (non-pointer, no omitempty) strings on the generated struct, so they are
+// always present, empty when unset.
+func TestMarshalNetworkWANStaticAddressing(t *testing.T) {
+	prefixlen := int64(64)
+	network := &Network{
+		ID:           "507f1f77bcf86cd799439033",
+		Purpose:      PurposeWAN,
+		Enabled:      true,
+		WANType:      strPtr("static"),
+		WANTypeV6:    strPtr("static"),
+		WANIP:        strPtr("192.0.2.10"),
+		WANNetmask:   strPtr("255.255.255.0"),
+		WANGateway:   strPtr("192.0.2.1"),
+		WANIPV6:      "2001:db8::10",
+		WANGatewayV6: "2001:db8::1",
+		WANPrefixlen: &prefixlen,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_ip"]; got != "192.0.2.10" {
+		t.Errorf("wan_ip = %v, want 192.0.2.10", got)
+	}
+	if got := result["wan_netmask"]; got != "255.255.255.0" {
+		t.Errorf("wan_netmask = %v, want 255.255.255.0", got)
+	}
+	if got := result["wan_gateway"]; got != "192.0.2.1" {
+		t.Errorf("wan_gateway = %v, want 192.0.2.1", got)
+	}
+	if got := result["wan_ipv6"]; got != "2001:db8::10" {
+		t.Errorf("wan_ipv6 = %v, want 2001:db8::10", got)
+	}
+	if got := result["wan_gateway_v6"]; got != "2001:db8::1" {
+		t.Errorf("wan_gateway_v6 = %v, want 2001:db8::1", got)
+	}
+	if got := result["wan_prefixlen"]; got != float64(64) {
+		t.Errorf("wan_prefixlen = %v, want 64", got)
+	}
+
+	// Unset => pointer fields omitted; plain-string fields present but empty.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	for _, field := range []string{"wan_ip", "wan_netmask", "wan_gateway", "wan_prefixlen"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+	if got := result["wan_ipv6"]; got != "" {
+		t.Errorf("wan_ipv6 = %v, want empty string", got)
+	}
+	if got := result["wan_gateway_v6"]; got != "" {
+		t.Errorf("wan_gateway_v6 = %v, want empty string", got)
+	}
+}
+
+// TestMarshalNetworkWANPppoeCredentials guards the PPPoE credential fields
+// (wan_type "pppoe") wired in Task 4 -- live-verified PERSISTED. The
+// controller rejects a pppoe WAN unless BOTH wan_username and x_wan_password
+// are present (api.err.InvalidWanPppoeCredentials), which is why the encoder
+// must send both plain-string fields unconditionally rather than only when
+// set.
+func TestMarshalNetworkWANPppoeCredentials(t *testing.T) {
+	network := &Network{
+		ID:                      "507f1f77bcf86cd799439034",
+		Purpose:                 PurposeWAN,
+		Enabled:                 true,
+		WANType:                 strPtr("pppoe"),
+		WANUsername:             "pppoe-user",
+		WANPassword:             "pppoe-pass",
+		WANPppoeUsernameEnabled: true,
+		WANPppoePasswordEnabled: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_username"]; got != "pppoe-user" {
+		t.Errorf("wan_username = %v, want pppoe-user", got)
+	}
+	if got := result["x_wan_password"]; got != "pppoe-pass" {
+		t.Errorf("x_wan_password = %v, want pppoe-pass", got)
+	}
+	if got := result["wan_pppoe_username_enabled"]; got != true {
+		t.Errorf("wan_pppoe_username_enabled = %v, want true", got)
+	}
+	if got := result["wan_pppoe_password_enabled"]; got != true {
+		t.Errorf("wan_pppoe_password_enabled = %v, want true", got)
+	}
+
+	// Unset => bools false; plain-string fields present but empty.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["wan_username"]; got != "" {
+		t.Errorf("wan_username = %v, want empty string", got)
+	}
+	if got := result["x_wan_password"]; got != "" {
+		t.Errorf("x_wan_password = %v, want empty string", got)
+	}
+	if got := result["wan_pppoe_username_enabled"]; got != false {
+		t.Errorf("wan_pppoe_username_enabled = %v, want false", got)
+	}
+	if got := result["wan_pppoe_password_enabled"]; got != false {
+		t.Errorf("wan_pppoe_password_enabled = %v, want false", got)
+	}
+}
+
+// TestMarshalNetworkWANDSLite guards the DS-Lite fields (wan_type "dslite")
+// wired in Task 4 -- live-verified PERSISTED.
+func TestMarshalNetworkWANDSLite(t *testing.T) {
+	network := &Network{
+		ID:                      "507f1f77bcf86cd799439035",
+		Purpose:                 PurposeWAN,
+		Enabled:                 true,
+		WANType:                 strPtr("dslite"),
+		WANDsliteRemoteHost:     strPtr("aftr.example.net"),
+		WANDsliteRemoteHostAuto: true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["wan_dslite_remote_host"]; got != "aftr.example.net" {
+		t.Errorf("wan_dslite_remote_host = %v, want aftr.example.net", got)
+	}
+	if got := result["wan_dslite_remote_host_auto"]; got != true {
+		t.Errorf("wan_dslite_remote_host_auto = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeWAN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["wan_dslite_remote_host_auto"]; got != false {
+		t.Errorf("wan_dslite_remote_host_auto = %v, want false", got)
+	}
+	if _, ok := result["wan_dslite_remote_host"]; ok {
+		t.Errorf("wan_dslite_remote_host serialized for nil value: %s", data)
+	}
+}
+
+// TestMarshalNetworkSiteVPNIkeIdentifiers guards the IKE peer identifier and
+// separate-IKEv2-networks fields wired into marshalSiteVPN in Task 4 --
+// live-verified PERSISTED.
+func TestMarshalNetworkSiteVPNIkeIdentifiers(t *testing.T) {
+	network := &Network{
+		ID:                           "507f1f77bcf86cd799439036",
+		Purpose:                      PurposeSiteVPN,
+		Enabled:                      true,
+		VPNType:                      strPtr("ipsec-vpn"),
+		IPSecKeyExchange:             strPtr("ikev2"),
+		IPSecLocalIDentifier:         strPtr("site-a.vpn.example.com"),
+		IPSecLocalIDentifierEnabled:  true,
+		IPSecRemoteIDentifier:        strPtr("site-b.vpn.example.com"),
+		IPSecRemoteIDentifierEnabled: true,
+		IPSecSeparateIkev2Networks:   true,
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["ipsec_local_identifier"]; got != "site-a.vpn.example.com" {
+		t.Errorf("ipsec_local_identifier = %v, want site-a.vpn.example.com", got)
+	}
+	if got := result["ipsec_local_identifier_enabled"]; got != true {
+		t.Errorf("ipsec_local_identifier_enabled = %v, want true", got)
+	}
+	if got := result["ipsec_remote_identifier"]; got != "site-b.vpn.example.com" {
+		t.Errorf("ipsec_remote_identifier = %v, want site-b.vpn.example.com", got)
+	}
+	if got := result["ipsec_remote_identifier_enabled"]; got != true {
+		t.Errorf("ipsec_remote_identifier_enabled = %v, want true", got)
+	}
+	if got := result["ipsec_separate_ikev2_networks"]; got != true {
+		t.Errorf("ipsec_separate_ikev2_networks = %v, want true", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeSiteVPN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	for _, field := range []string{"ipsec_local_identifier_enabled", "ipsec_remote_identifier_enabled", "ipsec_separate_ikev2_networks"} {
+		if got := result[field]; got != false {
+			t.Errorf("%s = %v, want false", field, got)
+		}
+	}
+	for _, field := range []string{"ipsec_local_identifier", "ipsec_remote_identifier"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("%s serialized for nil value: %s", field, data)
+		}
+	}
+}
+
+// TestMarshalNetworkUserVPNAdvanced guards the remote-user-vpn fields wired
+// in Task 4: the WireGuard client-configuration remote-IP-override enable
+// flag, the L2TP MS-CHAPv2 requirement, and the OpenVPN server protocol --
+// live-verified PERSISTED.
+func TestMarshalNetworkUserVPNAdvanced(t *testing.T) {
+	network := &Network{
+		ID:                                     "507f1f77bcf86cd799439037",
+		Purpose:                                PurposeUserVPN,
+		Enabled:                                true,
+		VPNType:                                strPtr("wireguard-server"),
+		VPNClientConfigurationRemoteIPOverride: strPtr("192.0.2.55"),
+		VPNClientConfigurationRemoteIPOverrideEnabled: true,
+		RequireMschapv2: true,
+		VPNProtocol:     strPtr("UDP"),
+	}
+
+	data, err := json.Marshal(network)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := result["vpn_client_configuration_remote_ip_override_enabled"]; got != true {
+		t.Errorf("vpn_client_configuration_remote_ip_override_enabled = %v, want true", got)
+	}
+	if got := result["require_mschapv2"]; got != true {
+		t.Errorf("require_mschapv2 = %v, want true", got)
+	}
+	if got := result["vpn_protocol"]; got != "UDP" {
+		t.Errorf("vpn_protocol = %v, want UDP", got)
+	}
+
+	// Unset => omitted/false.
+	data, err = json.Marshal(&Network{ID: "x", Purpose: PurposeUserVPN, Enabled: true})
+	if err != nil {
+		t.Fatalf("marshal (unset): %v", err)
+	}
+	result = map[string]any{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal (unset): %v", err)
+	}
+	if got := result["vpn_client_configuration_remote_ip_override_enabled"]; got != false {
+		t.Errorf("vpn_client_configuration_remote_ip_override_enabled = %v, want false", got)
+	}
+	if got := result["require_mschapv2"]; got != false {
+		t.Errorf("require_mschapv2 = %v, want false", got)
+	}
+	if _, ok := result["vpn_protocol"]; ok {
+		t.Errorf("vpn_protocol serialized for nil value: %s", data)
 	}
 }
 

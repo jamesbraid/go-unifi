@@ -11,6 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-codegen-spec v0.2.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/klauspost/compress v1.19.0
+	github.com/moby/moby/api v1.54.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/ulikunitz/xz v0.5.15
@@ -62,7 +63,6 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
-	github.com/moby/moby/api v1.54.2 // indirect
 	github.com/moby/moby/client v0.4.0 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect

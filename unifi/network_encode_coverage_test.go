@@ -29,179 +29,138 @@ var networkEncoderPurposes = []string{
 	PurposeUserVPN,
 }
 
+// networkEncoderPresenceAllowlistTODOs lists generated wire names that were
+// probed against a live simulation-mode controller (TestIntegrationNetworkFieldProbe,
+// see network_field_probe_integration_test.go) and did NOT come back
+// PERSISTED. Every PERSISTED field from the same probe run is wired into the
+// matching purpose marshal struct in network_encode.go and removed from this
+// slice (the coverage test now requires the encoder to emit it, which is
+// self-verifying). What remains here is STRIPPED (controller silently drops
+// the field) or REJECTED (controller rejects the create/update), each with
+// the measured outcome recorded below. Each entry still has a matching
+// fieldCandidate in networkFieldCandidates (network_field_candidates_test.go);
+// TestFieldCandidatesCoverAllTODOs keeps the two lists in lockstep.
+var networkEncoderPresenceAllowlistTODOs = []string{
+	// probe 2026-07 (sim controller): STRIPPED. Create succeeds but the field
+	// is absent on read-back even with a real referenced networkconf id and
+	// igmp_snooping enabled (re-probed 2026-07-21, three prereq combinations) --
+	// the simulation controller does not persist it. Real gateway hardware,
+	// which actually forwards multicast, might.
+	"igmp_proxy_downstream_networkconf_ids",
+
+	// probe 2026-07 (10.0.162 sim controller): REJECTED, api.err.UnrecognizedLocalIp
+	// on sibling field ipsec_local_ip. These are route-based (ipsec_dynamic_routing
+	// true) site-vpn fields; the controller requires ipsec_local_ip to be a real
+	// address bound to an adopted gateway's WAN interface, which this bare
+	// container-only simulation (no adopted hardware) cannot provide. Every other
+	// prerequisite (PSK, profile, phase 1/2 params, remote subnets, the tunnel_ip
+	// value itself) was supplied and did not change the outcome -- see
+	// mergeRouteBasedPrereq in network_field_candidates_test.go.
+	"ipsec_tunnel_ip",
+	"ipsec_tunnel_ip_enabled",
+	"remote_vpn_dynamic_subnets_enabled",
+}
+
 // networkEncoderAllowlist contains generated wire names that are intentionally
-// not emitted by Network.MarshalJSON for any purpose. Every entry needs a
-// justification; entries that look like genuine encoder gaps are marked with
-// a TODO so they get picked up when the relevant purpose is next touched.
-var networkEncoderAllowlist = map[string]bool{
-	// Controller-computed / read-only status fields. Reported by the
-	// controller, not settable through create/update payloads.
-	"gateway_device":       true, // MAC of the gateway device serving the network, assigned by the controller
-	"is_nat":               true, // NAT status computed by the controller
-	"wireguard_public_key": true, // derived by the controller from x_wireguard_private_key
-	"wan_sla":              true, // WAN SLA/monitoring data reported by the controller
+// not emitted by Network.MarshalJSON for any purpose: permanent entries
+// justified below, plus every wire name in
+// networkEncoderPresenceAllowlistTODOs (fields that look like genuine encoder
+// gaps, tracked there instead so they get classified against a live
+// controller rather than silently allowlisted forever).
+var networkEncoderAllowlist = buildNetworkEncoderAllowlist()
 
-	// Legacy IKE phase-1 field aliases. marshalSiteVPN sends phase-1
-	// parameters under the legacy names ipsec_encryption / ipsec_hash /
-	// ipsec_dh_group instead of these newer ipsec_ike_* spellings.
-	"ipsec_ike_dh_group":   true,
-	"ipsec_ike_encryption": true,
-	"ipsec_ike_hash":       true,
+func buildNetworkEncoderAllowlist() map[string]bool {
+	allowlist := map[string]bool{
+		// Controller-computed / read-only status fields. Reported by the
+		// controller, not settable through create/update payloads.
+		"gateway_device":       true, // MAC of the gateway device serving the network, assigned by the controller
+		"is_nat":               true, // NAT status computed by the controller
+		"wireguard_public_key": true, // derived by the controller from x_wireguard_private_key
+		"wan_sla":              true, // WAN SLA/monitoring data reported by the controller
 
-	// Legacy PPTP VPN client. Deprecated by UniFi and not a vpn_type the
-	// encoder's vpn-client marshaler (WireGuard only) supports.
-	"pptpc_require_mppe":   true,
-	"pptpc_route_distance": true,
-	"pptpc_server_ip":      true,
-	"pptpc_username":       true,
-	"x_pptpc_password":     true,
+		// Legacy IKE phase-1 field aliases. marshalSiteVPN sends phase-1
+		// parameters under the legacy names ipsec_encryption / ipsec_hash /
+		// ipsec_dh_group instead of these newer ipsec_ike_* spellings.
+		"ipsec_ike_dh_group":   true,
+		"ipsec_ike_encryption": true,
+		"ipsec_ike_hash":       true,
 
-	// Site-to-site / client OpenVPN tunnels. The encoder only manages IPsec
-	// site-vpn and WireGuard vpn-client networks; OpenVPN tunnel flavors of
-	// vpn_type are not supported, so their config fields are never sent.
-	"openvpn_configuration":          true,
-	"openvpn_configuration_filename": true,
-	"openvpn_local_address":          true,
-	"openvpn_local_port":             true,
-	"openvpn_remote_address":         true,
-	"openvpn_remote_host":            true,
-	"openvpn_remote_port":            true,
-	"openvpn_username":               true,
-	"x_openvpn_password":             true,
-	"x_openvpn_shared_secret_key":    true,
+		// Legacy PPTP VPN client. Deprecated by UniFi and not a vpn_type the
+		// encoder's vpn-client marshaler (WireGuard only) supports.
+		"pptpc_require_mppe":   true,
+		"pptpc_route_distance": true,
+		"pptpc_server_ip":      true,
+		"pptpc_username":       true,
+		"x_pptpc_password":     true,
 
-	// UniFi Identity (UID) Enterprise VPN. Requires a UID workspace and is
-	// provisioned by the controller/UID service, not by this client.
-	"uid_policy_enabled":                          true,
-	"uid_policy_name":                             true,
-	"uid_public_gateway_port":                     true,
-	"uid_traffic_rules_allowed_ips_and_hostnames": true,
-	"uid_traffic_rules_enabled":                   true,
-	"uid_vpn_custom_routing":                      true,
-	"uid_vpn_default_dns_suffix":                  true,
-	"uid_vpn_masquerade_enabled":                  true,
-	"uid_vpn_max_connection_time_seconds":         true,
-	"uid_vpn_sync_public_ip":                      true,
-	"uid_vpn_type":                                true,
-	"uid_workspace_url":                           true,
+		// Site-to-site / client OpenVPN tunnels. The encoder only manages IPsec
+		// site-vpn and WireGuard vpn-client networks; OpenVPN tunnel flavors of
+		// vpn_type are not supported, so their config fields are never sent.
+		"openvpn_configuration":          true,
+		"openvpn_configuration_filename": true,
+		"openvpn_local_address":          true,
+		"openvpn_local_port":             true,
+		"openvpn_remote_address":         true,
+		"openvpn_remote_host":            true,
+		"openvpn_remote_port":            true,
+		"openvpn_username":               true,
+		"x_openvpn_password":             true,
+		"x_openvpn_shared_secret_key":    true,
 
-	// SD-WAN / Site Magic tunnels. These networks are created and managed by
-	// the controller's SD-WAN orchestration, not through this encoder.
-	"remote_site_id":       true,
-	"sdwan_remote_site_id": true,
+		// UniFi Identity (UID) Enterprise VPN. Requires a UID workspace and is
+		// provisioned by the controller/UID service, not by this client.
+		"uid_policy_enabled":                          true,
+		"uid_policy_name":                             true,
+		"uid_public_gateway_port":                     true,
+		"uid_traffic_rules_allowed_ips_and_hostnames": true,
+		"uid_traffic_rules_enabled":                   true,
+		"uid_vpn_custom_routing":                      true,
+		"uid_vpn_default_dns_suffix":                  true,
+		"uid_vpn_masquerade_enabled":                  true,
+		"uid_vpn_max_connection_time_seconds":         true,
+		"uid_vpn_sync_public_ip":                      true,
+		"uid_vpn_type":                                true,
+		"uid_workspace_url":                           true,
 
-	// VRRP / shadow-mode gateway HA. Managed by the controller when a
-	// secondary gateway is adopted.
-	"vrrp_ip_subnet_gw1": true,
-	"vrrp_ip_subnet_gw2": true,
-	"vrrp_vrid":          true,
+		// SD-WAN / Site Magic tunnels. These networks are created and managed by
+		// the controller's SD-WAN orchestration, not through this encoder.
+		"remote_site_id":       true,
+		"sdwan_remote_site_id": true,
 
-	// Legacy per-network DPI restriction assignment; DPI is managed through
-	// the dedicated DPI app/group endpoints.
-	"dpi_enabled": true,
-	"dpigroup_id": true,
+		// VRRP / shadow-mode gateway HA. Managed by the controller when a
+		// secondary gateway is adopted.
+		"vrrp_ip_subnet_gw1": true,
+		"vrrp_ip_subnet_gw2": true,
+		"vrrp_vrid":          true,
 
-	// Legacy trusted-DHCP-server MAC slots paired with dhcpd_ip_1..3; the
-	// encoder sends the IP variants (vlan-only) which is what the UI uses.
-	"dhcpd_mac_1": true,
-	"dhcpd_mac_2": true,
-	"dhcpd_mac_3": true,
+		// Legacy per-network DPI restriction assignment; DPI is managed through
+		// the dedicated DPI app/group endpoints.
+		"dpi_enabled": true,
+		"dpigroup_id": true,
 
-	// Third/fourth WAN DNS slots; the controller UI exposes only two and the
-	// encoder sends wan_dns1/wan_dns2.
-	"wan_dns3": true,
-	"wan_dns4": true,
+		// Legacy trusted-DHCP-server MAC slots paired with dhcpd_ip_1..3; the
+		// encoder sends the IP variants (vlan-only) which is what the UI uses.
+		"dhcpd_mac_1": true,
+		"dhcpd_mac_2": true,
+		"dhcpd_mac_3": true,
 
-	// Legacy classic-UI flag advertising a LAN over auto site-to-site VPN;
-	// superseded by explicit site-vpn networks.
-	"exposed_to_site_vpn": true,
+		// Third/fourth WAN DNS slots; the controller UI exposes only two and the
+		// encoder sends wan_dns1/wan_dns2.
+		"wan_dns3": true,
+		"wan_dns4": true,
 
-	// Legacy/rarely used settings not exposed in current controller UIs.
-	"priority":     true, // legacy network priority (1-4)
-	"usergroup_id": true, // legacy user-group assignment (a WLAN-era concept)
+		// Legacy classic-UI flag advertising a LAN over auto site-to-site VPN;
+		// superseded by explicit site-vpn networks.
+		"exposed_to_site_vpn": true,
 
-	// TODO: possibly a real gap -- dhcpd_time_offset_enabled is emitted for
-	// corporate/guest but the offset value itself is never sent.
-	"dhcpd_time_offset": true,
-
-	// TODO: possibly a real gap -- mac_override is emitted for corporate/guest
-	// but its enable flag is never sent.
-	"mac_override_enabled": true,
-
-	// TODO: possibly a real gap -- vpn_client_configuration_remote_ip_override
-	// is emitted for remote-user-vpn but its enable flag is never sent.
-	"vpn_client_configuration_remote_ip_override_enabled": true,
-
-	// TODO: possibly a real gap -- zone-based firewall (controller 9.0+)
-	// network-to-zone assignment is never sent.
-	"firewall_zone_id": true,
-
-	// TODO: possibly a real gap -- advanced multicast settings (fast leave,
-	// querier, proxy downstream networks, flood control) are configurable in
-	// current controller UIs but never sent.
-	"igmp_fastleave":                        true,
-	"igmp_flood_unknown_multicast":          true,
-	"igmp_groupmembership":                  true,
-	"igmp_maxresponse":                      true,
-	"igmp_mcrtrexpiretime":                  true,
-	"igmp_proxy_downstream_networkconf_ids": true,
-	"igmp_querier_switches":                 true,
-	"igmp_supression":                       true, //nolint:misspell // upstream wire name carries the typo
-
-	// TODO: possibly a real gap -- WAN MTU is a standard UI setting but is
-	// never sent by marshalWAN.
-	"interface_mtu":         true,
-	"interface_mtu_enabled": true,
-
-	// TODO: possibly a real gap -- advanced site-vpn IPsec options (IKE
-	// identifiers, tunnel IP, separate IKEv2 networks) are configurable in the
-	// UI but never sent by marshalSiteVPN.
-	"ipsec_local_identifier":          true,
-	"ipsec_local_identifier_enabled":  true,
-	"ipsec_remote_identifier":         true,
-	"ipsec_remote_identifier_enabled": true,
-	"ipsec_separate_ikev2_networks":   true,
-	"ipsec_tunnel_ip":                 true,
-	"ipsec_tunnel_ip_enabled":         true,
-
-	// TODO: possibly a real gap -- ipv6_interface_type supports
-	// "single_network" but its companion interface/LAN selection fields are
-	// never sent.
-	"ipv6_single_network_interface": true,
-	"single_network_lan":            true,
-
-	// TODO: possibly a real gap -- site-vpn emits remote_vpn_subnets but not
-	// the dynamic-subnets toggle.
-	"remote_vpn_dynamic_subnets_enabled": true,
-
-	// TODO: possibly a real gap -- L2TP remote-user-vpn RADIUS option is never
-	// sent even though the other l2tp_* fields are.
-	"require_mschapv2": true,
-
-	// TODO: possibly a real gap -- per-LAN UPnP toggle is never sent even
-	// though the WAN-side upnp_* fields are emitted by marshalWAN.
-	"upnp_lan_enabled": true,
-
-	// TODO: possibly a real gap -- OpenVPN server protocol (TCP/UDP) for
-	// remote-user-vpn is never sent even though openvpn_mode is.
-	"vpn_protocol": true,
-
-	// TODO: possibly a real gap -- marshalWAN emits wan_type, whose schema
-	// allows "static", "pppoe", and "dslite", but the fields those modes need
-	// (static addressing, PPPoE credentials, DS-Lite remote host) are never
-	// sent, so only DHCP-style WANs round-trip fully.
-	"wan_gateway":                 true,
-	"wan_gateway_v6":              true,
-	"wan_ip":                      true,
-	"wan_ipv6":                    true,
-	"wan_netmask":                 true,
-	"wan_prefixlen":               true,
-	"wan_pppoe_password_enabled":  true,
-	"wan_pppoe_username_enabled":  true,
-	"wan_username":                true,
-	"x_wan_password":              true,
-	"wan_dslite_remote_host":      true,
-	"wan_dslite_remote_host_auto": true,
+		// Legacy/rarely used settings not exposed in current controller UIs.
+		"priority":     true, // legacy network priority (1-4)
+		"usergroup_id": true, // legacy user-group assignment (a WLAN-era concept)
+	}
+	for _, w := range networkEncoderPresenceAllowlistTODOs {
+		allowlist[w] = true
+	}
+	return allowlist
 }
 
 // networkWireNames returns the JSON wire names declared on the generated

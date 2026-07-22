@@ -19,7 +19,7 @@ func TestIntegrationControllerBoots(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	c := Start(ctx, t)
+	c := StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
 	body, status, err := s.GetJSON(ctx, "/api/s/"+c.Site+"/stat/sysinfo")

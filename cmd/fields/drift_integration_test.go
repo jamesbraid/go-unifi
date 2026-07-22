@@ -28,6 +28,8 @@ var v2Probes = []struct {
 	{"DnsRecord.json", "/v2/api/site/%s/static-dns"},
 	{"OSPFRouter.json", "/v2/api/site/%s/ospf/router"},
 	{"BgpConfig.json", "/v2/api/site/%s/bgp/config"},
+	{"ApGroups.json", "/v2/api/site/%s/apgroups"},
+	{"NetworkMembersGroup.json", "/v2/api/site/%s/network-members-groups"},
 }
 
 // TestIntegrationV2Drift compares the hand-written v2 schemas against what a
@@ -38,19 +40,29 @@ func TestIntegrationV2Drift(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	c := controllertest.Start(ctx, t)
+	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
-	// A fresh simulation controller starts with every v2 collection empty,
-	// so all seven drift subtests below would otherwise skip on "no live
-	// objects to compare" and the gate would never exercise the drift
-	// detector. Seed one DNS record so at least DnsRecord.json has
-	// something to compare against; a failed seed must fail the test, not
-	// silently fall through to another skip. The remaining six schemas
-	// still need phase-2 fixture work: FirewallZone's POST fails with
-	// CouldNotFindHotspotFirewallZone on simulation controllers, and
-	// TrafficRoute/Nat/OSPFRouter/BgpConfig all need network prerequisites
-	// (routes, WAN interfaces, peers) that don't exist in this harness yet.
+	// A fresh simulation controller starts with every v2 collection empty, so
+	// the drift subtests below skip on "no live objects to compare" unless the
+	// collection is seeded. static-dns is the one collection a gateway-less sim
+	// accepts a POST into, so seed one DNS record to exercise DnsRecord.json (a
+	// failed seed fails the test rather than silently skipping). ApGroups is
+	// pre-seeded by the controller, so it compares too.
+	//
+	// The other seven can NOT be seeded on this bare container harness. Each
+	// endpoint was re-probed 2026-07-21 with schema-correct payloads (POST and
+	// PUT); they all require adopted gateway hardware the simulation lacks --
+	// the same limitation that leaves the ipsec/site-vpn encoder fields
+	// REJECTED (see networkEncoderPresenceAllowlistTODOs):
+	//   BgpConfig            404 api.err.BgpUnsupportedDevice ("Device doesn't support BGP")
+	//   FirewallZone         404 api.err.CouldNotFindHotspotFirewallZone
+	//   FirewallPolicy       needs source/destination zone ids (blocked on FirewallZone)
+	//   Nat, TrafficRoute    need WAN in/out interfaces and a next hop
+	//   OSPFRouter           needs a supporting device
+	//   NetworkMembersGroup  405 -- the v2 collection is not POST-writable here
+	// Seeding these needs a gateway-adopted harness (UniFi OS Server), not more
+	// payload fixtures; until then the drift gate covers static-dns and apgroups.
 	seed := map[string]any{
 		"enabled":     true,
 		"key":         "probe.example.com",

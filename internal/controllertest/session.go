@@ -98,47 +98,48 @@ func (s *Session) Login(ctx context.Context, username, password string) error {
 // two are not the same thing, and callers that care (e.g. the drift probe)
 // must use errors.Is to tell them apart.
 func (s *Session) GetJSON(ctx context.Context, path string) (any, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL+path, nil)
-	if err != nil {
-		return nil, 0, err
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp.StatusCode, err
-	}
-
-	var body any
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, resp.StatusCode, ErrNotJSON
-	}
-	return body, resp.StatusCode, nil
+	return s.do(ctx, http.MethodGet, path, nil)
 }
 
-// PostJSON marshals body as JSON and POSTs it to path, returning the
-// decoded response body, the HTTP status code, and any error. It mirrors
-// GetJSON's contract exactly: non-2xx statuses are not errors, a legal
-// JSON `null` response body returns (nil, status, nil), and a body that
-// fails to decode as JSON returns (nil, status, ErrNotJSON).
+// PostJSON sends a JSON body; same return convention as GetJSON (non-2xx
+// statuses are results, not errors — probes classify them).
 func (s *Session) PostJSON(ctx context.Context, path string, body any) (any, int, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, 0, err
 	}
+	return s.do(ctx, http.MethodPost, path, payload)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.baseURL+path, bytes.NewReader(payload))
+// DeleteJSON deletes path; same return convention as GetJSON.
+func (s *Session) DeleteJSON(ctx context.Context, path string) (any, int, error) {
+	return s.do(ctx, http.MethodDelete, path, nil)
+}
+
+// PutJSON sends a JSON body via PUT; same return convention as GetJSON. The
+// classic controller API updates site-wide settings objects (as opposed to
+// rest/* collections, which use POST) at /api/s/{site}/set/setting/{key}.
+func (s *Session) PutJSON(ctx context.Context, path string, body any) (any, int, error) {
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, 0, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	return s.do(ctx, http.MethodPut, path, payload)
+}
+
+func (s *Session) do(ctx context.Context, method, path string, payload []byte) (any, int, error) {
+	var reader io.Reader
+	if payload != nil {
+		reader = bytes.NewReader(payload)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, s.baseURL+path, reader)
+	if err != nil {
+		return nil, 0, err
+	}
 	req.Header.Set("Accept", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {

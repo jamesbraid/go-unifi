@@ -1,26 +1,27 @@
 ---
 name: Integration
 
-# Pulls the published simulation image matching schemas/VERSION and runs
-# the integration-tagged suite against it: harness smoke test + v2 schema
-# drift probe. The image is version-pinned and the smoke test enforces
-# the version it reports, so there's no build step — just a pull. PRs
-# touching schema inputs/outputs get it as a gate; the nightly run
-# catches upstream drift and image rot independent of PRs.
+# One integration suite, run against two harnesses as a matrix, aggregated
+# into a single required check.
 #
-# Path-filtered so it stays fast, which means integration-noop.yaml must
-# cover every PR outside this filter — see that file's comment for why.
+#   UniFi Network     the suite against the standalone -sim image on amd64
+#   UniFi OS Server   the suite against the full UOS -sim on arm64
+#                     (UNIFI_TEST_HARNESS=uos) plus the UOS-only gateway probe.
+#                     UOS boots the full stack that hosts the gateway features
+#                     (BGP, firewall zones, route-based IPsec) the standalone
+#                     rejects; ubuntu-24.04-arm is the native runner
+#                     unifi-containers health-gates UOS on.
+#   Integration       the aggregate parent -- require THIS in branch
+#                     protection, not the per-leg checks (see the job below).
+#
+# Each leg reports its own check via name: ${{ matrix.name }} (GitHub uses the
+# resolved job name as the check context). Both always trigger and decide
+# internally whether to boot: a path-filtered required check never reports on
+# non-matching PRs and hangs forever on "Expected", so each config reports on
+# every PR and only boots when an integration-relevant path changed.
 on:
   pull_request:
-    paths:
-      - 'schemas/**'
-      - 'overrides/**'
-      - 'unifi/**'
-      - 'cmd/fields/**'
-      - 'internal/controllertest/**'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/**'
+    types: [opened, synchronize, reopened]
   schedule:
     - cron: 30 1 * * *
   workflow_dispatch: {}
@@ -33,31 +34,76 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integration:
-    name: Integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  suite:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: UniFi Network
+            runner: ubuntu-latest
+            harness: network
+          - name: UniFi OS Server
+            runner: ubuntu-24.04-arm
+            harness: uos
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the suite
+        id: decide
+        run: ./.github/scripts/integration-changed.sh
 
       - name: Setup Go
+        if: steps.decide.outputs.run == 'true'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
 
-      # No build step: the tag is derived straight from schemas/VERSION.
-      # Images are published by jamesbraid/unifi-containers' own update
-      # automation, so a tag missing here (schemas ahead of published
-      # images) fails the pull inside the harness — a red check, which is
-      # the honest outcome. UNIFI_TEST_REQUIRE turns the harness's local
-      # docker-unavailable skip into a failure: a required gate must never
-      # be satisfiable by a skip.
-      - name: Run integration suite
+      # The suite is identical; only the harness env differs. Standalone pins
+      # the -sim tag from schemas/VERSION -- a missing tag fails the pull
+      # inside the harness, a red check, the honest outcome. UOS routes
+      # StartForHarness at StartUOS and un-gates the UOS-only gateway probe;
+      # each test boots its own container, so the ~2GB pull (once, then cached)
+      # plus several systemd boots is why UOS wants the arm64 runner and a wide
+      # timeout. UNIFI_TEST_REQUIRE makes a missing daemon fail rather than
+      # skip: a required gate must never be satisfiable by a skip.
+      - name: Run integration suite (${{ matrix.harness }})
+        if: steps.decide.outputs.run == 'true'
+        env:
+          HARNESS: ${{ matrix.harness }}
         run: |
-          version="$(cat schemas/VERSION)"
-          UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim" \
-          UNIFI_TEST_EXPECT_VERSION="${version}" \
+          set -euo pipefail
+          if [ "$HARNESS" = uos ]; then
+            export UNIFI_TEST_HARNESS=uos UNIFI_UOS_TEST=1
+          else
+            version="$(cat schemas/VERSION)"
+            export UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim"
+            export UNIFI_TEST_EXPECT_VERSION="$version"
+          fi
           UNIFI_TEST_REQUIRE=1 \
-            go test -tags integration -p 1 -timeout 25m -v \
-            ./internal/controllertest/ ./cmd/fields/ -run 'TestIntegration'
+            go test -tags integration -p 1 -timeout 40m -v \
+            ./internal/controllertest/ ./cmd/fields/ ./unifi/ -run 'TestIntegration'
+
+  # Aggregate the matrix into one required check. GitHub creates a check per
+  # matrix leg (UniFi Network, UniFi OS Server) but no parent, so branch
+  # protection would otherwise have to require each leg by name and be edited
+  # whenever a harness is added. Require this "Integration" check instead: it
+  # runs always() so it reports on every PR, and passes only when the whole
+  # suite matrix succeeded (needs.suite.result aggregates every leg).
+  integration:
+    name: Integration
+    needs: suite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every harness leg to pass
+        run: |
+          result='${{ needs.suite.result }}'
+          echo "integration suite matrix result: ${result}"
+          [ "${result}" = success ] || exit 1
