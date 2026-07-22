@@ -49,3 +49,21 @@ func TestIntegrationAdoptDevice(t *testing.T) {
 		t.Fatalf("device %s: state=%d adopted=%v, want state=1 adopted=true", candidate.MAC, d.State, d.Adopted)
 	}
 }
+
+// listDevices returns every stat/device document in site. It lives in
+// this integration-tagged file — not adopt.go — because the probes are
+// its only callers: untagged, golangci-lint's unused check (reasonably)
+// flags a helper nothing calls.
+func listDevices(ctx context.Context, t *testing.T, s *Session, site string) []Device {
+	t.Helper()
+
+	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/stat/device")
+	if err != nil || status != 200 {
+		t.Fatalf("stat/device: status=%d err=%v", status, err)
+	}
+	devices, err := decodeDevices(body)
+	if err != nil {
+		t.Fatalf("decode stat/device: %v (body %v)", err, body)
+	}
+	return devices
+}

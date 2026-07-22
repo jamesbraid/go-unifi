@@ -99,21 +99,6 @@ func (c *Controller) AdoptDevice(ctx context.Context, t *testing.T, s *Session, 
 	}
 }
 
-// listDevices returns every stat/device document in site.
-func listDevices(ctx context.Context, t *testing.T, s *Session, site string) []Device {
-	t.Helper()
-
-	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/stat/device")
-	if err != nil || status != 200 {
-		t.Fatalf("stat/device: status=%d err=%v", status, err)
-	}
-	devices, err := decodeDevices(body)
-	if err != nil {
-		t.Fatalf("decode stat/device: %v (body %v)", err, body)
-	}
-	return devices
-}
-
 // deviceByMAC returns the stat/device doc for mac in site; ok=false when
 // the controller does not list it (a reaped pending doc is absent, not an
 // error — the device's next inform re-creates it).
