@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -33,6 +36,15 @@ type Controller struct {
 	Username string
 	Password string
 	Site     string
+	// InformURL is the controller's device inform endpoint, reachable
+	// from the test host — an in-process device simulator informs here.
+	// Only the classic Start sets it: the container's 8080 is pinned to
+	// host 127.0.0.1:8080 and SYSTEM_IP makes the controller advertise
+	// that same address to adopted devices, so the post-adoption inform
+	// target keeps working. It is empty for UNIFI_TEST_URL targets (an
+	// external controller's inform plane is not the suite's to point
+	// devices at) and for UOS harness controllers.
+	InformURL string
 }
 
 func imageFromEnv() string {
@@ -49,6 +61,15 @@ func imageFromEnv() string {
 // controller image (admin/admin seeded, no setup wizard, healthcheck that
 // signals API readiness) — the published `-sim` tags, or anything
 // honoring the same contract.
+//
+// The inform port is pinned to host 127.0.0.1:8080 (SYSTEM_IP advertises
+// the matching address) so an in-process device simulator has a stable,
+// host-reachable inform target — container IPs are unroutable from the
+// macOS host. The tradeoff: host port 8080 is always bound while a
+// classic controller runs, so two of them cannot coexist; tests in a
+// package run sequentially, but never parallelize classic-controller
+// tests. A local docker daemon is assumed — 127.0.0.1 means nothing on a
+// remote one.
 func Start(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
@@ -73,10 +94,24 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 
 	req := testcontainers.ContainerRequest{
 		Image:        imageFromEnv(),
-		ExposedPorts: []string{"8443/tcp"},
+		ExposedPorts: []string{"8443/tcp", "8080/tcp"},
 		Env: map[string]string{
 			"UNIFI_STDOUT": "true",
 			"TZ":           "Etc/UTC",
+			// The address the controller advertises as its inform/adopt
+			// target (the -sim entrypoint writes it to system.properties).
+			// Adopted devices re-inform there, so it must match the
+			// host-reachable address the pin below creates.
+			"SYSTEM_IP": "127.0.0.1",
+		},
+		// 8443 (the API) stays ephemeral; 8080 (inform) is pinned to the
+		// host loopback so an in-process device simulator informs a stable
+		// address. testcontainers has no fixed-binding ExposedPorts syntax,
+		// but its merge keeps HostConfig bindings for exposed ports.
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.PortBindings = network.PortMap{
+				network.MustParsePort("8080/tcp"): {{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: "8080"}},
+			}
 		},
 		// The -sim images' healthcheck reports healthy only once the API
 		// answers a real JSON login (the controller serves an HTML
@@ -114,10 +149,11 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	}
 
 	return &Controller{
-		BaseURL:  fmt.Sprintf("https://%s:%s", host, port.Port()),
-		Username: demoUsername,
-		Password: demoPassword,
-		Site:     demoSite,
+		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
+		Username:  demoUsername,
+		Password:  demoPassword,
+		Site:      demoSite,
+		InformURL: "http://127.0.0.1:8080/inform",
 	}
 }
 

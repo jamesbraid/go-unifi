@@ -54,6 +54,19 @@ require (
 	github.com/hashicorp/terraform-plugin-codegen-framework v0.4.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
+	// unifi-emu backs the controllertest device simulator (imported only
+	// from integration-tagged files). It is not yet published to any
+	// reachable proxy: the placeholder version resolves locally through a
+	// gitignored go.work (`go work use <unifi-emu checkout>`, plus a
+	// replace of this exact version — unifi-emu has its own requires, so
+	// the graph still consults the required version) and activates as a
+	// normal require once the module is published. The // indirect marker
+	// is deliberate despite the direct import: pruning then skips the
+	// unresolvable placeholder's go.mod, keeping untagged `go build
+	// ./...` / `go test ./...` green without the workspace. `go mod
+	// tidy` walks all tags, so it needs the workspace — and it will
+	// re-mark this direct; keep the marker when committing.
+	github.com/jamesbraid/unifi-emu v0.0.0-00010101000000-000000000000 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
