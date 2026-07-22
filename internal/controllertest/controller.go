@@ -39,11 +39,13 @@ type Controller struct {
 	// InformURL is the controller's device inform endpoint, reachable
 	// from the test host — an in-process device simulator informs here.
 	// Only the classic Start sets it: the container's 8080 is pinned to
-	// host 127.0.0.1:8080 and SYSTEM_IP makes the controller advertise
-	// that same address to adopted devices, so the post-adoption inform
-	// target keeps working. It is empty for UNIFI_TEST_URL targets (an
-	// external controller's inform plane is not the suite's to point
-	// devices at) and for UOS harness controllers.
+	// host 127.0.0.1:8080 and the URL is built from the container host,
+	// like BaseURL. SYSTEM_IP makes the controller advertise 127.0.0.1
+	// to adopted devices — the same place under the local-daemon
+	// assumption (see Start), so the post-adoption inform target keeps
+	// working. It is empty for UNIFI_TEST_URL targets (an external
+	// controller's inform plane is not the suite's to point devices at)
+	// and for UOS harness controllers.
 	InformURL string
 }
 
@@ -63,13 +65,16 @@ func imageFromEnv() string {
 // honoring the same contract.
 //
 // The inform port is pinned to host 127.0.0.1:8080 (SYSTEM_IP advertises
-// the matching address) so an in-process device simulator has a stable,
-// host-reachable inform target — container IPs are unroutable from the
-// macOS host. The tradeoff: host port 8080 is always bound while a
-// classic controller runs, so two of them cannot coexist; tests in a
-// package run sequentially, but never parallelize classic-controller
-// tests. A local docker daemon is assumed — 127.0.0.1 means nothing on a
-// remote one.
+// 127.0.0.1, the same host loopback InformURL is built from) so an
+// in-process device simulator has a stable, host-reachable inform target
+// — container IPs are unroutable from the macOS host. The tradeoff: host
+// port 8080 is always bound while a classic controller runs, so two of
+// them cannot coexist; never parallelize classic-controller tests within
+// a package, and pass -p 1 to multi-package runs locally (go test -tags
+// integration ./... boots packages concurrently, and the second 8080
+// bind dies "port is already allocated"; CI already passes -p 1). A
+// local docker daemon is assumed — 127.0.0.1 means nothing on a remote
+// one.
 func Start(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
@@ -153,7 +158,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		Username:  demoUsername,
 		Password:  demoPassword,
 		Site:      demoSite,
-		InformURL: "http://127.0.0.1:8080/inform",
+		InformURL: fmt.Sprintf("http://%s:8080/inform", host),
 	}
 }
 

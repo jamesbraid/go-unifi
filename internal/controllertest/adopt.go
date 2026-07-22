@@ -53,7 +53,13 @@ func (c *Controller) AdoptDevice(ctx context.Context, t *testing.T, s *Session, 
 		if !strings.Contains(strings.ToLower(msg), "cannotadopt") {
 			t.Fatalf("adopt %s rejected: HTTP %d: %v", mac, status, body)
 		}
-		if d, ok, err := deviceByMAC(ctx, s, c.Site, mac); err == nil && ok && d.Adopted {
+		d, ok, derr := deviceByMAC(ctx, s, c.Site, mac)
+		if derr != nil {
+			// Without the doc we cannot tell a slow adopt from a landed
+			// one; log it so a persistently failing stat/device is
+			// visible when the deadline fires below.
+			t.Logf("adopt %s: stat/device poll failed: %v", mac, derr)
+		} else if ok && d.Adopted {
 			t.Logf("adopt %s answered %s but the doc already shows adopted; continuing", mac, msg)
 			break
 		}
