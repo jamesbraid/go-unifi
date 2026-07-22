@@ -30,12 +30,13 @@ func StartForHarness(ctx context.Context, t *testing.T) *Controller {
 
 const (
 	// uosDefaultImage is the UniFi OS Server simulation image. Unlike the
-	// standalone -sim network image, it runs the full UOS stack (systemd,
-	// ucore), which is the harness we reach for when a probe needs
-	// gateway-dependent features (BGP, firewall zones, NAT, route-based
-	// IPsec) the standalone controller reports as unsupported. Its version
-	// tracks UniFi OS Server, not the Network app; bump alongside the UOS
-	// component the schemas came from.
+	// standalone -sim network image it runs the full UOS stack (systemd,
+	// ucore), so it is a higher-fidelity test target. It does NOT, on its
+	// own, make the gateway-dependent features (BGP, firewall zones, NAT,
+	// route-based IPsec) available: those need an adopted gateway device, and
+	// UOS reports them unsupported exactly like the standalone controller
+	// (verified 2026-07-22). Its version tracks UniFi OS Server, not the
+	// Network app; bump alongside the UOS component the schemas came from.
 	uosDefaultImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.21-sim"
 
 	// uosNetworkPort is where UOS_NETWORK_DIRECT (default in the -sim tags)
