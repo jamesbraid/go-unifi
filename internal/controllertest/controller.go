@@ -29,6 +29,15 @@ const (
 	demoUsername = "admin"
 	demoPassword = "admin"
 	demoSite     = "default"
+
+	// informHostIP is the loopback IP the inform plane is wired to. Three
+	// things must agree on it or adoption stalls: SYSTEM_IP (what the
+	// controller advertises as its inform target), the 8080 host-port pin,
+	// and InformURL (what the device reports back). It MUST be an IP literal
+	// — the controller rejects a hostname inform_ip post-adopt ("invalid
+	// inform_ip localhost", HTTP 400), which is why InformURL can't be built
+	// from container.Host() (that returns "localhost" under Colima).
+	informHostIP = "127.0.0.1"
 )
 
 type Controller struct {
@@ -107,7 +116,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 			// target (the -sim entrypoint writes it to system.properties).
 			// Adopted devices re-inform there, so it must match the
 			// host-reachable address the pin below creates.
-			"SYSTEM_IP": "127.0.0.1",
+			"SYSTEM_IP": informHostIP,
 		},
 		// 8443 (the API) stays ephemeral; 8080 (inform) is pinned to the
 		// host loopback so an in-process device simulator informs a stable
@@ -115,7 +124,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		// but its merge keeps HostConfig bindings for exposed ports.
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.PortBindings = network.PortMap{
-				network.MustParsePort("8080/tcp"): {{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: "8080"}},
+				network.MustParsePort("8080/tcp"): {{HostIP: netip.MustParseAddr(informHostIP), HostPort: "8080"}},
 			}
 		},
 		// The -sim images' healthcheck reports healthy only once the API
@@ -154,11 +163,15 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	}
 
 	return &Controller{
-		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
-		Username:  demoUsername,
-		Password:  demoPassword,
-		Site:      demoSite,
-		InformURL: fmt.Sprintf("http://%s:8080/inform", host),
+		BaseURL:  fmt.Sprintf("https://%s:%s", host, port.Port()),
+		Username: demoUsername,
+		Password: demoPassword,
+		Site:     demoSite,
+		// InformURL uses the pinned loopback IP, not host: the API (BaseURL)
+		// is fine over container.Host()'s "localhost", but the device-reported
+		// inform_ip must be an IP literal or the controller rejects it
+		// post-adopt (HTTP 400 "invalid inform_ip localhost").
+		InformURL: fmt.Sprintf("http://%s:8080/inform", informHostIP),
 	}
 }
 
