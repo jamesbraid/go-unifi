@@ -18,6 +18,8 @@ require (
 	pault.ag/go/debian v0.21.0
 )
 
+require github.com/golang/snappy v1.0.0 // indirect
+
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -54,6 +56,7 @@ require (
 	github.com/hashicorp/terraform-plugin-codegen-framework v0.4.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
+	github.com/jamesbraid/unifi-emu v0.2.0
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect

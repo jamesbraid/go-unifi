@@ -20,6 +20,11 @@
 # Local working docs (plans, handoffs, reviews); never committed
 /docs/superpowers/
 
+# Local Go workspace resolving the unpublished unifi-emu require (see
+# go.mod); per-machine, never committed.
+/go.work
+/go.work.sum
+
 # goreleaser
 /dist/
 provider

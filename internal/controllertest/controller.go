@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -26,6 +29,15 @@ const (
 	demoUsername = "admin"
 	demoPassword = "admin"
 	demoSite     = "default"
+
+	// informHostIP is the loopback IP the inform plane is wired to. Three
+	// things must agree on it or adoption stalls: SYSTEM_IP (what the
+	// controller advertises as its inform target), the 8080 host-port pin,
+	// and InformURL (what the device reports back). It MUST be an IP literal
+	// — the controller rejects a hostname inform_ip post-adopt ("invalid
+	// inform_ip localhost", HTTP 400), which is why InformURL can't be built
+	// from container.Host() (that returns "localhost" under Colima).
+	informHostIP = "127.0.0.1"
 )
 
 type Controller struct {
@@ -33,6 +45,17 @@ type Controller struct {
 	Username string
 	Password string
 	Site     string
+	// InformURL is the controller's device inform endpoint, reachable
+	// from the test host — an in-process device simulator informs here.
+	// Only the classic Start sets it: the container's 8080 is pinned to
+	// host 127.0.0.1:8080 and the URL is built from the container host,
+	// like BaseURL. SYSTEM_IP makes the controller advertise 127.0.0.1
+	// to adopted devices — the same place under the local-daemon
+	// assumption (see Start), so the post-adoption inform target keeps
+	// working. It is empty for UNIFI_TEST_URL targets (an external
+	// controller's inform plane is not the suite's to point devices at)
+	// and for UOS harness controllers.
+	InformURL string
 }
 
 func imageFromEnv() string {
@@ -49,6 +72,18 @@ func imageFromEnv() string {
 // controller image (admin/admin seeded, no setup wizard, healthcheck that
 // signals API readiness) — the published `-sim` tags, or anything
 // honoring the same contract.
+//
+// The inform port is pinned to host 127.0.0.1:8080 (SYSTEM_IP advertises
+// 127.0.0.1, the same host loopback InformURL is built from) so an
+// in-process device simulator has a stable, host-reachable inform target
+// — container IPs are unroutable from the macOS host. The tradeoff: host
+// port 8080 is always bound while a classic controller runs, so two of
+// them cannot coexist; never parallelize classic-controller tests within
+// a package, and pass -p 1 to multi-package runs locally (go test -tags
+// integration ./... boots packages concurrently, and the second 8080
+// bind dies "port is already allocated"; CI already passes -p 1). A
+// local docker daemon is assumed — 127.0.0.1 means nothing on a remote
+// one.
 func Start(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
@@ -73,10 +108,24 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 
 	req := testcontainers.ContainerRequest{
 		Image:        imageFromEnv(),
-		ExposedPorts: []string{"8443/tcp"},
+		ExposedPorts: []string{"8443/tcp", "8080/tcp"},
 		Env: map[string]string{
 			"UNIFI_STDOUT": "true",
 			"TZ":           "Etc/UTC",
+			// The address the controller advertises as its inform/adopt
+			// target (the -sim entrypoint writes it to system.properties).
+			// Adopted devices re-inform there, so it must match the
+			// host-reachable address the pin below creates.
+			"SYSTEM_IP": informHostIP,
+		},
+		// 8443 (the API) stays ephemeral; 8080 (inform) is pinned to the
+		// host loopback so an in-process device simulator informs a stable
+		// address. testcontainers has no fixed-binding ExposedPorts syntax,
+		// but its merge keeps HostConfig bindings for exposed ports.
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.PortBindings = network.PortMap{
+				network.MustParsePort("8080/tcp"): {{HostIP: netip.MustParseAddr(informHostIP), HostPort: "8080"}},
+			}
 		},
 		// The -sim images' healthcheck reports healthy only once the API
 		// answers a real JSON login (the controller serves an HTML
@@ -118,6 +167,11 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		Username: demoUsername,
 		Password: demoPassword,
 		Site:     demoSite,
+		// InformURL uses the pinned loopback IP, not host: the API (BaseURL)
+		// is fine over container.Host()'s "localhost", but the device-reported
+		// inform_ip must be an IP literal or the controller rejects it
+		// post-adopt (HTTP 400 "invalid inform_ip localhost").
+		InformURL: fmt.Sprintf("http://%s:8080/inform", informHostIP),
 	}
 }
 
