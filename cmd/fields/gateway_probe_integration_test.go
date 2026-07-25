@@ -341,6 +341,15 @@ func sweepGatewayEndpoints(ctx context.Context, t *testing.T, c *controllertest.
 // nothing": this sweep classifies status codes, and only a read-back can tell
 // those apart.
 //
+// CAVEAT on the firewall/zone row: that 404 is not the whole story. The handler
+// PERSISTS the zone and then throws, so the write lands even though the status
+// says otherwise — but only when the POST is the first request to the zone
+// collection, which it is not here (this sweep lists every collection first).
+// TestIntegrationSeededUOSFirewallZoneSeed is the test that pins that down.
+// Read "STILL-GATED firewall-zone" below as "answered 404", not "wrote
+// nothing": this sweep classifies status codes, and only a read-back can tell
+// those apart.
+//
 // The test asserts only that the harness boots and the gateway adopts — a valid
 // smoke test. The endpoint verdicts are logged data, not assertions: the point
 // is to record what the controller does, not to freeze what we assume. Gated
