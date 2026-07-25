@@ -50,19 +50,20 @@ func TestIntegrationV2Drift(t *testing.T) {
 	// failed seed fails the test rather than silently skipping). ApGroups is
 	// pre-seeded by the controller, so it compares too.
 	//
-	// The other seven can NOT be seeded on this bare container harness. Each
-	// endpoint was re-probed 2026-07-21 with schema-correct payloads (POST and
-	// PUT); they all require adopted gateway hardware the simulation lacks --
-	// the same limitation that leaves the ipsec/site-vpn encoder fields
-	// REJECTED (see networkEncoderPresenceAllowlistTODOs):
-	//   BgpConfig            404 api.err.BgpUnsupportedDevice ("Device doesn't support BGP")
-	//   FirewallZone         404 api.err.CouldNotFindHotspotFirewallZone
+	// The other seven are not seeded here. TestIntegrationGatewayFeatureGate
+	// re-probed all of them 2026-07-24, once with an emulated UXGENT gateway
+	// adopted and once with no gateway at all; the two runs answer identically,
+	// so adopted gateway hardware is not what any of this turned on:
+	//   BgpConfig            404 api.err.BgpUnsupportedDevice, gateway or not
+	//   FirewallZone         404 api.err.CouldNotFindHotspotFirewallZone, gateway or not
 	//   FirewallPolicy       needs source/destination zone ids (blocked on FirewallZone)
-	//   Nat, TrafficRoute    need WAN in/out interfaces and a next hop
-	//   OSPFRouter           needs a supporting device
+	//   Nat, TrafficRoute    seedable -- they need a WAN networkconf, which the
+	//                        demo site lacks and adoption does not create
+	//   OSPFRouter           seedable -- needs a non-empty areas list and a
+	//                        lowercase area_type ("normal", not "NORMAL")
 	//   NetworkMembersGroup  405 -- the v2 collection is not POST-writable here
-	// Seeding these needs a gateway-adopted harness (UniFi OS Server), not more
-	// payload fixtures; until then the drift gate covers static-dns and apgroups.
+	// Promoting the three seedable schemas into this gate is a follow-up; until
+	// then the drift gate covers static-dns and apgroups.
 	seed := map[string]any{
 		"enabled":     true,
 		"key":         "probe.example.com",
