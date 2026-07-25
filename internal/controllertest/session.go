@@ -24,11 +24,20 @@ import (
 // two apart should check errors.Is(err, ErrNotJSON).
 var ErrNotJSON = errors.New("response body is not JSON")
 
-// Session is a cookie-authenticated raw client for a classic UniFi
-// controller (self-signed TLS accepted).
+// Session is a cookie-authenticated raw client for a UniFi controller
+// (self-signed TLS accepted). It speaks both auth dialects: the classic
+// controller's /api/login, and UniFi OS's SSO, which additionally requires a
+// CSRF header on every write.
 type Session struct {
 	baseURL string
-	client  *http.Client
+	// rootURL is the console root for a UniFi OS target, where the SSO login
+	// endpoint lives. baseURL there points into the /proxy/network prefix, so
+	// the two differ; for a classic controller rootURL is empty.
+	rootURL string
+	// csrf is the UniFi OS CSRF token minted at login. Empty for classic
+	// sessions, which need no such header.
+	csrf   string
+	client *http.Client
 }
 
 func NewSession(baseURL string) *Session {
@@ -43,6 +52,65 @@ func NewSession(baseURL string) *Session {
 			},
 		},
 	}
+}
+
+// NewUOSSession returns a session for a UniFi OS console. baseURL is the
+// Network API behind the console proxy (…/proxy/network); rootURL is the
+// console itself, where SSO login lives.
+func NewUOSSession(rootURL, baseURL string) *Session {
+	s := NewSession(baseURL)
+	s.rootURL = rootURL
+	return s
+}
+
+// LoginUOS authenticates against UniFi OS SSO. It keeps the TOKEN cookie in
+// the jar and the CSRF token the console returns, which every subsequent write
+// must echo back — without it UniFi OS answers 403 Forbidden.
+//
+// Call this ONCE per session. UniFi OS rate-limits the login endpoint (HTTP
+// 429 "You've reached the login attempt limit") after a handful of attempts,
+// counting successful ones, and the block then applies for minutes. A test
+// that re-authenticates per request locks itself out and the failure surfaces
+// as unrelated 401s on later calls.
+func (s *Session) LoginUOS(ctx context.Context, username, password string) error {
+	creds, err := json.Marshal(map[string]string{"username": username, "password": password})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.rootURL+"/api/auth/login", bytes.NewReader(creds))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		return err
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("UniFi OS login rate-limited (HTTP 429): log in once per session")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("UniFi OS login returned HTTP %s", resp.Status)
+	}
+
+	// The console returns the token under either spelling depending on
+	// whether it minted a fresh one or refreshed the current one.
+	csrf := resp.Header.Get("X-Csrf-Token")
+	if csrf == "" {
+		csrf = resp.Header.Get("X-Updated-Csrf-Token")
+	}
+	if csrf == "" {
+		return errors.New("UniFi OS login returned no CSRF token")
+	}
+	s.csrf = csrf
+	return nil
 }
 
 // Login authenticates against the classic /api/login endpoint; the session
@@ -139,6 +207,10 @@ func (s *Session) do(ctx context.Context, method, path string, payload []byte) (
 	req.Header.Set("Accept", "application/json")
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	// UniFi OS rejects every write that does not echo the login's CSRF token.
+	if s.csrf != "" {
+		req.Header.Set("X-Csrf-Token", s.csrf)
 	}
 
 	resp, err := s.client.Do(req)
