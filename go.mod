@@ -18,6 +18,8 @@ require (
 	pault.ag/go/debian v0.21.0
 )
 
+require github.com/golang/snappy v1.0.0 // indirect
+
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -54,23 +56,7 @@ require (
 	github.com/hashicorp/terraform-plugin-codegen-framework v0.4.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
-	// unifi-emu backs the controllertest device simulator (imported only
-	// from integration-tagged files). Two lifecycle states:
-	//
-	// While unpublished (now): the placeholder version below resolves
-	// locally through a gitignored go.work (`go work use <checkout>`,
-	// plus a replace of this exact version — unifi-emu has its own
-	// requires, so the graph consults the required version's go.mod even
-	// in workspace mode). The // indirect marker is deliberate despite
-	// the direct import: pruning then skips the unresolvable
-	// placeholder's go.mod, keeping untagged `go build ./...` / `go test
-	// ./...` green without the workspace. `go mod tidy` walks all tags,
-	// so it needs the workspace, and it will re-mark this direct; keep
-	// the marker when committing.
-	//
-	// After publishing: bump the require to the real tag and drop the
-	// marker; the go.work setup becomes optional (local hacking only).
-	github.com/jamesbraid/unifi-emu v0.0.0-00010101000000-000000000000 // indirect
+	github.com/jamesbraid/unifi-emu v0.2.0
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
