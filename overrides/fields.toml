@@ -92,13 +92,43 @@ path = "bgp/config"
 [FirewallZone]
 path = "firewall/zone"
 
-# default_zone is server-computed/read-only. Sending it in the create body
-# makes UniFi Network 10.4.x reject the POST with "Unrecognized field
-# default_zone" (terraform-provider-unifi#310); a *bool with omitempty keeps
-# an unset value out of the payload.
+# Everything the controller reports but refuses on a write. readonly keeps
+# them unmarshalling while dropping them from the generated MarshalJSON, so a
+# zone read from the controller can be edited and written straight back.
+#
+# omitempty alone cannot do this. default_zone is a *bool, so any read leaves
+# it non-nil and it serializes anyway (terraform-provider-unifi#310 saw the
+# create half of this); external_id is always populated on a read. The rest
+# are empty today and would break the same way the day the controller starts
+# filling them in.
 [FirewallZone.field.default_zone]
 omitempty = true
 pointer = true
+readonly = true
+
+[FirewallZone.field.external_id]
+readonly = true
+
+[FirewallZone.field.cloud_template]
+readonly = true
+
+[FirewallZone.field.zone_key]
+readonly = true
+
+[FirewallZone.field.site_id]
+readonly = true
+
+[FirewallZone.field.attr_hidden]
+readonly = true
+
+[FirewallZone.field.attr_hidden_id]
+readonly = true
+
+[FirewallZone.field.attr_no_delete]
+readonly = true
+
+[FirewallZone.field.attr_no_edit]
+readonly = true
 
 # network_ids must always be present in the create body: the v2
 # firewall/zone POST returns HTTP 500 when the field is omitted, and an
@@ -281,3 +311,4 @@ type = "bool"
 [SettingIgmpSnooping.field.querier_addresses]
 unmarshal_type = "json.RawMessage"
 unmarshal_func = "querierAddressesFromRaw"
+
