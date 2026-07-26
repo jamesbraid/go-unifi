@@ -125,12 +125,25 @@ func TestIntegrationSeededUOSFirewallZoneSeed(t *testing.T) {
 //
 // The gate is a device capability, not site state: ace.jar's BGP service
 // (com/ubnt/service/bgp/oPvLNutRmdeIccrKkF) throws that error unless the device
-// reports supportsUdapiRoutesBgp or supportsSwitchBgp, whose bits are
-// UNIFI_UDAPI_CAP_ROUTES_BGP = 1<<22 and UNIFI_SWITCH_CAP_BGP = 1<<25 in
-// com/ubnt/data/HiimPm. Whether an emulator can set them is UNRESOLVED: adding
-// capability keys to the inform payload made the controller drop the caps it
-// otherwise stores (fw_caps went from 3 to absent), so those attempts never
-// landed and prove nothing either way.
+// reports supportsUdapiRoutesBgp, which is hasUdapiCapability(1<<22) against the
+// udapi_caps bitmap on the device document (com/ubnt/data/HiimPm; the switch
+// path uses switch_caps bit 1<<25 instead, and is not exercised here).
+//
+// An emulator CAN set it, established 2026-07-25. Reporting udapi_caps alone
+// does nothing, because the controller's capability writer
+// (com/ubnt/service/devmgr/TtfKyjBLlbFMCr) skips its entire update pass for a
+// device on firmware >= 4.1.0 that reports no udapi_version — logging "Skip
+// updating capability for device [..] due to empty udapi_version" and storing
+// none of fw_caps, hw_caps, switch_caps or udapi_caps. That guard is what made
+// the earlier attempts look like payload rejection, and it matches the models:
+// UXGPRO's 1.13.8 firmware sits below the threshold and kept its fw_caps, while
+// every 5.0.16 model lost it. Report udapi_version alongside udapi_caps and the
+// POST returns 201 with a persisted object.
+//
+// This test still expects the 404 because go.mod pins unifi-emu v0.2.0, which
+// reports neither key. When the emu ships them, this assertion is the one to
+// flip: the collection will hold the config and BgpConfig becomes drift-checkable
+// like FirewallZone now is.
 func TestIntegrationSeededUOSBgpGate(t *testing.T) {
 	if os.Getenv("UNIFI_GATEWAY_TEST") == "" {
 		t.Skip("set UNIFI_GATEWAY_TEST=1 to run the seeded UOS BGP gate test")
