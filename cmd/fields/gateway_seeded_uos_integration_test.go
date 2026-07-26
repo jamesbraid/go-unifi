@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -114,39 +116,32 @@ func TestIntegrationSeededUOSFirewallZoneSeed(t *testing.T) {
 	}
 }
 
-// TestIntegrationSeededUOSBgpGate records that bgp/config stays device-gated on
-// the seeded UniFi OS Server, and — unlike firewall/zone — persists nothing.
+// TestIntegrationSeededUOSBgpConfig writes a BGP configuration against an
+// adopted gateway and drift-checks what the controller serves back.
 //
-// Measured 2026-07-24 across five adopted gateway models (UXGENT, UXGPRO at
-// stock and UniFi-OS-style firmware, UXGB, and UXGENT again), each on its own
-// fresh console: every one answers 404 api.err.BgpUnsupportedDevice with the
-// gateway CONNECTED and flagged neither unsupported nor incompatible, and
-// bgp/config stays empty afterwards.
+// bgp/config refused every write until unifi-emu v0.4.2. The controller gates
+// it on a device capability rather than on site state: ace.jar's BGP service
+// (com/ubnt/service/bgp/oPvLNutRmdeIccrKkF) throws api.err.BgpUnsupportedDevice
+// unless the site's gateway reports supportsUdapiRoutesBgp, which is
+// hasUdapiCapability(1<<22) against the udapi_caps bitmap on the device
+// document (com/ubnt/data/HiimPm; the switch path reads switch_caps bit 1<<25
+// and is not exercised here).
 //
-// The gate is a device capability, not site state: ace.jar's BGP service
-// (com/ubnt/service/bgp/oPvLNutRmdeIccrKkF) throws that error unless the device
-// reports supportsUdapiRoutesBgp, which is hasUdapiCapability(1<<22) against the
-// udapi_caps bitmap on the device document (com/ubnt/data/HiimPm; the switch
-// path uses switch_caps bit 1<<25 instead, and is not exercised here).
+// Reporting udapi_caps alone was not enough, and the way it failed is worth
+// keeping: the capability writer (com/ubnt/service/devmgr/TtfKyjBLlbFMCr) skips
+// its whole update pass for a device on firmware >= 4.1.0 that reports no
+// udapi_version, storing none of fw_caps, hw_caps, switch_caps or udapi_caps.
+// A bitmap sent by itself was silently dropped, which read as payload
+// rejection. The emulator now reports both per model profile, and only the
+// models that carry the bit claim it.
 //
-// An emulator CAN set it, established 2026-07-25. Reporting udapi_caps alone
-// does nothing, because the controller's capability writer
-// (com/ubnt/service/devmgr/TtfKyjBLlbFMCr) skips its entire update pass for a
-// device on firmware >= 4.1.0 that reports no udapi_version — logging "Skip
-// updating capability for device [..] due to empty udapi_version" and storing
-// none of fw_caps, hw_caps, switch_caps or udapi_caps. That guard is what made
-// the earlier attempts look like payload rejection, and it matches the models:
-// UXGPRO's 1.13.8 firmware sits below the threshold and kept its fw_caps, while
-// every 5.0.16 model lost it. Report udapi_version alongside udapi_caps and the
-// POST returns 201 with a persisted object.
-//
-// This test still expects the 404 because go.mod pins unifi-emu v0.2.0, which
-// reports neither key. When the emu ships them, this assertion is the one to
-// flip: the collection will hold the config and BgpConfig becomes drift-checkable
-// like FirewallZone now is.
-func TestIntegrationSeededUOSBgpGate(t *testing.T) {
+// So this asserts the write lands, and then compares the persisted object
+// against the hand-written schema — the same drift check the base gate runs
+// for the collections it can seed. It stays behind UNIFI_GATEWAY_TEST because
+// it needs an adopted gateway, which the base gate has no way to produce.
+func TestIntegrationSeededUOSBgpConfig(t *testing.T) {
 	if os.Getenv("UNIFI_GATEWAY_TEST") == "" {
-		t.Skip("set UNIFI_GATEWAY_TEST=1 to run the seeded UOS BGP gate test")
+		t.Skip("set UNIFI_GATEWAY_TEST=1 to run the seeded UOS BGP test")
 	}
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -170,17 +165,51 @@ func TestIntegrationSeededUOSBgpGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bgp POST transport error: %v", err)
 	}
-	t.Logf("%s POST bgp/config: HTTP %d body=%s", classify(status, body), status, jsonString(body))
+	if status >= 300 {
+		t.Fatalf("bgp/config POST: HTTP %d %s — the adopted %s no longer clears the BGP capability gate; "+
+			"check that the emulator still reports udapi_caps AND udapi_version",
+			status, jsonString(body), controllertest.GatewayModel)
+	}
+	t.Logf("bgp/config accepted: HTTP %d %s", status, jsonString(body))
 
-	// Unlike firewall/zone, this one really does create nothing — check rather
-	// than assume, since that assumption is exactly what hid the zone write.
+	// The status is not the evidence — read the collection back, the habit
+	// that uncovered the firewall/zone write in the first place.
 	after, gstatus, gerr := s.GetJSON(ctx, "/v2/api/site/"+c.Site+"/bgp/config")
 	if gerr != nil || gstatus != 200 {
 		t.Fatalf("list bgp/config: status=%d err=%v", gstatus, gerr)
 	}
-	t.Logf("bgp/config collection after POST: %s", jsonString(after))
-	if list, ok := after.([]any); ok && len(list) > 0 {
-		t.Errorf("bgp/config persisted an object despite HTTP %d — the gate now writes like firewall/zone does, and BgpConfig drift is seedable: %s",
-			status, jsonString(after))
+	list, ok := after.([]any)
+	if !ok || len(list) == 0 {
+		t.Fatalf("bgp/config answered HTTP %d but stored nothing: %s", status, jsonString(after))
+	}
+	t.Logf("bgp/config persisted: %s", jsonString(after))
+
+	observed := make([]map[string]any, 0, len(list))
+	for _, item := range list {
+		if m, ok := item.(map[string]any); ok {
+			observed = append(observed, m)
+		}
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(findModuleRoot(wd), "overrides", "resources", "BgpConfig.json"))
+	if err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("schema parse: %v", err)
+	}
+
+	r := driftCompare(observed, schema)
+	if len(r.SchemaOnly) > 0 {
+		t.Logf("schema-only fields (unset live, informational): %v", r.SchemaOnly)
+	}
+	if len(r.LiveOnly) > 0 {
+		t.Errorf("live controller emits fields missing from BgpConfig.json: %v — update overrides/resources/BgpConfig.json",
+			r.LiveOnly)
 	}
 }

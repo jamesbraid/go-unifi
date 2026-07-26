@@ -55,7 +55,9 @@ func TestIntegrationV2Drift(t *testing.T) {
 	// re-probed them 2026-07-24, once with an emulated UXGENT gateway adopted
 	// and once with no gateway at all; the two runs answer identically, so
 	// adopted gateway hardware is not what any of this turned on:
-	//   BgpConfig            404 api.err.BgpUnsupportedDevice, gateway or not
+	//   BgpConfig            needs an adopted gateway that claims the BGP
+	//                        capability bit, which no bare harness has --
+	//                        covered by TestIntegrationSeededUOSBgpConfig
 	//   FirewallPolicy       needs source/destination zone ids
 	//   Nat, TrafficRoute    seedable -- they need a WAN networkconf, which the
 	//                        demo site lacks and adoption does not create

@@ -341,6 +341,14 @@ func sweepGatewayEndpoints(ctx context.Context, t *testing.T, c *controllertest.
 // nothing": this sweep classifies status codes, and only a read-back can tell
 // those apart.
 //
+// The bgp/config row has since been explained and cleared. It is gated on a
+// device capability the gateway must report (udapi_caps bit 1<<22 alongside a
+// udapi_version), which the emulator did not send at the time of this
+// measurement and does from unifi-emu v0.4.2. This sweep still records the 404
+// because the emulated gateway it adopts is incidental here -- the row means
+// "this endpoint wants a capable device", not "this endpoint is unreachable".
+// TestIntegrationSeededUOSBgpConfig is where a capable one is adopted.
+//
 // CAVEAT on the firewall/zone row: that 404 is not the whole story. The handler
 // PERSISTS the zone and then throws, so the write lands even though the status
 // says otherwise — but only when the POST is the first request to the zone
