@@ -138,9 +138,24 @@ type FieldInfo struct {
 	Fields              map[string]*FieldInfo
 	CustomUnmarshalType string
 	CustomUnmarshalFunc string
+	// ReadOnly marks a field the controller sends but refuses on a write.
+	// It still unmarshals; the generated MarshalJSON drops it, so a value
+	// read from the controller can be edited and written straight back.
+	ReadOnly bool
 	// Doc renders as a doc comment above the generated field (e.g. a
 	// "Deprecated:" marker on compat pins); set from overrides/fields.toml.
 	Doc string
+}
+
+// HasReadOnly reports whether any of the type's fields is read-only, i.e.
+// whether the generated type needs a MarshalJSON that drops them.
+func (f *FieldInfo) HasReadOnly() bool {
+	for _, child := range f.Fields {
+		if child != nil && child.ReadOnly {
+			return true
+		}
+	}
+	return false
 }
 
 // Controller envelope JSON keys the generator adds to every resource

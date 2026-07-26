@@ -21,6 +21,7 @@ type fieldOverride struct {
 	Type          string `toml:"type"`
 	Validation    string `toml:"validation"`
 	OmitEmpty     *bool  `toml:"omitempty"`
+	ReadOnly      bool   `toml:"readonly"`
 	Pointer       *bool  `toml:"pointer"`
 	Array         *bool  `toml:"array"`
 	UnmarshalType string `toml:"unmarshal_type"`
@@ -128,6 +129,9 @@ func (r *ResourceInfo) applyOverrides() error {
 			if fo.OmitEmpty != nil {
 				f.OmitEmpty = *fo.OmitEmpty
 			}
+			if fo.ReadOnly {
+				f.ReadOnly = true
+			}
 			if fo.Pointer != nil {
 				f.IsPointer = *fo.Pointer
 			}
@@ -138,6 +142,7 @@ func (r *ResourceInfo) applyOverrides() error {
 				f.CustomUnmarshalType = fo.UnmarshalType
 			}
 			if fo.UnmarshalFunc != "" {
+				f.ReadOnly = fo.ReadOnly
 				f.CustomUnmarshalFunc = fo.UnmarshalFunc
 			}
 			if fo.Doc != "" {
@@ -157,6 +162,7 @@ func (r *ResourceInfo) applyOverrides() error {
 				fo.Pointer != nil && *fo.Pointer,
 				fo.UnmarshalType,
 			)
+			f.ReadOnly = fo.ReadOnly
 			f.CustomUnmarshalFunc = fo.UnmarshalFunc
 			f.Doc = newlineRe.ReplaceAllString(fo.Doc, " ")
 			base.Fields[f.FieldName] = f
