@@ -33,10 +33,13 @@ import (
 //     nothing, so a site yields exactly one seeded zone — which is all a drift
 //     comparison needs.
 //
-// Whether an adopted gateway is also required is NOT established: this test
-// adopts one because that is the configuration the passing runs used, but the
-// no-gateway runs that failed also did the poisoning pre-read, so the two
-// factors were never separated.
+// An adopted gateway is NOT required, settled 2026-07-25 after this test was
+// written: four sites on one gateway-less standalone -sim boot separated the
+// two factors, and post-first landed a zone (2/2) while pre-read-then-post
+// landed none (1/1). The gateway this test adopts is incidental to the write;
+// it stays because this test is also the seeded-UOS-with-hardware case, and
+// the gateway-free path is now covered by the base drift gate
+// (seedFirewallZone in drift_integration_test.go).
 //
 // Gated behind UNIFI_GATEWAY_TEST: the seeded UOS is a systemd boot of minutes.
 func TestIntegrationSeededUOSFirewallZoneSeed(t *testing.T) {
