@@ -81,6 +81,14 @@ path = "trafficroutes"
 [BGPConfig]
 path = "bgp/config"
 
+# The zone's read and write shapes differ, which is why several fields below
+# are read-only. Measured against 10.4.57 on 2026-07-25 by posting each field
+# in turn and reading the rejection: the write DTO
+# (com.ubnt.g.b.t.AcrQJeJCScLn, shared by POST and PUT) accepts exactly _id,
+# name and network_ids, and answers HTTP 400 "Unrecognized field <x>" for
+# every other key -- including cloud_template, default_zone, external_id and
+# zone_key, all of which the GET emits. Model new fields from the read shape
+# and expect them to be unwritable.
 [FirewallZone]
 path = "firewall/zone"
 
