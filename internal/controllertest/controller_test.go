@@ -9,6 +9,32 @@ import (
 	"time"
 )
 
+// TestInformURLForAcceptsANetworkAddress pins the shape device containers
+// need: an http URL whose host is a canonical IPv4 literal and whose path is
+// exactly /inform.
+func TestInformURLForAcceptsANetworkAddress(t *testing.T) {
+	got, err := informURLFor("172.28.0.2")
+	if err != nil {
+		t.Fatalf("informURLFor: %v", err)
+	}
+	if want := "http://172.28.0.2:8080/inform"; got != want {
+		t.Errorf("informURLFor = %q, want %q", got, want)
+	}
+}
+
+// TestInformURLForRejectsUnreachableHosts pins the rejections that would
+// otherwise produce a fleet that starts cleanly and never adopts. A hostname
+// is rejected by the controller itself post-adopt ("invalid inform_ip
+// localhost", HTTP 400); a loopback or unspecified address means nothing
+// inside a device container; an IPv6 literal is outside the contract.
+func TestInformURLForRejectsUnreachableHosts(t *testing.T) {
+	for _, host := range []string{"", "localhost", "127.0.0.1", "0.0.0.0", "::1", "fd00::2", "172.028.0.2"} {
+		if got, err := informURLFor(host); err == nil {
+			t.Errorf("informURLFor(%q) = %q, want an error", host, got)
+		}
+	}
+}
+
 func TestControllerImageFromEnv(t *testing.T) {
 	t.Setenv("UNIFI_TEST_IMAGE", "example.invalid/unifi:v99")
 
