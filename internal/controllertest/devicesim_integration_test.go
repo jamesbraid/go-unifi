@@ -8,16 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	emu "github.com/jamesbraid/unifi-emu"
 )
 
-// TestIntegrationDeviceSimAdoption runs an in-process emulated switch
-// against a fresh controller end to end: inform, pending stat/device doc,
-// AdoptDevice, connected on both sides — the controller's device doc and
-// the sim's own state machine. The MAC sits in the UBNT OUI with a suffix
-// the -sim image's seeded demo fleet never uses, so stat/device lookups
-// can only match the sim's device.
+// TestIntegrationDeviceSimAdoption runs an emulated switch beside a fresh
+// controller end to end: inform, pending stat/device doc, AdoptDevice,
+// connected. The herder allocates the identity from a locally administered
+// MAC range, so it can never collide with the -sim image's seeded demo fleet
+// and the stat/device lookup can only match this device.
 func TestIntegrationDeviceSimAdoption(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -25,13 +22,16 @@ func TestIntegrationDeviceSimAdoption(t *testing.T) {
 	c := Start(ctx, t)
 	s := c.NewSession(ctx, t)
 
-	const mac = "00:27:22:e0:00:41"
-	sim := StartDeviceSim(ctx, t, c, emu.DeviceSpec{MAC: mac, Model: "USM8P", IP: "192.168.1.250"})
-	if sim == nil {
-		t.Skip("controller target has no host-reachable inform URL")
+	devices := StartDevices(ctx, t, c, DeviceRequest{Model: "USM8P"})
+	if devices == nil {
+		t.Skip("no emulated devices available for this controller target")
 	}
+	if len(devices) != 1 {
+		t.Fatalf("herder started %d devices, want 1", len(devices))
+	}
+	mac := devices[0].MAC
 
-	// A couple of 2s inform cycles should land the pending doc; 2m is the
+	// A couple of inform cycles should land the pending doc; 2m is the
 	// generous ceiling for an inform going nowhere. The doc must NOT be
 	// adopted: nobody adopted it, and a spontaneously adopted doc would
 	// mean the fleet collided with something else.
@@ -64,19 +64,13 @@ func TestIntegrationDeviceSimAdoption(t *testing.T) {
 	if d.State != 1 || !d.Adopted {
 		t.Fatalf("device %s: state=%d adopted=%v, want state=1 adopted=true", mac, d.State, d.Adopted)
 	}
-
-	waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer waitCancel()
-	if err := sim.WaitState(waitCtx, mac, emu.StateConnected); err != nil {
-		t.Fatalf("sim: %v", err)
-	}
 }
 
-// TestIntegrationStartDeviceSimNilForURLTarget pins the guard: a
-// UNIFI_TEST_URL controller gets no InformURL and StartDeviceSim returns
-// nil rather than pointing devices at an external controller. The stub
+// TestIntegrationStartDevicesNilForURLTarget pins the guard: a UNIFI_TEST_URL
+// controller owns no network, so StartDevices returns nil rather than
+// starting containers that would inform an external controller. The stub
 // login server drives Start's URL branch, so no container boots.
-func TestIntegrationStartDeviceSimNilForURLTarget(t *testing.T) {
+func TestIntegrationStartDevicesNilForURLTarget(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"meta":{"rc":"ok"}}`))
@@ -89,11 +83,10 @@ func TestIntegrationStartDeviceSimNilForURLTarget(t *testing.T) {
 	defer cancel()
 
 	c := Start(ctx, t)
-	if c.InformURL != "" {
-		t.Fatalf("URL-targeted controller InformURL = %q, want empty", c.InformURL)
+	if c.Network != "" || c.InformURL != "" {
+		t.Fatalf("URL-targeted controller Network = %q InformURL = %q, want both empty", c.Network, c.InformURL)
 	}
-	if sim := StartDeviceSim(ctx, t, c, emu.DeviceSpec{MAC: "00:27:22:e0:00:42", Model: "USM8P"}); sim != nil {
-		sim.Stop()
-		t.Fatal("StartDeviceSim against a URL target returned a fleet, want nil")
+	if devices := StartDevices(ctx, t, c, DeviceRequest{Model: "USM8P"}); devices != nil {
+		t.Fatalf("StartDevices against a URL target returned %+v, want nil", devices)
 	}
 }

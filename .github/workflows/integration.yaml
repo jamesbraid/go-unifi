@@ -64,6 +64,33 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
+      # Emulated devices are containers started by unifi-emu-herder, which the
+      # suite consumes as a process rather than as a Go dependency: its API is
+      # internal to unifi-emu and its supported surface is the stdout
+      # protocol. The pin is a commit because no release tag carries the
+      # herder yet. A leading dot keeps the checkout out of the Go tool's
+      # sight, so it never joins this module's build.
+      - name: Check out unifi-emu
+        if: steps.decide.outputs.run == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: jamesbraid/unifi-emu
+          ref: 2bd63a84ecc1073b8ccc0ab1a13cb97705eaff1b
+          path: .unifi-emu
+
+      # Binary and image come from the same checkout, so they always match —
+      # which a development herder needs, having no compiled-in image default.
+      # Both are built for the runner's own architecture; the suite runs
+      # all-synthetic, and no runtime mapping is installed.
+      - name: Build the device herder and its synthetic image
+        if: steps.decide.outputs.run == 'true'
+        working-directory: .unifi-emu
+        run: |
+          set -euo pipefail
+          go build -o "${RUNNER_TEMP}/unifi-emu-herder" ./cmd/unifi-emu-herder
+          docker build --build-arg "BUILDPLATFORM=linux/$(go env GOARCH)" \
+            -t unifi-emu-synthetic:ci .
+
       # The suite is identical; only the harness env differs. Standalone pins
       # the -sim tag from schemas/VERSION -- a missing tag fails the pull
       # inside the harness, a red check, the honest outcome. UOS routes
@@ -76,6 +103,8 @@ jobs:
         if: steps.decide.outputs.run == 'true'
         env:
           HARNESS: ${{ matrix.harness }}
+          UNIFI_TEST_HERDER_BIN: ${{ runner.temp }}/unifi-emu-herder
+          UNIFI_TEST_HERDER_SYNTHETIC_IMAGE: unifi-emu-synthetic:ci
         run: |
           set -euo pipefail
           if [ "$HARNESS" = uos ]; then
