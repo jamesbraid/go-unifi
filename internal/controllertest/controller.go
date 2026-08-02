@@ -12,9 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -30,14 +29,10 @@ const (
 	demoPassword = "admin"
 	demoSite     = "default"
 
-	// informHostIP is the loopback IP the inform plane is wired to. Three
-	// things must agree on it or adoption stalls: SYSTEM_IP (what the
-	// controller advertises as its inform target), the 8080 host-port pin,
-	// and InformURL (what the device reports back). It MUST be an IP literal
-	// — the controller rejects a hostname inform_ip post-adopt ("invalid
-	// inform_ip localhost", HTTP 400), which is why InformURL can't be built
-	// from container.Host() (that returns "localhost" under Colima).
-	informHostIP = "127.0.0.1"
+	// informPort is the controller's device inform port. It is a container
+	// port only: nothing publishes it to the host, because devices reach it
+	// across the controller's own Docker network.
+	informPort = 8080
 )
 
 type Controller struct {
@@ -45,17 +40,46 @@ type Controller struct {
 	Username string
 	Password string
 	Site     string
-	// InformURL is the controller's device inform endpoint, reachable
-	// from the test host — an in-process device simulator informs here.
-	// Only the classic Start sets it: the container's 8080 is pinned to
-	// host 127.0.0.1:8080 and the URL is built from the container host,
-	// like BaseURL. SYSTEM_IP makes the controller advertise 127.0.0.1
-	// to adopted devices — the same place under the local-daemon
-	// assumption (see Start), so the post-adoption inform target keeps
-	// working. It is empty for UNIFI_TEST_URL targets (an external
-	// controller's inform plane is not the suite's to point devices at)
-	// and for UOS harness controllers.
+	// Network is the user-defined Docker network this controller sits on,
+	// and the one device containers must join to reach InformURL. Only the
+	// classic Start sets it; it is empty for UNIFI_TEST_URL targets and for
+	// UOS harness controllers, which own neither a network nor an inform
+	// plane the suite may point devices at.
+	Network string
+	// InformURL is the controller's device inform endpoint as seen from
+	// Network — http://<container IPv4>:8080/inform. It is deliberately not
+	// host-reachable: a device is a container beside the controller, not a
+	// process on the test host, so the address that matters is the one on
+	// the shared network. Empty whenever Network is (see above).
 	InformURL string
+}
+
+// informURLFor builds the device inform endpoint for a controller reachable
+// at ip. The form is exactly http://<canonical-IPv4-literal>:8080/inform,
+// and the narrowness is the contract rather than fussiness: device
+// containers resolve no names, and the controller rejects an inform_ip that
+// is not an IP literal post-adopt ("invalid inform_ip localhost", HTTP 400).
+// A hostname, a loopback address or an IPv6 literal all produce a fleet that
+// starts cleanly and never adopts, so they fail here instead — while the
+// problem is still one line of fixture configuration.
+func informURLFor(ip string) (string, error) {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "", fmt.Errorf("inform host %q is not an IP literal: %w", ip, err)
+	}
+	if !addr.Is4() {
+		return "", fmt.Errorf("inform host %q is not IPv4", ip)
+	}
+	// A canonical literal round-trips. Anything else — a leading-zero octet,
+	// an IPv4-mapped IPv6 spelling — would reach the controller as a
+	// different string than the one it compares against.
+	if addr.String() != ip {
+		return "", fmt.Errorf("inform host %q is not canonical IPv4 text", ip)
+	}
+	if addr.IsLoopback() || addr.IsUnspecified() {
+		return "", fmt.Errorf("inform host %q is not reachable from a device container", ip)
+	}
+	return fmt.Sprintf("http://%s:%d/inform", ip, informPort), nil
 }
 
 func imageFromEnv() string {
@@ -65,25 +89,24 @@ func imageFromEnv() string {
 	return defaultImage
 }
 
-// Start boots a disposable simulation-mode controller and returns its
-// coordinates. It skips the test when docker is unavailable, honours
-// UNIFI_TEST_URL to target an existing controller instead, and cleans the
-// container up via t.Cleanup. The image must be a simulation-mode
-// controller image (admin/admin seeded, no setup wizard, healthcheck that
-// signals API readiness) — the published `-sim` tags, or anything
-// honoring the same contract.
+// Start boots a disposable simulation-mode controller on a user-defined
+// Docker network of its own and returns its coordinates. It skips the test
+// when docker is unavailable, honours UNIFI_TEST_URL to target an existing
+// controller instead, and cleans the container and the network up via
+// t.Cleanup. The image must be a simulation-mode controller image
+// (admin/admin seeded, no setup wizard, healthcheck that signals API
+// readiness) — the published `-sim` tags, or anything honoring the same
+// contract.
 //
-// The inform port is pinned to host 127.0.0.1:8080 (SYSTEM_IP advertises
-// 127.0.0.1, the same host loopback InformURL is built from) so an
-// in-process device simulator has a stable, host-reachable inform target
-// — container IPs are unroutable from the macOS host. The tradeoff: host
-// port 8080 is always bound while a classic controller runs, so two of
-// them cannot coexist; never parallelize classic-controller tests within
-// a package, and pass -p 1 to multi-package runs locally (go test -tags
-// integration ./... boots packages concurrently, and the second 8080
-// bind dies "port is already allocated"; CI already passes -p 1). A
-// local docker daemon is assumed — 127.0.0.1 means nothing on a remote
-// one.
+// The network is the fixture's half of the device contract: device
+// containers join it and inform the controller at its address on it, so
+// nothing about the inform plane touches the host. That is why 8080 is no
+// longer published and SYSTEM_IP is no longer set — the controller
+// auto-detects its own address on its single interface, which is exactly
+// the address InformURL carries, so the inform target it advertises
+// post-adopt keeps working. Both host-global constraints the old fixed
+// 127.0.0.1:8080 binding imposed are gone with it: controllers no longer
+// collide on a host port, and no local-docker-daemon assumption remains.
 func Start(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
@@ -106,26 +129,37 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		testcontainers.SkipIfProviderIsNotHealthy(t)
 	}
 
+	// The network is created before the controller so t.Cleanup tears them
+	// down in the right order: cleanups run LIFO, so the container is
+	// removed first and the network is free to go afterwards.
+	net, err := network.New(ctx)
+	if err != nil {
+		t.Fatalf("create controller network: %v", err)
+	}
+	t.Cleanup(func() {
+		if os.Getenv("UNIFI_TEST_KEEP") != "" {
+			t.Logf("UNIFI_TEST_KEEP set; leaving network %s in place", net.Name)
+			return
+		}
+		// A network that will not go away means something is still attached
+		// to it, which the next run inherits as an ever-growing pile of
+		// networks. Discarding the error would hide exactly that.
+		if err := net.Remove(context.Background()); err != nil {
+			t.Errorf("remove controller network %s: %v", net.Name, err)
+		}
+	})
+
 	req := testcontainers.ContainerRequest{
-		Image:        imageFromEnv(),
-		ExposedPorts: []string{"8443/tcp", "8080/tcp"},
+		Image: imageFromEnv(),
+		// Only the API is published, and only on an ephemeral port: the
+		// test host drives the controller over BaseURL, while 8080 (inform)
+		// is reached across the network below and needs no host binding at
+		// all. Exactly one network keeps ContainerIP unambiguous.
+		ExposedPorts: []string{"8443/tcp"},
+		Networks:     []string{net.Name},
 		Env: map[string]string{
 			"UNIFI_STDOUT": "true",
 			"TZ":           "Etc/UTC",
-			// The address the controller advertises as its inform/adopt
-			// target (the -sim entrypoint writes it to system.properties).
-			// Adopted devices re-inform there, so it must match the
-			// host-reachable address the pin below creates.
-			"SYSTEM_IP": informHostIP,
-		},
-		// 8443 (the API) stays ephemeral; 8080 (inform) is pinned to the
-		// host loopback so an in-process device simulator informs a stable
-		// address. testcontainers has no fixed-binding ExposedPorts syntax,
-		// but its merge keeps HostConfig bindings for exposed ports.
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.PortBindings = network.PortMap{
-				network.MustParsePort("8080/tcp"): {{HostIP: netip.MustParseAddr(informHostIP), HostPort: "8080"}},
-			}
 		},
 		// The -sim images' healthcheck reports healthy only once the API
 		// answers a real JSON login (the controller serves an HTML
@@ -138,6 +172,22 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		ContainerRequest: req,
 		Started:          true,
 	})
+	// Registered before the error is checked, and on purpose: a container
+	// that failed its health wait is returned started, not absent (which is
+	// why dumpLogs below can read its log). Registering after the check
+	// would mean t.Fatalf skipped it, stranding the container — and with it
+	// the network, whose removal then fails on the still-attached endpoint.
+	if container != nil {
+		t.Cleanup(func() {
+			if os.Getenv("UNIFI_TEST_KEEP") != "" {
+				t.Logf("UNIFI_TEST_KEEP set; leaving controller running at %s", container.GetContainerID())
+				return
+			}
+			if err := container.Terminate(context.Background()); err != nil {
+				t.Errorf("terminate controller container: %v", err)
+			}
+		})
+	}
 	if err != nil {
 		// The wait error alone ("container is not healthy") says nothing
 		// about why; the controller's own output does (UNIFI_STDOUT routes
@@ -145,13 +195,6 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		dumpLogs(ctx, t, container)
 		t.Fatalf("start controller container: %v", err)
 	}
-	t.Cleanup(func() {
-		if os.Getenv("UNIFI_TEST_KEEP") != "" {
-			t.Logf("UNIFI_TEST_KEEP set; leaving controller running at %s", container.GetContainerID())
-			return
-		}
-		_ = container.Terminate(context.Background())
-	})
 
 	host, err := container.Host(ctx)
 	if err != nil {
@@ -162,16 +205,26 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		t.Fatalf("mapped port: %v", err)
 	}
 
+	// ContainerIP reports an address only while the container sits on
+	// exactly one network, which is the shape the request asks for — so an
+	// empty answer here means the topology drifted, not that the address is
+	// unknown, and informURLFor turns it into a named failure.
+	ip, err := container.ContainerIP(ctx)
+	if err != nil {
+		t.Fatalf("controller container IP: %v", err)
+	}
+	informURL, err := informURLFor(ip)
+	if err != nil {
+		t.Fatalf("controller on network %s: %v", net.Name, err)
+	}
+
 	return &Controller{
-		BaseURL:  fmt.Sprintf("https://%s:%s", host, port.Port()),
-		Username: demoUsername,
-		Password: demoPassword,
-		Site:     demoSite,
-		// InformURL uses the pinned loopback IP, not host: the API (BaseURL)
-		// is fine over container.Host()'s "localhost", but the device-reported
-		// inform_ip must be an IP literal or the controller rejects it
-		// post-adopt (HTTP 400 "invalid inform_ip localhost").
-		InformURL: fmt.Sprintf("http://%s:8080/inform", informHostIP),
+		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
+		Username:  demoUsername,
+		Password:  demoPassword,
+		Site:      demoSite,
+		Network:   net.Name,
+		InformURL: informURL,
 	}
 }
 
