@@ -14,7 +14,7 @@
             }
           },
           {
-            "name": "for_wla_nconf",
+            "name": "for_wlanconf",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -33,7 +33,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "filter_i_ds",
+            "name": "filter_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -84,13 +84,13 @@
             }
           },
           {
-            "name": "network_id",
+            "name": "networkconf_id",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -185,7 +185,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "config",
+            "name": "frr_bgpd_config",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -537,7 +537,7 @@
             }
           },
           {
-            "name": "network_members_group_i_ds",
+            "name": "network_members_group_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -552,13 +552,13 @@
             }
           },
           {
-            "name": "use_fixed_ip",
+            "name": "use_fixedip",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -992,7 +992,7 @@
             }
           },
           {
-            "name": "baresip_password",
+            "name": "x_baresip_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -1031,7 +1031,7 @@
                   }
                 },
                 {
-                  "name": "dns_1",
+                  "name": "dns1",
                   "string": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -1052,7 +1052,7 @@
                   }
                 },
                 {
-                  "name": "dns_2",
+                  "name": "dns2",
                   "string": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -1073,7 +1073,7 @@
                   }
                 },
                 {
-                  "name": "dn_ssuffix",
+                  "name": "dnssuffix",
                   "string": {
                     "computed_optional_required": "computed"
                   }
@@ -1175,7 +1175,7 @@
             }
           },
           {
-            "name": "dot_1_x_fallback_network_id",
+            "name": "dot1x_fallback_networkconf_id",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -1196,7 +1196,7 @@
             }
           },
           {
-            "name": "dot_1_x_portctrl_enabled",
+            "name": "dot1x_portctrl_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -1333,7 +1333,7 @@
                     }
                   },
                   {
-                    "name": "network_group",
+                    "name": "networkgroup",
                     "string": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -1516,7 +1516,7 @@
             }
           },
           {
-            "name": "height_in_meters",
+            "name": "heightInMeters",
             "float64": {
               "computed_optional_required": "computed"
             }
@@ -1582,7 +1582,7 @@
             }
           },
           {
-            "name": "lcm_i_dle_timeout",
+            "name": "lcm_idle_timeout",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -1600,7 +1600,7 @@
             }
           },
           {
-            "name": "lcm_i_dle_timeout_override",
+            "name": "lcm_idle_timeout_override",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -1933,7 +1933,7 @@
                                 }
                               },
                               {
-                                "name": "p_dp_type",
+                                "name": "pdp_type",
                                 "string": {
                                   "computed_optional_required": "computed",
                                   "validators": [
@@ -2205,7 +2205,7 @@
                   }
                 },
                 {
-                  "name": "ipv_6",
+                  "name": "ipv6",
                   "single_nested": {
                     "computed_optional_required": "computed",
                     "attributes": [
@@ -2270,7 +2270,7 @@
                   }
                 },
                 {
-                  "name": "i_pv_4",
+                  "name": "ipv4",
                   "single_nested": {
                     "computed_optional_required": "computed",
                     "attributes": [
@@ -2495,7 +2495,7 @@
                     }
                   },
                   {
-                    "name": "dot_1_x_ctrl",
+                    "name": "dot1x_ctrl",
                     "string": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2513,7 +2513,7 @@
                     }
                   },
                   {
-                    "name": "dot_1_xi_dle_timeout",
+                    "name": "dot1x_idle_timeout",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2549,7 +2549,7 @@
                     }
                   },
                   {
-                    "name": "excluded_network_i_ds",
+                    "name": "excluded_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -2672,7 +2672,7 @@
                     }
                   },
                   {
-                    "name": "multicast_router_network_i_ds",
+                    "name": "multicast_router_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -2681,7 +2681,7 @@
                     }
                   },
                   {
-                    "name": "na_tive_network_id",
+                    "name": "native_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -2765,7 +2765,7 @@
                     }
                   },
                   {
-                    "name": "port_profile_id",
+                    "name": "portconf_id",
                     "string": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2807,7 +2807,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_1_level",
+                    "name": "priority_queue1_level",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2825,7 +2825,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_2_level",
+                    "name": "priority_queue2_level",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2843,7 +2843,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_3_level",
+                    "name": "priority_queue3_level",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -2861,7 +2861,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_4_level",
+                    "name": "priority_queue4_level",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -3114,7 +3114,7 @@
                     }
                   },
                   {
-                    "name": "routed_network_id",
+                    "name": "routed_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -3162,13 +3162,13 @@
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_enabled",
+                    "name": "stormctrl_bcast_enabled",
                     "bool": {
                       "computed_optional_required": "computed"
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_level",
+                    "name": "stormctrl_bcast_level",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -3186,7 +3186,7 @@
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_rate",
+                    "name": "stormctrl_bcast_rate",
                     "int64": {
                       "computed_optional_required": "computed"
                     }
@@ -3306,7 +3306,7 @@
                     }
                   },
                   {
-                    "name": "tagged_network_i_ds",
+                    "name": "tagged_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -3333,7 +3333,7 @@
                     }
                   },
                   {
-                    "name": "voice_network_id",
+                    "name": "voice_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -3498,7 +3498,7 @@
                   }
                 },
                 {
-                  "name": "priority_1",
+                  "name": "priority1",
                   "int64": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -3516,7 +3516,7 @@
                   }
                 },
                 {
-                  "name": "priority_2",
+                  "name": "priority2",
                   "int64": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -3615,7 +3615,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -3786,7 +3786,7 @@
                     }
                   },
                   {
-                    "name": "radio_i_dentifiers",
+                    "name": "radio_identifiers",
                     "list_nested": {
                       "computed_optional_required": "computed",
                       "nested_object": {
@@ -4529,7 +4529,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "dp_iapp_i_ds",
+            "name": "dpiapp_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -4662,7 +4662,7 @@
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -4844,7 +4844,7 @@
               "computed_optional_required": "computed",
               "attributes": [
                 {
-                  "name": "client_ma_cs",
+                  "name": "client_macs",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -4859,7 +4859,7 @@
                   }
                 },
                 {
-                  "name": "i_ps",
+                  "name": "ips",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -4874,7 +4874,7 @@
                   }
                 },
                 {
-                  "name": "match_opposite_i_ps",
+                  "name": "match_opposite_ips",
                   "bool": {
                     "computed_optional_required": "computed"
                   }
@@ -4928,7 +4928,7 @@
                   }
                 },
                 {
-                  "name": "network_i_ds",
+                  "name": "network_ids",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -5009,7 +5009,7 @@
             }
           },
           {
-            "name": "icmpv_6_typename",
+            "name": "icmp_v6_typename",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5145,7 +5145,7 @@
               "computed_optional_required": "computed",
               "attributes": [
                 {
-                  "name": "client_ma_cs",
+                  "name": "client_macs",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -5160,7 +5160,7 @@
                   }
                 },
                 {
-                  "name": "i_ps",
+                  "name": "ips",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -5175,7 +5175,7 @@
                   }
                 },
                 {
-                  "name": "match_opposite_i_ps",
+                  "name": "match_opposite_ips",
                   "bool": {
                     "computed_optional_required": "computed"
                   }
@@ -5229,7 +5229,7 @@
                   }
                 },
                 {
-                  "name": "network_i_ds",
+                  "name": "network_ids",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -5286,7 +5286,7 @@
             }
           },
           {
-            "name": "version",
+            "name": "ip_version",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5335,13 +5335,13 @@
             }
           },
           {
-            "name": "dst_address_ipv_6",
+            "name": "dst_address_ipv6",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dst_firewall_group_i_ds",
+            "name": "dst_firewallgroup_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -5350,7 +5350,7 @@
             }
           },
           {
-            "name": "dst_network_id",
+            "name": "dst_networkconf_id",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5371,7 +5371,7 @@
             }
           },
           {
-            "name": "dst_network_type",
+            "name": "dst_networkconf_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5422,7 +5422,7 @@
             }
           },
           {
-            "name": "icm_pv_6_typename",
+            "name": "icmpv6_typename",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5443,7 +5443,7 @@
             }
           },
           {
-            "name": "ip_sec",
+            "name": "ipsec",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5515,7 +5515,7 @@
             }
           },
           {
-            "name": "protocol_v_6",
+            "name": "protocol_v6",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5584,13 +5584,13 @@
             }
           },
           {
-            "name": "src_address_ipv_6",
+            "name": "src_address_ipv6",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "src_firewall_group_i_ds",
+            "name": "src_firewallgroup_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -5620,7 +5620,7 @@
             }
           },
           {
-            "name": "src_network_id",
+            "name": "src_networkconf_id",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5641,7 +5641,7 @@
             }
           },
           {
-            "name": "src_network_type",
+            "name": "src_networkconf_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -5720,7 +5720,7 @@
             }
           },
           {
-            "name": "network_i_ds",
+            "name": "network_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -5991,7 +5991,7 @@
             }
           },
           {
-            "name": "i_paddr_type_avail_v_4",
+            "name": "ipaddr_type_avail_v4",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -6009,7 +6009,7 @@
             }
           },
           {
-            "name": "i_paddr_type_avail_v_6",
+            "name": "ipaddr_type_avail_v6",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -6238,7 +6238,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "auth_i_ds",
+                    "name": "auth_ids",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -6548,7 +6548,7 @@
                     }
                   },
                   {
-                    "name": "nai_2",
+                    "name": "nai2",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -6705,7 +6705,7 @@
             }
           },
           {
-            "name": "tc_filename",
+            "name": "t_c_filename",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -6723,7 +6723,7 @@
             }
           },
           {
-            "name": "tc_timestamp",
+            "name": "t_c_timestamp",
             "int64": {
               "computed_optional_required": "computed"
             }
@@ -6839,7 +6839,7 @@
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -7109,7 +7109,7 @@
                   }
                 },
                 {
-                  "name": "firewall_group_i_ds",
+                  "name": "firewall_group_ids",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -7294,7 +7294,7 @@
                   }
                 },
                 {
-                  "name": "firewall_group_i_ds",
+                  "name": "firewall_group_ids",
                   "list": {
                     "computed_optional_required": "computed",
                     "element_type": {
@@ -7360,7 +7360,7 @@
             }
           },
           {
-            "name": "version",
+            "name": "ip_version",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7385,7 +7385,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "auth_key",
+            "name": "x_auth_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -7398,14 +7398,14 @@
             }
           },
           {
-            "name": "ca_crt",
+            "name": "x_ca_crt",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "ca_key",
+            "name": "x_ca_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -7448,19 +7448,19 @@
             }
           },
           {
-            "name": "dhcpddns_1",
+            "name": "dhcpd_dns_1",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpddns_2",
+            "name": "dhcpd_dns_2",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpddns_3",
+            "name": "dhcpd_dns_3",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7481,7 +7481,7 @@
             }
           },
           {
-            "name": "dhcpddns_4",
+            "name": "dhcpd_dns_4",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7502,7 +7502,7 @@
             }
           },
           {
-            "name": "dhcpddns_enabled",
+            "name": "dhcpd_dns_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -7541,7 +7541,7 @@
             }
           },
           {
-            "name": "dhcpdip_1",
+            "name": "dhcpd_ip_1",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7562,7 +7562,7 @@
             }
           },
           {
-            "name": "dhcpdip_2",
+            "name": "dhcpd_ip_2",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7583,7 +7583,7 @@
             }
           },
           {
-            "name": "dhcpdip_3",
+            "name": "dhcpd_ip_3",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7604,13 +7604,13 @@
             }
           },
           {
-            "name": "dhcpd_lease_time",
+            "name": "dhcpd_leasetime",
             "int64": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdmac_1",
+            "name": "dhcpd_mac_1",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7631,7 +7631,7 @@
             }
           },
           {
-            "name": "dhcpdmac_2",
+            "name": "dhcpd_mac_2",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7652,7 +7652,7 @@
             }
           },
           {
-            "name": "dhcpdmac_3",
+            "name": "dhcpd_mac_3",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7763,7 +7763,7 @@
             }
           },
           {
-            "name": "dhcpdtftp_server",
+            "name": "dhcpd_tftp_server",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -7814,67 +7814,67 @@
             }
           },
           {
-            "name": "dhcpdv_6_allow_slaac",
+            "name": "dhcpdv6_allow_slaac",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_dns_1",
+            "name": "dhcpdv6_dns_1",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_dns_2",
+            "name": "dhcpdv6_dns_2",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_dns_3",
+            "name": "dhcpdv6_dns_3",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_dns_4",
+            "name": "dhcpdv6_dns_4",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_dns_auto",
+            "name": "dhcpdv6_dns_auto",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_enabled",
+            "name": "dhcpdv6_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_lease_time",
+            "name": "dhcpdv6_leasetime",
             "int64": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_start",
+            "name": "dhcpdv6_start",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdv_6_stop",
+            "name": "dhcpdv6_stop",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "dhcpdwp_ad_url",
+            "name": "dhcpd_wpad_url",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -7943,7 +7943,7 @@
             }
           },
           {
-            "name": "dhc_pguard_enabled",
+            "name": "dhcpguard_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -7955,7 +7955,7 @@
             }
           },
           {
-            "name": "dp_igroup_id",
+            "name": "dpigroup_id",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -7976,7 +7976,7 @@
             }
           },
           {
-            "name": "dh_key",
+            "name": "x_dh_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -8112,7 +8112,7 @@
             }
           },
           {
-            "name": "igmp_proxy_downstream_network_i_ds",
+            "name": "igmp_proxy_downstream_networkconf_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -8203,7 +8203,7 @@
             }
           },
           {
-            "name": "igmp_suppression",
+            "name": "igmp_supression",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -8218,7 +8218,7 @@
             }
           },
           {
-            "name": "ip_sec_dh_group",
+            "name": "ipsec_dh_group",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8236,13 +8236,13 @@
             }
           },
           {
-            "name": "ip_sec_dynamic_routing",
+            "name": "ipsec_dynamic_routing",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_encryption",
+            "name": "ipsec_encryption",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8260,7 +8260,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_dh_group",
+            "name": "ipsec_esp_dh_group",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8278,7 +8278,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_encryption",
+            "name": "ipsec_esp_encryption",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8296,7 +8296,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_hash",
+            "name": "ipsec_esp_hash",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8314,7 +8314,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_lifetime",
+            "name": "ipsec_esp_lifetime",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8332,7 +8332,7 @@
             }
           },
           {
-            "name": "ip_sec_hash",
+            "name": "ipsec_hash",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8350,7 +8350,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_dh_group",
+            "name": "ipsec_ike_dh_group",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8368,7 +8368,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_encryption",
+            "name": "ipsec_ike_encryption",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8386,7 +8386,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_hash",
+            "name": "ipsec_ike_hash",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8404,7 +8404,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_lifetime",
+            "name": "ipsec_ike_lifetime",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8422,7 +8422,7 @@
             }
           },
           {
-            "name": "ip_sec_interface",
+            "name": "ipsec_interface",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8443,7 +8443,7 @@
             }
           },
           {
-            "name": "ip_sec_key_exchange",
+            "name": "ipsec_key_exchange",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8461,19 +8461,19 @@
             }
           },
           {
-            "name": "ip_sec_local_i_dentifier",
+            "name": "ipsec_local_identifier",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_local_i_dentifier_enabled",
+            "name": "ipsec_local_identifier_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_local_ip",
+            "name": "ipsec_local_ip",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8494,19 +8494,19 @@
             }
           },
           {
-            "name": "ip_sec_peer_ip",
+            "name": "ipsec_peer_ip",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_pfs",
+            "name": "ipsec_pfs",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_pre_shared_key",
+            "name": "x_ipsec_pre_shared_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -8528,7 +8528,7 @@
             }
           },
           {
-            "name": "ip_sec_profile",
+            "name": "ipsec_profile",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8546,25 +8546,25 @@
             }
           },
           {
-            "name": "ip_sec_remote_i_dentifier",
+            "name": "ipsec_remote_identifier",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_remote_i_dentifier_enabled",
+            "name": "ipsec_remote_identifier_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_separate_ikev_2_networks",
+            "name": "ipsec_separate_ikev2_networks",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ip_sec_tunnel_ip",
+            "name": "ipsec_tunnel_ip",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8585,7 +8585,7 @@
             }
           },
           {
-            "name": "ip_sec_tunnel_ip_enabled",
+            "name": "ipsec_tunnel_ip_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -8612,7 +8612,7 @@
             }
           },
           {
-            "name": "ipv_6_aliases",
+            "name": "ipv6_aliases",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -8621,7 +8621,7 @@
             }
           },
           {
-            "name": "ipv_6_client_address_assignment",
+            "name": "ipv6_client_address_assignment",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8639,7 +8639,7 @@
             }
           },
           {
-            "name": "ipv_6_interface_type",
+            "name": "ipv6_interface_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8657,13 +8657,13 @@
             }
           },
           {
-            "name": "ipv_6_pd_auto_prefixid_enabled",
+            "name": "ipv6_pd_auto_prefixid_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_pd_interface",
+            "name": "ipv6_pd_interface",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8684,7 +8684,7 @@
             }
           },
           {
-            "name": "ipv_6_pd_prefixid",
+            "name": "ipv6_pd_prefixid",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8705,31 +8705,31 @@
             }
           },
           {
-            "name": "ipv_6_pd_start",
+            "name": "ipv6_pd_start",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_pd_stop",
+            "name": "ipv6_pd_stop",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_ra_enabled",
+            "name": "ipv6_ra_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_ra_preferred_lifetime",
+            "name": "ipv6_ra_preferred_lifetime",
             "int64": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_ra_priority",
+            "name": "ipv6_ra_priority",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8747,13 +8747,13 @@
             }
           },
           {
-            "name": "ipv_6_ra_valid_lifetime",
+            "name": "ipv6_ra_valid_lifetime",
             "int64": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_setting_preference",
+            "name": "ipv6_setting_preference",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8771,19 +8771,19 @@
             }
           },
           {
-            "name": "ipv_6_single_network_interface",
+            "name": "ipv6_single_network_interface",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_subnet",
+            "name": "ipv6_subnet",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "ipv_6_wan_delegation_type",
+            "name": "ipv6_wan_delegation_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8837,13 +8837,13 @@
             }
           },
           {
-            "name": "l_2_tp_allow_weak_ciphers",
+            "name": "l2tp_allow_weak_ciphers",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "l_2_tp_interface",
+            "name": "l2tp_interface",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8864,7 +8864,7 @@
             }
           },
           {
-            "name": "l_2_tp_local_wanip",
+            "name": "l2tp_local_wan_ip",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8885,7 +8885,7 @@
             }
           },
           {
-            "name": "l_3_interface_type",
+            "name": "l3_interface_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -8978,7 +8978,7 @@
             }
           },
           {
-            "name": "mss_clamp_ipv_6",
+            "name": "mss_clamp_ipv6",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9014,7 +9014,7 @@
             }
           },
           {
-            "name": "mss_clamp_mss_ipv_6",
+            "name": "mss_clamp_mss_ipv6",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9129,7 +9129,7 @@
             }
           },
           {
-            "name": "network_group",
+            "name": "networkgroup",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9156,19 +9156,19 @@
             }
           },
           {
-            "name": "open_vpn_configuration",
+            "name": "openvpn_configuration",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "open_vpn_configuration_filename",
+            "name": "openvpn_configuration_filename",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "open_vpn_encryption_cipher",
+            "name": "openvpn_encryption_cipher",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9186,7 +9186,7 @@
             }
           },
           {
-            "name": "open_vpn_interface",
+            "name": "openvpn_interface",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9207,7 +9207,7 @@
             }
           },
           {
-            "name": "open_vpn_local_address",
+            "name": "openvpn_local_address",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9228,7 +9228,7 @@
             }
           },
           {
-            "name": "open_vpn_local_port",
+            "name": "openvpn_local_port",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9246,7 +9246,7 @@
             }
           },
           {
-            "name": "open_vpn_local_wanip",
+            "name": "openvpn_local_wan_ip",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9267,7 +9267,7 @@
             }
           },
           {
-            "name": "open_vpn_mode",
+            "name": "openvpn_mode",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9285,14 +9285,14 @@
             }
           },
           {
-            "name": "open_vpn_password",
+            "name": "x_openvpn_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "open_vpn_remote_address",
+            "name": "openvpn_remote_address",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9313,7 +9313,7 @@
             }
           },
           {
-            "name": "open_vpn_remote_host",
+            "name": "openvpn_remote_host",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9334,7 +9334,7 @@
             }
           },
           {
-            "name": "open_vpn_remote_port",
+            "name": "openvpn_remote_port",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9352,7 +9352,7 @@
             }
           },
           {
-            "name": "open_vpn_shared_secret_key",
+            "name": "x_openvpn_shared_secret_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -9374,13 +9374,13 @@
             }
           },
           {
-            "name": "open_vpn_username",
+            "name": "openvpn_username",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "pptpc_password",
+            "name": "x_pptpc_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -9489,7 +9489,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -9531,7 +9531,7 @@
             }
           },
           {
-            "name": "require_mschapv_2",
+            "name": "require_mschapv2",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -9597,14 +9597,14 @@
             }
           },
           {
-            "name": "server_crt",
+            "name": "x_server_crt",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "server_key",
+            "name": "x_server_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -9629,14 +9629,14 @@
             }
           },
           {
-            "name": "shared_client_crt",
+            "name": "x_shared_client_crt",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "shared_client_key",
+            "name": "x_shared_client_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -9649,31 +9649,31 @@
             }
           },
           {
-            "name": "u_pn_p_enabled",
+            "name": "upnp_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "u_pn_p_lan_enabled",
+            "name": "upnp_lan_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "u_pn_p_nat_pmp_enabled",
+            "name": "upnp_nat_pmp_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "u_pn_p_secure_mode",
+            "name": "upnp_secure_mode",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "u_pn_pwan_interface",
+            "name": "upnp_wan_interface",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -9709,7 +9709,7 @@
             }
           },
           {
-            "name": "uid_traffic_rules_allowed_i_ps_and_hostnames",
+            "name": "uid_traffic_rules_allowed_ips_and_hostnames",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -9781,7 +9781,7 @@
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -9889,7 +9889,7 @@
             }
           },
           {
-            "name": "vrrp_ip_subnet_gw_1",
+            "name": "vrrp_ip_subnet_gw1",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9910,7 +9910,7 @@
             }
           },
           {
-            "name": "vrrp_ip_subnet_gw_2",
+            "name": "vrrp_ip_subnet_gw2",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9949,7 +9949,7 @@
             }
           },
           {
-            "name": "wandhcp_cos",
+            "name": "wan_dhcp_cos",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -9967,13 +9967,13 @@
             }
           },
           {
-            "name": "wandhcp_options",
+            "name": "wan_dhcp_options",
             "list_nested": {
               "computed_optional_required": "computed",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "option_number",
+                    "name": "optionNumber",
                     "int64": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -10001,7 +10001,7 @@
             }
           },
           {
-            "name": "wandhc_pv_6_cos",
+            "name": "wan_dhcpv6_cos",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10019,13 +10019,13 @@
             }
           },
           {
-            "name": "wandhc_pv_6_options",
+            "name": "wan_dhcpv6_options",
             "list_nested": {
               "computed_optional_required": "computed",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "option_number",
+                    "name": "optionNumber",
                     "int64": {
                       "computed_optional_required": "computed"
                     }
@@ -10041,7 +10041,7 @@
             }
           },
           {
-            "name": "wandhc_pv_6_pd_size",
+            "name": "wan_dhcpv6_pd_size",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10059,13 +10059,13 @@
             }
           },
           {
-            "name": "wandhc_pv_6_pd_size_auto",
+            "name": "wan_dhcpv6_pd_size_auto",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wandns_1",
+            "name": "wan_dns1",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10086,7 +10086,7 @@
             }
           },
           {
-            "name": "wandns_2",
+            "name": "wan_dns2",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10107,7 +10107,7 @@
             }
           },
           {
-            "name": "wandns_3",
+            "name": "wan_dns3",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10128,7 +10128,7 @@
             }
           },
           {
-            "name": "wandns_4",
+            "name": "wan_dns4",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10149,7 +10149,7 @@
             }
           },
           {
-            "name": "wandns_preference",
+            "name": "wan_dns_preference",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10242,7 +10242,7 @@
             }
           },
           {
-            "name": "wan_gateway_v_6",
+            "name": "wan_gateway_v6",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10263,7 +10263,7 @@
             }
           },
           {
-            "name": "wanip",
+            "name": "wan_ip",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10284,7 +10284,7 @@
             }
           },
           {
-            "name": "wanip_aliases",
+            "name": "wan_ip_aliases",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -10293,7 +10293,7 @@
             }
           },
           {
-            "name": "wanipv_6",
+            "name": "wan_ipv6",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10314,7 +10314,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_1",
+            "name": "wan_ipv6_dns1",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10335,7 +10335,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_2",
+            "name": "wan_ipv6_dns2",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10356,7 +10356,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_preference",
+            "name": "wan_ipv6_dns_preference",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10431,7 +10431,7 @@
             }
           },
           {
-            "name": "wan_network_group",
+            "name": "wan_networkgroup",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10452,7 +10452,7 @@
             }
           },
           {
-            "name": "wan_password",
+            "name": "x_wan_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -10530,19 +10530,19 @@
             }
           },
           {
-            "name": "wan_smart_q_down_rate",
+            "name": "wan_smartq_down_rate",
             "int64": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wan_smart_q_enabled",
+            "name": "wan_smartq_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wan_smart_q_up_rate",
+            "name": "wan_smartq_up_rate",
             "int64": {
               "computed_optional_required": "computed"
             }
@@ -10566,7 +10566,7 @@
             }
           },
           {
-            "name": "wan_type_v_6",
+            "name": "wan_type_v6",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10605,7 +10605,7 @@
             }
           },
           {
-            "name": "wanvlan",
+            "name": "wan_vlan",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -10623,7 +10623,7 @@
             }
           },
           {
-            "name": "wanvlan_enabled",
+            "name": "wan_vlan_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -10740,13 +10740,13 @@
             }
           },
           {
-            "name": "wireguard_local_wanip",
+            "name": "wireguard_local_wan_ip",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wireguard_private_key",
+            "name": "x_wireguard_private_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -10824,7 +10824,7 @@
                     }
                   },
                   {
-                    "name": "network_i_ds",
+                    "name": "network_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -10953,7 +10953,7 @@
             }
           },
           {
-            "name": "destination_i_ps",
+            "name": "destination_ips",
             "list_nested": {
               "computed_optional_required": "computed",
               "nested_object": {
@@ -11201,7 +11201,7 @@
             }
           },
           {
-            "name": "dot_1_x_ctrl",
+            "name": "dot1x_ctrl",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11219,7 +11219,7 @@
             }
           },
           {
-            "name": "dot_1_xi_dle_timeout",
+            "name": "dot1x_idle_timeout",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11255,7 +11255,7 @@
             }
           },
           {
-            "name": "excluded_network_i_ds",
+            "name": "excluded_networkconf_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -11360,7 +11360,7 @@
             }
           },
           {
-            "name": "multicast_router_network_i_ds",
+            "name": "multicast_router_networkconf_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -11369,7 +11369,7 @@
             }
           },
           {
-            "name": "na_tive_network_id",
+            "name": "native_networkconf_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -11447,7 +11447,7 @@
             }
           },
           {
-            "name": "priority_queue_1_level",
+            "name": "priority_queue1_level",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11465,7 +11465,7 @@
             }
           },
           {
-            "name": "priority_queue_2_level",
+            "name": "priority_queue2_level",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11483,7 +11483,7 @@
             }
           },
           {
-            "name": "priority_queue_3_level",
+            "name": "priority_queue3_level",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11501,7 +11501,7 @@
             }
           },
           {
-            "name": "priority_queue_4_level",
+            "name": "priority_queue4_level",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11796,13 +11796,13 @@
             }
           },
           {
-            "name": "stormctrl_broadcastast_enabled",
+            "name": "stormctrl_bcast_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "stormctrl_broadcastast_level",
+            "name": "stormctrl_bcast_level",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -11820,7 +11820,7 @@
             }
           },
           {
-            "name": "stormctrl_broadcastast_rate",
+            "name": "stormctrl_bcast_rate",
             "int64": {
               "computed_optional_required": "computed"
             }
@@ -11958,7 +11958,7 @@
             }
           },
           {
-            "name": "voice_network_id",
+            "name": "voice_networkconf_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -12022,7 +12022,7 @@
                     }
                   },
                   {
-                    "name": "secret",
+                    "name": "x_secret",
                     "string": {
                       "computed_optional_required": "computed",
                       "sensitive": true
@@ -12078,7 +12078,7 @@
                     }
                   },
                   {
-                    "name": "secret",
+                    "name": "x_secret",
                     "string": {
                       "computed_optional_required": "computed",
                       "sensitive": true
@@ -12089,13 +12089,13 @@
             }
           },
           {
-            "name": "ca_crts",
+            "name": "x_ca_crts",
             "list_nested": {
               "computed_optional_required": "computed",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "ca_crt",
+                    "name": "x_ca_crt",
                     "string": {
                       "computed_optional_required": "computed",
                       "sensitive": true
@@ -12112,35 +12112,35 @@
             }
           },
           {
-            "name": "client_crt",
+            "name": "x_client_crt",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "client_crt_filename",
+            "name": "x_client_crt_filename",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key",
+            "name": "x_client_private_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key_filename",
+            "name": "x_client_private_key_filename",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key_password",
+            "name": "x_client_private_key_password",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
@@ -12213,7 +12213,7 @@
             }
           },
           {
-            "name": "vlanwlan_mode",
+            "name": "vlan_wlan_mode",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12301,7 +12301,7 @@
             }
           },
           {
-            "name": "static_route_distance",
+            "name": "static-route_distance",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12319,7 +12319,7 @@
             }
           },
           {
-            "name": "static_route_interface",
+            "name": "static-route_interface",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12340,7 +12340,7 @@
             }
           },
           {
-            "name": "static_route_network",
+            "name": "static-route_network",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12361,7 +12361,7 @@
             }
           },
           {
-            "name": "static_route_nexthop",
+            "name": "static-route_nexthop",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12382,7 +12382,7 @@
             }
           },
           {
-            "name": "static_route_type",
+            "name": "static-route_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -12635,7 +12635,7 @@
                       "nested_object": {
                         "attributes": [
                           {
-                            "name": "start",
+                            "name": "port_start",
                             "int64": {
                               "computed_optional_required": "computed",
                               "validators": [
@@ -12653,7 +12653,7 @@
                             }
                           },
                           {
-                            "name": "stop",
+                            "name": "port_stop",
                             "int64": {
                               "computed_optional_required": "computed",
                               "validators": [
@@ -12700,7 +12700,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "address",
+                    "name": "ip_or_subnet",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -12712,7 +12712,7 @@
                       "nested_object": {
                         "attributes": [
                           {
-                            "name": "start",
+                            "name": "port_start",
                             "int64": {
                               "computed_optional_required": "computed",
                               "validators": [
@@ -12730,7 +12730,7 @@
                             }
                           },
                           {
-                            "name": "stop",
+                            "name": "port_stop",
                             "int64": {
                               "computed_optional_required": "computed",
                               "validators": [
@@ -12761,7 +12761,7 @@
                     }
                   },
                   {
-                    "name": "version",
+                    "name": "ip_version",
                     "string": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -12789,19 +12789,19 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "start",
+                    "name": "ip_start",
                     "string": {
                       "computed_optional_required": "computed"
                     }
                   },
                   {
-                    "name": "stop",
+                    "name": "ip_stop",
                     "string": {
                       "computed_optional_required": "computed"
                     }
                   },
                   {
-                    "name": "version",
+                    "name": "ip_version",
                     "string": {
                       "computed_optional_required": "computed",
                       "validators": [
@@ -12921,7 +12921,7 @@
             }
           },
           {
-            "name": "ap_group_i_ds",
+            "name": "ap_group_ids",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -12960,13 +12960,13 @@
             }
           },
           {
-            "name": "broadcast_filter_enabled",
+            "name": "bc_filter_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "broadcast_filter_list",
+            "name": "bc_filter_list",
             "list": {
               "computed_optional_required": "computed",
               "element_type": {
@@ -13020,7 +13020,7 @@
             }
           },
           {
-            "name": "dp_igroup_id",
+            "name": "dpigroup_id",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -13041,7 +13041,7 @@
             }
           },
           {
-            "name": "dtim_6_e",
+            "name": "dtim_6e",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -13149,7 +13149,7 @@
             }
           },
           {
-            "name": "hotspot_2",
+            "name": "hotspot2",
             "single_nested": {
               "computed_optional_required": "computed",
               "attributes": [
@@ -13334,7 +13334,7 @@
                   }
                 },
                 {
-                  "name": "i_paddr_type_avail_v_4",
+                  "name": "ipaddr_type_avail_v4",
                   "int64": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -13352,7 +13352,7 @@
                   }
                 },
                 {
-                  "name": "i_paddr_type_avail_v_6",
+                  "name": "ipaddr_type_avail_v6",
                   "int64": {
                     "computed_optional_required": "computed",
                     "validators": [
@@ -13472,7 +13472,7 @@
                     "nested_object": {
                       "attributes": [
                         {
-                          "name": "auth_i_ds",
+                          "name": "auth_ids",
                           "list": {
                             "computed_optional_required": "computed",
                             "element_type": {
@@ -13700,7 +13700,7 @@
             }
           },
           {
-            "name": "hotspot_2_conf_enabled",
+            "name": "hotspot2conf_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -13712,7 +13712,7 @@
             }
           },
           {
-            "name": "iapp_key",
+            "name": "x_iapp_key",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -13752,7 +13752,7 @@
             }
           },
           {
-            "name": "l_2_isolation",
+            "name": "l2_isolation",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -13803,7 +13803,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "ap_group_i_ds",
+                    "name": "ap_group_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -13812,7 +13812,7 @@
                     }
                   },
                   {
-                    "name": "ap_ma_cs",
+                    "name": "ap_macs",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -13882,7 +13882,7 @@
                     }
                   },
                   {
-                    "name": "network_i_ds",
+                    "name": "networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed",
                       "element_type": {
@@ -14019,7 +14019,7 @@
             }
           },
           {
-            "name": "multicast_enhance_enabled",
+            "name": "mcastenhance_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -14067,7 +14067,7 @@
             }
           },
           {
-            "name": "nas_i_dentifier",
+            "name": "nas_identifier",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -14085,7 +14085,7 @@
             }
           },
           {
-            "name": "nas_i_dentifier_type",
+            "name": "nas_identifier_type",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -14103,13 +14103,13 @@
             }
           },
           {
-            "name": "network_id",
+            "name": "networkconf_id",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "no_2_ghz_oui",
+            "name": "no2ghz_oui",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -14121,13 +14121,13 @@
             }
           },
           {
-            "name": "p_2_p",
+            "name": "p2p",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "p_2_p_cross_connect",
+            "name": "p2p_cross_connect",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -14169,7 +14169,7 @@
             }
           },
           {
-            "name": "passphrase",
+            "name": "x_passphrase",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true,
@@ -14215,7 +14215,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "network_id",
+                    "name": "networkconf_id",
                     "string": {
                       "computed_optional_required": "computed"
                     }
@@ -14264,19 +14264,19 @@
             }
           },
           {
-            "name": "radiusmac_auth_enabled",
+            "name": "radius_mac_auth_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "radiusma_cacl_empty_password",
+            "name": "radius_macacl_empty_password",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "radiusma_cacl_format",
+            "name": "radius_macacl_format",
             "string": {
               "computed_optional_required": "computed",
               "validators": [
@@ -14294,7 +14294,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -14318,13 +14318,13 @@
             }
           },
           {
-            "name": "roaming_assistant_6_e_enabled",
+            "name": "roaming_assistant_6e_enabled",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "roaming_assistant_6_e_rssi",
+            "name": "roaming_assistant_6e_rssi",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -14644,7 +14644,7 @@
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed"
             }
@@ -14674,14 +14674,14 @@
             }
           },
           {
-            "name": "wep",
+            "name": "x_wep",
             "string": {
               "computed_optional_required": "computed",
               "sensitive": true
             }
           },
           {
-            "name": "wepidx",
+            "name": "wep_idx",
             "int64": {
               "computed_optional_required": "computed",
               "validators": [
@@ -14726,31 +14726,31 @@
             }
           },
           {
-            "name": "wlan_group_id",
+            "name": "wlangroup_id",
             "string": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wpa_3_enhanced_192",
+            "name": "wpa3_enhanced_192",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wpa_3_fast_roaming",
+            "name": "wpa3_fast_roaming",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wpa_3_support",
+            "name": "wpa3_support",
             "bool": {
               "computed_optional_required": "computed"
             }
           },
           {
-            "name": "wpa_3_transition",
+            "name": "wpa3_transition",
             "bool": {
               "computed_optional_required": "computed"
             }
@@ -14904,7 +14904,7 @@
             }
           },
           {
-            "name": "for_wla_nconf",
+            "name": "for_wlanconf",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -14923,7 +14923,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "filter_i_ds",
+            "name": "filter_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -14974,13 +14974,13 @@
             }
           },
           {
-            "name": "network_id",
+            "name": "networkconf_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -15075,7 +15075,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "config",
+            "name": "frr_bgpd_config",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -15427,7 +15427,7 @@
             }
           },
           {
-            "name": "network_members_group_i_ds",
+            "name": "network_members_group_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -15442,13 +15442,13 @@
             }
           },
           {
-            "name": "use_fixed_ip",
+            "name": "use_fixedip",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -15882,7 +15882,7 @@
             }
           },
           {
-            "name": "baresip_password",
+            "name": "x_baresip_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -15921,7 +15921,7 @@
                   }
                 },
                 {
-                  "name": "dns_1",
+                  "name": "dns1",
                   "string": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -15942,7 +15942,7 @@
                   }
                 },
                 {
-                  "name": "dns_2",
+                  "name": "dns2",
                   "string": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -15963,7 +15963,7 @@
                   }
                 },
                 {
-                  "name": "dn_ssuffix",
+                  "name": "dnssuffix",
                   "string": {
                     "computed_optional_required": "computed_optional"
                   }
@@ -16065,7 +16065,7 @@
             }
           },
           {
-            "name": "dot_1_x_fallback_network_id",
+            "name": "dot1x_fallback_networkconf_id",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -16086,7 +16086,7 @@
             }
           },
           {
-            "name": "dot_1_x_portctrl_enabled",
+            "name": "dot1x_portctrl_enabled",
             "bool": {
               "computed_optional_required": "computed_optional"
             }
@@ -16223,7 +16223,7 @@
                     }
                   },
                   {
-                    "name": "network_group",
+                    "name": "networkgroup",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -16406,7 +16406,7 @@
             }
           },
           {
-            "name": "height_in_meters",
+            "name": "heightInMeters",
             "float64": {
               "computed_optional_required": "computed_optional"
             }
@@ -16472,7 +16472,7 @@
             }
           },
           {
-            "name": "lcm_i_dle_timeout",
+            "name": "lcm_idle_timeout",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -16490,7 +16490,7 @@
             }
           },
           {
-            "name": "lcm_i_dle_timeout_override",
+            "name": "lcm_idle_timeout_override",
             "bool": {
               "computed_optional_required": "computed_optional"
             }
@@ -16823,7 +16823,7 @@
                                 }
                               },
                               {
-                                "name": "p_dp_type",
+                                "name": "pdp_type",
                                 "string": {
                                   "computed_optional_required": "computed_optional",
                                   "validators": [
@@ -17095,7 +17095,7 @@
                   }
                 },
                 {
-                  "name": "ipv_6",
+                  "name": "ipv6",
                   "single_nested": {
                     "computed_optional_required": "computed_optional",
                     "attributes": [
@@ -17160,7 +17160,7 @@
                   }
                 },
                 {
-                  "name": "i_pv_4",
+                  "name": "ipv4",
                   "single_nested": {
                     "computed_optional_required": "computed_optional",
                     "attributes": [
@@ -17385,7 +17385,7 @@
                     }
                   },
                   {
-                    "name": "dot_1_x_ctrl",
+                    "name": "dot1x_ctrl",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17403,7 +17403,7 @@
                     }
                   },
                   {
-                    "name": "dot_1_xi_dle_timeout",
+                    "name": "dot1x_idle_timeout",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17439,7 +17439,7 @@
                     }
                   },
                   {
-                    "name": "excluded_network_i_ds",
+                    "name": "excluded_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -17562,7 +17562,7 @@
                     }
                   },
                   {
-                    "name": "multicast_router_network_i_ds",
+                    "name": "multicast_router_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -17571,7 +17571,7 @@
                     }
                   },
                   {
-                    "name": "na_tive_network_id",
+                    "name": "native_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -17655,7 +17655,7 @@
                     }
                   },
                   {
-                    "name": "port_profile_id",
+                    "name": "portconf_id",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17697,7 +17697,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_1_level",
+                    "name": "priority_queue1_level",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17715,7 +17715,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_2_level",
+                    "name": "priority_queue2_level",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17733,7 +17733,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_3_level",
+                    "name": "priority_queue3_level",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -17751,7 +17751,7 @@
                     }
                   },
                   {
-                    "name": "priority_queue_4_level",
+                    "name": "priority_queue4_level",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -18004,7 +18004,7 @@
                     }
                   },
                   {
-                    "name": "routed_network_id",
+                    "name": "routed_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -18052,13 +18052,13 @@
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_enabled",
+                    "name": "stormctrl_bcast_enabled",
                     "bool": {
                       "computed_optional_required": "computed_optional"
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_level",
+                    "name": "stormctrl_bcast_level",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -18076,7 +18076,7 @@
                     }
                   },
                   {
-                    "name": "stormctrl_broadcastast_rate",
+                    "name": "stormctrl_bcast_rate",
                     "int64": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -18196,7 +18196,7 @@
                     }
                   },
                   {
-                    "name": "tagged_network_i_ds",
+                    "name": "tagged_networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -18223,7 +18223,7 @@
                     }
                   },
                   {
-                    "name": "voice_network_id",
+                    "name": "voice_networkconf_id",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -18388,7 +18388,7 @@
                   }
                 },
                 {
-                  "name": "priority_1",
+                  "name": "priority1",
                   "int64": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -18406,7 +18406,7 @@
                   }
                 },
                 {
-                  "name": "priority_2",
+                  "name": "priority2",
                   "int64": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -18505,7 +18505,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -18676,7 +18676,7 @@
                     }
                   },
                   {
-                    "name": "radio_i_dentifiers",
+                    "name": "radio_identifiers",
                     "list_nested": {
                       "computed_optional_required": "computed_optional",
                       "nested_object": {
@@ -19419,7 +19419,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "dp_iapp_i_ds",
+            "name": "dpiapp_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -19552,7 +19552,7 @@
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -19734,7 +19734,7 @@
               "computed_optional_required": "computed_optional",
               "attributes": [
                 {
-                  "name": "client_ma_cs",
+                  "name": "client_macs",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -19749,7 +19749,7 @@
                   }
                 },
                 {
-                  "name": "i_ps",
+                  "name": "ips",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -19764,7 +19764,7 @@
                   }
                 },
                 {
-                  "name": "match_opposite_i_ps",
+                  "name": "match_opposite_ips",
                   "bool": {
                     "computed_optional_required": "optional"
                   }
@@ -19818,7 +19818,7 @@
                   }
                 },
                 {
-                  "name": "network_i_ds",
+                  "name": "network_ids",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -19899,7 +19899,7 @@
             }
           },
           {
-            "name": "icmpv_6_typename",
+            "name": "icmp_v6_typename",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -20035,7 +20035,7 @@
               "computed_optional_required": "computed_optional",
               "attributes": [
                 {
-                  "name": "client_ma_cs",
+                  "name": "client_macs",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -20050,7 +20050,7 @@
                   }
                 },
                 {
-                  "name": "i_ps",
+                  "name": "ips",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -20065,7 +20065,7 @@
                   }
                 },
                 {
-                  "name": "match_opposite_i_ps",
+                  "name": "match_opposite_ips",
                   "bool": {
                     "computed_optional_required": "optional"
                   }
@@ -20119,7 +20119,7 @@
                   }
                 },
                 {
-                  "name": "network_i_ds",
+                  "name": "network_ids",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -20176,7 +20176,7 @@
             }
           },
           {
-            "name": "version",
+            "name": "ip_version",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -20225,13 +20225,13 @@
             }
           },
           {
-            "name": "dst_address_ipv_6",
+            "name": "dst_address_ipv6",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dst_firewall_group_i_ds",
+            "name": "dst_firewallgroup_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -20240,7 +20240,7 @@
             }
           },
           {
-            "name": "dst_network_id",
+            "name": "dst_networkconf_id",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -20261,7 +20261,7 @@
             }
           },
           {
-            "name": "dst_network_type",
+            "name": "dst_networkconf_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -20312,7 +20312,7 @@
             }
           },
           {
-            "name": "icm_pv_6_typename",
+            "name": "icmpv6_typename",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -20333,7 +20333,7 @@
             }
           },
           {
-            "name": "ip_sec",
+            "name": "ipsec",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -20405,7 +20405,7 @@
             }
           },
           {
-            "name": "protocol_v_6",
+            "name": "protocol_v6",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -20474,13 +20474,13 @@
             }
           },
           {
-            "name": "src_address_ipv_6",
+            "name": "src_address_ipv6",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "src_firewall_group_i_ds",
+            "name": "src_firewallgroup_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -20510,7 +20510,7 @@
             }
           },
           {
-            "name": "src_network_id",
+            "name": "src_networkconf_id",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -20531,7 +20531,7 @@
             }
           },
           {
-            "name": "src_network_type",
+            "name": "src_networkconf_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -20610,7 +20610,7 @@
             }
           },
           {
-            "name": "network_i_ds",
+            "name": "network_ids",
             "list": {
               "computed_optional_required": "optional",
               "element_type": {
@@ -20881,7 +20881,7 @@
             }
           },
           {
-            "name": "i_paddr_type_avail_v_4",
+            "name": "ipaddr_type_avail_v4",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -20899,7 +20899,7 @@
             }
           },
           {
-            "name": "i_paddr_type_avail_v_6",
+            "name": "ipaddr_type_avail_v6",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -21128,7 +21128,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "auth_i_ds",
+                    "name": "auth_ids",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -21438,7 +21438,7 @@
                     }
                   },
                   {
-                    "name": "nai_2",
+                    "name": "nai2",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -21595,7 +21595,7 @@
             }
           },
           {
-            "name": "tc_filename",
+            "name": "t_c_filename",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -21613,7 +21613,7 @@
             }
           },
           {
-            "name": "tc_timestamp",
+            "name": "t_c_timestamp",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
@@ -21729,7 +21729,7 @@
             }
           },
           {
-            "name": "password",
+            "name": "x_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -21999,7 +21999,7 @@
                   }
                 },
                 {
-                  "name": "firewall_group_i_ds",
+                  "name": "firewall_group_ids",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -22184,7 +22184,7 @@
                   }
                 },
                 {
-                  "name": "firewall_group_i_ds",
+                  "name": "firewall_group_ids",
                   "list": {
                     "computed_optional_required": "computed_optional",
                     "element_type": {
@@ -22250,7 +22250,7 @@
             }
           },
           {
-            "name": "version",
+            "name": "ip_version",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -22275,7 +22275,7 @@
       "schema": {
         "attributes": [
           {
-            "name": "auth_key",
+            "name": "x_auth_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -22288,14 +22288,14 @@
             }
           },
           {
-            "name": "ca_crt",
+            "name": "x_ca_crt",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "ca_key",
+            "name": "x_ca_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -22338,19 +22338,19 @@
             }
           },
           {
-            "name": "dhcpddns_1",
+            "name": "dhcpd_dns_1",
             "string": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "dhcpddns_2",
+            "name": "dhcpd_dns_2",
             "string": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "dhcpddns_3",
+            "name": "dhcpd_dns_3",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22371,7 +22371,7 @@
             }
           },
           {
-            "name": "dhcpddns_4",
+            "name": "dhcpd_dns_4",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22392,7 +22392,7 @@
             }
           },
           {
-            "name": "dhcpddns_enabled",
+            "name": "dhcpd_dns_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -22431,7 +22431,7 @@
             }
           },
           {
-            "name": "dhcpdip_1",
+            "name": "dhcpd_ip_1",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22452,7 +22452,7 @@
             }
           },
           {
-            "name": "dhcpdip_2",
+            "name": "dhcpd_ip_2",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22473,7 +22473,7 @@
             }
           },
           {
-            "name": "dhcpdip_3",
+            "name": "dhcpd_ip_3",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22494,13 +22494,13 @@
             }
           },
           {
-            "name": "dhcpd_lease_time",
+            "name": "dhcpd_leasetime",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdmac_1",
+            "name": "dhcpd_mac_1",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22521,7 +22521,7 @@
             }
           },
           {
-            "name": "dhcpdmac_2",
+            "name": "dhcpd_mac_2",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22542,7 +22542,7 @@
             }
           },
           {
-            "name": "dhcpdmac_3",
+            "name": "dhcpd_mac_3",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22653,7 +22653,7 @@
             }
           },
           {
-            "name": "dhcpdtftp_server",
+            "name": "dhcpd_tftp_server",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -22704,67 +22704,67 @@
             }
           },
           {
-            "name": "dhcpdv_6_allow_slaac",
+            "name": "dhcpdv6_allow_slaac",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "dhcpdv_6_dns_1",
+            "name": "dhcpdv6_dns_1",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_dns_2",
+            "name": "dhcpdv6_dns_2",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_dns_3",
+            "name": "dhcpdv6_dns_3",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_dns_4",
+            "name": "dhcpdv6_dns_4",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_dns_auto",
+            "name": "dhcpdv6_dns_auto",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "dhcpdv_6_enabled",
+            "name": "dhcpdv6_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "dhcpdv_6_lease_time",
+            "name": "dhcpdv6_leasetime",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_start",
+            "name": "dhcpdv6_start",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdv_6_stop",
+            "name": "dhcpdv6_stop",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "dhcpdwp_ad_url",
+            "name": "dhcpd_wpad_url",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -22833,7 +22833,7 @@
             }
           },
           {
-            "name": "dhc_pguard_enabled",
+            "name": "dhcpguard_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -22845,7 +22845,7 @@
             }
           },
           {
-            "name": "dp_igroup_id",
+            "name": "dpigroup_id",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -22866,7 +22866,7 @@
             }
           },
           {
-            "name": "dh_key",
+            "name": "x_dh_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -23002,7 +23002,7 @@
             }
           },
           {
-            "name": "igmp_proxy_downstream_network_i_ds",
+            "name": "igmp_proxy_downstream_networkconf_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -23093,7 +23093,7 @@
             }
           },
           {
-            "name": "igmp_suppression",
+            "name": "igmp_supression",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -23108,7 +23108,7 @@
             }
           },
           {
-            "name": "ip_sec_dh_group",
+            "name": "ipsec_dh_group",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23126,13 +23126,13 @@
             }
           },
           {
-            "name": "ip_sec_dynamic_routing",
+            "name": "ipsec_dynamic_routing",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ip_sec_encryption",
+            "name": "ipsec_encryption",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23150,7 +23150,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_dh_group",
+            "name": "ipsec_esp_dh_group",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23168,7 +23168,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_encryption",
+            "name": "ipsec_esp_encryption",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23186,7 +23186,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_hash",
+            "name": "ipsec_esp_hash",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23204,7 +23204,7 @@
             }
           },
           {
-            "name": "ip_sec_esp_lifetime",
+            "name": "ipsec_esp_lifetime",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23222,7 +23222,7 @@
             }
           },
           {
-            "name": "ip_sec_hash",
+            "name": "ipsec_hash",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23240,7 +23240,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_dh_group",
+            "name": "ipsec_ike_dh_group",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23258,7 +23258,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_encryption",
+            "name": "ipsec_ike_encryption",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23276,7 +23276,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_hash",
+            "name": "ipsec_ike_hash",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23294,7 +23294,7 @@
             }
           },
           {
-            "name": "ip_sec_ike_lifetime",
+            "name": "ipsec_ike_lifetime",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23312,7 +23312,7 @@
             }
           },
           {
-            "name": "ip_sec_interface",
+            "name": "ipsec_interface",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23333,7 +23333,7 @@
             }
           },
           {
-            "name": "ip_sec_key_exchange",
+            "name": "ipsec_key_exchange",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23351,19 +23351,19 @@
             }
           },
           {
-            "name": "ip_sec_local_i_dentifier",
+            "name": "ipsec_local_identifier",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ip_sec_local_i_dentifier_enabled",
+            "name": "ipsec_local_identifier_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ip_sec_local_ip",
+            "name": "ipsec_local_ip",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23384,19 +23384,19 @@
             }
           },
           {
-            "name": "ip_sec_peer_ip",
+            "name": "ipsec_peer_ip",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ip_sec_pfs",
+            "name": "ipsec_pfs",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ip_sec_pre_shared_key",
+            "name": "x_ipsec_pre_shared_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -23418,7 +23418,7 @@
             }
           },
           {
-            "name": "ip_sec_profile",
+            "name": "ipsec_profile",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23436,25 +23436,25 @@
             }
           },
           {
-            "name": "ip_sec_remote_i_dentifier",
+            "name": "ipsec_remote_identifier",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ip_sec_remote_i_dentifier_enabled",
+            "name": "ipsec_remote_identifier_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ip_sec_separate_ikev_2_networks",
+            "name": "ipsec_separate_ikev2_networks",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ip_sec_tunnel_ip",
+            "name": "ipsec_tunnel_ip",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23475,7 +23475,7 @@
             }
           },
           {
-            "name": "ip_sec_tunnel_ip_enabled",
+            "name": "ipsec_tunnel_ip_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -23502,7 +23502,7 @@
             }
           },
           {
-            "name": "ipv_6_aliases",
+            "name": "ipv6_aliases",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -23511,7 +23511,7 @@
             }
           },
           {
-            "name": "ipv_6_client_address_assignment",
+            "name": "ipv6_client_address_assignment",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23529,7 +23529,7 @@
             }
           },
           {
-            "name": "ipv_6_interface_type",
+            "name": "ipv6_interface_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23547,13 +23547,13 @@
             }
           },
           {
-            "name": "ipv_6_pd_auto_prefixid_enabled",
+            "name": "ipv6_pd_auto_prefixid_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ipv_6_pd_interface",
+            "name": "ipv6_pd_interface",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23574,7 +23574,7 @@
             }
           },
           {
-            "name": "ipv_6_pd_prefixid",
+            "name": "ipv6_pd_prefixid",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -23595,31 +23595,31 @@
             }
           },
           {
-            "name": "ipv_6_pd_start",
+            "name": "ipv6_pd_start",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_pd_stop",
+            "name": "ipv6_pd_stop",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_ra_enabled",
+            "name": "ipv6_ra_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "ipv_6_ra_preferred_lifetime",
+            "name": "ipv6_ra_preferred_lifetime",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_ra_priority",
+            "name": "ipv6_ra_priority",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23637,13 +23637,13 @@
             }
           },
           {
-            "name": "ipv_6_ra_valid_lifetime",
+            "name": "ipv6_ra_valid_lifetime",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_setting_preference",
+            "name": "ipv6_setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23661,19 +23661,19 @@
             }
           },
           {
-            "name": "ipv_6_single_network_interface",
+            "name": "ipv6_single_network_interface",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_subnet",
+            "name": "ipv6_subnet",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "ipv_6_wan_delegation_type",
+            "name": "ipv6_wan_delegation_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23727,13 +23727,13 @@
             }
           },
           {
-            "name": "l_2_tp_allow_weak_ciphers",
+            "name": "l2tp_allow_weak_ciphers",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "l_2_tp_interface",
+            "name": "l2tp_interface",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23754,7 +23754,7 @@
             }
           },
           {
-            "name": "l_2_tp_local_wanip",
+            "name": "l2tp_local_wan_ip",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23775,7 +23775,7 @@
             }
           },
           {
-            "name": "l_3_interface_type",
+            "name": "l3_interface_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23868,7 +23868,7 @@
             }
           },
           {
-            "name": "mss_clamp_ipv_6",
+            "name": "mss_clamp_ipv6",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -23904,7 +23904,7 @@
             }
           },
           {
-            "name": "mss_clamp_mss_ipv_6",
+            "name": "mss_clamp_mss_ipv6",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24019,7 +24019,7 @@
             }
           },
           {
-            "name": "network_group",
+            "name": "networkgroup",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24046,19 +24046,19 @@
             }
           },
           {
-            "name": "open_vpn_configuration",
+            "name": "openvpn_configuration",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "open_vpn_configuration_filename",
+            "name": "openvpn_configuration_filename",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "open_vpn_encryption_cipher",
+            "name": "openvpn_encryption_cipher",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24076,7 +24076,7 @@
             }
           },
           {
-            "name": "open_vpn_interface",
+            "name": "openvpn_interface",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24097,7 +24097,7 @@
             }
           },
           {
-            "name": "open_vpn_local_address",
+            "name": "openvpn_local_address",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24118,7 +24118,7 @@
             }
           },
           {
-            "name": "open_vpn_local_port",
+            "name": "openvpn_local_port",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24136,7 +24136,7 @@
             }
           },
           {
-            "name": "open_vpn_local_wanip",
+            "name": "openvpn_local_wan_ip",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24157,7 +24157,7 @@
             }
           },
           {
-            "name": "open_vpn_mode",
+            "name": "openvpn_mode",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24175,14 +24175,14 @@
             }
           },
           {
-            "name": "open_vpn_password",
+            "name": "x_openvpn_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "open_vpn_remote_address",
+            "name": "openvpn_remote_address",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24203,7 +24203,7 @@
             }
           },
           {
-            "name": "open_vpn_remote_host",
+            "name": "openvpn_remote_host",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24224,7 +24224,7 @@
             }
           },
           {
-            "name": "open_vpn_remote_port",
+            "name": "openvpn_remote_port",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24242,7 +24242,7 @@
             }
           },
           {
-            "name": "open_vpn_shared_secret_key",
+            "name": "x_openvpn_shared_secret_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -24264,13 +24264,13 @@
             }
           },
           {
-            "name": "open_vpn_username",
+            "name": "openvpn_username",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "pptpc_password",
+            "name": "x_pptpc_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -24379,7 +24379,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -24421,7 +24421,7 @@
             }
           },
           {
-            "name": "require_mschapv_2",
+            "name": "require_mschapv2",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -24487,14 +24487,14 @@
             }
           },
           {
-            "name": "server_crt",
+            "name": "x_server_crt",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "server_key",
+            "name": "x_server_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -24519,14 +24519,14 @@
             }
           },
           {
-            "name": "shared_client_crt",
+            "name": "x_shared_client_crt",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "shared_client_key",
+            "name": "x_shared_client_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -24539,31 +24539,31 @@
             }
           },
           {
-            "name": "u_pn_p_enabled",
+            "name": "upnp_enabled",
             "bool": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "u_pn_p_lan_enabled",
+            "name": "upnp_lan_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "u_pn_p_nat_pmp_enabled",
+            "name": "upnp_nat_pmp_enabled",
             "bool": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "u_pn_p_secure_mode",
+            "name": "upnp_secure_mode",
             "bool": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "u_pn_pwan_interface",
+            "name": "upnp_wan_interface",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -24599,7 +24599,7 @@
             }
           },
           {
-            "name": "uid_traffic_rules_allowed_i_ps_and_hostnames",
+            "name": "uid_traffic_rules_allowed_ips_and_hostnames",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -24671,7 +24671,7 @@
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -24779,7 +24779,7 @@
             }
           },
           {
-            "name": "vrrp_ip_subnet_gw_1",
+            "name": "vrrp_ip_subnet_gw1",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24800,7 +24800,7 @@
             }
           },
           {
-            "name": "vrrp_ip_subnet_gw_2",
+            "name": "vrrp_ip_subnet_gw2",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24839,7 +24839,7 @@
             }
           },
           {
-            "name": "wandhcp_cos",
+            "name": "wan_dhcp_cos",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24857,13 +24857,13 @@
             }
           },
           {
-            "name": "wandhcp_options",
+            "name": "wan_dhcp_options",
             "list_nested": {
               "computed_optional_required": "computed_optional",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "option_number",
+                    "name": "optionNumber",
                     "int64": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -24891,7 +24891,7 @@
             }
           },
           {
-            "name": "wandhc_pv_6_cos",
+            "name": "wan_dhcpv6_cos",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24909,13 +24909,13 @@
             }
           },
           {
-            "name": "wandhc_pv_6_options",
+            "name": "wan_dhcpv6_options",
             "list_nested": {
               "computed_optional_required": "computed_optional",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "option_number",
+                    "name": "optionNumber",
                     "int64": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -24931,7 +24931,7 @@
             }
           },
           {
-            "name": "wandhc_pv_6_pd_size",
+            "name": "wan_dhcpv6_pd_size",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24949,13 +24949,13 @@
             }
           },
           {
-            "name": "wandhc_pv_6_pd_size_auto",
+            "name": "wan_dhcpv6_pd_size_auto",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "wandns_1",
+            "name": "wan_dns1",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24976,7 +24976,7 @@
             }
           },
           {
-            "name": "wandns_2",
+            "name": "wan_dns2",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -24997,7 +24997,7 @@
             }
           },
           {
-            "name": "wandns_3",
+            "name": "wan_dns3",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -25018,7 +25018,7 @@
             }
           },
           {
-            "name": "wandns_4",
+            "name": "wan_dns4",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -25039,7 +25039,7 @@
             }
           },
           {
-            "name": "wandns_preference",
+            "name": "wan_dns_preference",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25132,7 +25132,7 @@
             }
           },
           {
-            "name": "wan_gateway_v_6",
+            "name": "wan_gateway_v6",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -25153,7 +25153,7 @@
             }
           },
           {
-            "name": "wanip",
+            "name": "wan_ip",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25174,7 +25174,7 @@
             }
           },
           {
-            "name": "wanip_aliases",
+            "name": "wan_ip_aliases",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -25183,7 +25183,7 @@
             }
           },
           {
-            "name": "wanipv_6",
+            "name": "wan_ipv6",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -25204,7 +25204,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_1",
+            "name": "wan_ipv6_dns1",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25225,7 +25225,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_2",
+            "name": "wan_ipv6_dns2",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25246,7 +25246,7 @@
             }
           },
           {
-            "name": "wanipv_6_dns_preference",
+            "name": "wan_ipv6_dns_preference",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25321,7 +25321,7 @@
             }
           },
           {
-            "name": "wan_network_group",
+            "name": "wan_networkgroup",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25342,7 +25342,7 @@
             }
           },
           {
-            "name": "wan_password",
+            "name": "x_wan_password",
             "string": {
               "computed_optional_required": "optional",
               "sensitive": true,
@@ -25420,19 +25420,19 @@
             }
           },
           {
-            "name": "wan_smart_q_down_rate",
+            "name": "wan_smartq_down_rate",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "wan_smart_q_enabled",
+            "name": "wan_smartq_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "wan_smart_q_up_rate",
+            "name": "wan_smartq_up_rate",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
@@ -25456,7 +25456,7 @@
             }
           },
           {
-            "name": "wan_type_v_6",
+            "name": "wan_type_v6",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25495,7 +25495,7 @@
             }
           },
           {
-            "name": "wanvlan",
+            "name": "wan_vlan",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -25513,7 +25513,7 @@
             }
           },
           {
-            "name": "wanvlan_enabled",
+            "name": "wan_vlan_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -25630,13 +25630,13 @@
             }
           },
           {
-            "name": "wireguard_local_wanip",
+            "name": "wireguard_local_wan_ip",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "wireguard_private_key",
+            "name": "x_wireguard_private_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -25714,7 +25714,7 @@
                     }
                   },
                   {
-                    "name": "network_i_ds",
+                    "name": "network_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -25843,7 +25843,7 @@
             }
           },
           {
-            "name": "destination_i_ps",
+            "name": "destination_ips",
             "list_nested": {
               "computed_optional_required": "computed_optional",
               "nested_object": {
@@ -26091,7 +26091,7 @@
             }
           },
           {
-            "name": "dot_1_x_ctrl",
+            "name": "dot1x_ctrl",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26109,7 +26109,7 @@
             }
           },
           {
-            "name": "dot_1_xi_dle_timeout",
+            "name": "dot1x_idle_timeout",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26145,7 +26145,7 @@
             }
           },
           {
-            "name": "excluded_network_i_ds",
+            "name": "excluded_networkconf_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -26250,7 +26250,7 @@
             }
           },
           {
-            "name": "multicast_router_network_i_ds",
+            "name": "multicast_router_networkconf_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -26259,7 +26259,7 @@
             }
           },
           {
-            "name": "na_tive_network_id",
+            "name": "native_networkconf_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -26337,7 +26337,7 @@
             }
           },
           {
-            "name": "priority_queue_1_level",
+            "name": "priority_queue1_level",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26355,7 +26355,7 @@
             }
           },
           {
-            "name": "priority_queue_2_level",
+            "name": "priority_queue2_level",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26373,7 +26373,7 @@
             }
           },
           {
-            "name": "priority_queue_3_level",
+            "name": "priority_queue3_level",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26391,7 +26391,7 @@
             }
           },
           {
-            "name": "priority_queue_4_level",
+            "name": "priority_queue4_level",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26686,13 +26686,13 @@
             }
           },
           {
-            "name": "stormctrl_broadcastast_enabled",
+            "name": "stormctrl_bcast_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "stormctrl_broadcastast_level",
+            "name": "stormctrl_bcast_level",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -26710,7 +26710,7 @@
             }
           },
           {
-            "name": "stormctrl_broadcastast_rate",
+            "name": "stormctrl_bcast_rate",
             "int64": {
               "computed_optional_required": "computed_optional"
             }
@@ -26848,7 +26848,7 @@
             }
           },
           {
-            "name": "voice_network_id",
+            "name": "voice_networkconf_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -26912,7 +26912,7 @@
                     }
                   },
                   {
-                    "name": "secret",
+                    "name": "x_secret",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "sensitive": true
@@ -26968,7 +26968,7 @@
                     }
                   },
                   {
-                    "name": "secret",
+                    "name": "x_secret",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "sensitive": true
@@ -26979,13 +26979,13 @@
             }
           },
           {
-            "name": "ca_crts",
+            "name": "x_ca_crts",
             "list_nested": {
               "computed_optional_required": "computed_optional",
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "ca_crt",
+                    "name": "x_ca_crt",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "sensitive": true
@@ -27002,35 +27002,35 @@
             }
           },
           {
-            "name": "client_crt",
+            "name": "x_client_crt",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "client_crt_filename",
+            "name": "x_client_crt_filename",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key",
+            "name": "x_client_private_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key_filename",
+            "name": "x_client_private_key_filename",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "client_private_key_password",
+            "name": "x_client_private_key_password",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
@@ -27103,7 +27103,7 @@
             }
           },
           {
-            "name": "vlanwlan_mode",
+            "name": "vlan_wlan_mode",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -27191,7 +27191,7 @@
             }
           },
           {
-            "name": "static_route_distance",
+            "name": "static-route_distance",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -27209,7 +27209,7 @@
             }
           },
           {
-            "name": "static_route_interface",
+            "name": "static-route_interface",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -27230,7 +27230,7 @@
             }
           },
           {
-            "name": "static_route_network",
+            "name": "static-route_network",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -27251,7 +27251,7 @@
             }
           },
           {
-            "name": "static_route_nexthop",
+            "name": "static-route_nexthop",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -27272,7 +27272,7 @@
             }
           },
           {
-            "name": "static_route_type",
+            "name": "static-route_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -27525,7 +27525,7 @@
                       "nested_object": {
                         "attributes": [
                           {
-                            "name": "start",
+                            "name": "port_start",
                             "int64": {
                               "computed_optional_required": "computed_optional",
                               "validators": [
@@ -27543,7 +27543,7 @@
                             }
                           },
                           {
-                            "name": "stop",
+                            "name": "port_stop",
                             "int64": {
                               "computed_optional_required": "computed_optional",
                               "validators": [
@@ -27590,7 +27590,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "address",
+                    "name": "ip_or_subnet",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -27602,7 +27602,7 @@
                       "nested_object": {
                         "attributes": [
                           {
-                            "name": "start",
+                            "name": "port_start",
                             "int64": {
                               "computed_optional_required": "computed_optional",
                               "validators": [
@@ -27620,7 +27620,7 @@
                             }
                           },
                           {
-                            "name": "stop",
+                            "name": "port_stop",
                             "int64": {
                               "computed_optional_required": "computed_optional",
                               "validators": [
@@ -27651,7 +27651,7 @@
                     }
                   },
                   {
-                    "name": "version",
+                    "name": "ip_version",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -27679,19 +27679,19 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "start",
+                    "name": "ip_start",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
                   },
                   {
-                    "name": "stop",
+                    "name": "ip_stop",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
                   },
                   {
-                    "name": "version",
+                    "name": "ip_version",
                     "string": {
                       "computed_optional_required": "computed_optional",
                       "validators": [
@@ -27811,7 +27811,7 @@
             }
           },
           {
-            "name": "ap_group_i_ds",
+            "name": "ap_group_ids",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -27850,13 +27850,13 @@
             }
           },
           {
-            "name": "broadcast_filter_enabled",
+            "name": "bc_filter_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "broadcast_filter_list",
+            "name": "bc_filter_list",
             "list": {
               "computed_optional_required": "computed_optional",
               "element_type": {
@@ -27910,7 +27910,7 @@
             }
           },
           {
-            "name": "dp_igroup_id",
+            "name": "dpigroup_id",
             "string": {
               "computed_optional_required": "optional",
               "validators": [
@@ -27931,7 +27931,7 @@
             }
           },
           {
-            "name": "dtim_6_e",
+            "name": "dtim_6e",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -28039,7 +28039,7 @@
             }
           },
           {
-            "name": "hotspot_2",
+            "name": "hotspot2",
             "single_nested": {
               "computed_optional_required": "computed_optional",
               "attributes": [
@@ -28224,7 +28224,7 @@
                   }
                 },
                 {
-                  "name": "i_paddr_type_avail_v_4",
+                  "name": "ipaddr_type_avail_v4",
                   "int64": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -28242,7 +28242,7 @@
                   }
                 },
                 {
-                  "name": "i_paddr_type_avail_v_6",
+                  "name": "ipaddr_type_avail_v6",
                   "int64": {
                     "computed_optional_required": "computed_optional",
                     "validators": [
@@ -28362,7 +28362,7 @@
                     "nested_object": {
                       "attributes": [
                         {
-                          "name": "auth_i_ds",
+                          "name": "auth_ids",
                           "list": {
                             "computed_optional_required": "computed_optional",
                             "element_type": {
@@ -28590,7 +28590,7 @@
             }
           },
           {
-            "name": "hotspot_2_conf_enabled",
+            "name": "hotspot2conf_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -28602,7 +28602,7 @@
             }
           },
           {
-            "name": "iapp_key",
+            "name": "x_iapp_key",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -28642,7 +28642,7 @@
             }
           },
           {
-            "name": "l_2_isolation",
+            "name": "l2_isolation",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -28693,7 +28693,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "ap_group_i_ds",
+                    "name": "ap_group_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -28702,7 +28702,7 @@
                     }
                   },
                   {
-                    "name": "ap_ma_cs",
+                    "name": "ap_macs",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -28772,7 +28772,7 @@
                     }
                   },
                   {
-                    "name": "network_i_ds",
+                    "name": "networkconf_ids",
                     "list": {
                       "computed_optional_required": "computed_optional",
                       "element_type": {
@@ -28909,7 +28909,7 @@
             }
           },
           {
-            "name": "multicast_enhance_enabled",
+            "name": "mcastenhance_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -28957,7 +28957,7 @@
             }
           },
           {
-            "name": "nas_i_dentifier",
+            "name": "nas_identifier",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -28975,7 +28975,7 @@
             }
           },
           {
-            "name": "nas_i_dentifier_type",
+            "name": "nas_identifier_type",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -28993,13 +28993,13 @@
             }
           },
           {
-            "name": "network_id",
+            "name": "networkconf_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "no_2_ghz_oui",
+            "name": "no2ghz_oui",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -29011,13 +29011,13 @@
             }
           },
           {
-            "name": "p_2_p",
+            "name": "p2p",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "p_2_p_cross_connect",
+            "name": "p2p_cross_connect",
             "bool": {
               "computed_optional_required": "optional"
             }
@@ -29059,7 +29059,7 @@
             }
           },
           {
-            "name": "passphrase",
+            "name": "x_passphrase",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true,
@@ -29105,7 +29105,7 @@
               "nested_object": {
                 "attributes": [
                   {
-                    "name": "network_id",
+                    "name": "networkconf_id",
                     "string": {
                       "computed_optional_required": "computed_optional"
                     }
@@ -29154,19 +29154,19 @@
             }
           },
           {
-            "name": "radiusmac_auth_enabled",
+            "name": "radius_mac_auth_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "radiusma_cacl_empty_password",
+            "name": "radius_macacl_empty_password",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "radiusma_cacl_format",
+            "name": "radius_macacl_format",
             "string": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -29184,7 +29184,7 @@
             }
           },
           {
-            "name": "radius_profile_id",
+            "name": "radiusprofile_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -29208,13 +29208,13 @@
             }
           },
           {
-            "name": "roaming_assistant_6_e_enabled",
+            "name": "roaming_assistant_6e_enabled",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "roaming_assistant_6_e_rssi",
+            "name": "roaming_assistant_6e_rssi",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -29534,7 +29534,7 @@
             }
           },
           {
-            "name": "user_group_id",
+            "name": "usergroup_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
@@ -29564,14 +29564,14 @@
             }
           },
           {
-            "name": "wep",
+            "name": "x_wep",
             "string": {
               "computed_optional_required": "computed_optional",
               "sensitive": true
             }
           },
           {
-            "name": "wepidx",
+            "name": "wep_idx",
             "int64": {
               "computed_optional_required": "computed_optional",
               "validators": [
@@ -29616,31 +29616,31 @@
             }
           },
           {
-            "name": "wlan_group_id",
+            "name": "wlangroup_id",
             "string": {
               "computed_optional_required": "computed_optional"
             }
           },
           {
-            "name": "wpa_3_enhanced_192",
+            "name": "wpa3_enhanced_192",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "wpa_3_fast_roaming",
+            "name": "wpa3_fast_roaming",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "wpa_3_support",
+            "name": "wpa3_support",
             "bool": {
               "computed_optional_required": "optional"
             }
           },
           {
-            "name": "wpa_3_transition",
+            "name": "wpa3_transition",
             "bool": {
               "computed_optional_required": "optional"
             }

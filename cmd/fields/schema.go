@@ -277,8 +277,12 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		return nil
 	}
 
-	// Use JSONName directly as it's already in the correct Terraform format
-	name := toTerraformName(field.FieldName)
+	// The wire name is already snake_case and is what the API actually
+	// calls the field. Deriving the attribute name from the Go field name
+	// instead produced names no API user would recognise --
+	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
+	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
+	name := field.JSONName
 	_ = g.buildAssociatedExternalType(r, field)
 	var externalType *schema.AssociatedExternalType = nil
 
@@ -466,8 +470,12 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 		return nil
 	}
 
-	// Use JSONName directly as it's already in the correct Terraform format
-	name := toTerraformName(field.FieldName)
+	// The wire name is already snake_case and is what the API actually
+	// calls the field. Deriving the attribute name from the Go field name
+	// instead produced names no API user would recognise --
+	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
+	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
+	name := field.JSONName
 	_ = g.buildAssociatedExternalType(r, field)
 	var externalType *schema.AssociatedExternalType = nil
 	computedOptionalRequired := g.determineComputedOptionalRequired(field)
