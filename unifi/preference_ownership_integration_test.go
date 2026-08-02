@@ -26,13 +26,47 @@ import (
 // directly would report the addressing as owned. Comparing each arm to its
 // own request removes the addressing and leaves the mode.
 type preferenceProbe struct {
-	resource string // struct name, keying into overrides/fields.toml
-	mode     string // wire name of the auto|manual field
-	path     string // REST collection, relative to /api/s/<site>/
+	resource string    // struct name, keying into overrides/fields.toml
+	mode     string    // wire name of the auto|manual field
+	path     string    // endpoint, relative to /api/s/<site>/
+	kind     probeKind // how to write it
 
 	// build returns a complete payload for one arm. n varies the addressing
 	// so the two arms do not collide.
-	build func(name string, n int, mode string) map[string]any
+	build func(name string, n int, mode string, deps probeDeps) map[string]any
+}
+
+// probeDeps carries ids resolved from the live controller that a payload has
+// to reference by value. A well-formed but nonexistent id is rejected, and a
+// rejected arm measures the rejection rather than the mode.
+type probeDeps struct {
+	apGroupID    string
+	wanNetworkID string
+}
+
+type probeKind int
+
+const (
+	// probeCollection creates a throwaway object per arm and deletes it.
+	probeCollection probeKind = iota
+
+	// probeSetting writes a site-level singleton with PUT. There is only
+	// one document, so the arms run over it in sequence and nothing is
+	// cleaned up: each test gets its own disposable controller.
+	probeSetting
+
+	// probeV2Collection is a collection on the internal v2 API, which lives
+	// under a different base, answers 201 on create, and returns the bare
+	// object rather than a meta/data envelope.
+	probeV2Collection
+)
+
+// endpoint builds the request path for one arm.
+func (p preferenceProbe) endpoint(site string) string {
+	if p.kind == probeV2Collection {
+		return "/v2/api/site/" + site + "/" + p.path
+	}
+	return "/api/s/" + site + "/" + p.path
 }
 
 // networkPreferenceProbes covers the four auto|manual fields on a network.
@@ -68,7 +102,89 @@ var networkPreferenceProbes = []preferenceProbe{
 		path:     "rest/networkconf",
 		build:    wanIPV6DNSPreferencePayload,
 	},
+
+	{
+		resource: "WLAN",
+		mode:     "setting_preference",
+		path:     "rest/wlanconf",
+		build:    wlanPreferencePayload,
+	},
+	{
+		resource: "WLAN",
+		mode:     "minrate_setting_preference",
+		path:     "rest/wlanconf",
+		build:    wlanMinratePreferencePayload,
+	},
+	{
+		resource: "PortProfile",
+		mode:     "setting_preference",
+		path:     "rest/portconf",
+		build:    portProfilePreferencePayload,
+	},
+	{
+		resource: "FirewallRule",
+		mode:     "setting_preference",
+		path:     "rest/firewallrule",
+		build:    firewallRulePreferencePayload,
+	},
+
+	{
+		resource: "Nat",
+		mode:     "setting_preference",
+		path:     "nat",
+		kind:     probeV2Collection,
+		build:    natPreferencePayload,
+	},
+
+	{
+		resource: "SettingNtp",
+		mode:     "setting_preference",
+		path:     "set/setting/ntp",
+		kind:     probeSetting,
+		build:    ntpPreferencePayload,
+	},
+	{
+		resource: "SettingUsg",
+		mode:     "timeout_setting_preference",
+		path:     "set/setting/usg",
+		kind:     probeSetting,
+		build:    usgTimeoutPreferencePayload,
+	},
+	{
+		resource: "SettingSuperMgmt",
+		mode:     "data_retention_setting_preference",
+		path:     "set/setting/super_mgmt",
+		kind:     probeSetting,
+		build:    superMgmtPreferencePayload,
+	},
+	{
+		resource: "SettingRadioAi",
+		mode:     "setting_preference",
+		path:     "set/setting/radio_ai",
+		kind:     probeSetting,
+		build:    radioAiPreferencePayload,
+	},
+	{
+		resource: "SettingDashboard",
+		mode:     "layout_preference",
+		path:     "set/setting/dashboard",
+		kind:     probeSetting,
+		build:    dashboardPreferencePayload,
+	},
 }
+
+// Two of the sixteen auto|manual fields in the generated client are not
+// probed here, and neither is an oversight:
+//
+//	Device.setting_preference        nested in port_overrides
+//	SettingUsg.setting_preference    nested in dns_verification
+//
+// Both sit inside a sub-object rather than on the resource itself, so a
+// [Resource.preference.<wire>] key cannot name them and the generator's
+// validation -- which resolves against top-level fields -- would reject the
+// entry. Addressing nested modes needs a path syntax in the table, which is
+// a schema change worth making deliberately rather than smuggling in with a
+// measurement. Device additionally needs an adopted device to write against.
 
 // TestIntegrationPreferenceOwnership measures what each auto|manual mode
 // field takes over, and checks the answer against overrides/fields.toml.
@@ -92,10 +208,15 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
 
+	deps := probeDeps{
+		apGroupID:    firstAPGroupID(ctx, t, s, c.Site),
+		wanNetworkID: ensureWANNetwork(ctx, t, s, c.Site),
+	}
+
 	for i, probe := range networkPreferenceProbes {
 		t.Run(probe.resource+"."+probe.mode, func(t *testing.T) {
-			manual := probe.measure(ctx, t, s, c.Site, 2*i, "manual")
-			auto := probe.measure(ctx, t, s, c.Site, 2*i+1, "auto")
+			manual := probe.measure(ctx, t, s, c.Site, 2*i, "manual", deps)
+			auto := probe.measure(ctx, t, s, c.Site, 2*i+1, "auto", deps)
 
 			// What auto refused and manual kept. Anything both arms refuse
 			// is some other rule -- a missing prerequisite, a purpose
@@ -137,23 +258,43 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 }
 
 // measure writes one arm and returns what the controller refused to store.
-func (p preferenceProbe) measure(ctx context.Context, t *testing.T, s *controllertest.Session, site string, n int, mode string) map[string]string {
+func (p preferenceProbe) measure(ctx context.Context, t *testing.T, s *controllertest.Session, site string, n int, mode string, deps probeDeps) map[string]string {
 	t.Helper()
 
 	name := fmt.Sprintf("pref-%d-%s", n, mode)
-	payload := p.build(name, n, mode)
+	payload := p.build(name, n, mode, deps)
 
-	body, status, err := s.PostJSON(ctx, "/api/s/"+site+"/"+p.path, payload)
-	if err != nil {
-		t.Fatalf("transport: %v", err)
+	var (
+		body   any
+		status int
+		err    error
+	)
+	path := p.endpoint(site)
+	switch p.kind {
+	case probeSetting:
+		body, status, err = s.PutJSON(ctx, path, payload)
+	default:
+		body, status, err = s.PostJSON(ctx, path, payload)
 	}
-	if status != 200 {
+	if err != nil {
+		// The status is the useful half of a non-JSON response: it separates
+		// "this endpoint is not here" from "this endpoint is angry".
+		t.Fatalf("transport to %s (HTTP %d): %v", path, status, err)
+	}
+	// v2 answers 201 on create, v1 answers 200 throughout.
+	if status != 200 && status != 201 {
 		t.Fatalf("%s arm rejected (HTTP %d): %v\n\nThe payload must be valid under both modes or the "+
 			"comparison measures the rejection, not the mode.", mode, status, body)
 	}
 	stored := firstData(t, body)
-	if id, _ := stored["_id"].(string); id != "" {
-		defer s.DeleteJSON(ctx, "/api/s/"+site+"/"+p.path+"/"+id) //nolint:errcheck
+	if p.kind != probeSetting {
+		id, _ := stored["_id"].(string)
+		if id == "" {
+			id, _ = stored["id"].(string) // true-v2 objects
+		}
+		if id != "" {
+			defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
 	}
 
 	if got, _ := stored[p.mode].(string); got != mode {
@@ -240,7 +381,7 @@ func preferenceTOML(p preferenceProbe, owned []string, version string) string {
 // round-trip seed: every field reachable without a gateway that a mode might
 // plausibly own, because a field the payload does not set cannot be observed
 // being taken away.
-func corporatePreferencePayload(name string, n int, mode string) map[string]any {
+func corporatePreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
 	net := fmt.Sprintf("10.92.%d", n)
 	return map[string]any{
 		"name": name, "purpose": PurposeCorporate, "enabled": true,
@@ -283,7 +424,7 @@ func corporatePreferencePayload(name string, n int, mode string) map[string]any 
 // interface type stays "none" deliberately: "static" needs a deployable
 // prefix and this harness has no gateway, so the controller answers
 // api.err.NotDeployableIPv6Subnet and there is no arm to compare.
-func corporateIPV6PreferencePayload(name string, n int, mode string) map[string]any {
+func corporateIPV6PreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
 	net := fmt.Sprintf("10.92.%d", n)
 	return map[string]any{
 		"name": name, "purpose": PurposeCorporate, "enabled": true,
@@ -306,7 +447,7 @@ func corporateIPV6PreferencePayload(name string, n int, mode string) map[string]
 // wanDNSPreferencePayload exercises wan_dns_preference. The same trap as
 // setting_preference on the WAN path: a caller sets wan_dns1 while the mode
 // says auto, and the controller keeps its own resolvers.
-func wanDNSPreferencePayload(name string, n int, mode string) map[string]any {
+func wanDNSPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
 	return map[string]any{
 		"name": name, "purpose": PurposeWAN, "enabled": true,
 		"wan_networkgroup": wanGroupFor(n), "wan_type": "dhcp", "wan_type_v6": "disabled",
@@ -323,7 +464,7 @@ func wanDNSPreferencePayload(name string, n int, mode string) map[string]any {
 }
 
 // wanIPV6DNSPreferencePayload exercises wan_ipv6_dns_preference.
-func wanIPV6DNSPreferencePayload(name string, n int, mode string) map[string]any {
+func wanIPV6DNSPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
 	return map[string]any{
 		"name": name, "purpose": PurposeWAN, "enabled": true,
 		"wan_networkgroup": wanGroupFor(n), "wan_type": "dhcp", "wan_type_v6": "dhcpv6",
@@ -340,4 +481,242 @@ func wanIPV6DNSPreferencePayload(name string, n int, mode string) map[string]any
 // networks cannot share one, and both arms of a probe exist at once.
 func wanGroupFor(n int) string {
 	return fmt.Sprintf("WAN%d", 2+n)
+}
+
+// wlanPreferencePayload exercises the WLAN advanced block.
+func wlanPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	p := wlanBase(name, deps)
+	p["setting_preference"] = mode
+	p["bss_transition"] = false
+	p["uapsd_enabled"] = true
+	p["fast_roaming_enabled"] = true
+	p["dtim_mode"] = "custom"
+	p["dtim_ng"] = 3
+	p["dtim_na"] = 3
+	p["group_rekey"] = 7200
+	p["mcastenhance_enabled"] = true
+	p["proxy_arp"] = true
+	p["l2_isolation"] = true
+	p["bc_filter_enabled"] = true
+	return p
+}
+
+// wlanMinratePreferencePayload exercises the minimum-data-rate block, which
+// has its own mode field independent of the WLAN's general one.
+func wlanMinratePreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	p := wlanBase(name, deps)
+	p["minrate_setting_preference"] = mode
+	p["minrate_ng_enabled"] = true
+	p["minrate_ng_data_rate_kbps"] = 5500
+	p["minrate_na_enabled"] = true
+	p["minrate_na_data_rate_kbps"] = 12000
+	p["minrate_ng_advertising_rates"] = true
+	p["minrate_na_advertising_rates"] = true
+	return p
+}
+
+// wlanBase is the smallest WLAN a bare controller accepts. Without
+// ap_group_ids the create is rejected with api.err.ApGroupMissing.
+func wlanBase(name string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"name":          name,
+		"enabled":       true,
+		"security":      "wpapsk",
+		"wpa_mode":      "wpa2",
+		"wpa_enc":       "ccmp",
+		"x_passphrase":  "preference-probe",
+		"ap_group_ids":  []string{deps.apGroupID},
+		"ap_group_mode": "all",
+	}
+}
+
+// ensureWANNetwork gives the site a WAN networkconf and returns its id.
+//
+// A demo site ships without one, and adoption does not create it either. The
+// v2 NAT rule references it as out_interface, and a rule that names nothing
+// is answered with a non-JSON HTTP 500 rather than a rejection.
+func ensureWANNetwork(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
+	t.Helper()
+
+	body, status, err := s.PostJSON(ctx, "/api/s/"+site+"/rest/networkconf", map[string]any{
+		"name": "pref-wan", "purpose": PurposeWAN, "enabled": true,
+		"wan_networkgroup": "WAN", "wan_type": "dhcp", "wan_type_v6": "disabled",
+	})
+	if err != nil || (status != 200 && status != 201) {
+		t.Logf("unable to seed a WAN network (status %d, %v); v2 probes will fail", status, err)
+		return ""
+	}
+	id, _ := firstData(t, body)["_id"].(string)
+	if id != "" {
+		t.Cleanup(func() {
+			s.DeleteJSON(context.WithoutCancel(ctx), "/api/s/"+site+"/rest/networkconf/"+id) //nolint:errcheck
+		})
+	}
+	return id
+}
+
+// firstAPGroupID resolves the site's default AP group. Every site ships one,
+// and a WLAN cannot be created without naming a real group.
+func firstAPGroupID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, "/v2/api/site/"+site+"/apgroups")
+	if err != nil || status != 200 {
+		t.Logf("no AP groups available (status %d, %v); WLAN probes will be rejected", status, err)
+		return ""
+	}
+	items, ok := body.([]any)
+	if !ok || len(items) == 0 {
+		t.Logf("AP group list is empty; WLAN probes will be rejected")
+		return ""
+	}
+	m, _ := items[0].(map[string]any)
+	if id, ok := m["_id"].(string); ok {
+		return id
+	}
+	id, _ := m["id"].(string)
+	return id
+}
+
+// portProfilePreferencePayload exercises the switch-port advanced block.
+func portProfilePreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"name": name, "forward": "all", "op_mode": "switch",
+		"setting_preference": mode,
+
+		"autoneg":                        false,
+		"speed":                          1000,
+		"full_duplex":                    true,
+		"isolation":                      true,
+		"lldpmed_enabled":                false,
+		"lldpmed_notify_enabled":         true,
+		"stp_port_mode":                  false,
+		"egress_rate_limit_kbps_enabled": true,
+		"egress_rate_limit_kbps":         64000,
+		"stormctrl_type":                 "level",
+		"stormctrl_bcast_enabled":        true,
+		"stormctrl_bcast_level":          50,
+		"stormctrl_mcast_enabled":        true,
+		"stormctrl_mcast_level":          50,
+		"stormctrl_ucast_enabled":        true,
+		"stormctrl_ucast_level":          50,
+		"port_keepalive_enabled":         true,
+		"eee_enabled":                    true,
+		"flow_control_enabled":           true,
+	}
+}
+
+// firewallRulePreferencePayload exercises the legacy firewall rule block.
+func firewallRulePreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"name": name, "enabled": true,
+		"ruleset": "LAN_IN", "rule_index": 2000 + n,
+		"action": "accept", "protocol": "all",
+		"setting_preference": mode,
+
+		"logging":                 true,
+		"src_address":             "10.94.0.0/24",
+		"dst_address":             "10.94.1.0/24",
+		"protocol_match_excepted": false,
+		"ipsec":                   "",
+		"state_established":       true,
+		"state_related":           true,
+	}
+}
+
+// natPreferencePayload exercises the v2 NAT rule block. The filter objects
+// and out_interface are not optional: without them the controller answers a
+// non-JSON HTTP 500 instead of a rejection.
+func natPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"description": name, "enabled": true,
+		"type": "MASQUERADE", "ip_version": "IPV4",
+		"setting_preference": mode,
+
+		"protocol":                 "all",
+		"rule_index":               fmt.Sprintf("%d", 3000+n),
+		"logging":                  true,
+		"exclude":                  false,
+		"is_predefined":            false,
+		"pppoe_use_base_interface": false,
+		"out_interface":            deps.wanNetworkID,
+		"source_filter":            map[string]any{"filter_type": "NONE", "firewall_group_ids": []string{}},
+		"destination_filter":       map[string]any{"filter_type": "NONE", "firewall_group_ids": []string{}},
+	}
+}
+
+// ntpPreferencePayload exercises the site NTP servers.
+func ntpPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key":                "ntp",
+		"setting_preference": mode,
+		"ntp_server_1":       "10.95.0.1",
+		"ntp_server_2":       "10.95.0.2",
+		"ntp_server_3":       "10.95.0.3",
+		"ntp_server_4":       "10.95.0.4",
+	}
+}
+
+// usgTimeoutPreferencePayload exercises the connection-tracking timeouts,
+// which have their own mode field separate from the gateway setting's.
+func usgTimeoutPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key":                        "usg",
+		"timeout_setting_preference": mode,
+		"tcp_established_timeout":    7200,
+		"tcp_close_timeout":          20,
+		"tcp_close_wait_timeout":     40,
+		"tcp_fin_wait_timeout":       60,
+		"tcp_last_ack_timeout":       20,
+		"tcp_syn_recv_timeout":       30,
+		"tcp_syn_sent_timeout":       60,
+		"tcp_time_wait_timeout":      60,
+		"udp_other_timeout":          60,
+		"udp_stream_timeout":         120,
+		"icmp_timeout":               60,
+		"other_timeout":              600,
+	}
+}
+
+// superMgmtPreferencePayload exercises the data-retention windows.
+func superMgmtPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key":                               "super_mgmt",
+		"data_retention_setting_preference": mode,
+		"data_retention_time_in_hours_for_5minutes_scale": 48,
+		"data_retention_time_in_hours_for_hourly_scale":   720,
+		"data_retention_time_in_hours_for_daily_scale":    2160,
+		"data_retention_time_in_hours_for_monthly_scale":  8760,
+		"data_retention_time_in_hours_for_others":         720,
+	}
+}
+
+// radioAiPreferencePayload exercises the AI radio optimisation block.
+func radioAiPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key":                "radio_ai",
+		"setting_preference": mode,
+		"enabled":            true,
+		"cron_expr":          "0 2 * * 0",
+		"optimize":           []string{"channel", "power"},
+		"radios":             []string{"na", "ng"},
+		"channels_ng":        []int{1, 6, 11},
+		"channels_na":        []int{36, 40, 44},
+		"ht_modes_ng":        []int{20},
+		"ht_modes_na":        []int{40},
+		"exclude_devices":    []string{},
+	}
+}
+
+// dashboardPreferencePayload exercises layout_preference. It carries the
+// auto|manual enum like the rest, and whether it behaves like one is the
+// question -- a UI layout choice would own nothing.
+func dashboardPreferencePayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key":               "dashboard",
+		"layout_preference": mode,
+		"widgets": []map[string]any{
+			{"name": "wifi_channels", "enabled": true},
+			{"name": "wan_activity", "enabled": false},
+		},
+	}
 }
