@@ -284,8 +284,10 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 
 // marshalVLANOnly marshals a VLAN-only network (Layer 2 only, no routing).
 func (n *Network) marshalVLANOnly() ([]byte, error) {
-	enabled := true
-
+	// A VLAN id with vlan_enabled false is not a usable config: the
+	// controller ignores the id, falls back to VLAN 1, and rejects the
+	// create with api.err.VlanUsed naming the Default network -- measured on
+	// 10.4.57. Turning the flag on with the id is what the caller meant.
 	vlanEnabled := n.VLANEnabled
 	if !vlanEnabled && n.VLAN != nil && *n.VLAN > 0 {
 		vlanEnabled = true
@@ -324,7 +326,7 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 
 		Name:                    n.Name,
 		Purpose:                 n.Purpose,
-		Enabled:                 enabled,
+		Enabled:                 n.Enabled,
 		NetworkGroup:            valueOrDefault(n.NetworkGroup, "LAN"),
 		VLAN:                    n.VLAN,
 		VLANEnabled:             vlanEnabled,
