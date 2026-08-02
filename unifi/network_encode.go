@@ -284,8 +284,10 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 
 // marshalVLANOnly marshals a VLAN-only network (Layer 2 only, no routing).
 func (n *Network) marshalVLANOnly() ([]byte, error) {
-	enabled := true
-
+	// A VLAN id with vlan_enabled false is not a usable config: the
+	// controller ignores the id, falls back to VLAN 1, and rejects the
+	// create with api.err.VlanUsed naming the Default network -- measured on
+	// 10.4.57. Turning the flag on with the id is what the caller meant.
 	vlanEnabled := n.VLANEnabled
 	if !vlanEnabled && n.VLAN != nil && *n.VLAN > 0 {
 		vlanEnabled = true
@@ -307,6 +309,7 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 		VLANEnabled             bool    `json:"vlan_enabled"`
 		IGMPSnooping            bool    `json:"igmp_snooping"`
 		NetworkIsolationEnabled bool    `json:"network_isolation_enabled"`
+		MdnsEnabled             bool    `json:"mdns_enabled"`
 		DHCPguardEnabled        bool    `json:"dhcpguard_enabled"`
 		DHCPDIP1                string  `json:"dhcpd_ip_1"`
 		DHCPDIP2                string  `json:"dhcpd_ip_2"`
@@ -324,12 +327,13 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 
 		Name:                    n.Name,
 		Purpose:                 n.Purpose,
-		Enabled:                 enabled,
+		Enabled:                 n.Enabled,
 		NetworkGroup:            valueOrDefault(n.NetworkGroup, "LAN"),
 		VLAN:                    n.VLAN,
 		VLANEnabled:             vlanEnabled,
 		IGMPSnooping:            n.IGMPSnooping,
 		NetworkIsolationEnabled: n.NetworkIsolationEnabled,
+		MdnsEnabled:             n.MdnsEnabled,
 		DHCPguardEnabled:        n.DHCPguardEnabled,
 		DHCPDIP1:                n.DHCPDIP1,
 		DHCPDIP2:                n.DHCPDIP2,
@@ -590,9 +594,11 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		NoDelete bool   `json:"attr_no_delete,omitempty"`
 		NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-		Name    *string `json:"name,omitempty"`
-		Purpose string  `json:"purpose"`
-		Enabled bool    `json:"enabled"`
+		Name                  *string `json:"name,omitempty"`
+		Purpose               string  `json:"purpose"`
+		Enabled               bool    `json:"enabled"`
+		SettingPreference     *string `json:"setting_preference,omitempty"`
+		IPV6SettingPreference *string `json:"ipv6_setting_preference,omitempty"`
 
 		// WAN type fields
 		WANType         *string `json:"wan_type,omitempty"`
@@ -687,9 +693,11 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:    n.Name,
-		Purpose: n.Purpose,
-		Enabled: n.Enabled,
+		Name:                  n.Name,
+		Purpose:               n.Purpose,
+		Enabled:               n.Enabled,
+		SettingPreference:     n.SettingPreference,
+		IPV6SettingPreference: n.IPV6SettingPreference,
 
 		// WAN type fields
 		WANType:         n.WANType,

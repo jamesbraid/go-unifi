@@ -282,6 +282,7 @@ func TestMarshalNetworkVLANOnly(t *testing.T) {
 		SiteID:  "default",
 		Name:    strPtr("VLAN_92"),
 		Purpose: PurposeVLANOnly,
+		Enabled: true,
 		VLAN:    &vlan,
 	}
 
@@ -317,7 +318,7 @@ func TestMarshalNetworkVLANOnly(t *testing.T) {
 		t.Errorf("Expected purpose 'vlan-only', got %q", result["purpose"])
 	}
 	if result["enabled"] != true {
-		t.Errorf("Expected enabled true (default), got %v", result["enabled"])
+		t.Errorf("Expected enabled true, got %v", result["enabled"])
 	}
 	if result["vlan_enabled"] != true {
 		t.Errorf("Expected vlan_enabled true (auto-set from VLAN ID), got %v", result["vlan_enabled"])
@@ -344,8 +345,8 @@ func TestMarshalNetworkVLANOnlyMinimal(t *testing.T) {
 	if result["purpose"] != "vlan-only" {
 		t.Errorf("Expected purpose 'vlan-only', got %q", result["purpose"])
 	}
-	if result["enabled"] != true {
-		t.Errorf("Expected enabled true (default), got %v", result["enabled"])
+	if result["enabled"] != false {
+		t.Errorf("Expected enabled false (caller set nothing), got %v", result["enabled"])
 	}
 	if result["vlan_enabled"] != false {
 		t.Errorf("Expected vlan_enabled false (no VLAN ID), got %v", result["vlan_enabled"])
