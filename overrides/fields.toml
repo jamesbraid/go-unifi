@@ -383,6 +383,19 @@ owns = [
 ]
 measured = "10.4.57"
 
+# Nested in the gateway's DNS verification block, and quoted because an
+# unquoted dotted key decodes as nested tables into an entry that owns
+# nothing. Under auto the controller substitutes its own verification
+# servers -- ui.com against 1.1.1.1 and 8.8.8.8 -- so a site pointed at
+# internal resolvers for this check is silently ignored.
+[SettingUsg.preference."dns_verification.setting_preference"]
+owns = [
+  "domain",
+  "primary_dns_server",
+  "secondary_dns_server",
+]
+measured = "10.4.57"
+
 # Three of the five retention windows. The daily and monthly scales kept
 # what they were given under auto.
 [SettingSuperMgmt.preference.data_retention_setting_preference]

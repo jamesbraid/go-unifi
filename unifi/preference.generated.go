@@ -109,6 +109,11 @@ var PreferenceOwnedFields = map[string][]Preference{
 		}},
 	},
 	"SettingUsg": {
+		{Container: "dns_verification", Mode: "setting_preference", Owns: []string{
+			"domain",
+			"primary_dns_server",
+			"secondary_dns_server",
+		}},
 		{Mode: "timeout_setting_preference", Owns: []string{
 			"icmp_timeout",
 			"tcp_close_timeout",
