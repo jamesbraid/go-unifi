@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
 // resourceWithFields builds a minimal ResourceInfo whose base type carries
@@ -98,4 +99,63 @@ func TestApplyOverridesRejectsUnsafeRetag(t *testing.T) {
 	}, func() {
 		require.ErrorContains(t, r.applyOverrides(), "unsafe json retag")
 	})
+}
+
+func TestApplyOverridesPreferenceNamesMustExist(t *testing.T) {
+	fieldsOf := func() map[string]*FieldInfo {
+		return map[string]*FieldInfo{
+			"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
+			"IGMPSnooping":      NewFieldInfo("IGMPSnooping", "igmp_snooping", "bool", "", false, false, false, ""),
+		}
+	}
+
+	for _, tc := range []struct {
+		name    string
+		pref    map[string]fields.Preference
+		wantErr string
+	}{
+		{
+			name: "resolves",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"igmp_snooping"}},
+			},
+		},
+		{
+			// The failure this guard exists for: a typo owns nothing and
+			// reports nothing, which is the bug the tables document.
+			name: "owned field misspelled",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"igmp_snoping"}},
+			},
+			wantErr: `owns "igmp_snoping", which is not a field on the resource`,
+		},
+		{
+			name: "mode field misspelled",
+			pref: map[string]fields.Preference{
+				"settings_preference": {Owns: []string{"igmp_snooping"}},
+			},
+			wantErr: `preference "settings_preference": no such field on the resource`,
+		},
+		{
+			name: "mode owns itself",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"setting_preference"}},
+			},
+			wantErr: `lists itself in owns`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := resourceWithFields("Thing", fieldsOf())
+			withOverrides(t, map[string]resourceOverride{
+				"Thing": {Preference: tc.pref},
+			}, func() {
+				err := r.applyOverrides()
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, tc.wantErr)
+			})
+		})
+	}
 }

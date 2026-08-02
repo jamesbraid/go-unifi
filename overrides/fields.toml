@@ -1,5 +1,5 @@
 # Declarative resource and field overrides, applied on top of the extracted
-# schema. Three kinds of entry:
+# schema. Four kinds of entry:
 #
 #   [Resource]                REST path when it differs from the lowercased
 #                             schema file name
@@ -9,6 +9,14 @@
 #                             schema does not (or no longer does) define;
 #                             ignored when the schema defines the field, so
 #                             the schema's validation wins when it exists
+#   [Resource.preference.<wire>]
+#                             what an auto|manual mode field owns: the wire
+#                             names the controller overwrites with its own
+#                             values while the mode is "auto". Measured, not
+#                             declared -- run TestIntegrationPreferenceOwnership
+#                             and paste what it prints. Every name is checked
+#                             against the generated struct, so a typo fails
+#                             generation instead of quietly owning nothing.
 #
 # Field entries are applied AFTER the resource's FieldProcessor, so they
 # always win. Anything conditional on the schema-derived type, pattern-based
@@ -235,6 +243,70 @@ type = "bool"
 # means what nil means: this device has no port overrides.
 [Device.field.port_overrides]
 nil_as_empty = true
+
+# Ownership of the auto|manual mode fields, measured by
+# TestIntegrationPreferenceOwnership. On "auto" the controller manages the
+# listed fields itself and stores its own values over the payload's, with no
+# error and no warning -- so a caller who configures one of these under auto
+# gets it accepted, discarded, and never told.
+#
+# The sets come from writing the same payload twice, once under each mode,
+# and comparing each write against what it asked for. Do not hand-edit them:
+# re-run the sweep, which prints the entry to paste.
+
+# Twice what the encoder's own history recorded. The earlier count of six came
+# from comparing the *_enabled toggles the encoder sends, so the four
+# non-toggle fields here -- the lease time (replaced with the controller's
+# 86400), the search domain, and the tftp and controller addresses (blanked)
+# -- were never in view. Note dhcpd_dns_1 and dhcpd_wins_1 survive while the
+# toggles that switch them on do not: the addresses are stored and never
+# handed out, which is why this fails so quietly.
+[Network.preference.setting_preference]
+owns = [
+  "dhcpd_dns_enabled",
+  "dhcpd_gateway_enabled",
+  "dhcpd_leasetime",
+  "dhcpd_ntp_enabled",
+  "dhcpd_tftp_server",
+  "dhcpd_time_offset_enabled",
+  "dhcpd_unifi_controller",
+  "dhcpd_wins_enabled",
+  "dhcpguard_enabled",
+  "domain_name",
+  "igmp_snooping",
+  "upnp_lan_enabled",
+]
+measured = "10.4.57"
+
+# Measured with ipv6_interface_type "none": "static" needs a deployable
+# prefix, which a gateway-less harness cannot supply (the controller answers
+# api.err.NotDeployableIPv6Subnet), so a static-prefix network may own more
+# than this.
+[Network.preference.ipv6_setting_preference]
+owns = [
+  "dhcpdv6_dns_auto",
+  "dhcpdv6_leasetime",
+  "ipv6_ra_preferred_lifetime",
+]
+measured = "10.4.57"
+
+# Only the first two slots. wan_dns3 and wan_dns4 were set in the same payload
+# and survived under auto, so the controller takes over the resolvers it hands
+# out and leaves the extras alone.
+[Network.preference.wan_dns_preference]
+owns = [
+  "wan_dns1",
+  "wan_dns2",
+]
+measured = "10.4.57"
+
+# Owns nothing: wan_ipv6_dns1 and wan_ipv6_dns2 were stored as asked under
+# both modes. Measured on a harness with no gateway and no real WAN, so the
+# auto path may have had nothing to fill in; an empty set here is weaker
+# evidence than a populated one.
+[Network.preference.wan_ipv6_dns_preference]
+owns = []
+measured = "10.4.57"
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
