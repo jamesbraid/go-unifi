@@ -165,6 +165,18 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		Env: map[string]string{
 			"UNIFI_STDOUT": "true",
 			"TZ":           "Etc/UTC",
+			// Simulation mode is what seeds admin/admin and skips the setup
+			// wizard, but it also fabricates a demo fleet in the controller's
+			// own database. Those devices never inform -- they are documents,
+			// not devices -- and the suite now gets real ones from the herder,
+			// so the fabricated fleet is only a hazard: its gateway would take
+			// the site's single gateway slot before any test could adopt one,
+			// and its MACs are noise every stat/device lookup has to exclude.
+			// Zero is honoured (measured: stat/device is empty and the image
+			// still boots healthy, which is itself a real JSON login).
+			"DEMO_NUM_UAP": "0",
+			"DEMO_NUM_UGW": "0",
+			"DEMO_NUM_USW": "0",
 		},
 		// The -sim images' healthcheck reports healthy only once the API
 		// answers a real JSON login (the controller serves an HTML

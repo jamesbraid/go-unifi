@@ -12,9 +12,9 @@ import (
 
 // TestIntegrationDeviceSimAdoption runs an emulated switch beside a fresh
 // controller end to end: inform, pending stat/device doc, AdoptDevice,
-// connected. The herder allocates the identity from a locally administered
-// MAC range, so it can never collide with the -sim image's seeded demo fleet
-// and the stat/device lookup can only match this device.
+// connected. It is also the coverage for AdoptDevice itself — the controller
+// fabricates no devices, so every device the suite adopts is one that really
+// informed its way in.
 func TestIntegrationDeviceSimAdoption(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

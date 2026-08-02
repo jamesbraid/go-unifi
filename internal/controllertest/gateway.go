@@ -24,13 +24,12 @@ const GatewayType = "uxg"
 // flow: inform until the pending doc appears, then drive the controller-side
 // adopt.
 //
-// The gateway's identity is whatever the herder allocated — a locally
-// administered MAC that cannot collide with the -sim image's seeded UBNT
-// fleet — so callers adopt by the returned MAC rather than by one they chose.
+// The gateway's identity is whatever the herder allocated, so callers adopt
+// by the returned MAC rather than by one they chose.
 //
 // A site adopts exactly one gateway (a second returns
 // api.err.NoSecondGateway), so callers must give it a fresh controller
-// (Start) and must not also adopt the -sim image's seeded, still-pending UGW3.
+// (Start) and must not adopt a second one themselves.
 func AdoptGateway(ctx context.Context, t *testing.T, c *Controller, s *Session) Device {
 	t.Helper()
 
