@@ -2,6 +2,23 @@
 
 package unifi
 
+// Preference is one auto|manual mode field and the fields it governs.
+type Preference struct {
+	// Container is the dotted wire path to the sub-object holding the mode,
+	// empty when the mode sits on the resource itself. An array container
+	// holds one mode per element, each governing that element.
+	Container string
+
+	// Mode is the mode field's wire name, relative to Container.
+	Mode string
+
+	// Owns lists the wire names the controller takes over while Mode is
+	// "auto", relative to Container -- a mode governs its own object. An
+	// empty list is a measured result, not a gap: that mode was probed and
+	// owns nothing.
+	Owns []string
+}
+
 // PreferenceOwnedFields records what each auto|manual mode field owns.
 //
 // A UniFi resource can carry a mode field -- setting_preference and its
@@ -10,32 +27,29 @@ package unifi
 // its own values over whatever the payload asked for, answers rc: ok, and
 // reports nothing, so a caller learns from the next read or not at all.
 //
-// The outer key is the resource's schema name (settings keep their "Setting"
-// prefix, so the site NTP document is "SettingNtp"). The inner key is the
-// mode field's wire name, and the value is the wire names it owns. An empty
-// list is a measured result, not a gap: that mode was probed and owns
-// nothing.
+// The key is the resource's schema name; settings keep their "Setting"
+// prefix, so the site NTP document is "SettingNtp".
 //
 // Measured against a live controller by TestIntegrationPreferenceOwnership
 // and recorded in overrides/fields.toml; the build of each set is in the
 // "measured" key beside it there.
-var PreferenceOwnedFields = map[string]map[string][]string{
+var PreferenceOwnedFields = map[string][]Preference{
 	"FirewallRule": {
-		"setting_preference": {
+		{Mode: "setting_preference", Owns: []string{
 			"state_established",
 			"state_related",
-		},
+		}},
 	},
 	"Nat": {
-		"setting_preference": {},
+		{Mode: "setting_preference", Owns: []string{}},
 	},
 	"Network": {
-		"ipv6_setting_preference": {
+		{Mode: "ipv6_setting_preference", Owns: []string{
 			"dhcpdv6_dns_auto",
 			"dhcpdv6_leasetime",
 			"ipv6_ra_preferred_lifetime",
-		},
-		"setting_preference": {
+		}},
+		{Mode: "setting_preference", Owns: []string{
 			"dhcpd_dns_enabled",
 			"dhcpd_gateway_enabled",
 			"dhcpd_leasetime",
@@ -48,15 +62,15 @@ var PreferenceOwnedFields = map[string]map[string][]string{
 			"domain_name",
 			"igmp_snooping",
 			"upnp_lan_enabled",
-		},
-		"wan_dns_preference": {
+		}},
+		{Mode: "wan_dns_preference", Owns: []string{
 			"wan_dns1",
 			"wan_dns2",
-		},
-		"wan_ipv6_dns_preference": {},
+		}},
+		{Mode: "wan_ipv6_dns_preference", Owns: []string{}},
 	},
 	"PortProfile": {
-		"setting_preference": {
+		{Mode: "setting_preference", Owns: []string{
 			"autoneg",
 			"egress_rate_limit_kbps_enabled",
 			"isolation",
@@ -67,35 +81,35 @@ var PreferenceOwnedFields = map[string]map[string][]string{
 			"stormctrl_mcast_enabled",
 			"stormctrl_ucast_enabled",
 			"stp_port_mode",
-		},
+		}},
 	},
 	"SettingDashboard": {
-		"layout_preference": {
+		{Mode: "layout_preference", Owns: []string{
 			"widgets",
-		},
+		}},
 	},
 	"SettingNtp": {
-		"setting_preference": {
+		{Mode: "setting_preference", Owns: []string{
 			"ntp_server_1",
 			"ntp_server_2",
 			"ntp_server_3",
 			"ntp_server_4",
-		},
+		}},
 	},
 	"SettingRadioAi": {
-		"setting_preference": {
+		{Mode: "setting_preference", Owns: []string{
 			"cron_expr",
-		},
+		}},
 	},
 	"SettingSuperMgmt": {
-		"data_retention_setting_preference": {
+		{Mode: "data_retention_setting_preference", Owns: []string{
 			"data_retention_time_in_hours_for_5minutes_scale",
 			"data_retention_time_in_hours_for_hourly_scale",
 			"data_retention_time_in_hours_for_others",
-		},
+		}},
 	},
 	"SettingUsg": {
-		"timeout_setting_preference": {
+		{Mode: "timeout_setting_preference", Owns: []string{
 			"icmp_timeout",
 			"tcp_close_timeout",
 			"tcp_close_wait_timeout",
@@ -107,15 +121,15 @@ var PreferenceOwnedFields = map[string]map[string][]string{
 			"tcp_time_wait_timeout",
 			"udp_other_timeout",
 			"udp_stream_timeout",
-		},
+		}},
 	},
 	"WLAN": {
-		"minrate_setting_preference": {
+		{Mode: "minrate_setting_preference", Owns: []string{
 			"minrate_na_data_rate_kbps",
 			"minrate_na_enabled",
 			"minrate_ng_data_rate_kbps",
-		},
-		"setting_preference": {
+		}},
+		{Mode: "setting_preference", Owns: []string{
 			"bc_filter_enabled",
 			"bss_transition",
 			"dtim_mode",
@@ -126,6 +140,6 @@ var PreferenceOwnedFields = map[string]map[string][]string{
 			"mcastenhance_enabled",
 			"proxy_arp",
 			"uapsd_enabled",
-		},
+		}},
 	},
 }

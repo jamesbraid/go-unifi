@@ -36,20 +36,27 @@ func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
 		}
 
 		fmt.Fprintf(&body, "\t%q: {\n", resource)
-		for _, mode := range slices.Sorted(maps.Keys(prefs)) {
-			owns := prefs[mode].Owns
+		for _, key := range slices.Sorted(maps.Keys(prefs)) {
+			container, mode := splitPreferenceKey(key)
+			body.WriteString("\t\t{")
+			if container != "" {
+				fmt.Fprintf(&body, "Container: %q, ", container)
+			}
+			fmt.Fprintf(&body, "Mode: %q, Owns: []string{", mode)
+
+			owns := prefs[key].Owns
 			if len(owns) == 0 {
 				// A measured empty set is a result: this mode carries the
 				// enum and acts on nothing. Rendered explicitly so it reads
 				// as measured rather than missing.
-				fmt.Fprintf(&body, "\t\t%q: {},\n", mode)
+				body.WriteString("}},\n")
 				continue
 			}
-			fmt.Fprintf(&body, "\t\t%q: {\n", mode)
+			body.WriteString("\n")
 			for _, wire := range slices.Sorted(slices.Values(owns)) {
 				fmt.Fprintf(&body, "\t\t\t%q,\n", wire)
 			}
-			body.WriteString("\t\t},\n")
+			body.WriteString("\t\t}},\n")
 		}
 		body.WriteString("\t},\n")
 	}
@@ -59,6 +66,23 @@ func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
 
 package unifi
 
+// Preference is one auto|manual mode field and the fields it governs.
+type Preference struct {
+	// Container is the dotted wire path to the sub-object holding the mode,
+	// empty when the mode sits on the resource itself. An array container
+	// holds one mode per element, each governing that element.
+	Container string
+
+	// Mode is the mode field's wire name, relative to Container.
+	Mode string
+
+	// Owns lists the wire names the controller takes over while Mode is
+	// "auto", relative to Container -- a mode governs its own object. An
+	// empty list is a measured result, not a gap: that mode was probed and
+	// owns nothing.
+	Owns []string
+}
+
 // PreferenceOwnedFields records what each auto|manual mode field owns.
 //
 // A UniFi resource can carry a mode field -- setting_preference and its
@@ -67,16 +91,13 @@ package unifi
 // its own values over whatever the payload asked for, answers rc: ok, and
 // reports nothing, so a caller learns from the next read or not at all.
 //
-// The outer key is the resource's schema name (settings keep their "Setting"
-// prefix, so the site NTP document is "SettingNtp"). The inner key is the
-// mode field's wire name, and the value is the wire names it owns. An empty
-// list is a measured result, not a gap: that mode was probed and owns
-// nothing.
+// The key is the resource's schema name; settings keep their "Setting"
+// prefix, so the site NTP document is "SettingNtp".
 //
 // Measured against a live controller by TestIntegrationPreferenceOwnership
 // and recorded in overrides/fields.toml; the build of each set is in the
 // "measured" key beside it there.
-var PreferenceOwnedFields = map[string]map[string][]string{
+var PreferenceOwnedFields = map[string][]Preference{
 %s}
 `, body.String())
 
@@ -98,7 +119,7 @@ var PreferenceOwnedFields = map[string]map[string][]string{
 //
 // Resources only. A data source cannot write, so the trap does not exist
 // there, and describing it on both would double the spec diff for no gain.
-func describePreference(r *ResourceInfo, field *FieldInfo, attr *resource.Attribute) {
+func describePreference(r *ResourceInfo, container string, field *FieldInfo, attr *resource.Attribute) {
 	if field == nil || attr == nil {
 		return
 	}
@@ -107,14 +128,21 @@ func describePreference(r *ResourceInfo, field *FieldInfo, attr *resource.Attrib
 		return
 	}
 
-	if pref, ok := prefs[field.JSONName]; ok {
-		setAttributeDescription(attr, modeDescription(r, pref))
+	// Keys are resolved in the object the attribute actually lives in, so a
+	// mode nested in a sub-object never annotates a same-named field on the
+	// resource, and vice versa.
+	if pref, ok := prefs[joinContainer(container, field.JSONName)]; ok {
+		setAttributeDescription(attr, modeDescription(r, container, pref))
 		return
 	}
 
-	for _, mode := range slices.Sorted(maps.Keys(prefs)) {
-		if slices.Contains(prefs[mode].Owns, field.JSONName) {
-			name := specAttributeName(r, mode)
+	for _, key := range slices.Sorted(maps.Keys(prefs)) {
+		modeContainer, mode := splitPreferenceKey(key)
+		if modeContainer != container {
+			continue
+		}
+		if slices.Contains(prefs[key].Owns, field.JSONName) {
+			name := specAttributeName(r, container, mode)
 			setAttributeDescription(attr, fmt.Sprintf(
 				"Ignored while %s is \"auto\": the controller stores its own value for this field, "+
 					"answers rc: ok, and reports nothing. Set %s to \"manual\" to configure it.",
@@ -125,7 +153,7 @@ func describePreference(r *ResourceInfo, field *FieldInfo, attr *resource.Attrib
 }
 
 // modeDescription renders the description for a mode field itself.
-func modeDescription(r *ResourceInfo, pref fields.Preference) string {
+func modeDescription(r *ResourceInfo, container string, pref fields.Preference) string {
 	measured := pref.Measured
 	if measured == "" {
 		measured = "an unrecorded build"
@@ -137,7 +165,7 @@ func modeDescription(r *ResourceInfo, pref fields.Preference) string {
 	}
 	owns := make([]string, 0, len(pref.Owns))
 	for _, wire := range pref.Owns {
-		owns = append(owns, specAttributeName(r, wire))
+		owns = append(owns, specAttributeName(r, container, wire))
 	}
 	slices.Sort(owns)
 	return fmt.Sprintf(
@@ -156,7 +184,14 @@ func modeDescription(r *ResourceInfo, pref fields.Preference) string {
 // practitioner types, so it has to name the attribute rather than the wire
 // field it came from. Falls back to the wire name if the field cannot be
 // resolved, which is better than naming nothing.
-func specAttributeName(r *ResourceInfo, wire string) string {
+func specAttributeName(r *ResourceInfo, container, wire string) string {
+	scope, err := r.resolveContainer(container)
+	if err != nil {
+		return wire
+	}
+	if f, ok := scope[wire]; ok {
+		return toTerraformName(f.FieldName)
+	}
 	base := r.Types[r.StructName]
 	if base == nil {
 		return wire
@@ -188,4 +223,12 @@ func setAttributeDescription(attr *resource.Attribute, description string) {
 	case attr.SingleNested != nil:
 		attr.SingleNested.Description = &description
 	}
+}
+
+// joinContainer appends a wire name to a dotted container path.
+func joinContainer(container, wire string) string {
+	if container == "" {
+		return wire
+	}
+	return container + "." + wire
 }

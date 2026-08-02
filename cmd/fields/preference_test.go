@@ -31,7 +31,7 @@ func TestGeneratePreferenceFile(t *testing.T) {
 	src := string(out)
 	require.Contains(t, src, `"Thing": {`)
 	require.Contains(t, src, `"Quiet": {`)
-	require.Contains(t, src, `"setting_preference": {},`)
+	require.Contains(t, src, `Mode: "setting_preference", Owns: []string{}}`)
 	require.NotContains(t, src, `"NoPreferences"`)
 
 	// Owned names are sorted, so regeneration does not churn the file on
@@ -73,26 +73,26 @@ func TestDescribePreferenceNamesSpecAttributes(t *testing.T) {
 
 	withOverrides(t, overrides, func() {
 		mode := &resource.Attribute{Name: "x", String: &resource.StringAttribute{}}
-		describePreference(r, r.Types["Thing"].Fields["IPV6SettingPreference"], mode)
+		describePreference(r, "", r.Types["Thing"].Fields["IPV6SettingPreference"], mode)
 		require.NotNil(t, mode.String.Description)
 		require.Contains(t, *mode.String.Description, "ipv_6_ra_enabled")
 		require.Contains(t, *mode.String.Description, "10.4.57")
 
 		owned := &resource.Attribute{Name: "y", Bool: &resource.BoolAttribute{}}
-		describePreference(r, r.Types["Thing"].Fields["IPV6RAEnabled"], owned)
+		describePreference(r, "", r.Types["Thing"].Fields["IPV6RAEnabled"], owned)
 		require.NotNil(t, owned.Bool.Description)
 		require.Contains(t, *owned.Bool.Description, `ipv_6_setting_preference is "auto"`)
 
 		// A field in neither role is left alone.
 		other := &resource.Attribute{Name: "z", Bool: &resource.BoolAttribute{}}
-		describePreference(r, NewFieldInfo("Unrelated", "unrelated", "bool", "", false, false, false, ""), other)
+		describePreference(r, "", NewFieldInfo("Unrelated", "unrelated", "bool", "", false, false, false, ""), other)
 		require.Nil(t, other.Bool.Description)
 	})
 }
 
 func TestModeDescriptionEmptySetReadsAsMeasured(t *testing.T) {
 	r := resourceWithFields("Thing", map[string]*FieldInfo{})
-	got := modeDescription(r, fields.Preference{Measured: "10.4.57"})
+	got := modeDescription(r, "", fields.Preference{Measured: "10.4.57"})
 	require.Contains(t, got, "governs no fields")
 	require.Contains(t, got, "10.4.57")
 }
