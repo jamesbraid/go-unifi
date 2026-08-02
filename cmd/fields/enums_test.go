@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -176,6 +178,70 @@ func TestEnumValuesYieldsOnlyLiterals(t *testing.T) {
 		}
 	}
 	t.Logf("%d distinct patterns, %d recognised as enumerations", len(patterns), enums)
+}
+
+// TestNumericRangeBoundsAreTight runs every pattern in the corpus through the
+// range extractor and checks each derived bound against the validator it came
+// from: the bounds themselves must be accepted, and the values just outside
+// must not be.
+//
+// That is the property a consumer relies on when it turns these into a
+// Between validator. A bound that is loose lets through a value the
+// controller rejects; one that is tight-but-wrong rejects a value it accepts,
+// and the failure looks like a controller bug.
+func TestNumericRangeBoundsAreTight(t *testing.T) {
+	patterns := distinctSchemaPatterns(t)
+
+	ranges := 0
+	for _, pattern := range patterns {
+		low, high, ok := numericRange(pattern)
+		if !ok {
+			continue
+		}
+		ranges++
+
+		re, err := compileAnchored(pattern)
+		if err != nil {
+			t.Errorf("pattern %q yielded a range but will not compile", pattern)
+			continue
+		}
+		for _, in := range []int64{low, high} {
+			if !re.MatchString(strconv.FormatInt(in, 10)) {
+				t.Errorf("pattern %q: derived bound %d is not accepted by the validator", pattern, in)
+			}
+		}
+		for _, out := range []int64{low - 1, high + 1} {
+			if re.MatchString(strconv.FormatInt(out, 10)) {
+				t.Errorf("pattern %q: %d is outside the derived range %d..%d but the validator accepts it", pattern, out, low, high)
+			}
+		}
+	}
+	t.Logf("%d distinct patterns, %d yielded a contiguous numeric range", len(patterns), ranges)
+}
+
+// TestLengthBoundsRoundTrip checks a derived length bound really is the
+// length rule the pattern states.
+func TestLengthBoundsRoundTrip(t *testing.T) {
+	for _, pattern := range distinctSchemaPatterns(t) {
+		low, high, ok := lengthBounds(pattern)
+		if !ok {
+			continue
+		}
+		re, err := compileAnchored(pattern)
+		if err != nil {
+			t.Errorf("pattern %q yielded length bounds but will not compile", pattern)
+			continue
+		}
+		if low > 0 && re.MatchString(strings.Repeat("x", int(low)-1)) {
+			t.Errorf("pattern %q: accepts a value shorter than the derived minimum %d", pattern, low)
+		}
+		if !re.MatchString(strings.Repeat("x", int(high))) {
+			t.Errorf("pattern %q: rejects a value at the derived maximum %d", pattern, high)
+		}
+		if re.MatchString(strings.Repeat("x", int(high)+1)) {
+			t.Errorf("pattern %q: accepts a value longer than the derived maximum %d", pattern, high)
+		}
+	}
 }
 
 // generatedFieldPattern matches the trailing validation comment the template

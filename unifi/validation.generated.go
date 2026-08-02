@@ -783,11 +783,47 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 }
 
+// AccountTunnelMediumTypeMin and AccountTunnelMediumTypeMax are the inclusive bounds the controller accepts for Account.tunnel_medium_type.
+const (
+	AccountTunnelMediumTypeMin int64 = 1
+	AccountTunnelMediumTypeMax int64 = 15
+)
+
+// AccountTunnelTypeMin and AccountTunnelTypeMax are the inclusive bounds the controller accepts for Account.tunnel_type.
+const (
+	AccountTunnelTypeMin int64 = 1
+	AccountTunnelTypeMax int64 = 13
+)
+
+// AccountVLANMin and AccountVLANMax are the inclusive bounds the controller accepts for Account.vlan.
+const (
+	AccountVLANMin int64 = 2
+	AccountVLANMax int64 = 4009
+)
+
+// BGPConfigDescriptionMinLength and BGPConfigDescriptionMaxLength are the character-count bounds the controller accepts for BGPConfig.description.
+const (
+	BGPConfigDescriptionMinLength int64 = 0
+	BGPConfigDescriptionMaxLength int64 = 128
+)
+
+// BGPConfigUploadedFileNameMinLength and BGPConfigUploadedFileNameMaxLength are the character-count bounds the controller accepts for BGPConfig.uploaded_file_name.
+const (
+	BGPConfigUploadedFileNameMinLength int64 = 0
+	BGPConfigUploadedFileNameMaxLength int64 = 256
+)
+
 // ChannelPlanRadioTableTxPowerModeValues are the values the controller accepts for ChannelPlanRadioTable.tx_power_mode.
 var ChannelPlanRadioTableTxPowerModeValues = []string{"auto", "medium", "high", "low", "custom"}
 
 // ChannelPlanRadioTableWidthValues are the values the controller accepts for ChannelPlanRadioTable.width.
 var ChannelPlanRadioTableWidthValues = []int64{20, 40, 80, 160}
+
+// ClientGroupNameMinLength and ClientGroupNameMaxLength are the character-count bounds the controller accepts for ClientGroup.name.
+const (
+	ClientGroupNameMinLength int64 = 1
+	ClientGroupNameMaxLength int64 = 128
+)
 
 // DHCPOptionTypeValues are the values the controller accepts for DHCPOption.type.
 var DHCPOptionTypeValues = []string{"boolean", "hexarray", "integer", "ipaddress", "macaddress", "text"}
@@ -795,8 +831,26 @@ var DHCPOptionTypeValues = []string{"boolean", "hexarray", "integer", "ipaddress
 // DHCPOptionWidthValues are the values the controller accepts for DHCPOption.width.
 var DHCPOptionWidthValues = []int64{8, 16, 32}
 
+// DNSRecordKeyMinLength and DNSRecordKeyMaxLength are the character-count bounds the controller accepts for DNSRecord.key.
+const (
+	DNSRecordKeyMinLength int64 = 1
+	DNSRecordKeyMaxLength int64 = 128
+)
+
+// DNSRecordPortMin and DNSRecordPortMax are the inclusive bounds the controller accepts for DNSRecord.port.
+const (
+	DNSRecordPortMin int64 = 1
+	DNSRecordPortMax int64 = 99999
+)
+
 // DNSRecordRecordTypeValues are the values the controller accepts for DNSRecord.record_type.
 var DNSRecordRecordTypeValues = []string{"A", "AAAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"}
+
+// DNSRecordValueMinLength and DNSRecordValueMaxLength are the character-count bounds the controller accepts for DNSRecord.value.
+const (
+	DNSRecordValueMinLength int64 = 1
+	DNSRecordValueMaxLength int64 = 256
+)
 
 // DeviceBandsteeringModeValues are the values the controller accepts for Device.bandsteering_mode.
 var DeviceBandsteeringModeValues = []string{"off", "equal", "prefer_5g"}
@@ -810,17 +864,71 @@ var DeviceFanModeOverrideValues = []string{"default", "quiet"}
 // DeviceGatewayVrrpModeValues are the values the controller accepts for Device.gateway_vrrp_mode.
 var DeviceGatewayVrrpModeValues = []string{"primary", "secondary"}
 
+// DeviceGatewayVrrpPriorityMin and DeviceGatewayVrrpPriorityMax are the inclusive bounds the controller accepts for Device.gateway_vrrp_priority.
+const (
+	DeviceGatewayVrrpPriorityMin int64 = 10
+	DeviceGatewayVrrpPriorityMax int64 = 999
+)
+
+// DeviceHostnameMinLength and DeviceHostnameMaxLength are the character-count bounds the controller accepts for Device.hostname.
+const (
+	DeviceHostnameMinLength int64 = 1
+	DeviceHostnameMaxLength int64 = 128
+)
+
+// DeviceLcmBrightnessMin and DeviceLcmBrightnessMax are the inclusive bounds the controller accepts for Device.lcm_brightness.
+const (
+	DeviceLcmBrightnessMin int64 = 1
+	DeviceLcmBrightnessMax int64 = 100
+)
+
+// DeviceLcmIDleTimeoutMin and DeviceLcmIDleTimeoutMax are the inclusive bounds the controller accepts for Device.lcm_idle_timeout.
+const (
+	DeviceLcmIDleTimeoutMin int64 = 10
+	DeviceLcmIDleTimeoutMax int64 = 3600
+)
+
 // DeviceLcmOrientationOverrideValues are the values the controller accepts for Device.lcm_orientation_override.
 var DeviceLcmOrientationOverrideValues = []int64{0, 90, 180, 270}
+
+// DeviceLcmTrackerSeedMinLength and DeviceLcmTrackerSeedMaxLength are the character-count bounds the controller accepts for Device.lcm_tracker_seed.
+const (
+	DeviceLcmTrackerSeedMinLength int64 = 0
+	DeviceLcmTrackerSeedMaxLength int64 = 50
+)
 
 // DeviceLedOverrideValues are the values the controller accepts for Device.led_override.
 var DeviceLedOverrideValues = []string{"default", "on", "off"}
 
+// DeviceLedOverrideColorBrightnessMin and DeviceLedOverrideColorBrightnessMax are the inclusive bounds the controller accepts for Device.led_override_color_brightness.
+const (
+	DeviceLedOverrideColorBrightnessMin int64 = 0
+	DeviceLedOverrideColorBrightnessMax int64 = 100
+)
+
+// DeviceLteApnMinLength and DeviceLteApnMaxLength are the character-count bounds the controller accepts for Device.lte_apn.
+const (
+	DeviceLteApnMinLength int64 = 1
+	DeviceLteApnMaxLength int64 = 128
+)
+
 // DeviceLteAuthTypeValues are the values the controller accepts for Device.lte_auth_type.
 var DeviceLteAuthTypeValues = []string{"PAP", "CHAP", "PAP-CHAP", "NONE"}
 
+// DeviceNameMinLength and DeviceNameMaxLength are the character-count bounds the controller accepts for Device.name.
+const (
+	DeviceNameMinLength int64 = 0
+	DeviceNameMaxLength int64 = 128
+)
+
 // DeviceOutdoorModeOverrideValues are the values the controller accepts for Device.outdoor_mode_override.
 var DeviceOutdoorModeOverrideValues = []string{"default", "on", "off"}
+
+// DeviceOutletPowerCycleOnAcRecoverySecondsMin and DeviceOutletPowerCycleOnAcRecoverySecondsMax are the inclusive bounds the controller accepts for Device.outlet_power_cycle_on_ac_recovery_seconds.
+const (
+	DeviceOutletPowerCycleOnAcRecoverySecondsMin int64 = 60
+	DeviceOutletPowerCycleOnAcRecoverySecondsMax int64 = 600
+)
 
 // DevicePeerToPeerModeValues are the values the controller accepts for Device.peer_to_peer_mode.
 var DevicePeerToPeerModeValues = []string{"ap", "sta"}
@@ -834,6 +942,18 @@ var DevicePowerSourceCtrlValues = []string{"auto", "8023af", "8023at", "8023bt-t
 // DeviceResetbtnEnabledValues are the values the controller accepts for Device.resetbtn_enabled.
 var DeviceResetbtnEnabledValues = []string{"on", "off"}
 
+// DeviceSnmpContactMinLength and DeviceSnmpContactMaxLength are the character-count bounds the controller accepts for Device.snmp_contact.
+const (
+	DeviceSnmpContactMinLength int64 = 0
+	DeviceSnmpContactMaxLength int64 = 255
+)
+
+// DeviceSnmpLocationMinLength and DeviceSnmpLocationMaxLength are the character-count bounds the controller accepts for Device.snmp_location.
+const (
+	DeviceSnmpLocationMinLength int64 = 0
+	DeviceSnmpLocationMaxLength int64 = 255
+)
+
 // DeviceStationModeValues are the values the controller accepts for Device.station_mode.
 var DeviceStationModeValues = []string{"ptp", "ptmp", "wifi"}
 
@@ -842,6 +962,30 @@ var DeviceStpPriorityValues = []int64{0, 4096, 8192, 12288, 16384, 20480, 24576,
 
 // DeviceStpVersionValues are the values the controller accepts for Device.stp_version.
 var DeviceStpVersionValues = []string{"stp", "rstp", "disabled"}
+
+// DeviceUbbPairNameMinLength and DeviceUbbPairNameMaxLength are the character-count bounds the controller accepts for Device.ubb_pair_name.
+const (
+	DeviceUbbPairNameMinLength int64 = 1
+	DeviceUbbPairNameMaxLength int64 = 128
+)
+
+// DeviceUpsShutdownRemainingMinutesMin and DeviceUpsShutdownRemainingMinutesMax are the inclusive bounds the controller accepts for Device.ups_shutdown_remaining_minutes.
+const (
+	DeviceUpsShutdownRemainingMinutesMin int64 = 1
+	DeviceUpsShutdownRemainingMinutesMax int64 = 15
+)
+
+// DeviceVolumeMin and DeviceVolumeMax are the inclusive bounds the controller accepts for Device.volume.
+const (
+	DeviceVolumeMin int64 = 0
+	DeviceVolumeMax int64 = 100
+)
+
+// DeviceAudioInfoChannelMin and DeviceAudioInfoChannelMax are the inclusive bounds the controller accepts for DeviceAudioInfo.channel.
+const (
+	DeviceAudioInfoChannelMin int64 = 2
+	DeviceAudioInfoChannelMax int64 = 9999
+)
 
 // DeviceAudioInfoRoleValues are the values the controller accepts for DeviceAudioInfo.role.
 var DeviceAudioInfoRoleValues = []string{"host", "client"}
@@ -858,6 +1002,12 @@ var DeviceCurrentApnPDpTypeValues = []string{"IPv4", "IPv6", "IPv4v6"}
 // DeviceEtherLightingBehaviorValues are the values the controller accepts for DeviceEtherLighting.behavior.
 var DeviceEtherLightingBehaviorValues = []string{"breath", "steady"}
 
+// DeviceEtherLightingBrightnessMin and DeviceEtherLightingBrightnessMax are the inclusive bounds the controller accepts for DeviceEtherLighting.brightness.
+const (
+	DeviceEtherLightingBrightnessMin int64 = 1
+	DeviceEtherLightingBrightnessMax int64 = 100
+)
+
 // DeviceEtherLightingLedModeValues are the values the controller accepts for DeviceEtherLighting.led_mode.
 var DeviceEtherLightingLedModeValues = []string{"standard", "etherlighting"}
 
@@ -870,8 +1020,20 @@ var DeviceHdmiPortsStateValues = []string{"CLIENT_STATE_SUSPENDING", "WAITING_HO
 // DeviceHdmiPortsTypeValues are the values the controller accepts for DeviceHdmiPorts.type.
 var DeviceHdmiPortsTypeValues = []string{"in", "out"}
 
+// DeviceIPV6NetmaskMin and DeviceIPV6NetmaskMax are the inclusive bounds the controller accepts for DeviceIPV6.netmask.
+const (
+	DeviceIPV6NetmaskMin int64 = 0
+	DeviceIPV6NetmaskMax int64 = 128
+)
+
 // DeviceIPV6TypeValues are the values the controller accepts for DeviceIPV6.type.
 var DeviceIPV6TypeValues = []string{"slaac", "dhcp", "static", "none"}
+
+// DeviceIPv4NetmaskMin and DeviceIPv4NetmaskMax are the inclusive bounds the controller accepts for DeviceIPv4.netmask.
+const (
+	DeviceIPv4NetmaskMin int64 = 0
+	DeviceIPv4NetmaskMax int64 = 32
+)
 
 // DeviceIPv4TypeValues are the values the controller accepts for DeviceIPv4.type.
 var DeviceIPv4TypeValues = []string{"dhcp", "static"}
@@ -879,8 +1041,26 @@ var DeviceIPv4TypeValues = []string{"dhcp", "static"}
 // DeviceMbbOverridesPrimarySlotValues are the values the controller accepts for DeviceMbbOverrides.primary_slot.
 var DeviceMbbOverridesPrimarySlotValues = []int64{1, 2}
 
+// DeviceOutletOverridesNameMinLength and DeviceOutletOverridesNameMaxLength are the character-count bounds the controller accepts for DeviceOutletOverrides.name.
+const (
+	DeviceOutletOverridesNameMinLength int64 = 0
+	DeviceOutletOverridesNameMaxLength int64 = 128
+)
+
+// DevicePortOverridesAggregateMembersMin and DevicePortOverridesAggregateMembersMax are the inclusive bounds the controller accepts for DevicePortOverrides.aggregate_members.
+const (
+	DevicePortOverridesAggregateMembersMin int64 = 1
+	DevicePortOverridesAggregateMembersMax int64 = 56
+)
+
 // DevicePortOverridesDot1XCtrlValues are the values the controller accepts for DevicePortOverrides.dot1x_ctrl.
 var DevicePortOverridesDot1XCtrlValues = []string{"auto", "force_authorized", "force_unauthorized", "mac_based", "multi_host"}
+
+// DevicePortOverridesDot1XIDleTimeoutMin and DevicePortOverridesDot1XIDleTimeoutMax are the inclusive bounds the controller accepts for DevicePortOverrides.dot1x_idle_timeout.
+const (
+	DevicePortOverridesDot1XIDleTimeoutMin int64 = 0
+	DevicePortOverridesDot1XIDleTimeoutMax int64 = 65535
+)
 
 // DevicePortOverridesFecModeValues are the values the controller accepts for DevicePortOverrides.fec_mode.
 var DevicePortOverridesFecModeValues = []string{"rs-fec", "fc-fec", "default", "disabled"}
@@ -888,8 +1068,20 @@ var DevicePortOverridesFecModeValues = []string{"rs-fec", "fc-fec", "default", "
 // DevicePortOverridesForwardValues are the values the controller accepts for DevicePortOverrides.forward.
 var DevicePortOverridesForwardValues = []string{"all", "native", "customize", "disabled"}
 
+// DevicePortOverridesMirrorPortIDXMin and DevicePortOverridesMirrorPortIDXMax are the inclusive bounds the controller accepts for DevicePortOverrides.mirror_port_idx.
+const (
+	DevicePortOverridesMirrorPortIDXMin int64 = 1
+	DevicePortOverridesMirrorPortIDXMax int64 = 56
+)
+
 // DevicePortOverridesMulticastRouterModeValues are the values the controller accepts for DevicePortOverrides.multicast_router_mode.
 var DevicePortOverridesMulticastRouterModeValues = []string{"ALL", "CUSTOM", "NONE"}
+
+// DevicePortOverridesNameMinLength and DevicePortOverridesNameMaxLength are the character-count bounds the controller accepts for DevicePortOverrides.name.
+const (
+	DevicePortOverridesNameMinLength int64 = 0
+	DevicePortOverridesNameMaxLength int64 = 128
+)
 
 // DevicePortOverridesOpModeValues are the values the controller accepts for DevicePortOverrides.op_mode.
 var DevicePortOverridesOpModeValues = []string{"switch", "mirror", "aggregate", "routed", "routed_aggregate"}
@@ -897,14 +1089,62 @@ var DevicePortOverridesOpModeValues = []string{"switch", "mirror", "aggregate", 
 // DevicePortOverridesPoeModeValues are the values the controller accepts for DevicePortOverrides.poe_mode.
 var DevicePortOverridesPoeModeValues = []string{"auto", "pasv24", "passthrough", "off"}
 
+// DevicePortOverridesPortIDXMin and DevicePortOverridesPortIDXMax are the inclusive bounds the controller accepts for DevicePortOverrides.port_idx.
+const (
+	DevicePortOverridesPortIDXMin int64 = 1
+	DevicePortOverridesPortIDXMax int64 = 56
+)
+
+// DevicePortOverridesPriorityQueue1LevelMin and DevicePortOverridesPriorityQueue1LevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.priority_queue1_level.
+const (
+	DevicePortOverridesPriorityQueue1LevelMin int64 = 0
+	DevicePortOverridesPriorityQueue1LevelMax int64 = 100
+)
+
+// DevicePortOverridesPriorityQueue2LevelMin and DevicePortOverridesPriorityQueue2LevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.priority_queue2_level.
+const (
+	DevicePortOverridesPriorityQueue2LevelMin int64 = 0
+	DevicePortOverridesPriorityQueue2LevelMax int64 = 100
+)
+
+// DevicePortOverridesPriorityQueue3LevelMin and DevicePortOverridesPriorityQueue3LevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.priority_queue3_level.
+const (
+	DevicePortOverridesPriorityQueue3LevelMin int64 = 0
+	DevicePortOverridesPriorityQueue3LevelMax int64 = 100
+)
+
+// DevicePortOverridesPriorityQueue4LevelMin and DevicePortOverridesPriorityQueue4LevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.priority_queue4_level.
+const (
+	DevicePortOverridesPriorityQueue4LevelMin int64 = 0
+	DevicePortOverridesPriorityQueue4LevelMax int64 = 100
+)
+
 // DevicePortOverridesSettingPreferenceValues are the values the controller accepts for DevicePortOverrides.setting_preference.
 var DevicePortOverridesSettingPreferenceValues = []string{"auto", "manual"}
 
 // DevicePortOverridesSpeedValues are the values the controller accepts for DevicePortOverrides.speed.
 var DevicePortOverridesSpeedValues = []int64{10, 100, 1000, 2500, 5000, 10000, 20000, 25000, 40000, 50000, 100000}
 
+// DevicePortOverridesStormctrlBroadcastastLevelMin and DevicePortOverridesStormctrlBroadcastastLevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.stormctrl_bcast_level.
+const (
+	DevicePortOverridesStormctrlBroadcastastLevelMin int64 = 0
+	DevicePortOverridesStormctrlBroadcastastLevelMax int64 = 100
+)
+
+// DevicePortOverridesStormctrlMcastLevelMin and DevicePortOverridesStormctrlMcastLevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.stormctrl_mcast_level.
+const (
+	DevicePortOverridesStormctrlMcastLevelMin int64 = 0
+	DevicePortOverridesStormctrlMcastLevelMax int64 = 100
+)
+
 // DevicePortOverridesStormctrlTypeValues are the values the controller accepts for DevicePortOverrides.stormctrl_type.
 var DevicePortOverridesStormctrlTypeValues = []string{"level", "rate"}
+
+// DevicePortOverridesStormctrlUcastLevelMin and DevicePortOverridesStormctrlUcastLevelMax are the inclusive bounds the controller accepts for DevicePortOverrides.stormctrl_ucast_level.
+const (
+	DevicePortOverridesStormctrlUcastLevelMin int64 = 0
+	DevicePortOverridesStormctrlUcastLevelMax int64 = 100
+)
 
 // DevicePortOverridesStpEdgeStateValues are the values the controller accepts for DevicePortOverrides.stp_edge_state.
 var DevicePortOverridesStpEdgeStateValues = []string{"auto", "enabled", "disabled"}
@@ -915,23 +1155,143 @@ var DevicePortOverridesTaggedVLANMgmtValues = []string{"auto", "block_all", "cus
 // DevicePrecisionTimeProtocolConfigClockModeValues are the values the controller accepts for DevicePrecisionTimeProtocolConfig.clock_mode.
 var DevicePrecisionTimeProtocolConfigClockModeValues = []string{"boundary", "sma", "transparent"}
 
+// DevicePrecisionTimeProtocolConfigCustomAnnounceIntervalMin and DevicePrecisionTimeProtocolConfigCustomAnnounceIntervalMax are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.custom_announce_interval.
+const (
+	DevicePrecisionTimeProtocolConfigCustomAnnounceIntervalMin int64 = -4
+	DevicePrecisionTimeProtocolConfigCustomAnnounceIntervalMax int64 = 4
+)
+
+// DevicePrecisionTimeProtocolConfigCustomAnnounceTimeoutMin and DevicePrecisionTimeProtocolConfigCustomAnnounceTimeoutMax are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.custom_announce_timeout.
+const (
+	DevicePrecisionTimeProtocolConfigCustomAnnounceTimeoutMin int64 = 2
+	DevicePrecisionTimeProtocolConfigCustomAnnounceTimeoutMax int64 = 10
+)
+
+// DevicePrecisionTimeProtocolConfigCustomDelayReqIntervalMin and DevicePrecisionTimeProtocolConfigCustomDelayReqIntervalMax are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.custom_delay_req_interval.
+const (
+	DevicePrecisionTimeProtocolConfigCustomDelayReqIntervalMin int64 = -7
+	DevicePrecisionTimeProtocolConfigCustomDelayReqIntervalMax int64 = 4
+)
+
+// DevicePrecisionTimeProtocolConfigCustomDomainMin and DevicePrecisionTimeProtocolConfigCustomDomainMax are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.custom_domain.
+const (
+	DevicePrecisionTimeProtocolConfigCustomDomainMin int64 = 0
+	DevicePrecisionTimeProtocolConfigCustomDomainMax int64 = 255
+)
+
+// DevicePrecisionTimeProtocolConfigCustomSyncIntervalMin and DevicePrecisionTimeProtocolConfigCustomSyncIntervalMax are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.custom_sync_interval.
+const (
+	DevicePrecisionTimeProtocolConfigCustomSyncIntervalMin int64 = -7
+	DevicePrecisionTimeProtocolConfigCustomSyncIntervalMax int64 = 4
+)
+
+// DevicePrecisionTimeProtocolConfigPriority1Min and DevicePrecisionTimeProtocolConfigPriority1Max are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.priority1.
+const (
+	DevicePrecisionTimeProtocolConfigPriority1Min int64 = 0
+	DevicePrecisionTimeProtocolConfigPriority1Max int64 = 255
+)
+
+// DevicePrecisionTimeProtocolConfigPriority2Min and DevicePrecisionTimeProtocolConfigPriority2Max are the inclusive bounds the controller accepts for DevicePrecisionTimeProtocolConfig.priority2.
+const (
+	DevicePrecisionTimeProtocolConfigPriority2Min int64 = 0
+	DevicePrecisionTimeProtocolConfigPriority2Max int64 = 255
+)
+
 // DevicePrecisionTimeProtocolConfigProfileValues are the values the controller accepts for DevicePrecisionTimeProtocolConfig.profile.
 var DevicePrecisionTimeProtocolConfigProfileValues = []string{"smpte", "ieee1588", "aes67", "aes_r16", "custom"}
 
 // DevicePrecisionTimeProtocolConfigTransportTypeValues are the values the controller accepts for DevicePrecisionTimeProtocolConfig.transport_type.
 var DevicePrecisionTimeProtocolConfigTransportTypeValues = []string{"ipv4", "layer2"}
 
+// DeviceQOSMarkingCosCodeMin and DeviceQOSMarkingCosCodeMax are the inclusive bounds the controller accepts for DeviceQOSMarking.cos_code.
+const (
+	DeviceQOSMarkingCosCodeMin int64 = 0
+	DeviceQOSMarkingCosCodeMax int64 = 7
+)
+
 // DeviceQOSMarkingDscpCodeValues are the values the controller accepts for DeviceQOSMarking.dscp_code.
 var DeviceQOSMarkingDscpCodeValues = []int64{0, 8, 16, 24, 32, 40, 48, 56, 10, 12, 14, 18, 20, 22, 26, 28, 30, 34, 36, 38, 44, 46}
+
+// DeviceQOSMarkingIPPrecedenceCodeMin and DeviceQOSMarkingIPPrecedenceCodeMax are the inclusive bounds the controller accepts for DeviceQOSMarking.ip_precedence_code.
+const (
+	DeviceQOSMarkingIPPrecedenceCodeMin int64 = 0
+	DeviceQOSMarkingIPPrecedenceCodeMax int64 = 7
+)
+
+// DeviceQOSMarkingQueueMin and DeviceQOSMarkingQueueMax are the inclusive bounds the controller accepts for DeviceQOSMarking.queue.
+const (
+	DeviceQOSMarkingQueueMin int64 = 0
+	DeviceQOSMarkingQueueMax int64 = 7
+)
+
+// DeviceQOSMatchingCosCodeMin and DeviceQOSMatchingCosCodeMax are the inclusive bounds the controller accepts for DeviceQOSMatching.cos_code.
+const (
+	DeviceQOSMatchingCosCodeMin int64 = 0
+	DeviceQOSMatchingCosCodeMax int64 = 7
+)
+
+// DeviceQOSMatchingDscpCodeMin and DeviceQOSMatchingDscpCodeMax are the inclusive bounds the controller accepts for DeviceQOSMatching.dscp_code.
+const (
+	DeviceQOSMatchingDscpCodeMin int64 = 0
+	DeviceQOSMatchingDscpCodeMax int64 = 63
+)
+
+// DeviceQOSMatchingDstPortMin and DeviceQOSMatchingDstPortMax are the inclusive bounds the controller accepts for DeviceQOSMatching.dst_port.
+const (
+	DeviceQOSMatchingDstPortMin int64 = 0
+	DeviceQOSMatchingDstPortMax int64 = 65535
+)
+
+// DeviceQOSMatchingIPPrecedenceCodeMin and DeviceQOSMatchingIPPrecedenceCodeMax are the inclusive bounds the controller accepts for DeviceQOSMatching.ip_precedence_code.
+const (
+	DeviceQOSMatchingIPPrecedenceCodeMin int64 = 0
+	DeviceQOSMatchingIPPrecedenceCodeMax int64 = 7
+)
+
+// DeviceQOSMatchingSrcPortMin and DeviceQOSMatchingSrcPortMax are the inclusive bounds the controller accepts for DeviceQOSMatching.src_port.
+const (
+	DeviceQOSMatchingSrcPortMin int64 = 0
+	DeviceQOSMatchingSrcPortMax int64 = 65535
+)
 
 // DeviceQOSProfileQOSProfileModeValues are the values the controller accepts for DeviceQOSProfile.qos_profile_mode.
 var DeviceQOSProfileQOSProfileModeValues = []string{"custom", "unifi_play", "aes67_audio", "crestron_audio_video", "dante_audio", "ndi_aes67_audio", "ndi_dante_audio", "qsys_audio_video", "qsys_video_dante_audio", "sdvoe_aes67_audio", "sdvoe_dante_audio", "shure_audio", "smpte_st2110"}
 
+// DeviceRadioTableAntennaGainMin and DeviceRadioTableAntennaGainMax are the inclusive bounds the controller accepts for DeviceRadioTable.antenna_gain.
+const (
+	DeviceRadioTableAntennaGainMin int64 = -99
+	DeviceRadioTableAntennaGainMax int64 = 99
+)
+
+// DeviceRadioTableAntennaIDMin and DeviceRadioTableAntennaIDMax are the inclusive bounds the controller accepts for DeviceRadioTable.antenna_id.
+const (
+	DeviceRadioTableAntennaIDMin int64 = -1
+	DeviceRadioTableAntennaIDMax int64 = 9
+)
+
 // DeviceRadioTableHtValues are the values the controller accepts for DeviceRadioTable.ht.
 var DeviceRadioTableHtValues = []int64{20, 40, 80, 160, 240, 320, 1080, 2160, 4320}
 
+// DeviceRadioTableMaxstaMin and DeviceRadioTableMaxstaMax are the inclusive bounds the controller accepts for DeviceRadioTable.maxsta.
+const (
+	DeviceRadioTableMaxstaMin int64 = 1
+	DeviceRadioTableMaxstaMax int64 = 200
+)
+
+// DeviceRadioTableMinRssiMin and DeviceRadioTableMinRssiMax are the inclusive bounds the controller accepts for DeviceRadioTable.min_rssi.
+const (
+	DeviceRadioTableMinRssiMin int64 = -90
+	DeviceRadioTableMinRssiMax int64 = -67
+)
+
 // DeviceRadioTableRadioValues are the values the controller accepts for DeviceRadioTable.radio.
 var DeviceRadioTableRadioValues = []string{"ng", "na", "ad", "6e"}
+
+// DeviceRadioTableSensLevelMin and DeviceRadioTableSensLevelMax are the inclusive bounds the controller accepts for DeviceRadioTable.sens_level.
+const (
+	DeviceRadioTableSensLevelMin int64 = -90
+	DeviceRadioTableSensLevelMax int64 = -50
+)
 
 // DeviceRadioTableTxPowerModeValues are the values the controller accepts for DeviceRadioTable.tx_power_mode.
 var DeviceRadioTableTxPowerModeValues = []string{"auto", "medium", "high", "low", "custom", "disabled"}
@@ -939,11 +1299,35 @@ var DeviceRadioTableTxPowerModeValues = []string{"auto", "medium", "high", "low"
 // DeviceRpsOverridePowerManagementModeValues are the values the controller accepts for DeviceRpsOverride.power_management_mode.
 var DeviceRpsOverridePowerManagementModeValues = []string{"dynamic", "static"}
 
+// DeviceRpsPortTableNameMinLength and DeviceRpsPortTableNameMaxLength are the character-count bounds the controller accepts for DeviceRpsPortTable.name.
+const (
+	DeviceRpsPortTableNameMinLength int64 = 0
+	DeviceRpsPortTableNameMaxLength int64 = 32
+)
+
+// DeviceRpsPortTablePortIDXMin and DeviceRpsPortTablePortIDXMax are the inclusive bounds the controller accepts for DeviceRpsPortTable.port_idx.
+const (
+	DeviceRpsPortTablePortIDXMin int64 = 1
+	DeviceRpsPortTablePortIDXMax int64 = 8
+)
+
 // DeviceRpsPortTablePortModeValues are the values the controller accepts for DeviceRpsPortTable.port_mode.
 var DeviceRpsPortTablePortModeValues = []string{"auto", "force_active", "manual", "disabled"}
 
 // DeviceSimDataSoftLimitDisplayUnitValues are the values the controller accepts for DeviceSim.data_soft_limit_display_unit.
 var DeviceSimDataSoftLimitDisplayUnitValues = []string{"MB", "GB"}
+
+// DeviceSimDataWarningThresholdMin and DeviceSimDataWarningThresholdMax are the inclusive bounds the controller accepts for DeviceSim.data_warning_threshold.
+const (
+	DeviceSimDataWarningThresholdMin int64 = 0
+	DeviceSimDataWarningThresholdMax int64 = 100
+)
+
+// DeviceSimResetDateMin and DeviceSimResetDateMax are the inclusive bounds the controller accepts for DeviceSim.reset_date.
+const (
+	DeviceSimResetDateMin int64 = 0
+	DeviceSimResetDateMax int64 = 31
+)
 
 // DeviceSimResetPolicyValues are the values the controller accepts for DeviceSim.reset_policy.
 var DeviceSimResetPolicyValues = []string{"day", "week", "month"}
@@ -960,6 +1344,12 @@ var DeviceSmaPortConfigDisplayValues = []string{"ns", "m", "ft"}
 // DeviceVideoInfoAudioModeValues are the values the controller accepts for DeviceVideoInfo.audio_mode.
 var DeviceVideoInfoAudioModeValues = []string{"auto", "pcm"}
 
+// DeviceVideoInfoChannelMin and DeviceVideoInfoChannelMax are the inclusive bounds the controller accepts for DeviceVideoInfo.channel.
+const (
+	DeviceVideoInfoChannelMin int64 = 2
+	DeviceVideoInfoChannelMax int64 = 9999
+)
+
 // DeviceVideoInfoColorFormatValues are the values the controller accepts for DeviceVideoInfo.color_format.
 var DeviceVideoInfoColorFormatValues = []string{"rgb", "ycbcr444", "ycbcr422"}
 
@@ -972,11 +1362,65 @@ var DeviceVideoInfoResolutionValues = []string{"auto", "1080p", "1440p", "4k"}
 // DeviceVideoInfoRoleValues are the values the controller accepts for DeviceVideoInfo.role.
 var DeviceVideoInfoRoleValues = []string{"host", "client"}
 
+// DeviceVideoInfoTvwallEndXMin and DeviceVideoInfoTvwallEndXMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_end_x.
+const (
+	DeviceVideoInfoTvwallEndXMin int64 = 2
+	DeviceVideoInfoTvwallEndXMax int64 = 5
+)
+
+// DeviceVideoInfoTvwallEndYMin and DeviceVideoInfoTvwallEndYMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_end_y.
+const (
+	DeviceVideoInfoTvwallEndYMin int64 = 2
+	DeviceVideoInfoTvwallEndYMax int64 = 5
+)
+
+// DeviceVideoInfoTvwallLayoutXMin and DeviceVideoInfoTvwallLayoutXMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_layout_x.
+const (
+	DeviceVideoInfoTvwallLayoutXMin int64 = 1
+	DeviceVideoInfoTvwallLayoutXMax int64 = 4
+)
+
+// DeviceVideoInfoTvwallLayoutYMin and DeviceVideoInfoTvwallLayoutYMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_layout_y.
+const (
+	DeviceVideoInfoTvwallLayoutYMin int64 = 1
+	DeviceVideoInfoTvwallLayoutYMax int64 = 4
+)
+
+// DeviceVideoInfoTvwallStartXMin and DeviceVideoInfoTvwallStartXMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_start_x.
+const (
+	DeviceVideoInfoTvwallStartXMin int64 = 2
+	DeviceVideoInfoTvwallStartXMax int64 = 5
+)
+
+// DeviceVideoInfoTvwallStartYMin and DeviceVideoInfoTvwallStartYMax are the inclusive bounds the controller accepts for DeviceVideoInfo.tvwall_start_y.
+const (
+	DeviceVideoInfoTvwallStartYMin int64 = 2
+	DeviceVideoInfoTvwallStartYMax int64 = 5
+)
+
+// DpiAppNameMinLength and DpiAppNameMaxLength are the character-count bounds the controller accepts for DpiApp.name.
+const (
+	DpiAppNameMinLength int64 = 1
+	DpiAppNameMaxLength int64 = 128
+)
+
+// DpiGroupNameMinLength and DpiGroupNameMaxLength are the character-count bounds the controller accepts for DpiGroup.name.
+const (
+	DpiGroupNameMinLength int64 = 1
+	DpiGroupNameMaxLength int64 = 128
+)
+
 // DynamicDNSServiceValues are the values the controller accepts for DynamicDNS.service.
 var DynamicDNSServiceValues = []string{"afraid", "changeip", "cloudflare", "cloudxns", "ddnss", "dhis", "dnsexit", "dnsomatic", "dnspark", "dnspod", "dslreports", "dtdns", "duckdns", "duiadns", "dyn", "dyndns", "dynv6", "easydns", "freemyip", "googledomains", "loopia", "namecheap", "noip", "nsupdate", "ovh", "sitelutions", "spdyn", "strato", "tunnelbroker", "zoneedit", "custom"}
 
 // FirewallGroupGroupTypeValues are the values the controller accepts for FirewallGroup.group_type.
 var FirewallGroupGroupTypeValues = []string{"address-group", "port-group", "ipv6-address-group"}
+
+// FirewallGroupNameMinLength and FirewallGroupNameMaxLength are the character-count bounds the controller accepts for FirewallGroup.name.
+const (
+	FirewallGroupNameMinLength int64 = 1
+	FirewallGroupNameMaxLength int64 = 64
+)
 
 // FirewallPolicyActionValues are the values the controller accepts for FirewallPolicy.action.
 var FirewallPolicyActionValues = []string{"ALLOW", "BLOCK", "REJECT"}
@@ -1026,6 +1470,12 @@ var FirewallRuleActionValues = []string{"drop", "reject", "accept"}
 // FirewallRuleDstNetworkTypeValues are the values the controller accepts for FirewallRule.dst_networkconf_type.
 var FirewallRuleDstNetworkTypeValues = []string{"ADDRv4", "NETv4"}
 
+// FirewallRuleNameMinLength and FirewallRuleNameMaxLength are the character-count bounds the controller accepts for FirewallRule.name.
+const (
+	FirewallRuleNameMinLength int64 = 1
+	FirewallRuleNameMaxLength int64 = 128
+)
+
 // FirewallRuleRulesetValues are the values the controller accepts for FirewallRule.ruleset.
 var FirewallRuleRulesetValues = []string{"WAN_IN", "WAN_OUT", "WAN_LOCAL", "LAN_IN", "LAN_OUT", "LAN_LOCAL", "GUEST_IN", "GUEST_OUT", "GUEST_LOCAL", "WANv6_IN", "WANv6_OUT", "WANv6_LOCAL", "LANv6_IN", "LANv6_OUT", "LANv6_LOCAL", "GUESTv6_IN", "GUESTv6_OUT", "GUESTv6_LOCAL"}
 
@@ -1034,6 +1484,24 @@ var FirewallRuleSettingPreferenceValues = []string{"auto", "manual"}
 
 // FirewallRuleSrcNetworkTypeValues are the values the controller accepts for FirewallRule.src_networkconf_type.
 var FirewallRuleSrcNetworkTypeValues = []string{"ADDRv4", "NETv4"}
+
+// Hotspot2ConfAnqpDomainIDMin and Hotspot2ConfAnqpDomainIDMax are the inclusive bounds the controller accepts for Hotspot2Conf.anqp_domain_id.
+const (
+	Hotspot2ConfAnqpDomainIDMin int64 = 0
+	Hotspot2ConfAnqpDomainIDMax int64 = 65535
+)
+
+// Hotspot2ConfDeauthReqTimeoutMin and Hotspot2ConfDeauthReqTimeoutMax are the inclusive bounds the controller accepts for Hotspot2Conf.deauth_req_timeout.
+const (
+	Hotspot2ConfDeauthReqTimeoutMin int64 = 10
+	Hotspot2ConfDeauthReqTimeoutMax int64 = 3600
+)
+
+// Hotspot2ConfDomainNameListMinLength and Hotspot2ConfDomainNameListMaxLength are the character-count bounds the controller accepts for Hotspot2Conf.domain_name_list.
+const (
+	Hotspot2ConfDomainNameListMinLength int64 = 1
+	Hotspot2ConfDomainNameListMaxLength int64 = 128
+)
 
 // Hotspot2ConfIPaddrTypeAvailV4Values are the values the controller accepts for Hotspot2Conf.ipaddr_type_avail_v4.
 var Hotspot2ConfIPaddrTypeAvailV4Values = []int64{0, 1, 2, 3, 4, 5, 6, 7}
@@ -1044,11 +1512,23 @@ var Hotspot2ConfIPaddrTypeAvailV6Values = []int64{0, 1, 2}
 // Hotspot2ConfMetricsInfoLinkStatusValues are the values the controller accepts for Hotspot2Conf.metrics_info_link_status.
 var Hotspot2ConfMetricsInfoLinkStatusValues = []string{"up", "down", "test"}
 
+// Hotspot2ConfNameMinLength and Hotspot2ConfNameMaxLength are the character-count bounds the controller accepts for Hotspot2Conf.name.
+const (
+	Hotspot2ConfNameMinLength int64 = 1
+	Hotspot2ConfNameMaxLength int64 = 128
+)
+
 // Hotspot2ConfNetworkAuthTypeValues are the values the controller accepts for Hotspot2Conf.network_auth_type.
 var Hotspot2ConfNetworkAuthTypeValues = []int64{-1, 0, 1, 2, 3}
 
 // Hotspot2ConfNetworkTypeValues are the values the controller accepts for Hotspot2Conf.network_type.
 var Hotspot2ConfNetworkTypeValues = []int64{0, 1, 2, 3, 4, 5, 14, 15}
+
+// Hotspot2ConfTCFilenameMinLength and Hotspot2ConfTCFilenameMaxLength are the character-count bounds the controller accepts for Hotspot2Conf.t_c_filename.
+const (
+	Hotspot2ConfTCFilenameMinLength int64 = 1
+	Hotspot2ConfTCFilenameMaxLength int64 = 256
+)
 
 // Hotspot2ConfVenueGroupValues are the values the controller accepts for Hotspot2Conf.venue_group.
 var Hotspot2ConfVenueGroupValues = []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
@@ -1056,11 +1536,59 @@ var Hotspot2ConfVenueGroupValues = []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 // Hotspot2ConfVenueTypeValues are the values the controller accepts for Hotspot2Conf.venue_type.
 var Hotspot2ConfVenueTypeValues = []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 
+// Hotspot2ConfCapabPortMin and Hotspot2ConfCapabPortMax are the inclusive bounds the controller accepts for Hotspot2ConfCapab.port.
+const (
+	Hotspot2ConfCapabPortMin int64 = 0
+	Hotspot2ConfCapabPortMax int64 = 65535
+)
+
 // Hotspot2ConfCapabProtocolValues are the values the controller accepts for Hotspot2ConfCapab.protocol.
 var Hotspot2ConfCapabProtocolValues = []string{"icmp", "tcp_udp", "tcp", "udp", "esp"}
 
 // Hotspot2ConfCapabStatusValues are the values the controller accepts for Hotspot2ConfCapab.status.
 var Hotspot2ConfCapabStatusValues = []string{"closed", "open", "unknown"}
+
+// Hotspot2ConfCellularNetworkListNameMinLength and Hotspot2ConfCellularNetworkListNameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfCellularNetworkList.name.
+const (
+	Hotspot2ConfCellularNetworkListNameMinLength int64 = 1
+	Hotspot2ConfCellularNetworkListNameMaxLength int64 = 128
+)
+
+// Hotspot2ConfDescriptionTextMinLength and Hotspot2ConfDescriptionTextMaxLength are the character-count bounds the controller accepts for Hotspot2ConfDescription.text.
+const (
+	Hotspot2ConfDescriptionTextMinLength int64 = 1
+	Hotspot2ConfDescriptionTextMaxLength int64 = 128
+)
+
+// Hotspot2ConfFriendlyNameTextMinLength and Hotspot2ConfFriendlyNameTextMaxLength are the character-count bounds the controller accepts for Hotspot2ConfFriendlyName.text.
+const (
+	Hotspot2ConfFriendlyNameTextMinLength int64 = 1
+	Hotspot2ConfFriendlyNameTextMaxLength int64 = 128
+)
+
+// Hotspot2ConfIconNameMinLength and Hotspot2ConfIconNameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfIcon.name.
+const (
+	Hotspot2ConfIconNameMinLength int64 = 1
+	Hotspot2ConfIconNameMaxLength int64 = 128
+)
+
+// Hotspot2ConfIconsFilenameMinLength and Hotspot2ConfIconsFilenameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfIcons.filename.
+const (
+	Hotspot2ConfIconsFilenameMinLength int64 = 1
+	Hotspot2ConfIconsFilenameMaxLength int64 = 256
+)
+
+// Hotspot2ConfIconsMediaMinLength and Hotspot2ConfIconsMediaMaxLength are the character-count bounds the controller accepts for Hotspot2ConfIcons.media.
+const (
+	Hotspot2ConfIconsMediaMinLength int64 = 1
+	Hotspot2ConfIconsMediaMaxLength int64 = 256
+)
+
+// Hotspot2ConfIconsNameMinLength and Hotspot2ConfIconsNameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfIcons.name.
+const (
+	Hotspot2ConfIconsNameMinLength int64 = 1
+	Hotspot2ConfIconsNameMaxLength int64 = 256
+)
 
 // Hotspot2ConfNaiRealmListEapMethodValues are the values the controller accepts for Hotspot2ConfNaiRealmList.eap_method.
 var Hotspot2ConfNaiRealmListEapMethodValues = []int64{13, 21, 18, 23, 50}
@@ -1068,8 +1596,50 @@ var Hotspot2ConfNaiRealmListEapMethodValues = []int64{13, 21, 18, 23, 50}
 // Hotspot2ConfNaiRealmListEncodingValues are the values the controller accepts for Hotspot2ConfNaiRealmList.encoding.
 var Hotspot2ConfNaiRealmListEncodingValues = []int64{0, 1}
 
+// Hotspot2ConfNaiRealmListNameMinLength and Hotspot2ConfNaiRealmListNameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfNaiRealmList.name.
+const (
+	Hotspot2ConfNaiRealmListNameMinLength int64 = 1
+	Hotspot2ConfNaiRealmListNameMaxLength int64 = 128
+)
+
+// Hotspot2ConfQOSMapExceptionsUpMin and Hotspot2ConfQOSMapExceptionsUpMax are the inclusive bounds the controller accepts for Hotspot2ConfQOSMapExceptions.up.
+const (
+	Hotspot2ConfQOSMapExceptionsUpMin int64 = 0
+	Hotspot2ConfQOSMapExceptionsUpMax int64 = 7
+)
+
+// Hotspot2ConfRoamingConsortiumListNameMinLength and Hotspot2ConfRoamingConsortiumListNameMaxLength are the character-count bounds the controller accepts for Hotspot2ConfRoamingConsortiumList.name.
+const (
+	Hotspot2ConfRoamingConsortiumListNameMinLength int64 = 1
+	Hotspot2ConfRoamingConsortiumListNameMaxLength int64 = 128
+)
+
+// Hotspot2ConfRoamingConsortiumListOidMinLength and Hotspot2ConfRoamingConsortiumListOidMaxLength are the character-count bounds the controller accepts for Hotspot2ConfRoamingConsortiumList.oid.
+const (
+	Hotspot2ConfRoamingConsortiumListOidMinLength int64 = 1
+	Hotspot2ConfRoamingConsortiumListOidMaxLength int64 = 128
+)
+
+// HotspotOpNameMinLength and HotspotOpNameMaxLength are the character-count bounds the controller accepts for HotspotOp.name.
+const (
+	HotspotOpNameMinLength int64 = 1
+	HotspotOpNameMaxLength int64 = 256
+)
+
+// HotspotOpPasswordMinLength and HotspotOpPasswordMaxLength are the character-count bounds the controller accepts for HotspotOp.x_password.
+const (
+	HotspotOpPasswordMinLength int64 = 1
+	HotspotOpPasswordMaxLength int64 = 256
+)
+
 // NatVersionValues are the values the controller accepts for Nat.ip_version.
 var NatVersionValues = []string{"IPV4", "IPV6"}
+
+// NatPortMin and NatPortMax are the inclusive bounds the controller accepts for Nat.port.
+const (
+	NatPortMin int64 = 1
+	NatPortMax int64 = 99999
+)
 
 // NatProtocolValues are the values the controller accepts for Nat.protocol.
 var NatProtocolValues = []string{"all", "tcp", "udp", "tcp_udp"}
@@ -1083,14 +1653,62 @@ var NatTypeValues = []string{"DNAT", "SNAT", "MASQUERADE"}
 // NatDestinationFilterFilterTypeValues are the values the controller accepts for NatDestinationFilter.filter_type.
 var NatDestinationFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}
 
+// NatDestinationFilterPortMin and NatDestinationFilterPortMax are the inclusive bounds the controller accepts for NatDestinationFilter.port.
+const (
+	NatDestinationFilterPortMin int64 = 1
+	NatDestinationFilterPortMax int64 = 99999
+)
+
 // NatSourceFilterFilterTypeValues are the values the controller accepts for NatSourceFilter.filter_type.
 var NatSourceFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}
+
+// NatSourceFilterPortMin and NatSourceFilterPortMax are the inclusive bounds the controller accepts for NatSourceFilter.port.
+const (
+	NatSourceFilterPortMin int64 = 1
+	NatSourceFilterPortMax int64 = 99999
+)
+
+// NetworkDHCPDBootFilenameMinLength and NetworkDHCPDBootFilenameMaxLength are the character-count bounds the controller accepts for Network.dhcpd_boot_filename.
+const (
+	NetworkDHCPDBootFilenameMinLength int64 = 1
+	NetworkDHCPDBootFilenameMaxLength int64 = 256
+)
+
+// NetworkDHCPDTimeOffsetMin and NetworkDHCPDTimeOffsetMax are the inclusive bounds the controller accepts for Network.dhcpd_time_offset.
+const (
+	NetworkDHCPDTimeOffsetMin int64 = -86400
+	NetworkDHCPDTimeOffsetMax int64 = 86400
+)
 
 // NetworkGatewayTypeValues are the values the controller accepts for Network.gateway_type.
 var NetworkGatewayTypeValues = []string{"default", "switch"}
 
+// NetworkIGMPGroupmembershipMin and NetworkIGMPGroupmembershipMax are the inclusive bounds the controller accepts for Network.igmp_groupmembership.
+const (
+	NetworkIGMPGroupmembershipMin int64 = 2
+	NetworkIGMPGroupmembershipMax int64 = 3600
+)
+
+// NetworkIGMPMaxresponseMin and NetworkIGMPMaxresponseMax are the inclusive bounds the controller accepts for Network.igmp_maxresponse.
+const (
+	NetworkIGMPMaxresponseMin int64 = 1
+	NetworkIGMPMaxresponseMax int64 = 25
+)
+
+// NetworkIGMPMcrtrexpiretimeMin and NetworkIGMPMcrtrexpiretimeMax are the inclusive bounds the controller accepts for Network.igmp_mcrtrexpiretime.
+const (
+	NetworkIGMPMcrtrexpiretimeMin int64 = 0
+	NetworkIGMPMcrtrexpiretimeMax int64 = 3600
+)
+
 // NetworkIGMPProxyForValues are the values the controller accepts for Network.igmp_proxy_for.
 var NetworkIGMPProxyForValues = []string{"all", "some", "none"}
+
+// NetworkInterfaceMtuMin and NetworkInterfaceMtuMax are the inclusive bounds the controller accepts for Network.interface_mtu.
+const (
+	NetworkInterfaceMtuMin int64 = 68
+	NetworkInterfaceMtuMax int64 = 65536
+)
 
 // NetworkIPSecDhGroupValues are the values the controller accepts for Network.ipsec_dh_group.
 var NetworkIPSecDhGroupValues = []int64{2, 5, 14, 15, 16, 19, 20, 21, 25, 26}
@@ -1107,6 +1725,12 @@ var NetworkIPSecEspEncryptionValues = []string{"aes128", "aes192", "aes256", "3d
 // NetworkIPSecEspHashValues are the values the controller accepts for Network.ipsec_esp_hash.
 var NetworkIPSecEspHashValues = []string{"sha1", "md5", "sha256", "sha384", "sha512"}
 
+// NetworkIPSecEspLifetimeMin and NetworkIPSecEspLifetimeMax are the inclusive bounds the controller accepts for Network.ipsec_esp_lifetime.
+const (
+	NetworkIPSecEspLifetimeMin int64 = 30
+	NetworkIPSecEspLifetimeMax int64 = 86400
+)
+
 // NetworkIPSecHashValues are the values the controller accepts for Network.ipsec_hash.
 var NetworkIPSecHashValues = []string{"sha1", "md5", "sha256", "sha384", "sha512"}
 
@@ -1118,6 +1742,12 @@ var NetworkIPSecIkeEncryptionValues = []string{"aes128", "aes192", "aes256", "3d
 
 // NetworkIPSecIkeHashValues are the values the controller accepts for Network.ipsec_ike_hash.
 var NetworkIPSecIkeHashValues = []string{"sha1", "md5", "sha256", "sha384", "sha512"}
+
+// NetworkIPSecIkeLifetimeMin and NetworkIPSecIkeLifetimeMax are the inclusive bounds the controller accepts for Network.ipsec_ike_lifetime.
+const (
+	NetworkIPSecIkeLifetimeMin int64 = 30
+	NetworkIPSecIkeLifetimeMax int64 = 86400
+)
 
 // NetworkIPSecKeyExchangeValues are the values the controller accepts for Network.ipsec_key_exchange.
 var NetworkIPSecKeyExchangeValues = []string{"ikev1", "ikev2"}
@@ -1143,26 +1773,104 @@ var NetworkIPV6WANDelegationTypeValues = []string{"pd", "single_network", "none"
 // NetworkL3InterfaceTypeValues are the values the controller accepts for Network.l3_interface_type.
 var NetworkL3InterfaceTypeValues = []string{"vlan", "port", "lag"}
 
+// NetworkLocalPortMin and NetworkLocalPortMax are the inclusive bounds the controller accepts for Network.local_port.
+const (
+	NetworkLocalPortMin int64 = 1
+	NetworkLocalPortMax int64 = 65535
+)
+
 // NetworkMssClampValues are the values the controller accepts for Network.mss_clamp.
 var NetworkMssClampValues = []string{"auto", "custom", "disabled"}
 
 // NetworkMssClampIPV6Values are the values the controller accepts for Network.mss_clamp_ipv6.
 var NetworkMssClampIPV6Values = []string{"auto", "custom", "disabled"}
 
+// NetworkMssClampMssMin and NetworkMssClampMssMax are the inclusive bounds the controller accepts for Network.mss_clamp_mss.
+const (
+	NetworkMssClampMssMin int64 = 500
+	NetworkMssClampMssMax int64 = 8960
+)
+
+// NetworkMssClampMssIPV6Min and NetworkMssClampMssIPV6Max are the inclusive bounds the controller accepts for Network.mss_clamp_mss_ipv6.
+const (
+	NetworkMssClampMssIPV6Min int64 = 500
+	NetworkMssClampMssIPV6Max int64 = 8960
+)
+
+// NetworkNameMinLength and NetworkNameMaxLength are the character-count bounds the controller accepts for Network.name.
+const (
+	NetworkNameMinLength int64 = 1
+	NetworkNameMaxLength int64 = 128
+)
+
 // NetworkOpenVPNEncryptionCipherValues are the values the controller accepts for Network.openvpn_encryption_cipher.
 var NetworkOpenVPNEncryptionCipherValues = []string{"AES_256_CBC", "BF_CBC"}
+
+// NetworkOpenVPNLocalPortMin and NetworkOpenVPNLocalPortMax are the inclusive bounds the controller accepts for Network.openvpn_local_port.
+const (
+	NetworkOpenVPNLocalPortMin int64 = 1
+	NetworkOpenVPNLocalPortMax int64 = 65535
+)
 
 // NetworkOpenVPNModeValues are the values the controller accepts for Network.openvpn_mode.
 var NetworkOpenVPNModeValues = []string{"site-to-site", "client", "server"}
 
+// NetworkOpenVPNRemotePortMin and NetworkOpenVPNRemotePortMax are the inclusive bounds the controller accepts for Network.openvpn_remote_port.
+const (
+	NetworkOpenVPNRemotePortMin int64 = 1
+	NetworkOpenVPNRemotePortMax int64 = 65535
+)
+
+// NetworkPptpcRouteDistanceMin and NetworkPptpcRouteDistanceMax are the inclusive bounds the controller accepts for Network.pptpc_route_distance.
+const (
+	NetworkPptpcRouteDistanceMin int64 = 1
+	NetworkPptpcRouteDistanceMax int64 = 255
+)
+
+// NetworkPriorityMin and NetworkPriorityMax are the inclusive bounds the controller accepts for Network.priority.
+const (
+	NetworkPriorityMin int64 = 1
+	NetworkPriorityMax int64 = 4
+)
+
 // NetworkPurposeValues are the values the controller accepts for Network.purpose.
 var NetworkPurposeValues = []string{"corporate", "guest", "remote-user-vpn", "site-vpn", "vlan-only", "vpn-client", "wan"}
+
+// NetworkRouteDistanceMin and NetworkRouteDistanceMax are the inclusive bounds the controller accepts for Network.route_distance.
+const (
+	NetworkRouteDistanceMin int64 = 1
+	NetworkRouteDistanceMax int64 = 255
+)
+
+// NetworkRoutedLagIDXMin and NetworkRoutedLagIDXMax are the inclusive bounds the controller accepts for Network.routed_lag_idx.
+const (
+	NetworkRoutedLagIDXMin int64 = 0
+	NetworkRoutedLagIDXMax int64 = 99
+)
+
+// NetworkRoutedPortIDXMin and NetworkRoutedPortIDXMax are the inclusive bounds the controller accepts for Network.routed_port_idx.
+const (
+	NetworkRoutedPortIDXMin int64 = 0
+	NetworkRoutedPortIDXMax int64 = 99
+)
 
 // NetworkSettingPreferenceValues are the values the controller accepts for Network.setting_preference.
 var NetworkSettingPreferenceValues = []string{"auto", "manual"}
 
+// NetworkUidPublicGatewayPortMin and NetworkUidPublicGatewayPortMax are the inclusive bounds the controller accepts for Network.uid_public_gateway_port.
+const (
+	NetworkUidPublicGatewayPortMin int64 = 1
+	NetworkUidPublicGatewayPortMax int64 = 65535
+)
+
 // NetworkUidVPNTypeValues are the values the controller accepts for Network.uid_vpn_type.
 var NetworkUidVPNTypeValues = []string{"openvpn", "wireguard"}
+
+// NetworkVLANMin and NetworkVLANMax are the inclusive bounds the controller accepts for Network.vlan.
+const (
+	NetworkVLANMin int64 = 2
+	NetworkVLANMax int64 = 4018
+)
 
 // NetworkVPNBindingModeValues are the values the controller accepts for Network.vpn_binding_mode.
 var NetworkVPNBindingModeValues = []string{"static", "interface", "any"}
@@ -1173,8 +1881,44 @@ var NetworkVPNProtocolValues = []string{"TCP", "UDP"}
 // NetworkVPNTypeValues are the values the controller accepts for Network.vpn_type.
 var NetworkVPNTypeValues = []string{"auto", "ipsec-vpn", "openvpn-client", "openvpn-server", "openvpn-vpn", "pptp-client", "l2tp-server", "pptp-server", "sdwan-hub-spoke-tunnel", "sdwan-mesh-tunnel", "uid-server", "wireguard-server", "wireguard-client"}
 
+// NetworkVrrpVridMin and NetworkVrrpVridMax are the inclusive bounds the controller accepts for Network.vrrp_vrid.
+const (
+	NetworkVrrpVridMin int64 = 1
+	NetworkVrrpVridMax int64 = 99
+)
+
+// NetworkWANDHCPCosMin and NetworkWANDHCPCosMax are the inclusive bounds the controller accepts for Network.wan_dhcp_cos.
+const (
+	NetworkWANDHCPCosMin int64 = 0
+	NetworkWANDHCPCosMax int64 = 7
+)
+
+// NetworkWANDHCPv6CosMin and NetworkWANDHCPv6CosMax are the inclusive bounds the controller accepts for Network.wan_dhcpv6_cos.
+const (
+	NetworkWANDHCPv6CosMin int64 = 0
+	NetworkWANDHCPv6CosMax int64 = 7
+)
+
+// NetworkWANDHCPv6PDSizeMin and NetworkWANDHCPv6PDSizeMax are the inclusive bounds the controller accepts for Network.wan_dhcpv6_pd_size.
+const (
+	NetworkWANDHCPv6PDSizeMin int64 = 48
+	NetworkWANDHCPv6PDSizeMax int64 = 64
+)
+
 // NetworkWANDNSPreferenceValues are the values the controller accepts for Network.wan_dns_preference.
 var NetworkWANDNSPreferenceValues = []string{"auto", "manual"}
+
+// NetworkWANEgressQOSMin and NetworkWANEgressQOSMax are the inclusive bounds the controller accepts for Network.wan_egress_qos.
+const (
+	NetworkWANEgressQOSMin int64 = 1
+	NetworkWANEgressQOSMax int64 = 7
+)
+
+// NetworkWANFailoverPriorityMin and NetworkWANFailoverPriorityMax are the inclusive bounds the controller accepts for Network.wan_failover_priority.
+const (
+	NetworkWANFailoverPriorityMin int64 = 1
+	NetworkWANFailoverPriorityMax int64 = 9
+)
 
 // NetworkWANIPV6DNSPreferenceValues are the values the controller accepts for Network.wan_ipv6_dns_preference.
 var NetworkWANIPV6DNSPreferenceValues = []string{"auto", "manual"}
@@ -1182,20 +1926,56 @@ var NetworkWANIPV6DNSPreferenceValues = []string{"auto", "manual"}
 // NetworkWANLoadBalanceTypeValues are the values the controller accepts for Network.wan_load_balance_type.
 var NetworkWANLoadBalanceTypeValues = []string{"failover-only", "weighted"}
 
+// NetworkWANLoadBalanceWeightMin and NetworkWANLoadBalanceWeightMax are the inclusive bounds the controller accepts for Network.wan_load_balance_weight.
+const (
+	NetworkWANLoadBalanceWeightMin int64 = 1
+	NetworkWANLoadBalanceWeightMax int64 = 99
+)
+
+// NetworkWANPrefixlenMin and NetworkWANPrefixlenMax are the inclusive bounds the controller accepts for Network.wan_prefixlen.
+const (
+	NetworkWANPrefixlenMin int64 = 1
+	NetworkWANPrefixlenMax int64 = 128
+)
+
 // NetworkWANTypeValues are the values the controller accepts for Network.wan_type.
 var NetworkWANTypeValues = []string{"disabled", "dhcp", "static", "pppoe", "dslite", "map-e,hubspoke", "map-e,jpix", "map-e,ntt", "dslite-over-pppoe"}
 
 // NetworkWANTypeV6Values are the values the controller accepts for Network.wan_type_v6.
 var NetworkWANTypeV6Values = []string{"disabled", "slaac", "dhcpv6", "static"}
 
+// NetworkWANVLANMin and NetworkWANVLANMax are the inclusive bounds the controller accepts for Network.wan_vlan.
+const (
+	NetworkWANVLANMin int64 = 0
+	NetworkWANVLANMax int64 = 4094
+)
+
 // NetworkWireguardClientModeValues are the values the controller accepts for Network.wireguard_client_mode.
 var NetworkWireguardClientModeValues = []string{"file", "manual"}
+
+// NetworkWireguardClientPeerPortMin and NetworkWireguardClientPeerPortMax are the inclusive bounds the controller accepts for Network.wireguard_client_peer_port.
+const (
+	NetworkWireguardClientPeerPortMin int64 = 1
+	NetworkWireguardClientPeerPortMax int64 = 65535
+)
 
 // NetworkWireguardInterfaceBindingModeIPVersionValues are the values the controller accepts for Network.wireguard_interface_binding_mode_ip_version.
 var NetworkWireguardInterfaceBindingModeIPVersionValues = []string{"v4", "v6"}
 
 // NetworkNATOutboundIPAddressesModeValues are the values the controller accepts for NetworkNATOutboundIPAddresses.mode.
 var NetworkNATOutboundIPAddressesModeValues = []string{"all", "ip_address", "ip_address_pool"}
+
+// NetworkWANDHCPOptionsOptionNumberMin and NetworkWANDHCPOptionsOptionNumberMax are the inclusive bounds the controller accepts for NetworkWANDHCPOptions.optionNumber.
+const (
+	NetworkWANDHCPOptionsOptionNumberMin int64 = 1
+	NetworkWANDHCPOptionsOptionNumberMax int64 = 254
+)
+
+// PortForwardNameMinLength and PortForwardNameMaxLength are the character-count bounds the controller accepts for PortForward.name.
+const (
+	PortForwardNameMinLength int64 = 1
+	PortForwardNameMaxLength int64 = 128
+)
 
 // PortForwardProtoValues are the values the controller accepts for PortForward.proto.
 var PortForwardProtoValues = []string{"tcp_udp", "tcp", "udp"}
@@ -1205,6 +1985,12 @@ var PortForwardSrcLimitingTypeValues = []string{"ip", "firewall_group"}
 
 // PortProfileDot1XCtrlValues are the values the controller accepts for PortProfile.dot1x_ctrl.
 var PortProfileDot1XCtrlValues = []string{"auto", "force_authorized", "force_unauthorized", "mac_based", "multi_host"}
+
+// PortProfileDot1XIDleTimeoutMin and PortProfileDot1XIDleTimeoutMax are the inclusive bounds the controller accepts for PortProfile.dot1x_idle_timeout.
+const (
+	PortProfileDot1XIDleTimeoutMin int64 = 0
+	PortProfileDot1XIDleTimeoutMax int64 = 65535
+)
 
 // PortProfileFecModeValues are the values the controller accepts for PortProfile.fec_mode.
 var PortProfileFecModeValues = []string{"rs-fec", "fc-fec", "default", "disabled"}
@@ -1218,14 +2004,56 @@ var PortProfileMulticastRouterModeValues = []string{"ALL", "CUSTOM", "NONE"}
 // PortProfilePoeModeValues are the values the controller accepts for PortProfile.poe_mode.
 var PortProfilePoeModeValues = []string{"auto", "off"}
 
+// PortProfilePriorityQueue1LevelMin and PortProfilePriorityQueue1LevelMax are the inclusive bounds the controller accepts for PortProfile.priority_queue1_level.
+const (
+	PortProfilePriorityQueue1LevelMin int64 = 0
+	PortProfilePriorityQueue1LevelMax int64 = 100
+)
+
+// PortProfilePriorityQueue2LevelMin and PortProfilePriorityQueue2LevelMax are the inclusive bounds the controller accepts for PortProfile.priority_queue2_level.
+const (
+	PortProfilePriorityQueue2LevelMin int64 = 0
+	PortProfilePriorityQueue2LevelMax int64 = 100
+)
+
+// PortProfilePriorityQueue3LevelMin and PortProfilePriorityQueue3LevelMax are the inclusive bounds the controller accepts for PortProfile.priority_queue3_level.
+const (
+	PortProfilePriorityQueue3LevelMin int64 = 0
+	PortProfilePriorityQueue3LevelMax int64 = 100
+)
+
+// PortProfilePriorityQueue4LevelMin and PortProfilePriorityQueue4LevelMax are the inclusive bounds the controller accepts for PortProfile.priority_queue4_level.
+const (
+	PortProfilePriorityQueue4LevelMin int64 = 0
+	PortProfilePriorityQueue4LevelMax int64 = 100
+)
+
 // PortProfileSettingPreferenceValues are the values the controller accepts for PortProfile.setting_preference.
 var PortProfileSettingPreferenceValues = []string{"auto", "manual"}
 
 // PortProfileSpeedValues are the values the controller accepts for PortProfile.speed.
 var PortProfileSpeedValues = []int64{10, 100, 1000, 2500, 5000, 10000, 20000, 25000, 40000, 50000, 100000}
 
+// PortProfileStormctrlBroadcastastLevelMin and PortProfileStormctrlBroadcastastLevelMax are the inclusive bounds the controller accepts for PortProfile.stormctrl_bcast_level.
+const (
+	PortProfileStormctrlBroadcastastLevelMin int64 = 0
+	PortProfileStormctrlBroadcastastLevelMax int64 = 100
+)
+
+// PortProfileStormctrlMcastLevelMin and PortProfileStormctrlMcastLevelMax are the inclusive bounds the controller accepts for PortProfile.stormctrl_mcast_level.
+const (
+	PortProfileStormctrlMcastLevelMin int64 = 0
+	PortProfileStormctrlMcastLevelMax int64 = 100
+)
+
 // PortProfileStormctrlTypeValues are the values the controller accepts for PortProfile.stormctrl_type.
 var PortProfileStormctrlTypeValues = []string{"level", "rate"}
+
+// PortProfileStormctrlUcastLevelMin and PortProfileStormctrlUcastLevelMax are the inclusive bounds the controller accepts for PortProfile.stormctrl_ucast_level.
+const (
+	PortProfileStormctrlUcastLevelMin int64 = 0
+	PortProfileStormctrlUcastLevelMax int64 = 100
+)
 
 // PortProfileStpEdgeStateValues are the values the controller accepts for PortProfile.stp_edge_state.
 var PortProfileStpEdgeStateValues = []string{"auto", "enabled", "disabled"}
@@ -1233,29 +2061,155 @@ var PortProfileStpEdgeStateValues = []string{"auto", "enabled", "disabled"}
 // PortProfileTaggedVLANMgmtValues are the values the controller accepts for PortProfile.tagged_vlan_mgmt.
 var PortProfileTaggedVLANMgmtValues = []string{"auto", "block_all", "custom"}
 
+// PortProfileQOSMarkingCosCodeMin and PortProfileQOSMarkingCosCodeMax are the inclusive bounds the controller accepts for PortProfileQOSMarking.cos_code.
+const (
+	PortProfileQOSMarkingCosCodeMin int64 = 0
+	PortProfileQOSMarkingCosCodeMax int64 = 7
+)
+
 // PortProfileQOSMarkingDscpCodeValues are the values the controller accepts for PortProfileQOSMarking.dscp_code.
 var PortProfileQOSMarkingDscpCodeValues = []int64{0, 8, 16, 24, 32, 40, 48, 56, 10, 12, 14, 18, 20, 22, 26, 28, 30, 34, 36, 38, 44, 46}
+
+// PortProfileQOSMarkingIPPrecedenceCodeMin and PortProfileQOSMarkingIPPrecedenceCodeMax are the inclusive bounds the controller accepts for PortProfileQOSMarking.ip_precedence_code.
+const (
+	PortProfileQOSMarkingIPPrecedenceCodeMin int64 = 0
+	PortProfileQOSMarkingIPPrecedenceCodeMax int64 = 7
+)
+
+// PortProfileQOSMarkingQueueMin and PortProfileQOSMarkingQueueMax are the inclusive bounds the controller accepts for PortProfileQOSMarking.queue.
+const (
+	PortProfileQOSMarkingQueueMin int64 = 0
+	PortProfileQOSMarkingQueueMax int64 = 7
+)
+
+// PortProfileQOSMatchingCosCodeMin and PortProfileQOSMatchingCosCodeMax are the inclusive bounds the controller accepts for PortProfileQOSMatching.cos_code.
+const (
+	PortProfileQOSMatchingCosCodeMin int64 = 0
+	PortProfileQOSMatchingCosCodeMax int64 = 7
+)
+
+// PortProfileQOSMatchingDscpCodeMin and PortProfileQOSMatchingDscpCodeMax are the inclusive bounds the controller accepts for PortProfileQOSMatching.dscp_code.
+const (
+	PortProfileQOSMatchingDscpCodeMin int64 = 0
+	PortProfileQOSMatchingDscpCodeMax int64 = 63
+)
+
+// PortProfileQOSMatchingDstPortMin and PortProfileQOSMatchingDstPortMax are the inclusive bounds the controller accepts for PortProfileQOSMatching.dst_port.
+const (
+	PortProfileQOSMatchingDstPortMin int64 = 0
+	PortProfileQOSMatchingDstPortMax int64 = 65535
+)
+
+// PortProfileQOSMatchingIPPrecedenceCodeMin and PortProfileQOSMatchingIPPrecedenceCodeMax are the inclusive bounds the controller accepts for PortProfileQOSMatching.ip_precedence_code.
+const (
+	PortProfileQOSMatchingIPPrecedenceCodeMin int64 = 0
+	PortProfileQOSMatchingIPPrecedenceCodeMax int64 = 7
+)
+
+// PortProfileQOSMatchingSrcPortMin and PortProfileQOSMatchingSrcPortMax are the inclusive bounds the controller accepts for PortProfileQOSMatching.src_port.
+const (
+	PortProfileQOSMatchingSrcPortMin int64 = 0
+	PortProfileQOSMatchingSrcPortMax int64 = 65535
+)
 
 // PortProfileQOSProfileQOSProfileModeValues are the values the controller accepts for PortProfileQOSProfile.qos_profile_mode.
 var PortProfileQOSProfileQOSProfileModeValues = []string{"custom", "unifi_play", "aes67_audio", "crestron_audio_video", "dante_audio", "ndi_aes67_audio", "ndi_dante_audio", "qsys_audio_video", "qsys_video_dante_audio", "sdvoe_aes67_audio", "sdvoe_dante_audio", "shure_audio"}
 
+// RADIUSProfileInterimUpdateIntervalMin and RADIUSProfileInterimUpdateIntervalMax are the inclusive bounds the controller accepts for RADIUSProfile.interim_update_interval.
+const (
+	RADIUSProfileInterimUpdateIntervalMin int64 = 60
+	RADIUSProfileInterimUpdateIntervalMax int64 = 86400
+)
+
+// RADIUSProfileNameMinLength and RADIUSProfileNameMaxLength are the character-count bounds the controller accepts for RADIUSProfile.name.
+const (
+	RADIUSProfileNameMinLength int64 = 1
+	RADIUSProfileNameMaxLength int64 = 128
+)
+
 // RADIUSProfileVLANWLANModeValues are the values the controller accepts for RADIUSProfile.vlan_wlan_mode.
 var RADIUSProfileVLANWLANModeValues = []string{"disabled", "optional", "required"}
+
+// RADIUSProfileAcctServersPortMin and RADIUSProfileAcctServersPortMax are the inclusive bounds the controller accepts for RADIUSProfileAcctServers.port.
+const (
+	RADIUSProfileAcctServersPortMin int64 = 1
+	RADIUSProfileAcctServersPortMax int64 = 65535
+)
+
+// RADIUSProfileAuthServersPortMin and RADIUSProfileAuthServersPortMax are the inclusive bounds the controller accepts for RADIUSProfileAuthServers.port.
+const (
+	RADIUSProfileAuthServersPortMin int64 = 1
+	RADIUSProfileAuthServersPortMax int64 = 65535
+)
 
 // RoutingGatewayTypeValues are the values the controller accepts for Routing.gateway_type.
 var RoutingGatewayTypeValues = []string{"default", "switch"}
 
+// RoutingNameMinLength and RoutingNameMaxLength are the character-count bounds the controller accepts for Routing.name.
+const (
+	RoutingNameMinLength int64 = 1
+	RoutingNameMaxLength int64 = 128
+)
+
+// RoutingStaticRouteDistanceMin and RoutingStaticRouteDistanceMax are the inclusive bounds the controller accepts for Routing.static-route_distance.
+const (
+	RoutingStaticRouteDistanceMin int64 = 1
+	RoutingStaticRouteDistanceMax int64 = 255
+)
+
 // RoutingStaticRouteTypeValues are the values the controller accepts for Routing.static-route_type.
 var RoutingStaticRouteTypeValues = []string{"nexthop-route", "interface-route", "blackhole"}
+
+// SpatialRecordNameMinLength and SpatialRecordNameMaxLength are the character-count bounds the controller accepts for SpatialRecord.name.
+const (
+	SpatialRecordNameMinLength int64 = 1
+	SpatialRecordNameMaxLength int64 = 128
+)
+
+// TrafficRouteDescriptionMinLength and TrafficRouteDescriptionMaxLength are the character-count bounds the controller accepts for TrafficRoute.description.
+const (
+	TrafficRouteDescriptionMinLength int64 = 0
+	TrafficRouteDescriptionMaxLength int64 = 128
+)
 
 // TrafficRouteMatchingTargetValues are the values the controller accepts for TrafficRoute.matching_target.
 var TrafficRouteMatchingTargetValues = []string{"DOMAIN", "IP", "INTERNET"}
 
+// TrafficRouteDomainsDomainMinLength and TrafficRouteDomainsDomainMaxLength are the character-count bounds the controller accepts for TrafficRouteDomains.domain.
+const (
+	TrafficRouteDomainsDomainMinLength int64 = 1
+	TrafficRouteDomainsDomainMaxLength int64 = 256
+)
+
+// TrafficRouteDomainsPortsMin and TrafficRouteDomainsPortsMax are the inclusive bounds the controller accepts for TrafficRouteDomains.ports.
+const (
+	TrafficRouteDomainsPortsMin int64 = 1
+	TrafficRouteDomainsPortsMax int64 = 99999
+)
+
 // TrafficRouteIPAddressesVersionValues are the values the controller accepts for TrafficRouteIPAddresses.ip_version.
 var TrafficRouteIPAddressesVersionValues = []string{"v4", "v6"}
 
+// TrafficRouteIPAddressesPortsMin and TrafficRouteIPAddressesPortsMax are the inclusive bounds the controller accepts for TrafficRouteIPAddresses.ports.
+const (
+	TrafficRouteIPAddressesPortsMin int64 = 1
+	TrafficRouteIPAddressesPortsMax int64 = 99999
+)
+
 // TrafficRouteIPRangesVersionValues are the values the controller accepts for TrafficRouteIPRanges.ip_version.
 var TrafficRouteIPRangesVersionValues = []string{"v4", "v6"}
+
+// TrafficRoutePortRangesStartMin and TrafficRoutePortRangesStartMax are the inclusive bounds the controller accepts for TrafficRoutePortRanges.port_start.
+const (
+	TrafficRoutePortRangesStartMin int64 = 1
+	TrafficRoutePortRangesStartMax int64 = 99999
+)
+
+// TrafficRoutePortRangesStopMin and TrafficRoutePortRangesStopMax are the inclusive bounds the controller accepts for TrafficRoutePortRanges.port_stop.
+const (
+	TrafficRoutePortRangesStopMin int64 = 1
+	TrafficRoutePortRangesStopMax int64 = 99999
+)
 
 // TrafficRouteTargetDevicesTypeValues are the values the controller accepts for TrafficRouteTargetDevices.type.
 var TrafficRouteTargetDevicesTypeValues = []string{"ALL_CLIENTS", "CLIENT", "NETWORK"}
@@ -1266,8 +2220,26 @@ var WLANApGroupModeValues = []string{"all", "groups", "devices"}
 // WLANDNSAssistanceModeValues are the values the controller accepts for WLAN.dns_assistance_mode.
 var WLANDNSAssistanceModeValues = []string{"off", "auto", "manual"}
 
+// WLANDTIM6EMin and WLANDTIM6EMax are the inclusive bounds the controller accepts for WLAN.dtim_6e.
+const (
+	WLANDTIM6EMin int64 = 1
+	WLANDTIM6EMax int64 = 255
+)
+
 // WLANDTIMModeValues are the values the controller accepts for WLAN.dtim_mode.
 var WLANDTIMModeValues = []string{"default", "custom"}
+
+// WLANDTIMNaMin and WLANDTIMNaMax are the inclusive bounds the controller accepts for WLAN.dtim_na.
+const (
+	WLANDTIMNaMin int64 = 1
+	WLANDTIMNaMax int64 = 255
+)
+
+// WLANDTIMNgMin and WLANDTIMNgMax are the inclusive bounds the controller accepts for WLAN.dtim_ng.
+const (
+	WLANDTIMNgMin int64 = 1
+	WLANDTIMNgMax int64 = 255
+)
 
 // WLANMACFilterPolicyValues are the values the controller accepts for WLAN.mac_filter_policy.
 var WLANMACFilterPolicyValues = []string{"allow", "deny"}
@@ -1277,6 +2249,24 @@ var WLANMdnsProxyModeValues = []string{"off", "auto", "custom"}
 
 // WLANMinrateSettingPreferenceValues are the values the controller accepts for WLAN.minrate_setting_preference.
 var WLANMinrateSettingPreferenceValues = []string{"auto", "manual"}
+
+// WLANNameMinLength and WLANNameMaxLength are the character-count bounds the controller accepts for WLAN.name.
+const (
+	WLANNameMinLength int64 = 1
+	WLANNameMaxLength int64 = 32
+)
+
+// WLANNameCombineSuffixMinLength and WLANNameCombineSuffixMaxLength are the character-count bounds the controller accepts for WLAN.name_combine_suffix.
+const (
+	WLANNameCombineSuffixMinLength int64 = 0
+	WLANNameCombineSuffixMaxLength int64 = 8
+)
+
+// WLANNasIDentifierMinLength and WLANNasIDentifierMaxLength are the character-count bounds the controller accepts for WLAN.nas_identifier.
+const (
+	WLANNasIDentifierMinLength int64 = 0
+	WLANNasIDentifierMaxLength int64 = 48
+)
 
 // WLANNasIDentifierTypeValues are the values the controller accepts for WLAN.nas_identifier_type.
 var WLANNasIDentifierTypeValues = []string{"ap_name", "ap_mac", "bssid", "site_name", "custom"}
@@ -1293,11 +2283,41 @@ var WLANPriorityValues = []string{"medium", "high", "low"}
 // WLANRADIUSMACaclFormatValues are the values the controller accepts for WLAN.radius_macacl_format.
 var WLANRADIUSMACaclFormatValues = []string{"none_lower", "hyphen_lower", "colon_lower", "none_upper", "hyphen_upper", "colon_upper"}
 
+// WLANRoamClusterIDMin and WLANRoamClusterIDMax are the inclusive bounds the controller accepts for WLAN.roam_cluster_id.
+const (
+	WLANRoamClusterIDMin int64 = 0
+	WLANRoamClusterIDMax int64 = 31
+)
+
+// WLANRoamingAssistant6ERssiMin and WLANRoamingAssistant6ERssiMax are the inclusive bounds the controller accepts for WLAN.roaming_assistant_6e_rssi.
+const (
+	WLANRoamingAssistant6ERssiMin int64 = -90
+	WLANRoamingAssistant6ERssiMax int64 = -70
+)
+
+// WLANRoamingAssistantNaRssiMin and WLANRoamingAssistantNaRssiMax are the inclusive bounds the controller accepts for WLAN.roaming_assistant_na_rssi.
+const (
+	WLANRoamingAssistantNaRssiMin int64 = -80
+	WLANRoamingAssistantNaRssiMax int64 = -60
+)
+
 // WLANSecurityValues are the values the controller accepts for WLAN.security.
 var WLANSecurityValues = []string{"open", "wpapsk", "wep", "wpaeap", "osen"}
 
 // WLANSettingPreferenceValues are the values the controller accepts for WLAN.setting_preference.
 var WLANSettingPreferenceValues = []string{"auto", "manual"}
+
+// WLANVLANMin and WLANVLANMax are the inclusive bounds the controller accepts for WLAN.vlan.
+const (
+	WLANVLANMin int64 = 2
+	WLANVLANMax int64 = 4095
+)
+
+// WLANWEPIDXMin and WLANWEPIDXMax are the inclusive bounds the controller accepts for WLAN.wep_idx.
+const (
+	WLANWEPIDXMin int64 = 1
+	WLANWEPIDXMax int64 = 4
+)
 
 // WLANWLANBandValues are the values the controller accepts for WLAN.wlan_band.
 var WLANWLANBandValues = []string{"2g", "5g", "both"}
@@ -1314,11 +2334,47 @@ var WLANWPAModeValues = []string{"auto", "wpa1", "wpa2"}
 // WLANWPAPskRADIUSValues are the values the controller accepts for WLAN.wpa_psk_radius.
 var WLANWPAPskRADIUSValues = []string{"disabled", "optional", "required"}
 
+// WLANCapabPortMin and WLANCapabPortMax are the inclusive bounds the controller accepts for WLANCapab.port.
+const (
+	WLANCapabPortMin int64 = 0
+	WLANCapabPortMax int64 = 65535
+)
+
 // WLANCapabProtocolValues are the values the controller accepts for WLANCapab.protocol.
 var WLANCapabProtocolValues = []string{"icmp", "tcp_udp", "tcp", "udp", "esp"}
 
 // WLANCapabStatusValues are the values the controller accepts for WLANCapab.status.
 var WLANCapabStatusValues = []string{"closed", "open", "unknown"}
+
+// WLANCellularNetworkListCountryCodeMin and WLANCellularNetworkListCountryCodeMax are the inclusive bounds the controller accepts for WLANCellularNetworkList.country_code.
+const (
+	WLANCellularNetworkListCountryCodeMin int64 = 1
+	WLANCellularNetworkListCountryCodeMax int64 = 9999
+)
+
+// WLANCellularNetworkListNameMinLength and WLANCellularNetworkListNameMaxLength are the character-count bounds the controller accepts for WLANCellularNetworkList.name.
+const (
+	WLANCellularNetworkListNameMinLength int64 = 1
+	WLANCellularNetworkListNameMaxLength int64 = 128
+)
+
+// WLANFriendlyNameTextMinLength and WLANFriendlyNameTextMaxLength are the character-count bounds the controller accepts for WLANFriendlyName.text.
+const (
+	WLANFriendlyNameTextMinLength int64 = 1
+	WLANFriendlyNameTextMaxLength int64 = 128
+)
+
+// WLANGroupNameMinLength and WLANGroupNameMaxLength are the character-count bounds the controller accepts for WLANGroup.name.
+const (
+	WLANGroupNameMinLength int64 = 1
+	WLANGroupNameMaxLength int64 = 128
+)
+
+// WLANHotspot2DomainNameListMinLength and WLANHotspot2DomainNameListMaxLength are the character-count bounds the controller accepts for WLANHotspot2.domain_name_list.
+const (
+	WLANHotspot2DomainNameListMinLength int64 = 1
+	WLANHotspot2DomainNameListMaxLength int64 = 128
+)
 
 // WLANHotspot2IPaddrTypeAvailV4Values are the values the controller accepts for WLANHotspot2.ipaddr_type_avail_v4.
 var WLANHotspot2IPaddrTypeAvailV4Values = []int64{0, 1, 2, 3, 4, 5, 6, 7}
@@ -1356,8 +2412,50 @@ var WLANNaiRealmListEapMethodValues = []int64{13, 21, 18, 23, 50}
 // WLANNaiRealmListEncodingValues are the values the controller accepts for WLANNaiRealmList.encoding.
 var WLANNaiRealmListEncodingValues = []int64{0, 1}
 
+// WLANNaiRealmListNameMinLength and WLANNaiRealmListNameMaxLength are the character-count bounds the controller accepts for WLANNaiRealmList.name.
+const (
+	WLANNaiRealmListNameMinLength int64 = 1
+	WLANNaiRealmListNameMaxLength int64 = 128
+)
+
 // WLANPredefinedServicesCodeValues are the values the controller accepts for WLANPredefinedServices.code.
 var WLANPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
 
+// WLANRoamingConsortiumListNameMinLength and WLANRoamingConsortiumListNameMaxLength are the character-count bounds the controller accepts for WLANRoamingConsortiumList.name.
+const (
+	WLANRoamingConsortiumListNameMinLength int64 = 1
+	WLANRoamingConsortiumListNameMaxLength int64 = 128
+)
+
+// WLANRoamingConsortiumListOidMinLength and WLANRoamingConsortiumListOidMaxLength are the character-count bounds the controller accepts for WLANRoamingConsortiumList.oid.
+const (
+	WLANRoamingConsortiumListOidMinLength int64 = 1
+	WLANRoamingConsortiumListOidMaxLength int64 = 128
+)
+
+// WLANSaePskIDMinLength and WLANSaePskIDMaxLength are the character-count bounds the controller accepts for WLANSaePsk.id.
+const (
+	WLANSaePskIDMinLength int64 = 0
+	WLANSaePskIDMaxLength int64 = 128
+)
+
+// WLANSaePskVLANMin and WLANSaePskVLANMax are the inclusive bounds the controller accepts for WLANSaePsk.vlan.
+const (
+	WLANSaePskVLANMin int64 = 0
+	WLANSaePskVLANMax int64 = 4095
+)
+
 // WLANScheduleWithDurationStartDaysOfWeekValues are the values the controller accepts for WLANScheduleWithDuration.start_days_of_week.
 var WLANScheduleWithDurationStartDaysOfWeekValues = []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
+
+// WLANScheduleWithDurationStartHourMin and WLANScheduleWithDurationStartHourMax are the inclusive bounds the controller accepts for WLANScheduleWithDuration.start_hour.
+const (
+	WLANScheduleWithDurationStartHourMin int64 = 0
+	WLANScheduleWithDurationStartHourMax int64 = 23
+)
+
+// WLANScheduleWithDurationStartMinuteMin and WLANScheduleWithDurationStartMinuteMax are the inclusive bounds the controller accepts for WLANScheduleWithDuration.start_minute.
+const (
+	WLANScheduleWithDurationStartMinuteMin int64 = 0
+	WLANScheduleWithDurationStartMinuteMax int64 = 59
+)

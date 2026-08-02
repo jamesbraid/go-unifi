@@ -237,11 +237,35 @@ var SettingDashboardLayoutPreferenceValues = []string{"auto", "manual"}
 // SettingDashboardWidgetsNameValues are the values the controller accepts for SettingDashboardWidgets.name.
 var SettingDashboardWidgetsNameValues = []string{"critical_traffic_prioritization", "cybersecure", "traffic_identification", "wifi_technology", "wifi_channels", "wifi_client_experience", "wifi_tx_retries", "most_active_apps_aps_clients", "most_active_apps_clients", "most_active_aps_clients", "most_active_apps_aps", "most_active_apps", "v2_most_active_aps", "v2_most_active_clients", "wifi_connectivity", "ap_radio_density", "wifi_channel_preset_configuration", "most_common_client_fingerprints", "wan_activity"}
 
+// SettingDeviceSupervisionHeartbeatIntervalSecondsMin and SettingDeviceSupervisionHeartbeatIntervalSecondsMax are the inclusive bounds the controller accepts for SettingDeviceSupervision.heartbeat_interval_seconds.
+const (
+	SettingDeviceSupervisionHeartbeatIntervalSecondsMin int64 = 60
+	SettingDeviceSupervisionHeartbeatIntervalSecondsMax int64 = 300
+)
+
+// SettingDeviceSupervisionPowerOffDurationSecondsMin and SettingDeviceSupervisionPowerOffDurationSecondsMax are the inclusive bounds the controller accepts for SettingDeviceSupervision.power_off_duration_seconds.
+const (
+	SettingDeviceSupervisionPowerOffDurationSecondsMin int64 = 60
+	SettingDeviceSupervisionPowerOffDurationSecondsMax int64 = 9000
+)
+
+// SettingDeviceSupervisionSilenceThresholdSecondsMin and SettingDeviceSupervisionSilenceThresholdSecondsMax are the inclusive bounds the controller accepts for SettingDeviceSupervision.silence_threshold_seconds.
+const (
+	SettingDeviceSupervisionSilenceThresholdSecondsMin int64 = 300
+	SettingDeviceSupervisionSilenceThresholdSecondsMax int64 = 9000
+)
+
 // SettingDohStateValues are the values the controller accepts for SettingDoh.state.
 var SettingDohStateValues = []string{"off", "auto", "manual", "custom"}
 
 // SettingGlobalApSixEChannelSizeValues are the values the controller accepts for SettingGlobalAp.6e_channel_size.
 var SettingGlobalApSixEChannelSizeValues = []int64{20, 40, 80, 160}
+
+// SettingGlobalApSixETxPowerMin and SettingGlobalApSixETxPowerMax are the inclusive bounds the controller accepts for SettingGlobalAp.6e_tx_power.
+const (
+	SettingGlobalApSixETxPowerMin int64 = 0
+	SettingGlobalApSixETxPowerMax int64 = 49
+)
 
 // SettingGlobalApSixETxPowerModeValues are the values the controller accepts for SettingGlobalAp.6e_tx_power_mode.
 var SettingGlobalApSixETxPowerModeValues = []string{"auto", "medium", "high", "low", "custom"}
@@ -249,11 +273,23 @@ var SettingGlobalApSixETxPowerModeValues = []string{"auto", "medium", "high", "l
 // SettingGlobalApNaChannelSizeValues are the values the controller accepts for SettingGlobalAp.na_channel_size.
 var SettingGlobalApNaChannelSizeValues = []int64{20, 40, 80, 160}
 
+// SettingGlobalApNaTxPowerMin and SettingGlobalApNaTxPowerMax are the inclusive bounds the controller accepts for SettingGlobalAp.na_tx_power.
+const (
+	SettingGlobalApNaTxPowerMin int64 = 0
+	SettingGlobalApNaTxPowerMax int64 = 49
+)
+
 // SettingGlobalApNaTxPowerModeValues are the values the controller accepts for SettingGlobalAp.na_tx_power_mode.
 var SettingGlobalApNaTxPowerModeValues = []string{"auto", "medium", "high", "low", "custom"}
 
 // SettingGlobalApNgChannelSizeValues are the values the controller accepts for SettingGlobalAp.ng_channel_size.
 var SettingGlobalApNgChannelSizeValues = []int64{20, 40}
+
+// SettingGlobalApNgTxPowerMin and SettingGlobalApNgTxPowerMax are the inclusive bounds the controller accepts for SettingGlobalAp.ng_tx_power.
+const (
+	SettingGlobalApNgTxPowerMin int64 = 0
+	SettingGlobalApNgTxPowerMax int64 = 49
+)
 
 // SettingGlobalApNgTxPowerModeValues are the values the controller accepts for SettingGlobalAp.ng_tx_power_mode.
 var SettingGlobalApNgTxPowerModeValues = []string{"auto", "medium", "high", "low", "custom"}
@@ -276,14 +312,38 @@ var SettingGuestAccessGatewayValues = []string{"paypal", "stripe", "authorize", 
 // SettingGuestAccessPortalCustomizedBgTypeValues are the values the controller accepts for SettingGuestAccess.portal_customized_bg_type.
 var SettingGuestAccessPortalCustomizedBgTypeValues = []string{"color", "image", "gallery"}
 
+// SettingGuestAccessPortalCustomizedBoxOpacityMin and SettingGuestAccessPortalCustomizedBoxOpacityMax are the inclusive bounds the controller accepts for SettingGuestAccess.portal_customized_box_opacity.
+const (
+	SettingGuestAccessPortalCustomizedBoxOpacityMin int64 = 1
+	SettingGuestAccessPortalCustomizedBoxOpacityMax int64 = 100
+)
+
+// SettingGuestAccessPortalCustomizedBoxRADIUSMin and SettingGuestAccessPortalCustomizedBoxRADIUSMax are the inclusive bounds the controller accepts for SettingGuestAccess.portal_customized_box_radius.
+const (
+	SettingGuestAccessPortalCustomizedBoxRADIUSMin int64 = 0
+	SettingGuestAccessPortalCustomizedBoxRADIUSMax int64 = 50
+)
+
 // SettingGuestAccessPortalCustomizedLogoPositionValues are the values the controller accepts for SettingGuestAccess.portal_customized_logo_position.
 var SettingGuestAccessPortalCustomizedLogoPositionValues = []string{"left", "center", "right"}
+
+// SettingGuestAccessPortalCustomizedLogoSizeMin and SettingGuestAccessPortalCustomizedLogoSizeMax are the inclusive bounds the controller accepts for SettingGuestAccess.portal_customized_logo_size.
+const (
+	SettingGuestAccessPortalCustomizedLogoSizeMin int64 = 64
+	SettingGuestAccessPortalCustomizedLogoSizeMax int64 = 192
+)
 
 // SettingGuestAccessPortalCustomizedWelcomeTextPositionValues are the values the controller accepts for SettingGuestAccess.portal_customized_welcome_text_position.
 var SettingGuestAccessPortalCustomizedWelcomeTextPositionValues = []string{"under_logo", "above_boxes"}
 
 // SettingGuestAccessRADIUSAuthTypeValues are the values the controller accepts for SettingGuestAccess.radius_auth_type.
 var SettingGuestAccessRADIUSAuthTypeValues = []string{"chap", "mschapv2"}
+
+// SettingGuestAccessRADIUSDisconnectPortMin and SettingGuestAccessRADIUSDisconnectPortMax are the inclusive bounds the controller accepts for SettingGuestAccess.radius_disconnect_port.
+const (
+	SettingGuestAccessRADIUSDisconnectPortMin int64 = 1
+	SettingGuestAccessRADIUSDisconnectPortMax int64 = 65535
+)
 
 // SettingIgmpSnoopingQuerierModeValues are the values the controller accepts for SettingIgmpSnooping.querier_mode.
 var SettingIgmpSnoopingQuerierModeValues = []string{"PRIMARY_AND_FAILOVER", "CUSTOM", "OFF"}
@@ -293,6 +353,12 @@ var SettingIgmpSnoopingQuerierSubscriptionModeValues = []string{"ALL", "CUSTOM"}
 
 // SettingIgmpSnoopingSubscriptionModeValues are the values the controller accepts for SettingIgmpSnooping.subscription_mode.
 var SettingIgmpSnoopingSubscriptionModeValues = []string{"ALL", "CUSTOM"}
+
+// SettingIgmpSnoopingQuerierAddressesQueryIntervalMin and SettingIgmpSnoopingQuerierAddressesQueryIntervalMax are the inclusive bounds the controller accepts for SettingIgmpSnoopingQuerierAddresses.query_interval.
+const (
+	SettingIgmpSnoopingQuerierAddressesQueryIntervalMin int64 = 30
+	SettingIgmpSnoopingQuerierAddressesQueryIntervalMax int64 = 180
+)
 
 // SettingIpsEnabledCategoriesValues are the values the controller accepts for SettingIps.enabled_categories.
 var SettingIpsEnabledCategoriesValues = []string{"emerging-activex", "emerging-attackresponse", "botcc", "emerging-chat", "ciarmy", "compromised", "emerging-dns", "emerging-dos", "dshield", "emerging-exploit", "emerging-ftp", "emerging-games", "emerging-icmp", "emerging-icmpinfo", "emerging-imap", "emerging-inappropriate", "emerging-info", "emerging-malware", "emerging-misc", "emerging-mobile", "emerging-netbios", "emerging-p2p", "emerging-policy", "emerging-pop3", "emerging-rpc", "emerging-scada", "emerging-scan", "emerging-shellcode", "emerging-smtp", "emerging-snmp", "emerging-sql", "emerging-telnet", "emerging-tftp", "tor", "emerging-useragent", "emerging-voip", "emerging-webapps", "emerging-webclient", "emerging-webserver", "emerging-worm", "exploit-kit", "adware-pup", "botcc-portgrouped", "phishing", "threatview-cs-c2", "3coresec", "chat", "coinminer", "current-events", "drop", "hunting", "icmp-info", "inappropriate", "info", "ja3", "policy", "scada", "dark-web-blocker-list", "malicious-hosts"}
@@ -318,14 +384,50 @@ var SettingIpsSuppressionWhitelistDirectionValues = []string{"both", "src", "des
 // SettingIpsSuppressionWhitelistModeValues are the values the controller accepts for SettingIpsSuppressionWhitelist.mode.
 var SettingIpsSuppressionWhitelistModeValues = []string{"ip", "subnet", "network"}
 
+// SettingLcmBrightnessMin and SettingLcmBrightnessMax are the inclusive bounds the controller accepts for SettingLcm.brightness.
+const (
+	SettingLcmBrightnessMin int64 = 1
+	SettingLcmBrightnessMax int64 = 100
+)
+
+// SettingLcmIDleTimeoutMin and SettingLcmIDleTimeoutMax are the inclusive bounds the controller accepts for SettingLcm.idle_timeout.
+const (
+	SettingLcmIDleTimeoutMin int64 = 10
+	SettingLcmIDleTimeoutMax int64 = 3600
+)
+
 // SettingMdnsModeValues are the values the controller accepts for SettingMdns.mode.
 var SettingMdnsModeValues = []string{"all", "auto", "custom"}
 
 // SettingMdnsPredefinedServicesCodeValues are the values the controller accepts for SettingMdnsPredefinedServices.code.
 var SettingMdnsPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
 
+// SettingMgmtAutoUpgradeHourMin and SettingMgmtAutoUpgradeHourMax are the inclusive bounds the controller accepts for SettingMgmt.auto_upgrade_hour.
+const (
+	SettingMgmtAutoUpgradeHourMin int64 = 0
+	SettingMgmtAutoUpgradeHourMax int64 = 23
+)
+
+// SettingMgmtSSHPasswordMinLength and SettingMgmtSSHPasswordMaxLength are the character-count bounds the controller accepts for SettingMgmt.x_ssh_password.
+const (
+	SettingMgmtSSHPasswordMinLength int64 = 1
+	SettingMgmtSSHPasswordMaxLength int64 = 128
+)
+
+// SettingNetflowPortMin and SettingNetflowPortMax are the inclusive bounds the controller accepts for SettingNetflow.port.
+const (
+	SettingNetflowPortMin int64 = 1024
+	SettingNetflowPortMax int64 = 65535
+)
+
 // SettingNetflowSamplingModeValues are the values the controller accepts for SettingNetflow.sampling_mode.
 var SettingNetflowSamplingModeValues = []string{"off", "hash", "random", "deterministic"}
+
+// SettingNetflowSamplingRateMin and SettingNetflowSamplingRateMax are the inclusive bounds the controller accepts for SettingNetflow.sampling_rate.
+const (
+	SettingNetflowSamplingRateMin int64 = 2
+	SettingNetflowSamplingRateMax int64 = 16383
+)
 
 // SettingNetflowVersionValues are the values the controller accepts for SettingNetflow.version.
 var SettingNetflowVersionValues = []int64{5, 9, 10}
@@ -369,8 +471,44 @@ var SettingRadioAiRadiosConfigurationChannelWidthValues = []int64{20, 40, 80, 16
 // SettingRadioAiRadiosConfigurationRadioValues are the values the controller accepts for SettingRadioAiRadiosConfiguration.radio.
 var SettingRadioAiRadiosConfigurationRadioValues = []string{"na", "ng", "6e"}
 
+// SettingRadiusAcctPortMin and SettingRadiusAcctPortMax are the inclusive bounds the controller accepts for SettingRadius.acct_port.
+const (
+	SettingRadiusAcctPortMin int64 = 1
+	SettingRadiusAcctPortMax int64 = 65535
+)
+
+// SettingRadiusAuthPortMin and SettingRadiusAuthPortMax are the inclusive bounds the controller accepts for SettingRadius.auth_port.
+const (
+	SettingRadiusAuthPortMin int64 = 1
+	SettingRadiusAuthPortMax int64 = 65535
+)
+
+// SettingRadiusInterimUpdateIntervalMin and SettingRadiusInterimUpdateIntervalMax are the inclusive bounds the controller accepts for SettingRadius.interim_update_interval.
+const (
+	SettingRadiusInterimUpdateIntervalMin int64 = 60
+	SettingRadiusInterimUpdateIntervalMax int64 = 86400
+)
+
 // SettingRsyslogdContentsValues are the values the controller accepts for SettingRsyslogd.contents.
 var SettingRsyslogdContentsValues = []string{"device", "client", "firewall_default_policy", "triggers", "updates", "admin_activity", "critical", "security_detections", "vpn", "gateway", "access_points", "switches"}
+
+// SettingRsyslogdNetconsolePortMin and SettingRsyslogdNetconsolePortMax are the inclusive bounds the controller accepts for SettingRsyslogd.netconsole_port.
+const (
+	SettingRsyslogdNetconsolePortMin int64 = 1
+	SettingRsyslogdNetconsolePortMax int64 = 65535
+)
+
+// SettingRsyslogdPortMin and SettingRsyslogdPortMax are the inclusive bounds the controller accepts for SettingRsyslogd.port.
+const (
+	SettingRsyslogdPortMin int64 = 1
+	SettingRsyslogdPortMax int64 = 65535
+)
+
+// SettingSnmpCommunityMinLength and SettingSnmpCommunityMaxLength are the character-count bounds the controller accepts for SettingSnmp.community.
+const (
+	SettingSnmpCommunityMinLength int64 = 1
+	SettingSnmpCommunityMaxLength int64 = 256
+)
 
 // SettingSslInspectionStateValues are the values the controller accepts for SettingSslInspection.state.
 var SettingSslInspectionStateValues = []string{"off", "simple", "advanced"}
@@ -396,11 +534,47 @@ var SettingSuperMgmtLiveChatValues = []string{"disabled", "super-only", "everyon
 // SettingSuperMgmtStoreEnabledValues are the values the controller accepts for SettingSuperMgmt.store_enabled.
 var SettingSuperMgmtStoreEnabledValues = []string{"disabled", "super-only", "everyone"}
 
+// SettingSuperSmtpPortMin and SettingSuperSmtpPortMax are the inclusive bounds the controller accepts for SettingSuperSmtp.port.
+const (
+	SettingSuperSmtpPortMin int64 = 1
+	SettingSuperSmtpPortMax int64 = 65535
+)
+
+// SettingUsgArpCacheBaseReachableMin and SettingUsgArpCacheBaseReachableMax are the inclusive bounds the controller accepts for SettingUsg.arp_cache_base_reachable.
+const (
+	SettingUsgArpCacheBaseReachableMin int64 = 1
+	SettingUsgArpCacheBaseReachableMax int64 = 99999
+)
+
 // SettingUsgArpCacheTimeoutValues are the values the controller accepts for SettingUsg.arp_cache_timeout.
 var SettingUsgArpCacheTimeoutValues = []string{"normal", "min-dhcp-lease", "custom"}
 
+// SettingUsgDHCPRelayHopCountMin and SettingUsgDHCPRelayHopCountMax are the inclusive bounds the controller accepts for SettingUsg.dhcp_relay_hop_count.
+const (
+	SettingUsgDHCPRelayHopCountMin int64 = 1
+	SettingUsgDHCPRelayHopCountMax int64 = 255
+)
+
+// SettingUsgDHCPRelayMaxSizeMin and SettingUsgDHCPRelayMaxSizeMax are the inclusive bounds the controller accepts for SettingUsg.dhcp_relay_max_size.
+const (
+	SettingUsgDHCPRelayMaxSizeMin int64 = 64
+	SettingUsgDHCPRelayMaxSizeMax int64 = 1400
+)
+
+// SettingUsgDHCPRelayPortMin and SettingUsgDHCPRelayPortMax are the inclusive bounds the controller accepts for SettingUsg.dhcp_relay_port.
+const (
+	SettingUsgDHCPRelayPortMin int64 = 1
+	SettingUsgDHCPRelayPortMax int64 = 65535
+)
+
 // SettingUsgMssClampValues are the values the controller accepts for SettingUsg.mss_clamp.
 var SettingUsgMssClampValues = []string{"auto", "custom", "disabled"}
+
+// SettingUsgMssClampMssMin and SettingUsgMssClampMssMax are the inclusive bounds the controller accepts for SettingUsg.mss_clamp_mss.
+const (
+	SettingUsgMssClampMssMin int64 = 100
+	SettingUsgMssClampMssMax int64 = 9999
+)
 
 // SettingUsgTimeoutSettingPreferenceValues are the values the controller accepts for SettingUsg.timeout_setting_preference.
 var SettingUsgTimeoutSettingPreferenceValues = []string{"auto", "manual"}

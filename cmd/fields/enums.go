@@ -94,31 +94,53 @@ var FieldValidationPatterns = map[string]map[string]string{
 	}
 	buf.WriteString("}\n")
 
+	// numericRange scans a large domain per pattern, and patterns repeat
+	// across fields, so resolve each one once.
+	type bounds struct {
+		low, high int64
+		ok        bool
+	}
+	rangeCache := map[string]bounds{}
+
 	for _, e := range entries {
-		name := e.TypeName + e.FieldName + "Values"
-		switch {
-		case e.FieldType == fields.Int:
-			values := enumInt64Values(e.Pattern)
-			if values == nil {
+		prefix := e.TypeName + e.FieldName
+		values := prefix + "Values"
+
+		if e.FieldType == fields.Int {
+			if vs := enumInt64Values(e.Pattern); vs != nil {
+				parts := make([]string, len(vs))
+				for i, v := range vs {
+					parts[i] = strconv.FormatInt(v, 10)
+				}
+				fmt.Fprintf(&buf, "\n// %s are the values the controller accepts for %s.%s.\nvar %s = []int64{%s}\n",
+					values, e.TypeName, e.JSONName, values, strings.Join(parts, ", "))
 				continue
 			}
-			parts := make([]string, len(values))
-			for i, v := range values {
-				parts[i] = strconv.FormatInt(v, 10)
+			b, cached := rangeCache[e.Pattern]
+			if !cached {
+				b.low, b.high, b.ok = numericRange(e.Pattern)
+				rangeCache[e.Pattern] = b
 			}
-			fmt.Fprintf(&buf, "\n// %s are the values the controller accepts for %s.%s.\nvar %s = []int64{%s}\n",
-				name, e.TypeName, e.JSONName, name, strings.Join(parts, ", "))
-		default:
-			values := enumValues(e.Pattern)
-			if values == nil {
-				continue
+			if b.ok {
+				fmt.Fprintf(&buf, "\n// %sMin and %sMax are the inclusive bounds the controller accepts for %s.%s.\nconst (\n\t%sMin int64 = %d\n\t%sMax int64 = %d\n)\n",
+					prefix, prefix, e.TypeName, e.JSONName, prefix, b.low, prefix, b.high)
 			}
-			parts := make([]string, len(values))
-			for i, v := range values {
+			continue
+		}
+
+		if vs := enumValues(e.Pattern); vs != nil {
+			parts := make([]string, len(vs))
+			for i, v := range vs {
 				parts[i] = strconv.Quote(v)
 			}
 			fmt.Fprintf(&buf, "\n// %s are the values the controller accepts for %s.%s.\nvar %s = []string{%s}\n",
-				name, e.TypeName, e.JSONName, name, strings.Join(parts, ", "))
+				values, e.TypeName, e.JSONName, values, strings.Join(parts, ", "))
+			continue
+		}
+
+		if low, high, ok := lengthBounds(e.Pattern); ok {
+			fmt.Fprintf(&buf, "\n// %sMinLength and %sMaxLength are the character-count bounds the controller accepts for %s.%s.\nconst (\n\t%sMinLength int64 = %d\n\t%sMaxLength int64 = %d\n)\n",
+				prefix, prefix, e.TypeName, e.JSONName, prefix, low, prefix, high)
 		}
 	}
 
