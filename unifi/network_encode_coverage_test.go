@@ -48,14 +48,28 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	// which actually forwards multicast, might.
 	"igmp_proxy_downstream_networkconf_ids",
 
-	// probe 2026-07 (10.0.162 sim controller): REJECTED, api.err.UnrecognizedLocalIp
-	// on sibling field ipsec_local_ip. These are route-based (ipsec_dynamic_routing
-	// true) site-vpn fields; the controller requires ipsec_local_ip to be a real
-	// address bound to an adopted gateway's WAN interface, which this bare
-	// container-only simulation (no adopted hardware) cannot provide. Every other
-	// prerequisite (PSK, profile, phase 1/2 params, remote subnets, the tunnel_ip
-	// value itself) was supplied and did not change the outcome -- see
-	// mergeRouteBasedPrereq in network_field_candidates_test.go.
+	// probe 2026-08 (10.4.57 sim controller): PERSISTED, all three. Wiring
+	// them into marshalSiteVPN is a separate change; until then they stay
+	// here so the coverage test keeps passing, and this comment -- not the
+	// entry's presence -- is the record of what was measured.
+	//
+	// The earlier "REJECTED, api.err.UnrecognizedLocalIp" recorded against
+	// these was never a verdict about the fields. It described the probe's
+	// own ipsec_local_ip: a literal 198.51.100.5 the site did not own. The
+	// controller's rule is set membership, and the set is built from site
+	// configuration -- the addresses of enabled corporate/guest networks and
+	// the wan_ip of every enabled STATIC WAN. Giving the site a static WAN
+	// and using its stored wan_ip cleared it, and all three fields came back
+	// from a re-read of the stored document.
+	//
+	// Two things this rules out, both measured rather than assumed
+	// (TestIntegrationGatewayIPSecLocalIP):
+	//   - Hardware is not the gate. An adopted UXGENT reports no wan1..wan9
+	//     sub-document at all, so the device arm of the check contributes
+	//     nothing; the ungated probe clears the rule with no device present.
+	//   - A WAN network is not enough on its own. Adopting a gateway seeds a
+	//     DHCP "Internet 1" WAN, and a DHCP WAN has no wan_ip to contribute --
+	//     the rule wants a static one.
 	"ipsec_tunnel_ip",
 	"ipsec_tunnel_ip_enabled",
 	"remote_vpn_dynamic_subnets_enabled",
