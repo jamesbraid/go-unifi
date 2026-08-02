@@ -45,24 +45,28 @@ func TestIntegrationV2Drift(t *testing.T) {
 
 	// A fresh simulation controller starts with every v2 collection empty, so
 	// the drift subtests below skip on "no live objects to compare" unless the
-	// collection is seeded. static-dns is the one collection a gateway-less sim
-	// accepts a POST into, so seed one DNS record to exercise DnsRecord.json (a
-	// failed seed fails the test rather than silently skipping). ApGroups is
-	// pre-seeded by the controller, so it compares too.
+	// collection is seeded. ApGroups is pre-seeded by the controller, so it
+	// compares as-is; static-dns and firewall/zone are seeded here. A failed
+	// seed fails the test rather than silently skipping — a silent skip is
+	// indistinguishable from a pass and is exactly how the zone write below
+	// stayed hidden for so long.
 	//
-	// The other seven can NOT be seeded on this bare container harness. Each
-	// endpoint was re-probed 2026-07-21 with schema-correct payloads (POST and
-	// PUT); they all require adopted gateway hardware the simulation lacks --
-	// the same limitation that leaves the ipsec/site-vpn encoder fields
-	// REJECTED (see networkEncoderPresenceAllowlistTODOs):
-	//   BgpConfig            404 api.err.BgpUnsupportedDevice ("Device doesn't support BGP")
-	//   FirewallZone         404 api.err.CouldNotFindHotspotFirewallZone
-	//   FirewallPolicy       needs source/destination zone ids (blocked on FirewallZone)
-	//   Nat, TrafficRoute    need WAN in/out interfaces and a next hop
-	//   OSPFRouter           needs a supporting device
+	// The remaining six are not seeded. TestIntegrationGatewayFeatureGate
+	// re-probed them 2026-07-24, once with an emulated UXGENT gateway adopted
+	// and once with no gateway at all; the two runs answer identically, so
+	// adopted gateway hardware is not what any of this turned on:
+	//   BgpConfig            needs an adopted gateway that claims the BGP
+	//                        capability bit, which no bare harness has --
+	//                        covered by TestIntegrationSeededUOSBgpConfig
+	//   FirewallPolicy       needs source/destination zone ids
+	//   Nat, TrafficRoute    seedable -- they need a WAN networkconf, which the
+	//                        demo site lacks and adoption does not create
+	//   OSPFRouter           seedable -- needs a non-empty areas list and a
+	//                        lowercase area_type ("normal", not "NORMAL")
 	//   NetworkMembersGroup  405 -- the v2 collection is not POST-writable here
-	// Seeding these needs a gateway-adopted harness (UniFi OS Server), not more
-	// payload fixtures; until then the drift gate covers static-dns and apgroups.
+	// Promoting the three seedable schemas into this gate is a follow-up.
+	seedFirewallZone(ctx, t, c, s)
+
 	seed := map[string]any{
 		"enabled":     true,
 		"key":         "probe.example.com",
@@ -138,4 +142,72 @@ func TestIntegrationV2Drift(t *testing.T) {
 			}
 		})
 	}
+}
+
+// seedFirewallZone lands one firewall zone so FirewallZone.json has a live
+// object to compare against.
+//
+// POST /v2/api/site/{site}/firewall/zone answers 404
+// api.err.CouldNotFindHotspotFirewallZone and PERSISTS THE ZONE ANYWAY: the
+// handler writes the object, then throws looking for a "hotspot" zone the site
+// has never had. Every probe before 2026-07-24 classified that 404 as "gated,
+// nothing created" because none of them read the collection back. The status is
+// therefore not a result here — only the collection read below is.
+//
+// CALL THIS BEFORE ANYTHING READS THE ZONE COLLECTION, and do NOT add a
+// "does one already exist?" pre-read to it. A GET on the collection before
+// the first POST stops that POST persisting: measured 2026-07-25 on one
+// standalone -sim boot across four sites, a POST issued as the site's first
+// zone call landed immediately (2/2 sites) while a POST after a pre-read
+// landed nothing — an earlier run retried twenty times over five minutes
+// after a pre-read and never landed one. The v2Probes loop below GETs this
+// collection, so seeding after it silently stops working and FirewallZone
+// goes back to skipping, which reads like success.
+//
+// No adopted gateway is required, which the same run settled: all four sites
+// were on a plain gateway-less controllertest.Start, so the pre-read is the
+// whole story and the gateway never was. That is what lets this live in the
+// base gate rather than behind UNIFI_GATEWAY_TEST.
+//
+// Only the first POST per site lands; a second answers the same 404 and
+// creates nothing. One zone per site is all a drift comparison needs.
+func seedFirewallZone(ctx context.Context, t *testing.T, c *controllertest.Controller, s *controllertest.Session) {
+	t.Helper()
+
+	const zoneName = "drift-probe-zone"
+	path := fmt.Sprintf("/v2/api/site/%s/firewall/zone", c.Site)
+
+	body, status, err := s.PostJSON(ctx, path, map[string]any{
+		"name":        zoneName,
+		"network_ids": []string{},
+	})
+	if err != nil {
+		t.Fatalf("seed firewall zone: transport error: %v", err)
+	}
+	t.Logf("seed firewall zone: POST answered HTTP %d (expected 404, the write lands anyway): %v", status, body)
+
+	zones, status, err := s.GetJSON(ctx, path)
+	if err != nil || status != 200 {
+		t.Fatalf("seed firewall zone: list back: status=%d err=%v", status, err)
+	}
+	list, ok := zones.([]any)
+	if !ok {
+		t.Fatalf("seed firewall zone: collection is not a list: %v", zones)
+	}
+	for _, item := range list {
+		z, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if n, _ := z["name"].(string); n == zoneName {
+			return
+		}
+	}
+	// Loud on purpose. Skipping here would hide both a controller change and
+	// the far likelier cause: something started reading this collection before
+	// the seed runs.
+	t.Fatalf("seed firewall zone: %q absent after the POST. Either this controller "+
+		"no longer persists the rejected write, or something read %s before the seed "+
+		"did — a pre-read stops the write landing. Collection: %v",
+		zoneName, path, zones)
 }

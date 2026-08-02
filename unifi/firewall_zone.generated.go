@@ -33,10 +33,34 @@ type FirewallZone struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	DefaultZone *bool    `json:"default_zone,omitempty"`
-	Name        string   `json:"name,omitempty"`
-	NetworkIDs  []string `json:"network_ids"`
-	ZoneKey     string   `json:"zone_key,omitempty"`
+	CloudTemplate string   `json:"cloud_template,omitempty"`
+	DefaultZone   *bool    `json:"default_zone,omitempty"`
+	ExternalID    string   `json:"external_id,omitempty"`
+	Name          string   `json:"name,omitempty"`
+	NetworkIDs    []string `json:"network_ids"`
+	ZoneKey       string   `json:"zone_key,omitempty"`
+}
+
+// MarshalJSON omits the fields the controller reports but rejects on a write,
+// so a value read from the controller can be modified and written straight
+// back. Without it an update after a read fails on the server-assigned fields
+// the read filled in.
+func (src FirewallZone) MarshalJSON() ([]byte, error) {
+	type Alias FirewallZone
+	return json.Marshal(&struct {
+		SiteID        *struct{} `json:"site_id,omitempty"`
+		Hidden        *struct{} `json:"attr_hidden,omitempty"`
+		HiddenID      *struct{} `json:"attr_hidden_id,omitempty"`
+		NoDelete      *struct{} `json:"attr_no_delete,omitempty"`
+		NoEdit        *struct{} `json:"attr_no_edit,omitempty"`
+		CloudTemplate *struct{} `json:"cloud_template,omitempty"`
+		DefaultZone   *struct{} `json:"default_zone,omitempty"`
+		ExternalID    *struct{} `json:"external_id,omitempty"`
+		ZoneKey       *struct{} `json:"zone_key,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(&src),
+	})
 }
 
 func (dst *FirewallZone) UnmarshalJSON(b []byte) error {

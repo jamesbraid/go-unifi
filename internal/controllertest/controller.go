@@ -52,6 +52,11 @@ type Controller struct {
 	// process on the test host, so the address that matters is the one on
 	// the shared network. Empty whenever Network is (see above).
 	InformURL string
+	// RootURL is the UniFi OS console root, where SSO login lives, when this
+	// controller is a UniFi OS target whose Network API sits behind the
+	// console's /proxy/network prefix. Empty for a classic controller, which
+	// authenticates on the same base as its API.
+	RootURL string
 }
 
 // informURLFor builds the device inform endpoint for a controller reachable
@@ -286,9 +291,21 @@ func dumpLogs(ctx context.Context, t *testing.T, container testcontainers.Contai
 	t.Logf("controller log tail:\n%s", raw)
 }
 
-// NewSession returns a logged-in raw session against the controller.
+// NewSession returns a logged-in raw session against the controller, using
+// whichever auth dialect the target speaks: UniFi OS SSO when RootURL is set,
+// the classic /api/login otherwise.
+//
+// Call it once per controller and share the session. UniFi OS rate-limits
+// logins hard (see LoginUOS), so a per-request login locks the suite out.
 func (c *Controller) NewSession(ctx context.Context, t *testing.T) *Session {
 	t.Helper()
+	if c.RootURL != "" {
+		s := NewUOSSession(c.RootURL, c.BaseURL)
+		if err := s.LoginUOS(ctx, c.Username, c.Password); err != nil {
+			t.Fatalf("UniFi OS login to %s: %v", c.RootURL, err)
+		}
+		return s
+	}
 	s := NewSession(c.BaseURL)
 	if err := s.Login(ctx, c.Username, c.Password); err != nil {
 		t.Fatalf("login to %s: %v", c.BaseURL, err)

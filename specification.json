@@ -3077,8 +3077,20 @@
       "schema": {
         "attributes": [
           {
+            "name": "cloud_template",
+            "string": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
             "name": "default_zone",
             "bool": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
+            "name": "external_id",
+            "string": {
               "computed_optional_required": "computed"
             }
           },
@@ -11352,8 +11364,20 @@
       "schema": {
         "attributes": [
           {
+            "name": "cloud_template",
+            "string": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
             "name": "default_zone",
             "bool": {
+              "computed_optional_required": "computed_optional"
+            }
+          },
+          {
+            "name": "external_id",
+            "string": {
               "computed_optional_required": "computed_optional"
             }
           },

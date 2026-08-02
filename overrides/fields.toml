@@ -81,16 +81,54 @@ path = "trafficroutes"
 [BGPConfig]
 path = "bgp/config"
 
+# The zone's read and write shapes differ, which is why several fields below
+# are read-only. Measured against 10.4.57 on 2026-07-25 by posting each field
+# in turn and reading the rejection: the write DTO
+# (com.ubnt.g.b.t.AcrQJeJCScLn, shared by POST and PUT) accepts exactly _id,
+# name and network_ids, and answers HTTP 400 "Unrecognized field <x>" for
+# every other key -- including cloud_template, default_zone, external_id and
+# zone_key, all of which the GET emits. Model new fields from the read shape
+# and expect them to be unwritable.
 [FirewallZone]
 path = "firewall/zone"
 
-# default_zone is server-computed/read-only. Sending it in the create body
-# makes UniFi Network 10.4.x reject the POST with "Unrecognized field
-# default_zone" (terraform-provider-unifi#310); a *bool with omitempty keeps
-# an unset value out of the payload.
+# Everything the controller reports but refuses on a write. readonly keeps
+# them unmarshalling while dropping them from the generated MarshalJSON, so a
+# zone read from the controller can be edited and written straight back.
+#
+# omitempty alone cannot do this. default_zone is a *bool, so any read leaves
+# it non-nil and it serializes anyway (terraform-provider-unifi#310 saw the
+# create half of this); external_id is always populated on a read. The rest
+# are empty today and would break the same way the day the controller starts
+# filling them in.
 [FirewallZone.field.default_zone]
 omitempty = true
 pointer = true
+readonly = true
+
+[FirewallZone.field.external_id]
+readonly = true
+
+[FirewallZone.field.cloud_template]
+readonly = true
+
+[FirewallZone.field.zone_key]
+readonly = true
+
+[FirewallZone.field.site_id]
+readonly = true
+
+[FirewallZone.field.attr_hidden]
+readonly = true
+
+[FirewallZone.field.attr_hidden_id]
+readonly = true
+
+[FirewallZone.field.attr_no_delete]
+readonly = true
+
+[FirewallZone.field.attr_no_edit]
+readonly = true
 
 # network_ids must always be present in the create body: the v2
 # firewall/zone POST returns HTTP 500 when the field is omitted, and an
@@ -273,3 +311,4 @@ type = "bool"
 [SettingIgmpSnooping.field.querier_addresses]
 unmarshal_type = "json.RawMessage"
 unmarshal_func = "querierAddressesFromRaw"
+

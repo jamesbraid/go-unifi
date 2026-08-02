@@ -10,6 +10,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -43,7 +44,33 @@ const (
 	// proxies the bundled Network Application API, bypassing UOS SSO. Plain
 	// HTTP, unlike the standalone controller's self-signed HTTPS on 8443.
 	uosNetworkPort = "7443/tcp"
+
+	// uosSeededImage is UniFi OS Server with the setup wizard already
+	// completed and an owner account seeded (admin/admin) — real mode, not
+	// simulation. It has NO UOS_NETWORK_DIRECT, so its Network API is reached
+	// only through the console proxy on 443: SSO login at /api/auth/login, a
+	// CSRF header on writes, and every Network path under /proxy/network.
+	uosSeededImage = "ghcr.io/jamesbraid/unifi-os-server:seeded"
+
+	// uosConsolePort is the console's HTTPS port, which fronts both SSO and
+	// the proxied Network API on the seeded image.
+	uosConsolePort = "443/tcp"
+
+	// uosNetworkPrefix is the console's path prefix for the bundled Network
+	// application.
+	uosNetworkPrefix = "/proxy/network"
+
+	// The owner account the seeded image provisions (UOS_SEED_OWNER).
+	uosSeededUsername = "admin"
+	uosSeededPassword = "admin"
 )
+
+func uosSeededImageFromEnv() string {
+	if img := os.Getenv("UNIFI_UOS_SEEDED_IMAGE"); img != "" {
+		return img
+	}
+	return uosSeededImage
+}
 
 func uosImageFromEnv() string {
 	if img := os.Getenv("UNIFI_UOS_IMAGE"); img != "" {
@@ -74,22 +101,7 @@ func StartUOS(ctx context.Context, t *testing.T) *Controller {
 		testcontainers.SkipIfProviderIsNotHealthy(t)
 	}
 
-	// The exact contract systemd-as-PID-1 needs; see the unifi-os compose in
-	// jamesbraid/unifi-containers. Dropping to this cap list (no privileged
-	// mode) plus a host cgroup namespace is what lets ucore/systemd come up.
-	caps := []string{
-		"SYS_ADMIN", "NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE",
-		"DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "CHOWN",
-		"SETUID", "SETGID", "KILL", "SYS_CHROOT", "SYS_PTRACE",
-		"SYS_RESOURCE", "AUDIT_WRITE", "MKNOD",
-	}
-	tmpfs := map[string]string{
-		"/run":               "exec",
-		"/run/lock":          "",
-		"/tmp":               "exec",
-		"/var/lib/journal":   "",
-		"/var/opt/unifi/tmp": "size=64m",
-	}
+	caps, tmpfs := uosRuntimeContract()
 
 	req := testcontainers.ContainerRequest{
 		Image:        uosImageFromEnv(),
@@ -134,5 +146,133 @@ func StartUOS(ctx context.Context, t *testing.T) *Controller {
 		Username: demoUsername,
 		Password: demoPassword,
 		Site:     demoSite,
+	}
+}
+
+// uosRuntimeContract returns the capability list and tmpfs set systemd-as-PID-1
+// needs, from jamesbraid/unifi-containers' unifi-os compose. Dropping to this
+// cap list (no privileged mode) plus a host cgroup namespace is what lets
+// ucore/systemd come up.
+func uosRuntimeContract() ([]string, map[string]string) {
+	caps := []string{
+		"SYS_ADMIN", "NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE",
+		"DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "CHOWN",
+		"SETUID", "SETGID", "KILL", "SYS_CHROOT", "SYS_PTRACE",
+		"SYS_RESOURCE", "AUDIT_WRITE", "MKNOD",
+	}
+	tmpfs := map[string]string{
+		"/run":               "exec",
+		"/run/lock":          "",
+		"/tmp":               "exec",
+		"/var/lib/journal":   "",
+		"/var/opt/unifi/tmp": "size=64m",
+	}
+	return caps, tmpfs
+}
+
+// StartUOSSeeded boots the seeded UniFi OS Server image — real mode with the
+// setup wizard completed, as opposed to the simulation-mode images — and
+// returns a controller pointed at its proxied Network API.
+//
+// Unlike StartUOS it owns a Docker network and an InformURL on it, which is
+// what lets an emulated device adopt into a console: device containers join
+// Network and inform the address InformURL carries, exactly as they do for the
+// classic Start. Nothing is published to the host for the inform plane.
+//
+// The seeded image has no UOS_NETWORK_DIRECT, so everything goes through the
+// console: SSO login, a CSRF header on writes, and Network paths under
+// /proxy/network. Controller.RootURL carries the console root for the login,
+// and NewSession picks the UniFi OS dialect off it.
+func StartUOSSeeded(ctx context.Context, t *testing.T) *Controller {
+	t.Helper()
+
+	if os.Getenv("UNIFI_TEST_REQUIRE") == "" {
+		testcontainers.SkipIfProviderIsNotHealthy(t)
+	}
+
+	caps, tmpfs := uosRuntimeContract()
+
+	// Created before the container so t.Cleanup tears them down LIFO: the
+	// container goes first, leaving the network free to be removed.
+	net, err := network.New(ctx)
+	if err != nil {
+		t.Fatalf("create UOS network: %v", err)
+	}
+	t.Cleanup(func() {
+		if os.Getenv("UNIFI_TEST_KEEP") != "" {
+			t.Logf("UNIFI_TEST_KEEP set; leaving network %s in place", net.Name)
+			return
+		}
+		if err := net.Remove(context.Background()); err != nil {
+			t.Errorf("remove UOS network %s: %v", net.Name, err)
+		}
+	})
+
+	req := testcontainers.ContainerRequest{
+		Image: uosSeededImageFromEnv(),
+		// Only the console is published, on an ephemeral port. The inform
+		// port stays a container port reached across the network, and exactly
+		// one network keeps ContainerIP unambiguous.
+		ExposedPorts: []string{uosConsolePort},
+		Networks:     []string{net.Name},
+		WaitingFor:   wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.CapDrop = []string{"ALL"}
+			hc.CapAdd = caps
+			hc.CgroupnsMode = "host"
+			hc.Tmpfs = tmpfs
+			hc.Binds = append(hc.Binds, "/sys/fs/cgroup:/sys/fs/cgroup:rw")
+		},
+	}
+
+	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	// Registered before the error check: a container that failed its health
+	// wait is returned started, and leaving it stranded would also strand the
+	// network, whose removal then fails on the attached endpoint.
+	if c != nil {
+		t.Cleanup(func() {
+			if os.Getenv("UNIFI_TEST_KEEP") != "" {
+				t.Logf("UNIFI_TEST_KEEP set; leaving seeded UOS running at %s", c.GetContainerID())
+				return
+			}
+			if err := c.Terminate(context.Background()); err != nil {
+				t.Errorf("terminate seeded UOS container: %v", err)
+			}
+		})
+	}
+	if err != nil {
+		dumpLogs(ctx, t, c)
+		t.Fatalf("start seeded UOS container: %v", err)
+	}
+
+	host, err := c.Host(ctx)
+	if err != nil {
+		t.Fatalf("container host: %v", err)
+	}
+	port, err := c.MappedPort(ctx, uosConsolePort)
+	if err != nil {
+		t.Fatalf("mapped port: %v", err)
+	}
+	ip, err := c.ContainerIP(ctx)
+	if err != nil {
+		t.Fatalf("UOS container IP: %v", err)
+	}
+	informURL, err := informURLFor(ip)
+	if err != nil {
+		t.Fatalf("seeded UOS on network %s: %v", net.Name, err)
+	}
+
+	root := fmt.Sprintf("https://%s:%s", host, port.Port())
+	return &Controller{
+		BaseURL:   root + uosNetworkPrefix,
+		RootURL:   root,
+		Username:  uosSeededUsername,
+		Password:  uosSeededPassword,
+		Site:      demoSite,
+		Network:   net.Name,
+		InformURL: informURL,
 	}
 }
