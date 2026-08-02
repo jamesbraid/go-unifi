@@ -27,9 +27,14 @@ import (
 // own request removes the addressing and leaves the mode.
 type preferenceProbe struct {
 	resource string    // struct name, keying into overrides/fields.toml
-	mode     string    // wire name of the auto|manual field
+	mode     string    // wire name of the auto|manual field, relative to container
 	path     string    // endpoint, relative to /api/s/<site>/
 	kind     probeKind // how to write it
+
+	// container is the dotted wire path to the sub-object holding the mode,
+	// empty when the mode sits on the resource itself. An array container is
+	// compared element by element, so a probe payload carries exactly one.
+	container string
 
 	// build returns a complete payload for one arm. n varies the addressing
 	// so the two arms do not collide.
@@ -158,6 +163,14 @@ var networkPreferenceProbes = []preferenceProbe{
 		build:    superMgmtPreferencePayload,
 	},
 	{
+		resource:  "SettingUsg",
+		mode:      "setting_preference",
+		container: "dns_verification",
+		path:      "set/setting/usg",
+		kind:      probeSetting,
+		build:     usgDNSVerificationPayload,
+	},
+	{
 		resource: "SettingRadioAi",
 		mode:     "setting_preference",
 		path:     "set/setting/radio_ai",
@@ -214,7 +227,7 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 	}
 
 	for i, probe := range networkPreferenceProbes {
-		t.Run(probe.resource+"."+probe.mode, func(t *testing.T) {
+		t.Run(probe.resource+"."+probe.key(), func(t *testing.T) {
 			manual := probe.measure(ctx, t, s, c.Site, 2*i, "manual", deps)
 			auto := probe.measure(ctx, t, s, c.Site, 2*i+1, "auto", deps)
 
@@ -241,17 +254,17 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 				t.Logf("refused under both modes, not this mode's doing: %s (%s)", wire, detail)
 			}
 
-			entry, ok := recorded[probe.resource][probe.mode]
+			entry, ok := recorded[probe.resource][probe.key()]
 			if !ok {
 				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s); add to overrides/fields.toml:\n\n%s",
-					probe.resource, probe.mode, len(owned), preferenceTOML(probe, owned, controllerVersion(ctx, t, s)))
+					probe.resource, probe.key(), len(owned), preferenceTOML(probe, owned, controllerVersion(ctx, t, s)))
 				return
 			}
 
 			if diff := comparePreference(entry.Owns, owned); diff != "" {
 				t.Errorf("%s.%s ownership no longer matches overrides/fields.toml:\n%s\n\n"+
 					"The controller's behaviour moved or the table was wrong. Re-measure before editing it.",
-					probe.resource, probe.mode, diff)
+					probe.resource, probe.key(), diff)
 			}
 		})
 	}
@@ -297,12 +310,57 @@ func (p preferenceProbe) measure(ctx context.Context, t *testing.T, s *controlle
 		}
 	}
 
-	if got, _ := stored[p.mode].(string); got != mode {
+	askedScope, storedScope := payload, stored
+	if p.container != "" {
+		askedScope = descend(t, payload, p.container, "the payload")
+		storedScope = descend(t, stored, p.container, "the stored object")
+		if askedScope == nil || storedScope == nil {
+			t.Fatalf("%s did not survive the write, so nothing inside it can be measured", p.container)
+		}
+	}
+
+	if got, _ := storedScope[p.mode].(string); got != mode {
 		t.Fatalf("asked for %s = %q, controller stored %q. The arm did not run under the mode "+
 			"it was supposed to, so anything measured from it is meaningless.", p.mode, mode, got)
 	}
 
-	return discardedFields(payload, stored)
+	return discardedFields(askedScope, storedScope)
+}
+
+// descend follows a dotted wire path into an object, taking the first element
+// of an array on the way: a probe payload carries one element, and comparing
+// by position is only meaningful because of that.
+func descend(t *testing.T, obj map[string]any, path, label string) map[string]any {
+	t.Helper()
+
+	current := any(obj)
+	for segment := range strings.SplitSeq(path, ".") {
+		asMap, ok := current.(map[string]any)
+		if !ok {
+			t.Logf("%s: %q is not an object in %s", path, segment, label)
+			return nil
+		}
+		next, ok := asMap[segment]
+		if !ok {
+			t.Logf("%s: %s has no %q", path, label, segment)
+			return nil
+		}
+		if list, isList := next.([]any); isList {
+			if len(list) == 0 {
+				t.Logf("%s: %q is empty in %s", path, segment, label)
+				return nil
+			}
+			next = list[0]
+		}
+		current = next
+	}
+
+	out, ok := current.(map[string]any)
+	if !ok {
+		t.Logf("%s does not resolve to an object in %s", path, label)
+		return nil
+	}
+	return out
 }
 
 // controllerVersion reads the running controller's build off /status, so a
@@ -359,11 +417,29 @@ func comparePreference(recorded, measured []string) string {
 	return b.String()
 }
 
+// key is the preference key this probe measures: the mode's wire name, or a
+// dotted path when the mode sits inside a sub-object.
+func (p preferenceProbe) key() string {
+	if p.container == "" {
+		return p.mode
+	}
+	return p.container + "." + p.mode
+}
+
+// quoteKeyIfNested quotes a dotted key. An unquoted one is read by TOML as
+// nested tables and decodes into an entry that owns nothing.
+func quoteKeyIfNested(key string) string {
+	if strings.Contains(key, ".") {
+		return fmt.Sprintf("%q", key)
+	}
+	return key
+}
+
 // preferenceTOML renders a measured set as the overrides/fields.toml entry to
 // paste, so recording a result is copying rather than transcribing.
 func preferenceTOML(p preferenceProbe, owned []string, version string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "[%s.preference.%s]\n", p.resource, p.mode)
+	fmt.Fprintf(&b, "[%s.preference.%s]\n", p.resource, quoteKeyIfNested(p.key()))
 	if len(owned) == 0 {
 		b.WriteString("owns = []\n")
 	} else {
@@ -674,6 +750,21 @@ func usgTimeoutPreferencePayload(name string, n int, mode string, deps probeDeps
 		"udp_stream_timeout":         120,
 		"icmp_timeout":               60,
 		"other_timeout":              600,
+	}
+}
+
+// usgDNSVerificationPayload exercises the mode nested in the gateway's DNS
+// verification block -- one of the two modes that do not sit on their
+// resource.
+func usgDNSVerificationPayload(name string, n int, mode string, deps probeDeps) map[string]any {
+	return map[string]any{
+		"key": "usg",
+		"dns_verification": map[string]any{
+			"setting_preference":   mode,
+			"domain":               "verify.example",
+			"primary_dns_server":   "10.98.0.53",
+			"secondary_dns_server": "10.98.0.54",
+		},
 	}
 }
 
