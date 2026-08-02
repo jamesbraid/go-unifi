@@ -1,3 +1,4 @@
+APGroup.device_macs
 APGroup.for_wlanconf
 AutoSpeedtest.enabled
 BGPConfig.enabled
@@ -14,6 +15,7 @@ DHCPOption.signed
 DNSRecord.enabled
 Dashboard.is_public
 Device.adopted
+Device.port_overrides
 DeviceSupervision.global_supervision_enabled
 Dpi.enabled
 Dpi.fingerprintingEnabled
@@ -22,6 +24,7 @@ DpiApp.enabled
 DpiApp.log
 DpiGroup.enabled
 ElementAdopt.enabled
+FirewallPolicy.connection_states
 FirewallPolicy.create_allow_respond
 FirewallPolicy.enabled
 FirewallPolicy.logging
@@ -44,6 +47,7 @@ FirewallRule.state_established
 FirewallRule.state_invalid
 FirewallRule.state_new
 FirewallRule.state_related
+FirewallZone.network_ids
 GlobalSwitch.dhcp_snoop
 GlobalSwitch.dot1x_portctrl_enabled
 GlobalSwitch.flood_known_protocols
@@ -209,6 +213,7 @@ Network.wan_pppoe_username_enabled
 Network.wan_smartq_enabled
 Network.wan_vlan_enabled
 Network.wireguard_client_preshared_key_enabled
+NetworkMembersGroup.members
 NetworkOptimization.enabled
 OSPFRouter.announce_default_route
 OSPFRouter.enabled

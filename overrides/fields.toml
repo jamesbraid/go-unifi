@@ -297,6 +297,18 @@ name = "WLANGroupID"
 type = "string"
 omitempty = true
 
+# A slice serialized unconditionally marshals as null when the caller has not
+# set it, and the controller answers api.err.InvalidPayload for a null here.
+# The controller does not return the key either, so a WLAN read back through
+# the client always carried a null it never came with, and every
+# read-modify-write of a WLAN was rejected outright -- measured on 10.4.57 by
+# bisecting the round-trip payload one key at a time.
+#
+# omitempty drops it when empty. That also makes an explicitly empty schedule
+# inexpressible, which is a smaller loss than every write failing.
+[WLAN.field.schedule_with_duration]
+omitempty = true
+
 # Removed in v7, retained for backwards compatibility.
 [SettingUsg.field.mdns_enabled]
 add = true
