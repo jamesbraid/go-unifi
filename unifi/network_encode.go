@@ -920,8 +920,9 @@ func (n *Network) marshalVPNClient() ([]byte, error) {
 		WireguardPrivateKey                  *string `json:"x_wireguard_private_key,omitempty"`
 
 		// DNS servers for WireGuard interface
-		DHCPDDNS1 string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2 string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNS1       string `json:"dhcpd_dns_1,omitempty"`
+		DHCPDDNS2       string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNSEnabled bool   `json:"dhcpd_dns_enabled"`
 	}{
 		ID:       n.ID,
 		SiteID:   n.SiteID,
@@ -957,6 +958,9 @@ func (n *Network) marshalVPNClient() ([]byte, error) {
 		// DNS servers
 		DHCPDDNS1: n.DHCPDDNS1,
 		DHCPDDNS2: n.DHCPDDNS2,
+		// A wireguard-client network stores dhcpd_dns_enabled like any
+		// other. Omitting it turned the flag off on every read-modify-write.
+		DHCPDDNSEnabled: n.DHCPDDNSEnabled,
 	})
 }
 
