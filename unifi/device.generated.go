@@ -143,6 +143,27 @@ type Device struct {
 	Y float64 `json:"y,omitempty"`
 }
 
+// MarshalJSON fixes up the write shape of this type.
+//
+// Read-only fields are dropped: the controller reports them and rejects them
+// on a write, so without this an update after a read fails on the
+// server-assigned fields the read filled in.
+//
+// Slices marked nil-as-empty are sent as [] rather than null. They serialize
+// unconditionally by design -- an empty list has to reach the wire to clear
+// the value -- but a caller that never touched the field holds nil, and the
+// controller rejects null where it expects an array.
+func (src Device) MarshalJSON() ([]byte, error) {
+	type Alias Device
+	return json.Marshal(&struct {
+		PortOverrides []DevicePortOverrides `json:"port_overrides"`
+		*Alias
+	}{
+		PortOverrides: emptyIfNil(src.PortOverrides),
+		Alias:         (*Alias)(&src),
+	})
+}
+
 func (dst *Device) UnmarshalJSON(b []byte) error {
 	type Alias Device
 	aux := &struct {

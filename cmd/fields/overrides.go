@@ -29,6 +29,7 @@ type fieldOverride struct {
 	UnmarshalType string `toml:"unmarshal_type"`
 	UnmarshalFunc string `toml:"unmarshal_func"`
 	Doc           string `toml:"doc"`
+	NilAsEmpty    bool   `toml:"nil_as_empty"`
 }
 
 // resourceOverride is one [Resource] table from overrides/fields.toml.
@@ -153,6 +154,9 @@ func (r *ResourceInfo) applyOverrides() error {
 			}
 			if fo.Doc != "" {
 				f.Doc = newlineRe.ReplaceAllString(fo.Doc, " ")
+			}
+			if fo.NilAsEmpty {
+				f.NilAsEmpty = true
 			}
 		case fo.Add:
 			if fo.Name == "" || fo.Type == "" {
