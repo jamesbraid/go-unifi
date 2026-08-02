@@ -6,7 +6,6 @@ package unifi
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,9 +23,7 @@ import (
 // roaming assistant switched off on WLANs nobody had touched.
 //
 // The masked write names only the field it means, so the controller keeps its
-// own value for the rest. The other arm records something found on the way:
-// the unmasked round trip does not reach the controller's storage at all,
-// because the payload is rejected.
+// own value for the rest.
 func TestIntegrationMaskedWritePreservesUnnamedFields(t *testing.T) {
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -84,29 +81,18 @@ func TestIntegrationMaskedWritePreservesUnnamedFields(t *testing.T) {
 		return firstData(t, fresh)
 	}
 
-	// A separate defect, found while building the arm above and worth
-	// recording where someone will meet it: a WLAN read straight back
-	// through the client cannot be written back. Nothing is mutated here
-	// beyond a rename, and the controller rejects the payload outright.
-	//
-	// That matters for more than WLAN. Read-modify-write is the usual answer
-	// to the write-shape problem -- read the object, change what you mean,
-	// send it back, and fields you do not model round-trip untouched -- and
-	// on this resource that answer is unavailable. Which fields of the
-	// round trip the controller objects to is not established here.
-	t.Run("a full round-trip write is rejected", func(t *testing.T) {
+	t.Run("full write asserts what the struct holds", func(t *testing.T) {
 		w, id := prepare("mask-full")
 		defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/wlanconf/"+id) //nolint:errcheck
 
 		w.Name = "mask-full-renamed"
-		_, err := api.UpdateWLAN(ctx, c.Site, w)
-		if err == nil {
-			t.Fatalf("a full round-trip write now succeeds. That is an improvement, but it " +
-				"changes what the masked write is working around -- re-check this file and " +
-				"TestGeneratedWriteShape.")
+		if _, err := api.UpdateWLAN(ctx, c.Site, w); err != nil {
+			t.Fatalf("update: %v", err)
 		}
-		if !strings.Contains(err.Error(), "api.err.InvalidPayload") {
-			t.Errorf("full round-trip write failed with %v, want api.err.InvalidPayload", err)
+		if got := stored(id)["roaming_assistant_na_enabled"]; got != false {
+			t.Errorf("roaming_assistant_na_enabled = %v, want false.\n\n"+
+				"A full write no longer asserts every field of the struct. If the client's "+
+				"write model changed, TestGeneratedWriteShape needs revisiting too.", got)
 		}
 	})
 

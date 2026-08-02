@@ -16,15 +16,15 @@ import (
 )
 
 var updateWriteShape = flag.Bool("update-write-shape", false,
-	"rewrite testdata/always_serialized_bools.txt from the current generated code")
+	"rewrite testdata/always_serialized_fields.txt from the current generated code")
 
-// TestGeneratedWriteShape pins every bool the client puts on the wire whether
+// TestGeneratedWriteShape pins every field the client puts on the wire whether
 // or not the caller set it.
 //
-// A bool field with no omitempty is asserted on every write. A caller who
-// builds an object from partial input -- a Terraform provider assembling a
-// struct from a resource model, say -- therefore sends false for every toggle
-// it never mentioned, and the controller stores false.
+// A field with no omitempty is asserted on every write. A caller that builds
+// an object from partial input -- a Terraform provider filling a struct from
+// a resource model, say -- therefore sends a zero value for everything it
+// never mentioned: false for a bool, null for a slice, map or pointer.
 //
 // The 10.4.57 regeneration added roaming_assistant_na_enabled to WLAN. Before
 // it, the key never reached the wire and the controller kept its own value.
@@ -40,12 +40,12 @@ var updateWriteShape = flag.Bool("update-write-shape", false,
 // subset per purpose: the declaration is still what a caller sees, and
 // TestNetworkEncoderCoversGeneratedFields watches the encoder separately.
 func TestGeneratedWriteShape(t *testing.T) {
-	current, err := alwaysSerializedBools()
+	current, err := alwaysSerializedFields()
 	if err != nil {
 		t.Fatalf("scan generated code: %v", err)
 	}
 
-	golden := filepath.Join("testdata", "always_serialized_bools.txt")
+	golden := filepath.Join("testdata", "always_serialized_fields.txt")
 
 	if *updateWriteShape {
 		if err := os.MkdirAll("testdata", 0o755); err != nil {
@@ -92,9 +92,9 @@ func TestGeneratedWriteShape(t *testing.T) {
 		t.Errorf("regeneration widened the write shape by %d field(s):\n  %s\n\n"+
 			"Each of these is now sent as false on every write where the caller left it unset, and the "+
 			"controller will store false. Decide which this is:\n"+
-			"  - the caller should be able to leave it alone: give it pointer = true and omitempty = true "+
-			"in overrides/fields.toml, so unset stays unset\n"+
-			"  - asserting false is correct: re-record with\n"+
+			"  - the caller should be able to leave it alone: give it omitempty = true in "+
+			"overrides/fields.toml, so unset stays unset\n"+
+			"  - asserting the zero value is correct: re-record with\n"+
 			"      go test ./unifi/ -run TestGeneratedWriteShape -update-write-shape",
 			len(added), strings.Join(added, "\n  "))
 	}
@@ -105,14 +105,15 @@ func TestGeneratedWriteShape(t *testing.T) {
 	}
 }
 
-// alwaysSerializedBools returns "Struct.wire_name" for every bool field in the
-// generated code that carries a json tag without omitempty.
+// alwaysSerializedFields returns "Struct.wire_name" for every field in the
+// generated code that carries a json tag without omitempty and a type whose
+// zero value still marshals.
 //
 // The generated files are parsed rather than reflected over because the set
 // has to stay complete on its own. Reflection needs a list of types to walk,
 // and that list would need updating at exactly the moment it is easiest to
 // forget: when a regeneration introduces a resource.
-func alwaysSerializedBools() ([]string, error) {
+func alwaysSerializedFields() ([]string, error) {
 	var out []string
 
 	for _, dir := range []string{".", "settings"} {
@@ -140,7 +141,7 @@ func alwaysSerializedBools() ([]string, error) {
 					return true
 				}
 				for _, field := range structType.Fields.List {
-					wire, ok := alwaysSerializedBool(field)
+					wire, ok := alwaysSerializedField(field)
 					if ok {
 						out = append(out, spec.Name.Name+"."+wire)
 					}
@@ -154,11 +155,16 @@ func alwaysSerializedBools() ([]string, error) {
 	return out, nil
 }
 
-// alwaysSerializedBool reports whether a struct field is a plain bool with a
-// json tag that has no omitempty, and returns its wire name.
-func alwaysSerializedBool(field *ast.Field) (string, bool) {
-	ident, ok := field.Type.(*ast.Ident)
-	if !ok || ident.Name != "bool" || field.Tag == nil {
+// alwaysSerializedField reports whether a struct field goes on the wire even
+// when the caller never set it, and returns its wire name.
+//
+// Two shapes qualify, and the second is why this is not a bool-only check. A
+// bool asserts false, which the controller stores. A slice, map or pointer
+// asserts null, which the controller may reject outright: WLAN's
+// schedule_with_duration did exactly that, and it made every WLAN
+// read-modify-write fail until it was given omitempty.
+func alwaysSerializedField(field *ast.Field) (string, bool) {
+	if field.Tag == nil || !nullableOrBool(field.Type) {
 		return "", false
 	}
 
@@ -179,6 +185,18 @@ func alwaysSerializedBool(field *ast.Field) (string, bool) {
 		return "", false
 	}
 	return name, true
+}
+
+// nullableOrBool reports whether a field type marshals to a fixed zero value
+// when unset: false for a bool, null for a slice, map or pointer.
+func nullableOrBool(expr ast.Expr) bool {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name == "bool"
+	case *ast.ArrayType, *ast.MapType, *ast.StarExpr:
+		return true
+	}
+	return false
 }
 
 // structTag pulls one key out of a struct tag. reflect.StructTag.Get would do
