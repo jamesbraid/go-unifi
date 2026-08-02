@@ -1301,6 +1301,94 @@ func TestMarshalNetworkUserVPNAdvanced(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkDHCPGuard covers the DHCP Guard trusted-server slots on
+// every purpose that carries dhcpguard_enabled. Corporate and guest used to
+// emit the flag without the slots, so a caller-set DHCPDIP1 was silently
+// dropped and the controller answered api.err.MissingIPAddress -- on creates
+// and, worse, on any update of an already-guarded network.
+func TestMarshalNetworkDHCPGuard(t *testing.T) {
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest, PurposeVLANOnly} {
+		t.Run(purpose, func(t *testing.T) {
+			network := &Network{
+				Name:             strPtr("guarded"),
+				Purpose:          purpose,
+				Enabled:          true,
+				IPSubnet:         strPtr("10.20.30.1/24"),
+				DHCPguardEnabled: true,
+				DHCPDIP1:         "10.20.30.2",
+				DHCPDIP2:         "10.20.30.3",
+				DHCPDIP3:         "10.20.30.4",
+				DHCPDMAC1:        "00:11:22:33:44:55",
+				DHCPDMAC2:        "00:11:22:33:44:66",
+				DHCPDMAC3:        "00:11:22:33:44:77",
+			}
+
+			data, err := json.Marshal(network)
+			if err != nil {
+				t.Fatalf("marshal %s: %v", purpose, err)
+			}
+
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal %s: %v", purpose, err)
+			}
+
+			for field, want := range map[string]string{
+				"dhcpd_ip_1":  "10.20.30.2",
+				"dhcpd_ip_2":  "10.20.30.3",
+				"dhcpd_ip_3":  "10.20.30.4",
+				"dhcpd_mac_1": "00:11:22:33:44:55",
+				"dhcpd_mac_2": "00:11:22:33:44:66",
+				"dhcpd_mac_3": "00:11:22:33:44:77",
+			} {
+				if got := result[field]; got != want {
+					t.Errorf("%s = %v, want %q", field, got, want)
+				}
+			}
+			if result["dhcpguard_enabled"] != true {
+				t.Errorf("dhcpguard_enabled = %v, want true", result["dhcpguard_enabled"])
+			}
+		})
+	}
+}
+
+// TestMarshalNetworkDHCPGuardUnsetKeysPresent pins the no-omitempty contract:
+// the trusted-server slots ship as empty strings rather than disappearing, so
+// a read-modify-write round trip cannot drop a value the caller never touched.
+func TestMarshalNetworkDHCPGuardUnsetKeysPresent(t *testing.T) {
+	guardFields := []string{
+		"dhcpguard_enabled",
+		"dhcpd_ip_1", "dhcpd_ip_2", "dhcpd_ip_3",
+		"dhcpd_mac_1", "dhcpd_mac_2", "dhcpd_mac_3",
+	}
+
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest, PurposeVLANOnly} {
+		t.Run(purpose, func(t *testing.T) {
+			data, err := json.Marshal(&Network{
+				Name:     strPtr("unguarded"),
+				Purpose:  purpose,
+				Enabled:  true,
+				IPSubnet: strPtr("10.20.30.1/24"),
+			})
+			if err != nil {
+				t.Fatalf("marshal %s: %v", purpose, err)
+			}
+
+			checkJSONFields(t, data, guardFields, nil)
+
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal %s: %v", purpose, err)
+			}
+			for _, field := range guardFields[1:] {
+				if got := result[field]; got != "" {
+					t.Errorf("%s = %v, want empty string", field, got)
+				}
+			}
+		})
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s

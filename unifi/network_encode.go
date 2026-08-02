@@ -40,6 +40,15 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 }
 
 // marshalCorporate marshals a Corporate/LAN network using the alias pattern.
+//
+// dhcpguard_enabled blocks every DHCP server on the network except the trusted
+// ones in dhcpd_ip_1..3 (paired with dhcpd_mac_1..3). Measured against a
+// 10.4.57 controller: with dhcpguard_enabled true the controller rejects the
+// write with api.err.MissingIPAddress unless dhcpd_ip_1 is a non-empty
+// address -- an empty string does not satisfy it. The slots are sent
+// unconditionally (no omitempty, matching marshalVLANOnly and the generated
+// struct) so a read-modify-write round trip preserves them; omitting them made
+// every PUT on a guarded network fail, not just creates.
 func (n *Network) marshalCorporate() ([]byte, error) {
 	// Calculate DHCP range defaults if needed
 	var defaultStart, defaultEnd string
@@ -86,6 +95,12 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		IGMPQuerierSwitches       []NetworkIGMPQuerierSwitches    `json:"igmp_querier_switches,omitempty"`
 		IGMPSuppression           bool                            `json:"igmp_supression"`
 		DHCPguardEnabled          bool                            `json:"dhcpguard_enabled"`
+		DHCPDIP1                  string                          `json:"dhcpd_ip_1"`
+		DHCPDIP2                  string                          `json:"dhcpd_ip_2"`
+		DHCPDIP3                  string                          `json:"dhcpd_ip_3"`
+		DHCPDMAC1                 string                          `json:"dhcpd_mac_1"`
+		DHCPDMAC2                 string                          `json:"dhcpd_mac_2"`
+		DHCPDMAC3                 string                          `json:"dhcpd_mac_3"`
 		MdnsEnabled               bool                            `json:"mdns_enabled"`
 		LteLanEnabled             bool                            `json:"lte_lan_enabled"`
 		UPnPLanEnabled            bool                            `json:"upnp_lan_enabled"`
@@ -189,6 +204,12 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		IGMPQuerierSwitches:       n.IGMPQuerierSwitches,
 		IGMPSuppression:           n.IGMPSuppression,
 		DHCPguardEnabled:          n.DHCPguardEnabled,
+		DHCPDIP1:                  n.DHCPDIP1,
+		DHCPDIP2:                  n.DHCPDIP2,
+		DHCPDIP3:                  n.DHCPDIP3,
+		DHCPDMAC1:                 n.DHCPDMAC1,
+		DHCPDMAC2:                 n.DHCPDMAC2,
+		DHCPDMAC3:                 n.DHCPDMAC3,
 		MdnsEnabled:               n.MdnsEnabled,
 		LteLanEnabled:             n.LteLanEnabled,
 		UPnPLanEnabled:            n.UPnPLanEnabled,
@@ -290,6 +311,9 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 		DHCPDIP1                string  `json:"dhcpd_ip_1"`
 		DHCPDIP2                string  `json:"dhcpd_ip_2"`
 		DHCPDIP3                string  `json:"dhcpd_ip_3"`
+		DHCPDMAC1               string  `json:"dhcpd_mac_1"`
+		DHCPDMAC2               string  `json:"dhcpd_mac_2"`
+		DHCPDMAC3               string  `json:"dhcpd_mac_3"`
 	}{
 		ID:       n.ID,
 		SiteID:   n.SiteID,
@@ -310,6 +334,9 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 		DHCPDIP1:                n.DHCPDIP1,
 		DHCPDIP2:                n.DHCPDIP2,
 		DHCPDIP3:                n.DHCPDIP3,
+		DHCPDMAC1:               n.DHCPDMAC1,
+		DHCPDMAC2:               n.DHCPDMAC2,
+		DHCPDMAC3:               n.DHCPDMAC3,
 	})
 }
 
@@ -370,6 +397,12 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		IGMPQuerierSwitches       []NetworkIGMPQuerierSwitches    `json:"igmp_querier_switches,omitempty"`
 		IGMPSuppression           bool                            `json:"igmp_supression"`
 		DHCPguardEnabled          bool                            `json:"dhcpguard_enabled"`
+		DHCPDIP1                  string                          `json:"dhcpd_ip_1"`
+		DHCPDIP2                  string                          `json:"dhcpd_ip_2"`
+		DHCPDIP3                  string                          `json:"dhcpd_ip_3"`
+		DHCPDMAC1                 string                          `json:"dhcpd_mac_1"`
+		DHCPDMAC2                 string                          `json:"dhcpd_mac_2"`
+		DHCPDMAC3                 string                          `json:"dhcpd_mac_3"`
 		MdnsEnabled               bool                            `json:"mdns_enabled"`
 		LteLanEnabled             bool                            `json:"lte_lan_enabled"`
 		UPnPLanEnabled            bool                            `json:"upnp_lan_enabled"`
@@ -471,6 +504,12 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		IGMPQuerierSwitches:       n.IGMPQuerierSwitches,
 		IGMPSuppression:           n.IGMPSuppression,
 		DHCPguardEnabled:          n.DHCPguardEnabled,
+		DHCPDIP1:                  n.DHCPDIP1,
+		DHCPDIP2:                  n.DHCPDIP2,
+		DHCPDIP3:                  n.DHCPDIP3,
+		DHCPDMAC1:                 n.DHCPDMAC1,
+		DHCPDMAC2:                 n.DHCPDMAC2,
+		DHCPDMAC3:                 n.DHCPDMAC3,
 		MdnsEnabled:               n.MdnsEnabled,
 		LteLanEnabled:             n.LteLanEnabled,
 		UPnPLanEnabled:            n.UPnPLanEnabled,

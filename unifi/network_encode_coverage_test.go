@@ -138,12 +138,6 @@ func buildNetworkEncoderAllowlist() map[string]bool {
 		"dpi_enabled": true,
 		"dpigroup_id": true,
 
-		// Legacy trusted-DHCP-server MAC slots paired with dhcpd_ip_1..3; the
-		// encoder sends the IP variants (vlan-only) which is what the UI uses.
-		"dhcpd_mac_1": true,
-		"dhcpd_mac_2": true,
-		"dhcpd_mac_3": true,
-
 		// Third/fourth WAN DNS slots; the controller UI exposes only two and the
 		// encoder sends wan_dns1/wan_dns2.
 		"wan_dns3": true,
