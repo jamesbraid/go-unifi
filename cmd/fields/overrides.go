@@ -32,8 +32,12 @@ type fieldOverride struct {
 
 // resourceOverride is one [Resource] table from overrides/fields.toml.
 type resourceOverride struct {
-	Path  string                   `toml:"path"`
-	Field map[string]fieldOverride `toml:"field"`
+	Path string `toml:"path"`
+	// ListPath overrides the collection path for the list call alone. The
+	// v2 network members group needs it: every other verb is served by the
+	// singular path, and only the list is served by the plural one.
+	ListPath string                   `toml:"list_path"`
+	Field    map[string]fieldOverride `toml:"field"`
 }
 
 var (

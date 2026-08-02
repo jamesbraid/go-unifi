@@ -121,7 +121,7 @@ func (c *ApiClient) deleteNetworkMembersGroup(
 	err := c.do(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/network-members-groups/%s", site, id),
+		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, id),
 		struct{}{},
 		nil,
 	)
@@ -141,7 +141,7 @@ func (c *ApiClient) createNetworkMembersGroup(
 	err := c.do(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/network-members-groups", site),
+		fmt.Sprintf("v2/api/site/%s/network-members-group", site),
 		d,
 		&respBody,
 	)
@@ -176,7 +176,7 @@ func (c *ApiClient) updateNetworkMembersGroupFields(
 	if err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/network-members-groups/%s", site, d.ID),
+		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, d.ID),
 		body,
 		&respBody,
 	); err != nil {
@@ -195,7 +195,7 @@ func (c *ApiClient) updateNetworkMembersGroup(
 	err := c.do(
 		ctx,
 		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/network-members-groups/%s", site, d.ID),
+		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, d.ID),
 		d,
 		&respBody,
 	)

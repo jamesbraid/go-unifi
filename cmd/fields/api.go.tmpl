@@ -205,7 +205,7 @@ func (c *ApiClient) list{{ .StructName }}(
 	err := c.do(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ResourcePath }}", site),
+		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ListResourcePath }}", site),
 		nil,
 		&respBody,
 		query...,
