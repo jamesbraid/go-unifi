@@ -67,32 +67,24 @@ jobs:
       # Emulated devices are containers started by unifi-emu-herder, which the
       # suite consumes as a process rather than as a Go dependency: its API is
       # internal to unifi-emu and its supported surface is the stdout protocol.
+      # It is not in go.mod for that reason, so `go install` at an explicit
+      # version is how it arrives -- the module proxy and checksum database
+      # cover provenance, the same as every other dependency here.
       #
-      # The released binary, not `go install`: only a release build carries the
-      # ldflags that bake in a version-matched synthetic image, and without
-      # them the herder needs --synthetic-image and an image built here. So the
-      # tarball is what makes this step three lines instead of a checkout and
-      # two builds. Its checksum is verified for the same reason every action
-      # above is pinned by digest.
+      # From v0.5.1 the binary recovers its version-matched synthetic image
+      # from the module version the go command records, so nothing needs
+      # building and no --synthetic-image is passed. Below v0.5.1 that
+      # reference came only from release ldflags, which `go install` does not
+      # apply, and this step would silently yield a herder that cannot start a
+      # synthetic device.
       - name: Install unifi-emu-herder
         if: steps.decide.outputs.run == 'true'
         env:
-          HERDER_VERSION: 0.5.0
+          GOBIN: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          case "${RUNNER_ARCH}" in
-            X64) arch=amd64 ;;
-            ARM64) arch=arm64 ;;
-            *) echo "no herder release for runner arch ${RUNNER_ARCH}"; exit 1 ;;
-          esac
-          base="https://github.com/jamesbraid/unifi-emu/releases/download/v${HERDER_VERSION}"
-          tarball="unifi-emu-herder_${HERDER_VERSION}_linux_${arch}.tar.gz"
-          cd "${RUNNER_TEMP}"
-          curl -fsSL -o "${tarball}" "${base}/${tarball}"
-          curl -fsSL -o checksums.txt "${base}/checksums.txt"
-          grep " ${tarball}\$" checksums.txt | sha256sum -c -
-          tar xzf "${tarball}" unifi-emu-herder
-          ./unifi-emu-herder --version
+          go install github.com/jamesbraid/unifi-emu/cmd/unifi-emu-herder@v0.5.1
+          "${RUNNER_TEMP}/unifi-emu-herder" --version
 
       # The suite is identical; only the harness env differs. Standalone pins
       # the -sim tag from schemas/VERSION -- a missing tag fails the pull
