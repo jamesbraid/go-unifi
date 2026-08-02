@@ -222,7 +222,7 @@ func roundTripSeeds() []roundTripSeed {
 				"vpn_type": "openvpn-server", "openvpn_mode": "server",
 				"openvpn_encryption_cipher": "AES_256_CBC",
 				"ip_subnet":                 "10.199.0.1/24", "local_port": 1195,
-				"radiusprofile_id":          "@radiusprofile",
+				"radiusprofile_id": "@radiusprofile",
 			},
 		},
 	}

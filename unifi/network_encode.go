@@ -252,7 +252,7 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
 
 		// IPv6
-		IPV6InterfaceType:           valueOrDefault(nilIfEmpty(n.IPV6InterfaceType), "none"),
+		IPV6InterfaceType:           nilIfEmpty(n.IPV6InterfaceType),
 		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
 		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
 		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
@@ -556,7 +556,7 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
 
 		// IPv6
-		IPV6InterfaceType:           valueOrDefault(nilIfEmpty(n.IPV6InterfaceType), "none"),
+		IPV6InterfaceType:           nilIfEmpty(n.IPV6InterfaceType),
 		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
 		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
 		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
