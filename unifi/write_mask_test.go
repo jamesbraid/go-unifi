@@ -61,6 +61,57 @@ func TestMaskedBodyRejectsEmptyMask(t *testing.T) {
 	}
 }
 
+// TestMaskedBodyWritesSelectedZeroValues covers the case a mask exists for:
+// clearing a value. A field with omitempty is absent from the encoding at its
+// zero value, and rejecting it there would make "set this back to false"
+// inexpressible.
+func TestMaskedBodyWritesSelectedZeroValues(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value any
+		wire  string
+		want  string
+	}{
+		{"bool false", &Device{ID: "abc123"}, "beep_enabled", "false"},
+		{"empty string", &Client{ID: "abc123"}, "note", `""`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := maskedBody(tc.value, []string{tc.wire})
+			if err != nil {
+				t.Fatalf("selecting %s at its zero value: %v", tc.wire, err)
+			}
+
+			var got map[string]json.RawMessage
+			if err := json.Unmarshal(body, &got); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			value, ok := got[tc.wire]
+			if !ok {
+				t.Fatalf("%s was selected but did not reach the wire, so the value cannot be cleared", tc.wire)
+			}
+			if string(value) != tc.want {
+				t.Errorf("%s = %s, want %s", tc.wire, value, tc.want)
+			}
+		})
+	}
+}
+
+// TestMaskedBodyRejectsFieldsTheEncoderDrops keeps the other half honest. A
+// field can be missing from the encoding because the encoder suppresses it,
+// not because it is unset, and writing a zero for one of those would send a
+// key the encoder exists to withhold.
+func TestMaskedBodyRejectsFieldsTheEncoderDrops(t *testing.T) {
+	// Read-only: the generated MarshalJSON shadows it out entirely.
+	if _, err := maskedBody(&FirewallZone{ID: "z"}, []string{"external_id"}); err == nil {
+		t.Error("named a read-only field and the mask accepted it; the controller rejects that key on a write")
+	}
+
+	// Purpose-specific: the vlan-only encoder carries no WAN fields.
+	if _, err := maskedBody(&Network{ID: "n", Purpose: PurposeVLANOnly}, []string{"wan_dns1"}); err == nil {
+		t.Error("named a field the vlan-only encoder never emits and the mask accepted it")
+	}
+}
+
 // TestMaskedBodyHonoursCustomEncoder checks the mask filters what the encoder
 // would have sent rather than what the struct holds. Network's MarshalJSON
 // emits a purpose-specific subset, so a field that encoder drops cannot be
