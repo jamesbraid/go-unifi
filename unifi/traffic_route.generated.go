@@ -290,6 +290,40 @@ func (c *ApiClient) createTrafficRoute(
 	return &respBody, nil
 }
 
+// UpdateTrafficRouteFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateTrafficRouteFields(ctx context.Context, site string, d *TrafficRoute, fields ...string) (*TrafficRoute, error) {
+	return c.updateTrafficRouteFields(ctx, site, d, fields)
+}
+
+// updateTrafficRouteFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateTrafficRouteFields(
+	ctx context.Context,
+	site string,
+	d *TrafficRoute,
+	fields []string,
+) (*TrafficRoute, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody TrafficRoute
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	return &respBody, nil
+}
+
 func (c *ApiClient) updateTrafficRoute(
 	ctx context.Context,
 	site string,

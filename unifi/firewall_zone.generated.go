@@ -162,6 +162,40 @@ func (c *ApiClient) createFirewallZone(
 	return &respBody, nil
 }
 
+// UpdateFirewallZoneFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateFirewallZoneFields(ctx context.Context, site string, d *FirewallZone, fields ...string) (*FirewallZone, error) {
+	return c.updateFirewallZoneFields(ctx, site, d, fields)
+}
+
+// updateFirewallZoneFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateFirewallZoneFields(
+	ctx context.Context,
+	site string,
+	d *FirewallZone,
+	fields []string,
+) (*FirewallZone, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody FirewallZone
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("v2/api/site/%s/firewall/zone/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	return &respBody, nil
+}
+
 func (c *ApiClient) updateFirewallZone(
 	ctx context.Context,
 	site string,

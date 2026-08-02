@@ -195,6 +195,50 @@ func (c *ApiClient) createSpatialRecord(
 	return &res, nil
 }
 
+// UpdateSpatialRecordFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateSpatialRecordFields(ctx context.Context, site string, d *SpatialRecord, fields ...string) (*SpatialRecord, error) {
+	return c.updateSpatialRecordFields(ctx, site, d, fields)
+}
+
+// updateSpatialRecordFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateSpatialRecordFields(
+	ctx context.Context,
+	site string,
+	d *SpatialRecord,
+	fields []string,
+) (*SpatialRecord, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta            `json:"meta"`
+		Data []SpatialRecord `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getSpatialRecord(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
+	return &res, nil
+}
+
 func (c *ApiClient) updateSpatialRecord(
 	ctx context.Context,
 	site string,
