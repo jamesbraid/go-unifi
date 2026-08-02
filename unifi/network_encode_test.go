@@ -98,7 +98,6 @@ func TestMarshalNetworkCorporate(t *testing.T) {
 		"dhcpd_dns_enabled",
 		"ip_aliases",
 		"auto_scale_enabled",
-		"setting_preference",
 	}
 
 	// Unexpected fields (WAN-specific)
@@ -126,8 +125,8 @@ func TestMarshalNetworkCorporate(t *testing.T) {
 	if result["gateway_type"] != "default" {
 		t.Errorf("Expected gateway_type 'default', got %q", result["gateway_type"])
 	}
-	if result["setting_preference"] != "auto" {
-		t.Errorf("Expected setting_preference 'auto', got %q", result["setting_preference"])
+	if _, ok := result["setting_preference"]; ok {
+		t.Errorf("setting_preference serialized for nil value: %s", data)
 	}
 }
 
@@ -154,8 +153,8 @@ func TestMarshalNetworkCorporateDefaults(t *testing.T) {
 	if result["gateway_type"] != "default" {
 		t.Errorf("Expected default gateway_type 'default', got %v", result["gateway_type"])
 	}
-	if result["setting_preference"] != "auto" {
-		t.Errorf("Expected default setting_preference 'auto', got %v", result["setting_preference"])
+	if _, ok := result["setting_preference"]; ok {
+		t.Errorf("setting_preference serialized for nil value: %s", data)
 	}
 	if result["ip_subnet"] != "" {
 		t.Errorf("Expected empty ip_subnet, got %v", result["ip_subnet"])
@@ -398,7 +397,6 @@ func TestMarshalNetworkGuest(t *testing.T) {
 		"dhcpd_dns_enabled",
 		"dhcpd_dns_1",
 		"ip_aliases",
-		"setting_preference",
 	}
 
 	unexpectedFields := []string{
@@ -418,8 +416,8 @@ func TestMarshalNetworkGuest(t *testing.T) {
 	if result["networkgroup"] != "LAN" {
 		t.Errorf("Expected networkgroup 'LAN', got %v", result["networkgroup"])
 	}
-	if result["setting_preference"] != "auto" {
-		t.Errorf("Expected setting_preference 'auto', got %v", result["setting_preference"])
+	if _, ok := result["setting_preference"]; ok {
+		t.Errorf("setting_preference serialized for nil value: %s", data)
 	}
 }
 
@@ -1384,6 +1382,47 @@ func TestMarshalNetworkDHCPGuardUnsetKeysPresent(t *testing.T) {
 				if got := result[field]; got != "" {
 					t.Errorf("%s = %v, want empty string", field, got)
 				}
+			}
+		})
+	}
+}
+
+// TestMarshalNetworkSettingPreferenceUnset pins that the encoder does not
+// invent a setting_preference. Sending "auto" tells the controller to manage
+// the advanced block itself, which makes it discard dhcpguard_enabled,
+// igmp_snooping, upnp_lan_enabled and the dhcpd_dns/ntp/time_offset toggles
+// the caller set in the same payload. Omitting the key lets the controller
+// infer "manual" from the settings it was given.
+func TestMarshalNetworkSettingPreferenceUnset(t *testing.T) {
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest} {
+		t.Run(purpose, func(t *testing.T) {
+			data, err := json.Marshal(&Network{
+				Name:     strPtr("no-preference"),
+				Purpose:  purpose,
+				Enabled:  true,
+				IPSubnet: strPtr("10.20.30.1/24"),
+			})
+			if err != nil {
+				t.Fatalf("marshal %s: %v", purpose, err)
+			}
+			checkJSONFields(t, data, nil, []string{"setting_preference"})
+
+			data, err = json.Marshal(&Network{
+				Name:              strPtr("explicit-preference"),
+				Purpose:           purpose,
+				Enabled:           true,
+				IPSubnet:          strPtr("10.20.30.1/24"),
+				SettingPreference: strPtr("auto"),
+			})
+			if err != nil {
+				t.Fatalf("marshal %s: %v", purpose, err)
+			}
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal %s: %v", purpose, err)
+			}
+			if result["setting_preference"] != "auto" {
+				t.Errorf("setting_preference = %v, want auto", result["setting_preference"])
 			}
 		})
 	}
