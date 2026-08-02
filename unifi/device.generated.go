@@ -1634,7 +1634,7 @@ func (c *ApiClient) updateDeviceFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDevice(ctx, site, d.ID)
+		return c.getDevice(ctx, site, d.MAC)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -1665,8 +1665,11 @@ func (c *ApiClient) updateDevice(
 
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
+	// Re-read by MAC: the device read endpoint is stat/device/{mac}, not
+	// {id}, so passing the database id answers 404 and turns a successful
+	// write into a NotFound.
 	if len(respBody.Data) == 0 {
-		return c.getDevice(ctx, site, d.ID)
+		return c.getDevice(ctx, site, d.MAC)
 	}
 
 	if len(respBody.Data) != 1 {
