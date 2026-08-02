@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -158,4 +159,129 @@ func TestApplyOverridesPreferenceNamesMustExist(t *testing.T) {
 			})
 		})
 	}
+}
+
+// nestedResource builds a resource whose base type holds an array sub-object
+// and a single sub-object, mirroring the two nested modes in the schema:
+// Device.port_overrides ([]DevicePortOverrides) and
+// SettingUsg.dns_verification (*SettingUsgDNSVerification).
+func nestedResource() *ResourceInfo {
+	override := NewFieldInfo("PortOverrides", "port_overrides", "ThingPortOverrides", "", false, true, false, "")
+	verification := NewFieldInfo("DNSVerification", "dns_verification", "ThingDNSVerification", "", true, false, true, "")
+
+	r := resourceWithFields("Thing", map[string]*FieldInfo{
+		"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
+		"PortOverrides":     override,
+		"DNSVerification":   verification,
+	})
+	// Sub-objects reached by type name, the shape the generator produces for
+	// a named nested type.
+	r.Types["ThingPortOverrides"] = &FieldInfo{FieldName: "ThingPortOverrides", Fields: map[string]*FieldInfo{
+		"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
+		"StpPortMode":       NewFieldInfo("StpPortMode", "stp_port_mode", "bool", "", false, false, false, ""),
+	}}
+	r.Types["ThingDNSVerification"] = &FieldInfo{FieldName: "ThingDNSVerification", Fields: map[string]*FieldInfo{
+		"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
+		"Domain":            NewFieldInfo("Domain", "domain", "string", "", true, false, false, ""),
+	}}
+	return r
+}
+
+func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pref    map[string]fields.Preference
+		wantErr string
+	}{
+		{
+			// An array container: one mode per element, governing that element.
+			name: "through an array",
+			pref: map[string]fields.Preference{
+				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}},
+			},
+		},
+		{
+			name: "through a single sub-object",
+			pref: map[string]fields.Preference{
+				"dns_verification.setting_preference": {Owns: []string{"domain"}},
+			},
+		},
+		{
+			// The nested and top-level modes share a wire name. Resolving in
+			// the wrong scope would silently annotate the wrong attribute.
+			name: "nested and top-level modes coexist",
+			pref: map[string]fields.Preference{
+				"setting_preference":                {Owns: []string{}},
+				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}},
+			},
+		},
+		{
+			name: "owned name from another object",
+			pref: map[string]fields.Preference{
+				"port_overrides.setting_preference": {Owns: []string{"domain"}},
+			},
+			wantErr: `owns "domain", which is not a field on Thing.port_overrides`,
+		},
+		{
+			// Owned names are relative. Accepting a dotted one would invite
+			// two spellings of the same thing.
+			name: "dotted owned name is rejected",
+			pref: map[string]fields.Preference{
+				"port_overrides.setting_preference": {Owns: []string{"port_overrides.stp_port_mode"}},
+			},
+			wantErr: "owned names are relative to Thing.port_overrides",
+		},
+		{
+			name: "container does not exist",
+			pref: map[string]fields.Preference{
+				"port_overides.setting_preference": {Owns: []string{"stp_port_mode"}},
+			},
+			wantErr: `no field "port_overides" on the resource`,
+		},
+		{
+			name: "container is not an object",
+			pref: map[string]fields.Preference{
+				"setting_preference.nested": {Owns: []string{}},
+			},
+			wantErr: "carries no sub-object to nest into",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := nestedResource()
+			withOverrides(t, map[string]resourceOverride{
+				"Thing": {Preference: tc.pref},
+			}, func() {
+				err := r.applyOverrides()
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, tc.wantErr)
+			})
+		})
+	}
+}
+
+// TestPreferenceKeysMustBeQuotedInTOML pins the trap in the file format. A
+// bare dotted key nests into sub-tables, which decodes without error and
+// produces a table that is not the one written.
+func TestPreferenceKeysMustBeQuotedInTOML(t *testing.T) {
+	var quoted map[string]resourceOverride
+	_, err := toml.Decode(`
+[Thing.preference."port_overrides.setting_preference"]
+owns = ["stp_port_mode"]
+`, &quoted)
+	require.NoError(t, err)
+	require.Contains(t, quoted["Thing"].Preference, "port_overrides.setting_preference")
+
+	var bare map[string]resourceOverride
+	_, err = toml.Decode(`
+[Thing.preference.port_overrides.setting_preference]
+owns = ["stp_port_mode"]
+`, &bare)
+	require.NoError(t, err, "a bare dotted key parses fine, which is exactly why it is dangerous")
+	require.NotContains(t, bare["Thing"].Preference, "port_overrides.setting_preference")
+	require.Contains(t, bare["Thing"].Preference, "port_overrides")
+	require.Empty(t, bare["Thing"].Preference["port_overrides"].Owns,
+		"the nested table swallowed owns, so the entry would govern nothing")
 }

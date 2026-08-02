@@ -44,7 +44,12 @@ type preferenceFile struct {
 }
 
 // LoadPreferences reads the preference tables out of overrides/fields.toml,
-// keyed by resource struct name and then by mode-field wire name.
+// keyed by resource struct name and then by the mode's key.
+//
+// A key is the mode's wire name, or a dotted path when the mode sits inside a
+// sub-object ("port_overrides.setting_preference"). Such a key must be quoted
+// in the file: an unquoted dotted key decodes as nested tables, without error,
+// into an entry that owns nothing.
 func LoadPreferences() (map[string]map[string]Preference, error) {
 	root := ModuleRoot()
 	if root == "" {

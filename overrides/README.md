@@ -33,6 +33,26 @@ fields a field-by-field reading of the encoder cannot — `setting_preference`
 owns twelve, four of which are not `*_enabled` toggles at all, which is why
 earlier counts stopped at six.
 
+### Nested modes
+
+Not every mode sits on the resource. `Device.setting_preference` lives inside
+`port_overrides`, and the gateway's inside `dns_verification`. Address those
+with a dotted path, and **quote the key**:
+
+```toml
+[Device.preference."port_overrides.setting_preference"]
+owns = ["stp_port_mode"]
+measured = "10.4.57"
+```
+
+An unquoted dotted key is not a syntax error. TOML reads it as nested tables,
+decodes cleanly, and produces an entry that governs nothing — the same silent
+failure these tables document, one layer up.
+
+`owns` stays relative to the object holding the mode. A mode governs its own
+object, and `port_overrides` is an array: each element carries its own mode
+governing that element, so there is no single sibling path to write.
+
 ## Provenance
 
 `ApGroups.json` and `NetworkMembersGroup.json` are imported from
