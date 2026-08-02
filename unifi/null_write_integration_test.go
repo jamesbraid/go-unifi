@@ -127,11 +127,15 @@ func nullWriteCases() []nullWriteCase {
 			prepare: existingV2Object("firewall-policies"),
 		},
 		{
-			field: "NetworkMembersGroup.members", wire: "members",
+			// The singular path, which is the one that serves every verb but
+			// the list. type is an enum of USERS|CLIENTS, not an address
+			// family -- the controller names the accepted values when a
+			// wrong one is sent, which is how this was found.
+			field: "NetworkMembersGroup.members", wire: "members", want: "rejected",
 			prepare: func(ctx context.Context, t *testing.T, s *controllertest.Session, site string) (string, map[string]any) {
-				base := "/v2/api/site/" + site + "/network-members-groups"
+				base := "/v2/api/site/" + site + "/network-members-group"
 				body, status, err := s.PostJSON(ctx, base, map[string]any{
-					"name": "null-write", "type": "ipv4", "members": []string{"10.99.0.1"},
+					"name": "null-write", "type": "CLIENTS", "members": []string{},
 				})
 				if err != nil || (status != 200 && status != 201) {
 					t.Logf("cannot create a network members group (HTTP %d): %v", status, errCode(body))

@@ -37,7 +37,11 @@ type fieldOverride struct {
 // Preference entries are typed in internal/fields because the integration
 // test reads them back out of the same file; see fields.Preference.
 type resourceOverride struct {
-	Path       string                       `toml:"path"`
+	Path string `toml:"path"`
+	// ListPath overrides the collection path for the list call alone. The
+	// v2 network members group needs it: every other verb is served by the
+	// singular path, and only the list is served by the plural one.
+	ListPath   string                       `toml:"list_path"`
 	Field      map[string]fieldOverride     `toml:"field"`
 	Preference map[string]fields.Preference `toml:"preference"`
 }

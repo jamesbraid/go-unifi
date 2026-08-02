@@ -71,8 +71,13 @@ readonly = true
 # True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
 # attr_* envelope. Definition imported from ubiquiti-community/unifi-api
 # (see resources/../README.md).
+# The collection is asymmetric, measured on 10.4.57: create, read-one, update
+# and delete are served by the singular path, and only the list is served by
+# the plural one. The client used the plural path throughout, so every verb
+# except the list was broken -- create answered 405 and the rest 404.
 [NetworkMembersGroup]
-path = "network-members-groups"
+path = "network-members-group"
+list_path = "network-members-groups"
 
 [NetworkMembersGroup.field._id]
 json = "id"
