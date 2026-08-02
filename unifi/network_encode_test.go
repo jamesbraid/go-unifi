@@ -146,9 +146,9 @@ func TestMarshalNetworkCorporateDefaults(t *testing.T) {
 	var result map[string]any
 	json.Unmarshal(data, &result)
 
-	// Verify defaults are applied
-	if result["networkgroup"] != "LAN" {
-		t.Errorf("Expected default networkgroup 'LAN', got %v", result["networkgroup"])
+	// The encoder no longer invents values the caller did not choose.
+	if _, ok := result["networkgroup"]; ok {
+		t.Errorf("networkgroup serialized for nil value: %s", data)
 	}
 	if _, ok := result["gateway_type"]; ok {
 		t.Errorf("gateway_type serialized for nil value: %s", data)
