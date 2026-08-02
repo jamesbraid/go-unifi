@@ -757,6 +757,13 @@ func (g *SpecificationGenerator) buildInt64Validators(validation string) []schem
 	return nil
 }
 
+// There is deliberately no buildFloat64Validators. Every float64 field the
+// schema constrains is a map coordinate (x, y, z) whose pattern --
+// (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$) -- says "an optionally signed
+// integer or decimal", which is what a float64 already is. A validator built
+// from it would be a tautology. TestNoConstrainableFloat64Fields fails if a
+// schema refresh ever introduces one worth expressing.
+
 var (
 	stringValidatorImport = code.Import{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"}
 	int64ValidatorImport  = code.Import{Path: "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"}

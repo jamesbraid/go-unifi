@@ -282,3 +282,34 @@ func distinctSchemaPatterns(t *testing.T) []string {
 	sort.Strings(out)
 	return out
 }
+
+// float64SchemaPatterns returns the distinct validation patterns attached to
+// float64 fields in the generated code.
+func float64SchemaPatterns(t *testing.T) []string {
+	t.Helper()
+
+	fieldRe := regexp.MustCompile("(?m)^\\s*\\w+\\s+\\*?float64\\s+`json:\"[^\"]*\"`[^\\S\\n]*//[^\\S\\n]*(.+?)[^\\S\\n]*$")
+	seen := map[string]bool{}
+	for _, dir := range []string{"../../unifi", "../../unifi/settings"} {
+		matches, err := filepath.Glob(filepath.Join(dir, "*.generated.go"))
+		if err != nil {
+			t.Fatalf("glob %s: %v", dir, err)
+		}
+		for _, file := range matches {
+			b, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("read %s: %v", file, err)
+			}
+			for _, m := range fieldRe.FindAllSubmatch(b, -1) {
+				seen[string(m[1])] = true
+			}
+		}
+	}
+
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}

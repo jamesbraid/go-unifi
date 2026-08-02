@@ -93,3 +93,20 @@ func TestLengthBounds(t *testing.T) {
 		})
 	}
 }
+
+// TestNoConstrainableFloat64Fields is the reason there is no float64
+// validator builder. Every float64 field the schema constrains today is a map
+// coordinate whose pattern amounts to "any number", so there is nothing to
+// express. If a firmware refresh introduces a float64 field with a real
+// enumeration or a bounded range, this fails and the builder becomes worth
+// writing.
+func TestNoConstrainableFloat64Fields(t *testing.T) {
+	for _, pattern := range float64SchemaPatterns(t) {
+		if values := enumValues(pattern); values != nil {
+			t.Errorf("float64 pattern %q is an enumeration %v; a float64validator.OneOf is now worth emitting", pattern, values)
+		}
+		if low, high, ok := numericRange(pattern); ok {
+			t.Errorf("float64 pattern %q is the bounded range %d..%d; a float64validator.Between is now worth emitting", pattern, low, high)
+		}
+	}
+}
