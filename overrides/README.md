@@ -16,28 +16,27 @@ override-layer story):
 ## Preference tables
 
 `[Resource.preference.<wire>]` records what an `auto|manual` mode field owns.
-While such a field is `auto` the controller manages a block of siblings
-itself: it accepts a payload that sets them, answers `rc: ok`, stores its own
-values, and reports nothing. A caller finds out from the next read, from a
+While the mode is `auto` the controller owns a block of sibling fields: it
+accepts a payload that sets them, answers `rc: ok`, stores its own values,
+and reports nothing. A caller finds out from the next read, from a
 downstream diff, or not at all.
 
-Nothing in the extracted schema describes this. Each field's validator
-stands alone, and an `auto|manual` field looks like any other two-value
-enum, so ownership can only be measured: write the same object twice, once
-under each mode, and compare each write against what it asked for.
+The extracted schema describes none of this. Each validator stands alone, and
+an `auto|manual` field looks like any other two-value enum, so ownership has
+to be measured: write the same object twice, once under each mode, and
+compare each write against what it asked for.
 `TestIntegrationPreferenceOwnership` does that against a live controller and
 prints the entry to paste, including the build it measured.
 
-Don't hand-edit the `owns` lists. Re-run the sweep. The measurement finds
-fields a field-by-field reading of the encoder cannot — `setting_preference`
-owns twelve, four of which are not `*_enabled` toggles at all, which is why
-earlier counts stopped at six.
+Re-run the sweep rather than editing `owns` by hand. It finds fields that
+reading the encoder cannot: `setting_preference` owns twelve, and four of
+them are not `*_enabled` toggles, which is why earlier counts stopped at six.
 
 ### Nested modes
 
-Not every mode sits on the resource. `Device.setting_preference` lives inside
-`port_overrides`, and the gateway's inside `dns_verification`. Address those
-with a dotted path, and **quote the key**:
+Not every mode sits on its resource. `Device.setting_preference` lives inside
+`port_overrides`, the gateway's inside `dns_verification`. Address those with
+a dotted path, and **quote the key**:
 
 ```toml
 [Device.preference."port_overrides.setting_preference"]
@@ -45,13 +44,13 @@ owns = ["stp_port_mode"]
 measured = "10.4.57"
 ```
 
-An unquoted dotted key is not a syntax error. TOML reads it as nested tables,
-decodes cleanly, and produces an entry that governs nothing — the same silent
+TOML accepts an unquoted dotted key. It reads the key as nested tables,
+decodes cleanly, and yields an entry that governs nothing — the silent
 failure these tables document, one layer up.
 
-`owns` stays relative to the object holding the mode. A mode governs its own
-object, and `port_overrides` is an array: each element carries its own mode
-governing that element, so there is no single sibling path to write.
+`owns` stays relative to the object holding the mode, because a mode governs
+its own object. `port_overrides` is an array whose elements each carry a
+mode, so no single sibling path exists to write.
 
 ## Provenance
 

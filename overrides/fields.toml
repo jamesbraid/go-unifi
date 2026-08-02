@@ -18,16 +18,16 @@
 #                             against the generated struct, so a typo fails
 #                             generation instead of quietly owning nothing.
 #
-# A mode nested in a sub-object is addressed by a dotted path, and the key
-# MUST be quoted:
+# A mode nested in a sub-object takes a dotted path, and the key MUST be
+# quoted:
 #
 #   [Device.preference."port_overrides.setting_preference"]
 #
-# An unquoted dotted key is not an error -- TOML reads it as nested tables and
-# decodes to a different entry that owns nothing. Names in owns stay relative
-# to the object holding the mode; a mode governs its own object, and for an
-# array container ownership holds per element, so there is no sibling path to
-# write anyway.
+# TOML accepts an unquoted dotted key: it reads the key as nested tables and
+# decodes to a different entry, one that owns nothing. Names in owns stay
+# relative to the object holding the mode, because a mode governs its own
+# object; an array container carries one mode per element, so no sibling path
+# exists to write.
 #
 # Field entries are applied AFTER the resource's FieldProcessor, so they
 # always win. Anything conditional on the schema-derived type, pattern-based
