@@ -20,7 +20,7 @@ lazily, on demonstrated need, not proactively.
 
 ## How upstream drift is absorbed
 
-Three kinds of drift, three different answers:
+Four kinds of drift, four different answers:
 
 - **Upstream drops a *field* the controller still tolerates** → we retain
   it, generated from an explicit pin in `overrides/fields.toml` with a
@@ -30,12 +30,20 @@ Three kinds of drift, three different answers:
 - **Upstream removes an *endpoint or resource*** → we remove it in the same
   release, verified dead against a live controller first. Shipping API
   surface that errors on every current controller is worse than an honest
-  removal (10.4.57 removed HeatMap, HeatMapPoint, Map, Tag, VirtualDevice,
-  and the EvaluationScore/RoamingAssistant settings this way).
+  removal (10.4.57 removed HeatMap, HeatMapPoint, Map, Tag, VirtualDevice
+  and the EvaluationScore setting this way).
 - **Upstream changes a *wire shape*** → we follow the schema and add a
   tolerant decode where old payloads may still occur (e.g. igmp_snooping
   `querier_addresses` accepts both the pre-10.x string form and the 10.x
   object form).
+- **Upstream *relocates* a setting or field** → we follow the move and name
+  the successor here. The old name is gone from the schema, so no pin brings
+  it back. The mapping is the only thing that helps. 10.4.57 moved three:
+  - `RoamingAssistant` and the per-radio `assisted_roaming_*` fields → WLAN
+    `roaming_assistant_na_*` and `roaming_assistant_6e_*`
+  - `Ips.Suppression` → its own `ips_suppression` setting
+  - `Usg`'s `geo_ip_filtering_*` fields → `usg_geo.ip_filtering` (`block`
+    became `action`)
 
 ## Versioning honesty
 
