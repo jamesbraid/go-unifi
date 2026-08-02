@@ -23,6 +23,26 @@ type driftResult struct {
 	SchemaOnly []string
 }
 
+// observedObjects normalizes a v2 response body into the documents a drift
+// comparison works on. The collection endpoints answer with a JSON array,
+// the singletons (ospf/router, bgp/config) with a bare object, and an empty
+// collection is sometimes a bare JSON null. Anything else yields nothing,
+// which callers must read as "no live objects", never as success.
+func observedObjects(body any) []map[string]any {
+	var observed []map[string]any
+	switch v := body.(type) {
+	case []any:
+		for _, item := range v {
+			if m, ok := item.(map[string]any); ok {
+				observed = append(observed, m)
+			}
+		}
+	case map[string]any:
+		observed = append(observed, v)
+	}
+	return observed
+}
+
 // driftCompare unions the top-level keys of the observed objects and
 // compares them with the schema definition's top-level keys.
 func driftCompare(observed []map[string]any, schema map[string]any) driftResult {
