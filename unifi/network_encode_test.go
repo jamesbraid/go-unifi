@@ -150,8 +150,8 @@ func TestMarshalNetworkCorporateDefaults(t *testing.T) {
 	if result["networkgroup"] != "LAN" {
 		t.Errorf("Expected default networkgroup 'LAN', got %v", result["networkgroup"])
 	}
-	if result["gateway_type"] != "default" {
-		t.Errorf("Expected default gateway_type 'default', got %v", result["gateway_type"])
+	if _, ok := result["gateway_type"]; ok {
+		t.Errorf("gateway_type serialized for nil value: %s", data)
 	}
 	if _, ok := result["setting_preference"]; ok {
 		t.Errorf("setting_preference serialized for nil value: %s", data)
