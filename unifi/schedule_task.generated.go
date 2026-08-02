@@ -175,6 +175,50 @@ func (c *ApiClient) createScheduleTask(
 	return &res, nil
 }
 
+// UpdateScheduleTaskFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateScheduleTaskFields(ctx context.Context, site string, d *ScheduleTask, fields ...string) (*ScheduleTask, error) {
+	return c.updateScheduleTaskFields(ctx, site, d, fields)
+}
+
+// updateScheduleTaskFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateScheduleTaskFields(
+	ctx context.Context,
+	site string,
+	d *ScheduleTask,
+	fields []string,
+) (*ScheduleTask, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta           `json:"meta"`
+		Data []ScheduleTask `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/scheduletask/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getScheduleTask(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
+	return &res, nil
+}
+
 func (c *ApiClient) updateScheduleTask(
 	ctx context.Context,
 	site string,

@@ -327,6 +327,59 @@ func (c *ApiClient) create{{ .StructName }}(
 }
 
 {{ if ne .StructName "BGPConfig" }}
+// Update{{ .StructName }}Fields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) Update{{ .StructName }}Fields(ctx context.Context, site string, d *{{ .StructName }}, fields ...string) (*{{ .StructName }}, error) {
+	return c.update{{ .StructName }}Fields(ctx, site, d, fields)
+}
+
+// update{{ .StructName }}Fields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) update{{ .StructName }}Fields(
+	ctx context.Context,
+	site string,
+	d *{{ .StructName }},
+	fields []string,
+) (*{{ .StructName }}, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+{{- if .IsV2 }}
+	var respBody {{ .StructName }}
+{{- else }}
+	var respBody struct {
+		Meta meta      `json:"meta"`
+		Data []{{ .StructName }} `json:"data"`
+	}
+{{- end }}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+{{ if .IsV2 }}
+	return &respBody, nil
+{{- else }}
+	if len(respBody.Data) == 0 {
+		return c.get{{ .StructName }}(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
+	return &res, nil
+{{- end }}
+}
+{{- end }}
+
+{{ if ne .StructName "BGPConfig" }}
 func (c *ApiClient) update{{ .StructName }}(
 	ctx context.Context,
 	site string,
