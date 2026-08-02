@@ -9996,7 +9996,8 @@
                   {
                     "name": "setting_preference",
                     "string": {
-                      "computed_optional_required": "computed_optional"
+                      "computed_optional_required": "computed_optional",
+                      "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing."
                     }
                   },
                   {

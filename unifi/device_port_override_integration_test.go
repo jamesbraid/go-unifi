@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
+	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
 // TestIntegrationDevicePortOverridePreference measures the last of the
@@ -69,24 +70,40 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 		}
 	}
 
-	write := func(t *testing.T, body map[string]any) (map[string]any, bool) {
+	// stat/device lags a write by a second or two, so a read taken straight
+	// after a PUT shows the old object. Polling for the field to appear is
+	// the difference between measuring the controller and measuring the lag:
+	// reading once made port overrides look like they were being discarded.
+	write := func(t *testing.T, body map[string]any, awaitKey string) (map[string]any, bool) {
 		t.Helper()
 		resp, status, err := s.PutJSON(ctx, writePath, body)
 		if err != nil || status != 200 {
 			t.Logf("write rejected (HTTP %d): %v %v", status, resp, err)
 			return nil, false
 		}
-		fresh, status, err := s.GetJSON(ctx, readPath)
-		if err != nil || status != 200 {
-			t.Fatalf("re-read failed (HTTP %d): %v", status, err)
+
+		deadline := time.Now().Add(20 * time.Second)
+		for {
+			fresh, status, err := s.GetJSON(ctx, readPath)
+			if err != nil || status != 200 {
+				t.Fatalf("re-read failed (HTTP %d): %v", status, err)
+			}
+			stored := firstData(t, fresh)
+			if awaitKey == "" || stored[awaitKey] != nil {
+				return stored, true
+			}
+			if time.Now().After(deadline) {
+				t.Logf("%s never appeared on the device after the write", awaitKey)
+				return stored, true
+			}
+			time.Sleep(time.Second)
 		}
-		return firstData(t, fresh), true
 	}
 
 	t.Run("port_overrides.setting_preference ownership", func(t *testing.T) {
 		measure := func(mode string) map[string]string {
 			asked := override(mode)
-			stored, ok := write(t, map[string]any{"_id": id, "port_overrides": []any{asked}})
+			stored, ok := write(t, map[string]any{"_id": id, "port_overrides": []any{asked}}, "port_overrides")
 			if !ok {
 				t.Skipf("the %s arm was rejected, so ownership here is unmeasured", mode)
 			}
@@ -117,14 +134,18 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 			t.Logf("refused under both modes, not this mode's doing: %s (%s)", wire, detail)
 		}
 
-		// Reaching here means the harness started persisting port overrides,
-		// which is what this arm has been waiting for. Report the measurement
-		// so it gets recorded rather than passing quietly.
-		t.Errorf("port_overrides.setting_preference is now measurable and owns %d field(s): %v.\n\n"+
-			"Add it to overrides/fields.toml as\n"+
-			"  [Device.preference.\"port_overrides.setting_preference\"]\n"+
-			"and move this arm into TestIntegrationPreferenceOwnership, which can now express it.",
-			len(owned), owned)
+		recorded, err := fields.LoadPreferences()
+		if err != nil {
+			t.Fatalf("load overrides/fields.toml: %v", err)
+		}
+		entry, ok := recorded["Device"]["port_overrides.setting_preference"]
+		if !ok {
+			t.Fatalf("no ownership recorded for Device.port_overrides.setting_preference; measured %v", owned)
+		}
+		if diff := comparePreference(entry.Owns, owned); diff != "" {
+			t.Errorf("Device.port_overrides.setting_preference no longer matches overrides/fields.toml:\n%s\n\n"+
+				"The controller moved or the table was wrong. Re-measure before editing it.", diff)
+		}
 	})
 
 	// Measured on 10.4.57: rejected, the third field of this shape to be so
@@ -132,7 +153,7 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 	// built without touching port_overrides marshals null there, so it
 	// cannot be written at all.
 	t.Run("port_overrides null", func(t *testing.T) {
-		if _, ok := write(t, map[string]any{"_id": id, "port_overrides": nil}); ok {
+		if _, ok := write(t, map[string]any{"_id": id, "port_overrides": nil}, ""); ok {
 			t.Error("null port_overrides was accepted. The controller stopped rejecting it, which " +
 				"is worth knowing: it is one of the reasons the client cannot send this field unset.")
 		}

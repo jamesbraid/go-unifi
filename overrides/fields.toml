@@ -451,6 +451,14 @@ owns = [
 ]
 measured = "10.4.57"
 
+# Nested in each port override, and quoted for the same reason as the gateway's
+# DNS verification block. Owns nothing: every field of an override survived
+# auto, so the mode carries the enum without acting on it. Measured against an
+# adopted UXGENT -- a switch with more port shapes may differ.
+[Device.preference."port_overrides.setting_preference"]
+owns = []
+measured = "10.4.57"
+
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
 # keep compiling. Review for sunset next controller train.
