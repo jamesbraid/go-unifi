@@ -41,10 +41,16 @@ type FirewallZone struct {
 	ZoneKey       string   `json:"zone_key,omitempty"`
 }
 
-// MarshalJSON omits the fields the controller reports but rejects on a write,
-// so a value read from the controller can be modified and written straight
-// back. Without it an update after a read fails on the server-assigned fields
-// the read filled in.
+// MarshalJSON fixes up the write shape of this type.
+//
+// Read-only fields are dropped: the controller reports them and rejects them
+// on a write, so without this an update after a read fails on the
+// server-assigned fields the read filled in.
+//
+// Slices marked nil-as-empty are sent as [] rather than null. They serialize
+// unconditionally by design -- an empty list has to reach the wire to clear
+// the value -- but a caller that never touched the field holds nil, and the
+// controller rejects null where it expects an array.
 func (src FirewallZone) MarshalJSON() ([]byte, error) {
 	type Alias FirewallZone
 	return json.Marshal(&struct {
@@ -57,9 +63,11 @@ func (src FirewallZone) MarshalJSON() ([]byte, error) {
 		DefaultZone   *struct{} `json:"default_zone,omitempty"`
 		ExternalID    *struct{} `json:"external_id,omitempty"`
 		ZoneKey       *struct{} `json:"zone_key,omitempty"`
+		NetworkIDs    []string  `json:"network_ids"`
 		*Alias
 	}{
-		Alias: (*Alias)(&src),
+		NetworkIDs: emptyIfNil(src.NetworkIDs),
+		Alias:      (*Alias)(&src),
 	})
 }
 

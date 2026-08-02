@@ -67,3 +67,17 @@ func maskedBody(d any, fields []string) (json.RawMessage, error) {
 
 	return json.Marshal(out)
 }
+
+// emptyIfNil renders a nil slice as an empty one.
+//
+// Used by generated MarshalJSON for slices that serialize unconditionally: an
+// empty list has to reach the wire to clear the value, but a caller that
+// never touched the field holds nil, which marshals as null. The controller
+// rejects null where it expects an array -- measured on APGroup.device_macs
+// and Device.port_overrides by TestIntegrationNullWrites.
+func emptyIfNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}

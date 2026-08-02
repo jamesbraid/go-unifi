@@ -31,9 +31,23 @@ path = "static-dns"
 [APGroup.field.device_macs]
 name = "DeviceMacs"
 omitempty = false
+nil_as_empty = true
 
 [APGroup.field.name]
 omitempty = false
+
+# The site's default AP group carries both of these, and the write DTO
+# rejects them: measured on 10.4.57, a PUT of the default group back verbatim
+# answers HTTP 400 with "hiddenId: must be null" and "nonDeletable: must be
+# false". Reading the default group and writing it back is the ordinary way
+# to edit its membership, so without this that is impossible. readonly keeps
+# them unmarshalling and drops them from the write, exactly as on
+# FirewallZone.
+[APGroup.field.attr_hidden_id]
+readonly = true
+
+[APGroup.field.attr_no_delete]
+readonly = true
 
 # True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
 # attr_* envelope. Definition imported from ubiquiti-community/unifi-api
@@ -65,6 +79,7 @@ omitempty = false
 
 [NetworkMembersGroup.field.members]
 omitempty = false
+nil_as_empty = true
 
 [NetworkMembersGroup.field.type]
 omitempty = false
@@ -135,6 +150,7 @@ readonly = true
 # empty list must serialize as "network_ids":[].
 [FirewallZone.field.network_ids]
 omitempty = false
+nil_as_empty = true
 
 # Fields the 10.x schema does not define but the controller still accepts
 # (or older controllers require).
@@ -207,6 +223,13 @@ add = true
 doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
 name = "MdnsEnabled"
 type = "bool"
+
+# Serialized unconditionally, so a Device the caller never gave overrides
+# marshals null here, and the controller rejects that -- measured, and it
+# meant such a Device could not be written at all. Send [] instead, which
+# means what nil means: this device has no port overrides.
+[Device.field.port_overrides]
+nil_as_empty = true
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
