@@ -10,10 +10,9 @@ import (
 
 // TestIntegrationAdoptGateway brings up an emulated modern gateway
 // (UXGENT / "Gateway Enterprise", type uxg) and proves AdoptGateway drives it
-// all the way to a connected, adopted device controller-side. Its MAC is
-// allocated by the herder from a locally administered range, so stat/device
-// lookups can only match the emulated gateway — never the seeded,
-// still-pending UGW3.
+// all the way to a connected, adopted device controller-side. The controller
+// fabricates no devices of its own, so the only gateway in the site is this
+// one.
 //
 // This is the first live proof that a uxg-type device adopts to CONNECTED: the
 // emulator only unit-tests that payload path. A failure here (adoption stalls,

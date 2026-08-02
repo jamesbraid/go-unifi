@@ -18,10 +18,6 @@ type Device struct {
 	Name    string `json:"name"`
 	State   int    `json:"state"`
 	Adopted bool   `json:"adopted"`
-	// Unsupported marks models this controller build refuses to finish
-	// adopting (their handshake ends in state=7). Not asserted on; tests
-	// filter it out when picking a device to adopt.
-	Unsupported bool `json:"unsupported"`
 }
 
 // AdoptDevice adopts mac and blocks until the controller reports it
