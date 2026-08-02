@@ -11284,7 +11284,8 @@
           {
             "name": "setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: state_established, state_related. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -11335,7 +11336,8 @@
           {
             "name": "state_established",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -11353,7 +11355,8 @@
           {
             "name": "state_related",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           }
         ]
@@ -12389,7 +12392,8 @@
           {
             "name": "setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing."
             }
           },
           {
@@ -12542,7 +12546,8 @@
           {
             "name": "dhcpddns_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12560,7 +12565,8 @@
           {
             "name": "dhcpd_gateway_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12584,7 +12590,8 @@
           {
             "name": "dhcpd_lease_time",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12620,7 +12627,8 @@
           {
             "name": "dhcpd_ntp_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12638,7 +12646,8 @@
           {
             "name": "dhcpdtftp_server",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12650,13 +12659,15 @@
           {
             "name": "dhcpd_time_offset_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
             "name": "dhcpd_unifi_controller",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12692,7 +12703,8 @@
           {
             "name": "dhcpdv_6_dns_auto",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while ipv_6_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set ipv_6_setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12704,7 +12716,8 @@
           {
             "name": "dhcpdv_6_lease_time",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while ipv_6_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set ipv_6_setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12740,7 +12753,8 @@
           {
             "name": "dhcpd_wins_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12761,7 +12775,8 @@
           {
             "name": "dhc_pguard_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12786,7 +12801,8 @@
           {
             "name": "domain_name",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -12895,7 +12911,8 @@
           {
             "name": "igmp_snooping",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -13136,7 +13153,8 @@
           {
             "name": "ipv_6_ra_preferred_lifetime",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while ipv_6_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set ipv_6_setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -13154,7 +13172,8 @@
           {
             "name": "ipv_6_setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhcpdv_6_dns_auto, dhcpdv_6_lease_time, ipv_6_ra_preferred_lifetime. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -13550,7 +13569,8 @@
           {
             "name": "setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhc_pguard_enabled, dhcpd_gateway_enabled, dhcpd_lease_time, dhcpd_ntp_enabled, dhcpd_time_offset_enabled, dhcpd_unifi_controller, dhcpd_wins_enabled, dhcpddns_enabled, dhcpdtftp_server, domain_name, igmp_snooping, u_pn_p_lan_enabled. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -13582,7 +13602,8 @@
           {
             "name": "u_pn_p_lan_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -13830,13 +13851,15 @@
           {
             "name": "wandns_1",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while wandns_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set wandns_preference to \"manual\" to configure it."
             }
           },
           {
             "name": "wandns_2",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while wandns_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set wandns_preference to \"manual\" to configure it."
             }
           },
           {
@@ -13854,7 +13877,8 @@
           {
             "name": "wandns_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: wandns_1, wandns_2. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -13935,7 +13959,8 @@
           {
             "name": "wanipv_6_dns_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing."
             }
           },
           {
@@ -14423,7 +14448,8 @@
           {
             "name": "autoneg",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14453,7 +14479,8 @@
           {
             "name": "egress_rate_limit_kbps_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14492,7 +14519,8 @@
           {
             "name": "isolation",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14510,13 +14538,15 @@
           {
             "name": "lldpmed_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
             "name": "lldpmed_notify_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14561,7 +14591,8 @@
           {
             "name": "port_keepalive_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14712,7 +14743,8 @@
           {
             "name": "setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: autoneg, egress_rate_limit_kbps_enabled, isolation, lldpmed_enabled, lldpmed_notify_enabled, port_keepalive_enabled, stormctrl_broadcastast_enabled, stormctrl_mcast_enabled, stormctrl_ucast_enabled, stp_port_mode. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -14730,7 +14762,8 @@
           {
             "name": "stormctrl_broadcastast_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14748,7 +14781,8 @@
           {
             "name": "stormctrl_mcast_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14772,7 +14806,8 @@
           {
             "name": "stormctrl_ucast_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -14802,7 +14837,8 @@
           {
             "name": "stp_port_mode",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15420,7 +15456,8 @@
           {
             "name": "broadcast_filter_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15435,7 +15472,8 @@
           {
             "name": "bss_transition",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15480,7 +15518,8 @@
           {
             "name": "dtim_mode",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15492,7 +15531,8 @@
           {
             "name": "dtim_ng",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15516,13 +15556,15 @@
           {
             "name": "fast_roaming_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
             "name": "group_rekey",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -15888,7 +15930,8 @@
           {
             "name": "l_2_isolation",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -16026,13 +16069,15 @@
           {
             "name": "minrate_na_data_rate_kbps",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while minrate_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set minrate_setting_preference to \"manual\" to configure it."
             }
           },
           {
             "name": "minrate_na_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while minrate_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set minrate_setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -16044,7 +16089,8 @@
           {
             "name": "minrate_ng_data_rate_kbps",
             "int64": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "Ignored while minrate_setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set minrate_setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -16056,7 +16102,8 @@
           {
             "name": "minrate_setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: minrate_na_data_rate_kbps, minrate_na_enabled, minrate_ng_data_rate_kbps. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -16068,7 +16115,8 @@
           {
             "name": "multicast_enhance_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -16187,7 +16235,8 @@
           {
             "name": "proxy_arp",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {
@@ -16390,7 +16439,8 @@
           {
             "name": "setting_preference",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "computed_optional",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: broadcast_filter_enabled, bss_transition, dtim_mode, dtim_ng, fast_roaming_enabled, group_rekey, l_2_isolation, multicast_enhance_enabled, proxy_arp, uapsd_enabled. Measured against UniFi Network 10.4.57."
             }
           },
           {
@@ -16402,7 +16452,8 @@
           {
             "name": "uapsd_enabled",
             "bool": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "optional",
+              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
             }
           },
           {

@@ -462,6 +462,12 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 
 // fieldToResourceAttribute converts a FieldInfo to a ResourceAttribute.
 func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
+	attr := g.buildResourceAttribute(r, field)
+	describePreference(r, field, attr)
+	return attr
+}
+
+func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
 	if field == nil {
 		return nil
 	}
