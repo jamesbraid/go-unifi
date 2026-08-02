@@ -32,6 +32,17 @@ type crossFieldCase struct {
 //	<api.err.*>  the create is rejected with that code
 //	accepted     the controller stores the flag on regardless
 //	disabled     the create succeeds but the flag comes back off
+//
+// "disabled" is the dangerous outcome: rc: ok and a lie, so the caller finds
+// out from the next read or not at all. There is a second, larger source of
+// it that has nothing to do with missing partners -- a field can also come
+// back off because an auto|manual mode field owns it, and the controller
+// stored its own value. That is measured separately, per mode and per owned
+// field, by TestIntegrationPreferenceOwnership, with the answers recorded in
+// overrides/fields.toml. Rows are not duplicated here: a payload-driven
+// differential sees fields a flag-by-flag sweep structurally cannot (it found
+// twelve owned fields for setting_preference, four of them not toggles at
+// all), so a partial copy in this table would only go stale.
 var networkCrossFieldRules = []crossFieldCase{
 	// Rejected, and the error names something other than the field you
 	// actually forgot. These are the expensive ones to debug.

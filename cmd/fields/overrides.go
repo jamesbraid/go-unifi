@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
 // fieldOverride is one [Resource.field.<wire>] entry from
@@ -30,9 +31,13 @@ type fieldOverride struct {
 }
 
 // resourceOverride is one [Resource] table from overrides/fields.toml.
+//
+// Preference entries are typed in internal/fields because the integration
+// test reads them back out of the same file; see fields.Preference.
 type resourceOverride struct {
-	Path  string                   `toml:"path"`
-	Field map[string]fieldOverride `toml:"field"`
+	Path       string                       `toml:"path"`
+	Field      map[string]fieldOverride     `toml:"field"`
+	Preference map[string]fields.Preference `toml:"preference"`
 }
 
 var (
@@ -191,5 +196,30 @@ func (r *ResourceInfo) applyOverrides() error {
 		seenJSON[f.JSONName] = f.FieldName
 	}
 
+	return r.validatePreferences(override, seenJSON)
+}
+
+// validatePreferences checks that every wire name in a [Resource.preference.*]
+// table exists on the resource.
+//
+// A misspelled entry would otherwise own nothing and say nothing -- the same
+// silent failure these tables exist to document, reproduced in the tool that
+// documents it. Fields are matched after removals and adds, so the names must
+// match the struct the generator actually emits.
+func (r *ResourceInfo) validatePreferences(override resourceOverride, wireNames map[string]string) error {
+	for _, mode := range slices.Sorted(maps.Keys(override.Preference)) {
+		if _, ok := wireNames[mode]; !ok {
+			return fmt.Errorf("%s preference %q: no such field on the resource", r.StructName, mode)
+		}
+		for _, owned := range override.Preference[mode].Owns {
+			if _, ok := wireNames[owned]; !ok {
+				return fmt.Errorf("%s preference %q: owns %q, which is not a field on the resource",
+					r.StructName, mode, owned)
+			}
+			if owned == mode {
+				return fmt.Errorf("%s preference %q: lists itself in owns", r.StructName, mode)
+			}
+		}
+	}
 	return nil
 }

@@ -136,6 +136,24 @@ type roundTripSeed struct {
 	wantDiscarded []string
 }
 
+// discardedFields returns the keys of asked that the controller did not store
+// as asked, mapped to a human-readable before/after. A missing key counts as
+// discarded: the controller dropped it rather than storing it.
+//
+// Shared with TestIntegrationPreferenceOwnership, which subtracts one call's
+// result from another's to isolate what a mode owns.
+func discardedFields(asked, stored map[string]any) map[string]string {
+	out := map[string]string{}
+	for wire, want := range asked {
+		have, ok := stored[wire]
+		if ok && jsonEqual(have, want) {
+			continue
+		}
+		out[wire] = fmt.Sprintf("asked %v, stored %v", want, have)
+	}
+	return out
+}
+
 // checkDiscarded compares what the seed asked for against what the controller
 // stored, and pins the difference. Both directions are errors: a field the
 // controller newly refuses is a regression to find, and a field it stopped
@@ -148,14 +166,7 @@ func checkDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
 		want[wire] = true
 	}
 
-	detail := map[string]string{}
-	for wire, asked := range tc.seed {
-		have, ok := stored[wire]
-		if ok && jsonEqual(have, asked) {
-			continue
-		}
-		detail[wire] = fmt.Sprintf("asked %v, stored %v", asked, have)
-	}
+	detail := discardedFields(tc.seed, stored)
 
 	got := make([]string, 0, len(detail))
 	for wire := range detail {
