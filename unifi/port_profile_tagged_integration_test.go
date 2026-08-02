@@ -35,10 +35,18 @@ import (
 // two write paths genuinely differ.
 //
 // If the tagged variants ever FAIL here, the controller has started
-// honoring the field again: restore the [PortProfile.field.tagged_networkconf_ids]
-// pin in overrides/fields.toml (git history of this file has the stanza) and
-// flip those assertions. If the control variant fails, the exclusion
-// mechanism itself changed and PortProfile's model needs re-measuring.
+// honoring the field again: restore the pin in overrides/fields.toml and
+// flip those assertions. The stanza is:
+//
+//	[PortProfile.field.tagged_networkconf_ids]
+//	add = true
+//	name = "TaggedNetworkIDs"
+//	type = "string"
+//	omitempty = true
+//	array = true
+//
+// If the control variant fails, the exclusion mechanism itself changed and
+// PortProfile's model needs re-measuring.
 func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
