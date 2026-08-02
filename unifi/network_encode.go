@@ -178,22 +178,22 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:                      n.Name,
+		Name:                      nilIfEmpty(n.Name),
 		Purpose:                   n.Purpose,
 		Enabled:                   n.Enabled,
-		NetworkGroup:              n.NetworkGroup,
-		IPSubnet:                  valueOrDefault(n.IPSubnet, ""),
+		NetworkGroup:              nilIfEmpty(n.NetworkGroup),
+		IPSubnet:                  nilIfEmpty(n.IPSubnet),
 		VLAN:                      n.VLAN,
 		VLANEnabled:               n.VLANEnabled,
-		L3InterfaceType:           n.L3InterfaceType,
+		L3InterfaceType:           nilIfEmpty(n.L3InterfaceType),
 		RoutedPortIDX:             n.RoutedPortIDX,
 		RoutedLagIDX:              n.RoutedLagIDX,
 		DomainName:                valueOrDefault(n.DomainName, ""),
 		AutoScaleEnabled:          n.AutoScaleEnabled,
-		GatewayType:               n.GatewayType,
+		GatewayType:               nilIfEmpty(n.GatewayType),
 		InternetAccessEnabled:     n.InternetAccessEnabled,
 		NetworkIsolationEnabled:   n.NetworkIsolationEnabled,
-		SettingPreference:         n.SettingPreference,
+		SettingPreference:         nilIfEmpty(n.SettingPreference),
 		FirewallZoneID:            n.FirewallZoneID,
 		IGMPSnooping:              n.IGMPSnooping,
 		IGMPFastleave:             n.IGMPFastleave,
@@ -252,15 +252,15 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
 
 		// IPv6
-		IPV6InterfaceType:           valueOrDefault(n.IPV6InterfaceType, "none"),
-		IPV6ClientAddressAssignment: n.IPV6ClientAddressAssignment,
-		IPV6SettingPreference:       n.IPV6SettingPreference,
-		IPV6RaPriority:              n.IPV6RaPriority,
+		IPV6InterfaceType:           valueOrDefault(nilIfEmpty(n.IPV6InterfaceType), "none"),
+		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
+		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
+		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
 		IPV6Subnet:                  n.IPV6Subnet,
 		IPV6RaEnabled:               n.IPV6RaEnabled,
 		IPV6RaPreferredLifetime:     n.IPV6RaPreferredLifetime,
 		IPV6RaValidLifetime:         n.IPV6RaValidLifetime,
-		IPV6PDInterface:             n.IPV6PDInterface,
+		IPV6PDInterface:             nilIfEmpty(n.IPV6PDInterface),
 		IPV6PDPrefixid:              n.IPV6PDPrefixid,
 		IPV6PDStart:                 n.IPV6PDStart,
 		IPV6PDStop:                  n.IPV6PDStop,
@@ -325,10 +325,10 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:                    n.Name,
+		Name:                    nilIfEmpty(n.Name),
 		Purpose:                 n.Purpose,
 		Enabled:                 n.Enabled,
-		NetworkGroup:            valueOrDefault(n.NetworkGroup, "LAN"),
+		NetworkGroup:            valueOrDefault(nilIfEmpty(n.NetworkGroup), "LAN"),
 		VLAN:                    n.VLAN,
 		VLANEnabled:             vlanEnabled,
 		IGMPSnooping:            n.IGMPSnooping,
@@ -482,22 +482,22 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:                      n.Name,
+		Name:                      nilIfEmpty(n.Name),
 		Purpose:                   n.Purpose,
 		Enabled:                   n.Enabled,
-		NetworkGroup:              n.NetworkGroup,
-		IPSubnet:                  valueOrDefault(n.IPSubnet, ""),
+		NetworkGroup:              nilIfEmpty(n.NetworkGroup),
+		IPSubnet:                  nilIfEmpty(n.IPSubnet),
 		VLAN:                      n.VLAN,
 		VLANEnabled:               n.VLANEnabled,
-		L3InterfaceType:           n.L3InterfaceType,
+		L3InterfaceType:           nilIfEmpty(n.L3InterfaceType),
 		RoutedPortIDX:             n.RoutedPortIDX,
 		RoutedLagIDX:              n.RoutedLagIDX,
 		DomainName:                valueOrDefault(n.DomainName, ""),
 		AutoScaleEnabled:          n.AutoScaleEnabled,
-		GatewayType:               n.GatewayType,
+		GatewayType:               nilIfEmpty(n.GatewayType),
 		InternetAccessEnabled:     n.InternetAccessEnabled,
 		NetworkIsolationEnabled:   n.NetworkIsolationEnabled,
-		SettingPreference:         n.SettingPreference,
+		SettingPreference:         nilIfEmpty(n.SettingPreference),
 		FirewallZoneID:            n.FirewallZoneID,
 		IGMPSnooping:              n.IGMPSnooping,
 		IGMPFastleave:             n.IGMPFastleave,
@@ -556,15 +556,15 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
 
 		// IPv6
-		IPV6InterfaceType:           valueOrDefault(n.IPV6InterfaceType, "none"),
-		IPV6ClientAddressAssignment: n.IPV6ClientAddressAssignment,
-		IPV6SettingPreference:       n.IPV6SettingPreference,
-		IPV6RaPriority:              n.IPV6RaPriority,
+		IPV6InterfaceType:           valueOrDefault(nilIfEmpty(n.IPV6InterfaceType), "none"),
+		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
+		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
+		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
 		IPV6Subnet:                  n.IPV6Subnet,
 		IPV6RaEnabled:               n.IPV6RaEnabled,
 		IPV6RaPreferredLifetime:     n.IPV6RaPreferredLifetime,
 		IPV6RaValidLifetime:         n.IPV6RaValidLifetime,
-		IPV6PDInterface:             n.IPV6PDInterface,
+		IPV6PDInterface:             nilIfEmpty(n.IPV6PDInterface),
 		IPV6PDPrefixid:              n.IPV6PDPrefixid,
 		IPV6PDStart:                 n.IPV6PDStart,
 		IPV6PDStop:                  n.IPV6PDStop,
@@ -586,6 +586,11 @@ func (n *Network) marshalGuest() ([]byte, error) {
 
 // marshalWAN marshals a WAN network.
 func (n *Network) marshalWAN() ([]byte, error) {
+	// ipv6_enabled is derived from wan_type_v6, so both have to read the
+	// same value: an empty wan_type_v6 is dropped as unset, and must not
+	// leave ipv6_enabled asserting IPv6 off a field that was not sent.
+	wanTypeV6 := nilIfEmpty(n.WANTypeV6)
+
 	return json.Marshal(&struct {
 		ID       string `json:"_id,omitempty"`
 		SiteID   string `json:"site_id,omitempty"`
@@ -693,21 +698,21 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:                  n.Name,
+		Name:                  nilIfEmpty(n.Name),
 		Purpose:               n.Purpose,
 		Enabled:               n.Enabled,
-		SettingPreference:     n.SettingPreference,
-		IPV6SettingPreference: n.IPV6SettingPreference,
+		SettingPreference:     nilIfEmpty(n.SettingPreference),
+		IPV6SettingPreference: nilIfEmpty(n.IPV6SettingPreference),
 
 		// WAN type fields
-		WANType:         n.WANType,
-		WANTypeV6:       n.WANTypeV6,
-		WANNetworkGroup: n.WANNetworkGroup,
+		WANType:         nilIfEmpty(n.WANType),
+		WANTypeV6:       wanTypeV6,
+		WANNetworkGroup: nilIfEmpty(n.WANNetworkGroup),
 
 		// Static addressing
-		WANIP:        n.WANIP,
-		WANNetmask:   n.WANNetmask,
-		WANGateway:   n.WANGateway,
+		WANIP:        nilIfEmpty(n.WANIP),
+		WANNetmask:   nilIfEmpty(n.WANNetmask),
+		WANGateway:   nilIfEmpty(n.WANGateway),
 		WANIPV6:      n.WANIPV6,
 		WANGatewayV6: n.WANGatewayV6,
 		WANPrefixlen: n.WANPrefixlen,
@@ -737,17 +742,17 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		// DNS fields
 		WANDNS1:              n.WANDNS1,
 		WANDNS2:              n.WANDNS2,
-		WANDNSPreference:     n.WANDNSPreference,
+		WANDNSPreference:     nilIfEmpty(n.WANDNSPreference),
 		WANIPV6DNS1:          n.WANIPV6DNS1,
 		WANIPV6DNS2:          n.WANIPV6DNS2,
-		WANIPV6DNSPreference: n.WANIPV6DNSPreference,
+		WANIPV6DNSPreference: nilIfEmpty(n.WANIPV6DNSPreference),
 
 		// DHCPv6 / IPv6 fields
 		WANDHCPv6PDSize:       n.WANDHCPv6PDSize,
 		WANDHCPv6PDSizeAuto:   n.WANDHCPv6PDSizeAuto,
 		WANDHCPv6Options:      n.WANDHCPv6Options,
-		IPV6WANDelegationType: n.IPV6WANDelegationType,
-		IPV6Enabled:           n.WANTypeV6 != nil && *n.WANTypeV6 != "disabled",
+		IPV6WANDelegationType: nilIfEmpty(n.IPV6WANDelegationType),
+		IPV6Enabled:           wanTypeV6 != nil && *wanTypeV6 != "disabled",
 
 		// QoS fields
 		WANEgressQOSEnabled: n.WANEgressQOSEnabled,
@@ -757,9 +762,9 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		WANSmartQDownRate:   n.WANSmartQDownRate,
 
 		// MSS clamping fields
-		MssClamp:        n.MssClamp,
+		MssClamp:        nilIfEmpty(n.MssClamp),
 		MssClampMss:     n.MssClampMss,
-		MssClampIPV6:    n.MssClampIPV6,
+		MssClampIPV6:    nilIfEmpty(n.MssClampIPV6),
 		MssClampMssIPV6: n.MssClampMssIPV6,
 
 		// UPnP fields
@@ -769,12 +774,12 @@ func (n *Network) marshalWAN() ([]byte, error) {
 		UPnPSecureMode:    n.UPnPSecureMode,
 
 		// Load balance / failover fields
-		WANLoadBalanceType:   n.WANLoadBalanceType,
+		WANLoadBalanceType:   nilIfEmpty(n.WANLoadBalanceType),
 		WANLoadBalanceWeight: n.WANLoadBalanceWeight,
 		WANFailoverPriority:  n.WANFailoverPriority,
 
 		// IGMP fields
-		IGMPProxyFor:      n.IGMPProxyFor,
+		IGMPProxyFor:      nilIfEmpty(n.IGMPProxyFor),
 		IGMPProxyUpstream: n.IGMPProxyUpstream,
 
 		// Event / alias fields
@@ -843,20 +848,20 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:    n.Name,
+		Name:    nilIfEmpty(n.Name),
 		Purpose: n.Purpose,
 		Enabled: n.Enabled,
 
-		VPNType:           n.VPNType,
-		IPSecInterface:    n.IPSecInterface,
+		VPNType:           nilIfEmpty(n.VPNType),
+		IPSecInterface:    nilIfEmpty(n.IPSecInterface),
 		IPSecPeerIP:       n.IPSecPeerIP,
-		IPSecLocalIP:      n.IPSecLocalIP,
-		IPSecKeyExchange:  n.IPSecKeyExchange,
-		IPSecPreSharedKey: n.IPSecPreSharedKey,
-		IPSecProfile:      n.IPSecProfile,
+		IPSecLocalIP:      nilIfEmpty(n.IPSecLocalIP),
+		IPSecKeyExchange:  nilIfEmpty(n.IPSecKeyExchange),
+		IPSecPreSharedKey: nilIfEmpty(n.IPSecPreSharedKey),
+		IPSecProfile:      nilIfEmpty(n.IPSecProfile),
 
-		IPSecEncryption:  n.IPSecEncryption,
-		IPSecHash:        n.IPSecHash,
+		IPSecEncryption:  nilIfEmpty(n.IPSecEncryption),
+		IPSecHash:        nilIfEmpty(n.IPSecHash),
 		IPSecDhGroup:     n.IPSecDhGroup,
 		IPSecIkeLifetime: n.IPSecIkeLifetime,
 
@@ -866,8 +871,8 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		IPSecRemoteIDentifierEnabled: n.IPSecRemoteIDentifierEnabled,
 		IPSecSeparateIkev2Networks:   n.IPSecSeparateIkev2Networks,
 
-		IPSecEspEncryption: n.IPSecEspEncryption,
-		IPSecEspHash:       n.IPSecEspHash,
+		IPSecEspEncryption: nilIfEmpty(n.IPSecEspEncryption),
+		IPSecEspHash:       nilIfEmpty(n.IPSecEspHash),
 		IPSecEspDhGroup:    n.IPSecEspDhGroup,
 		IPSecEspLifetime:   n.IPSecEspLifetime,
 
@@ -925,20 +930,20 @@ func (n *Network) marshalVPNClient() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:     n.Name,
+		Name:     nilIfEmpty(n.Name),
 		Purpose:  n.Purpose,
 		Enabled:  n.Enabled,
-		IPSubnet: n.IPSubnet,
+		IPSubnet: nilIfEmpty(n.IPSubnet),
 
 		// VPN Type
-		VPNType: n.VPNType,
+		VPNType: nilIfEmpty(n.VPNType),
 
 		// VPN Client routing
 		VPNClientDefaultRoute: n.VPNClientDefaultRoute,
 		VPNClientPullDNS:      n.VPNClientPullDNS,
 
 		// WireGuard configuration
-		WireguardClientMode:                  n.WireguardClientMode,
+		WireguardClientMode:                  nilIfEmpty(n.WireguardClientMode),
 		WireguardClientConfigurationFile:     n.WireguardClientConfigurationFile,
 		WireguardClientConfigurationFilename: n.WireguardClientConfigurationFilename,
 		WireguardClientPeerIP:                n.WireguardClientPeerIP,
@@ -946,7 +951,7 @@ func (n *Network) marshalVPNClient() ([]byte, error) {
 		WireguardClientPeerPublicKey:         n.WireguardClientPeerPublicKey,
 		WireguardClientPresharedKeyEnabled:   n.WireguardClientPresharedKeyEnabled,
 		WireguardClientPresharedKey:          n.WireguardClientPresharedKey,
-		WireguardInterface:                   n.WireguardInterface,
+		WireguardInterface:                   nilIfEmpty(n.WireguardInterface),
 		WireguardPrivateKey:                  n.WireguardPrivateKey,
 
 		// DNS servers
@@ -1036,21 +1041,21 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		NoDelete: n.NoDelete,
 		NoEdit:   n.NoEdit,
 
-		Name:              n.Name,
+		Name:              nilIfEmpty(n.Name),
 		Purpose:           n.Purpose,
 		Enabled:           n.Enabled,
-		SettingPreference: n.SettingPreference,
-		IPSubnet:          n.IPSubnet,
+		SettingPreference: nilIfEmpty(n.SettingPreference),
+		IPSubnet:          nilIfEmpty(n.IPSubnet),
 
 		// VPN Type
-		VPNType: n.VPNType,
+		VPNType: nilIfEmpty(n.VPNType),
 
 		// VPN server WAN binding
-		VPNBindingMode: n.VPNBindingMode,
+		VPNBindingMode: nilIfEmpty(n.VPNBindingMode),
 
-		MssClamp:        n.MssClamp,
+		MssClamp:        nilIfEmpty(n.MssClamp),
 		MssClampMss:     n.MssClampMss,
-		MssClampIPV6:    n.MssClampIPV6,
+		MssClampIPV6:    nilIfEmpty(n.MssClampIPV6),
 		MssClampMssIPV6: n.MssClampMssIPV6,
 
 		// DNS
@@ -1066,37 +1071,37 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		RADIUSProfileID: n.RADIUSProfileID,
 
 		// WireGuard Server Configuration
-		WireguardInterface:                            n.WireguardInterface,
+		WireguardInterface:                            nilIfEmpty(n.WireguardInterface),
 		WireguardPrivateKey:                           n.WireguardPrivateKey,
 		WireguardLocalWANIP:                           n.WireguardLocalWANIP,
 		LocalPort:                                     n.LocalPort,
-		WireguardInterfaceBindingModeIPVersion:        n.WireguardInterfaceBindingModeIPVersion,
+		WireguardInterfaceBindingModeIPVersion:        nilIfEmpty(n.WireguardInterfaceBindingModeIPVersion),
 		VPNClientConfigurationRemoteIPOverride:        n.VPNClientConfigurationRemoteIPOverride,
 		VPNClientConfigurationRemoteIPOverrideEnabled: n.VPNClientConfigurationRemoteIPOverrideEnabled,
 
 		// L2TP Server Configuration
-		L2TpInterface:        n.L2TpInterface,
-		L2TpLocalWANIP:       n.L2TpLocalWANIP,
+		L2TpInterface:        nilIfEmpty(n.L2TpInterface),
+		L2TpLocalWANIP:       nilIfEmpty(n.L2TpLocalWANIP),
 		L2TpAllowWeakCiphers: n.L2TpAllowWeakCiphers,
-		IPSecPreSharedKey:    n.IPSecPreSharedKey,
+		IPSecPreSharedKey:    nilIfEmpty(n.IPSecPreSharedKey),
 		RequireMschapv2:      n.RequireMschapv2,
 
 		// OpenVPN Server Configuration
-		OpenVPNInterface:        n.OpenVPNInterface,
-		OpenVPNLocalWANIP:       n.OpenVPNLocalWANIP,
-		OpenVPNMode:             n.OpenVPNMode,
-		OpenVPNEncryptionCipher: n.OpenVPNEncryptionCipher,
-		VPNProtocol:             n.VPNProtocol,
+		OpenVPNInterface:        nilIfEmpty(n.OpenVPNInterface),
+		OpenVPNLocalWANIP:       nilIfEmpty(n.OpenVPNLocalWANIP),
+		OpenVPNMode:             nilIfEmpty(n.OpenVPNMode),
+		OpenVPNEncryptionCipher: nilIfEmpty(n.OpenVPNEncryptionCipher),
+		VPNProtocol:             nilIfEmpty(n.VPNProtocol),
 
 		// OpenVPN Certificates and Keys
-		ServerCrt:       n.ServerCrt,
-		ServerKey:       n.ServerKey,
-		DhKey:           n.DhKey,
-		SharedClientKey: n.SharedClientKey,
-		SharedClientCrt: n.SharedClientCrt,
-		AuthKey:         n.AuthKey,
-		CaCrt:           n.CaCrt,
-		CaKey:           n.CaKey,
+		ServerCrt:       nilIfEmpty(n.ServerCrt),
+		ServerKey:       nilIfEmpty(n.ServerKey),
+		DhKey:           nilIfEmpty(n.DhKey),
+		SharedClientKey: nilIfEmpty(n.SharedClientKey),
+		SharedClientCrt: nilIfEmpty(n.SharedClientCrt),
+		AuthKey:         nilIfEmpty(n.AuthKey),
+		CaCrt:           nilIfEmpty(n.CaCrt),
+		CaKey:           nilIfEmpty(n.CaKey),
 	})
 }
 

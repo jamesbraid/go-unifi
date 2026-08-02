@@ -159,8 +159,12 @@ func TestMarshalNetworkCorporateDefaults(t *testing.T) {
 	if _, ok := result["dhcpd_leasetime"]; ok {
 		t.Errorf("dhcpd_leasetime serialized for nil value: %s", data)
 	}
-	if result["ip_subnet"] != "" {
-		t.Errorf("Expected empty ip_subnet, got %v", result["ip_subnet"])
+	// ip_subnet used to be emitted as "" for a nil subnet, via a
+	// valueOrDefault(n.IPSubnet, "") that manufactured the empty string the
+	// three checks above exist to prevent. Its schema pattern requires a
+	// CIDR and has no ^$ alternative, so "" could only ever be rejected.
+	if _, ok := result["ip_subnet"]; ok {
+		t.Errorf("ip_subnet serialized for nil value: %s", data)
 	}
 
 	// Verify empty arrays are empty, not nil
