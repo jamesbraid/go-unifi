@@ -156,6 +156,9 @@ func TestMarshalNetworkCorporateDefaults(t *testing.T) {
 	if _, ok := result["setting_preference"]; ok {
 		t.Errorf("setting_preference serialized for nil value: %s", data)
 	}
+	if _, ok := result["dhcpd_leasetime"]; ok {
+		t.Errorf("dhcpd_leasetime serialized for nil value: %s", data)
+	}
 	if result["ip_subnet"] != "" {
 		t.Errorf("Expected empty ip_subnet, got %v", result["ip_subnet"])
 	}
