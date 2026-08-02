@@ -308,6 +308,125 @@ measured = "10.4.57"
 owns = []
 measured = "10.4.57"
 
+# The WLAN advanced block. dtim_na is not owned while dtim_ng is, and both
+# were set in the same payload, so the split is the controller's and not an
+# artefact of what was measured.
+[WLAN.preference.setting_preference]
+owns = [
+  "bc_filter_enabled",
+  "bss_transition",
+  "dtim_mode",
+  "dtim_ng",
+  "fast_roaming_enabled",
+  "group_rekey",
+  "l2_isolation",
+  "mcastenhance_enabled",
+  "proxy_arp",
+  "uapsd_enabled",
+]
+measured = "10.4.57"
+
+# A second mode on the same object, governing minimum data rates
+# independently of the WLAN's general one. The advertising-rate flags and
+# minrate_ng_enabled survived auto; the rest did not.
+[WLAN.preference.minrate_setting_preference]
+owns = [
+  "minrate_na_data_rate_kbps",
+  "minrate_na_enabled",
+  "minrate_ng_data_rate_kbps",
+]
+measured = "10.4.57"
+
+# The switch-port advanced block. Note autoneg, lldpmed_enabled and
+# stp_port_mode are forced back ON here rather than off: auto restores the
+# controller's defaults in whichever direction they point, so "owned" is not
+# a synonym for "disabled".
+[PortProfile.preference.setting_preference]
+owns = [
+  "autoneg",
+  "egress_rate_limit_kbps_enabled",
+  "isolation",
+  "lldpmed_enabled",
+  "lldpmed_notify_enabled",
+  "port_keepalive_enabled",
+  "stormctrl_bcast_enabled",
+  "stormctrl_mcast_enabled",
+  "stormctrl_ucast_enabled",
+  "stp_port_mode",
+]
+measured = "10.4.57"
+
+[FirewallRule.preference.setting_preference]
+owns = [
+  "state_established",
+  "state_related",
+]
+measured = "10.4.57"
+
+# Owns nothing. Every field in the probe payload survived auto, including the
+# ones the controller echoes back in a different representation (the filter
+# objects gain their invert_* defaults, rule_index comes back numeric), so
+# this is a mode that carries the enum without acting on it.
+[Nat.preference.setting_preference]
+owns = []
+measured = "10.4.57"
+
+# Under auto the site's NTP servers revert to the ubnt pool, so a caller who
+# points a site at internal time servers under auto is silently ignored.
+[SettingNtp.preference.setting_preference]
+owns = [
+  "ntp_server_1",
+  "ntp_server_2",
+  "ntp_server_3",
+  "ntp_server_4",
+]
+measured = "10.4.57"
+
+# Every connection-tracking timeout except other_timeout, which stored what
+# was asked under both modes.
+[SettingUsg.preference.timeout_setting_preference]
+owns = [
+  "icmp_timeout",
+  "tcp_close_timeout",
+  "tcp_close_wait_timeout",
+  "tcp_established_timeout",
+  "tcp_fin_wait_timeout",
+  "tcp_last_ack_timeout",
+  "tcp_syn_recv_timeout",
+  "tcp_syn_sent_timeout",
+  "tcp_time_wait_timeout",
+  "udp_other_timeout",
+  "udp_stream_timeout",
+]
+measured = "10.4.57"
+
+# Three of the five retention windows. The daily and monthly scales kept
+# what they were given under auto.
+[SettingSuperMgmt.preference.data_retention_setting_preference]
+owns = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
+  "data_retention_time_in_hours_for_others",
+]
+measured = "10.4.57"
+
+# Only the schedule. The channel and radio lists are rewritten by the
+# controller under both modes, so they are not this mode's doing.
+[SettingRadioAi.preference.setting_preference]
+owns = [
+  "cron_expr",
+]
+measured = "10.4.57"
+
+# layout_preference is a real mode, not a UI-only choice: under auto the
+# submitted widget list is dropped entirely. Worth stating because the name
+# suggests otherwise, and guessing would have got it wrong.
+[SettingDashboard.preference.layout_preference]
+owns = [
+  "widgets",
+]
+measured = "10.4.57"
+
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
 # keep compiling. Review for sunset next controller train.

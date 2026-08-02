@@ -149,9 +149,25 @@ func discardedFields(asked, stored map[string]any) map[string]string {
 		if ok && jsonEqual(have, want) {
 			continue
 		}
-		out[wire] = fmt.Sprintf("asked %v, stored %v", want, have)
+		out[wire] = describeDifference(want, have)
 	}
 	return out
+}
+
+// describeDifference renders a before/after that a reader can act on.
+//
+// %v alone is not enough: the controller returns some numeric fields as JSON
+// strings, so a values-differ report can read "asked [1 6 11], stored
+// [1 6 11]" and look like a bug in the comparison. When the rendered forms
+// match, the difference is representation, and saying so is the whole
+// message.
+func describeDifference(want, have any) string {
+	wantStr := fmt.Sprintf("%v", want)
+	haveStr := fmt.Sprintf("%v", have)
+	if wantStr == haveStr {
+		return fmt.Sprintf("asked %s (%T), stored the same value as %T", wantStr, want, have)
+	}
+	return fmt.Sprintf("asked %s, stored %s", wantStr, haveStr)
 }
 
 // checkDiscarded compares what the seed asked for against what the controller
