@@ -41,24 +41,17 @@ func TestIntegrationDHCPGuard(t *testing.T) {
 			vlan := int64(190 + i)
 			trusted := fmt.Sprintf("10.98.%d.2", octet)
 
-			// setting_preference must be "manual": the encoder otherwise
-			// defaults it to "auto", and on auto the controller owns the
-			// advanced toggles and stores dhcpguard_enabled=false whatever the
-			// payload said (measured by dropping one encoder field at a time
-			// until the flag stuck). The trusted-server slots themselves
-			// persist either way.
 			n := &Network{
-				Name:              strPtr(fmt.Sprintf("dhcpguard-%s", purpose)),
-				Purpose:           purpose,
-				Enabled:           true,
-				IPSubnet:          strPtr(fmt.Sprintf("10.98.%d.1/24", octet)),
-				VLAN:              &vlan,
-				VLANEnabled:       true,
-				SettingPreference: strPtr("manual"),
-				DHCPDEnabled:      true,
-				DHCPguardEnabled:  true,
-				DHCPDIP1:          trusted,
-				DHCPDMAC1:         "00:11:22:33:44:55",
+				Name:             strPtr(fmt.Sprintf("dhcpguard-%s", purpose)),
+				Purpose:          purpose,
+				Enabled:          true,
+				IPSubnet:         strPtr(fmt.Sprintf("10.98.%d.1/24", octet)),
+				VLAN:             &vlan,
+				VLANEnabled:      true,
+				DHCPDEnabled:     true,
+				DHCPguardEnabled: true,
+				DHCPDIP1:         trusted,
+				DHCPDMAC1:        "00:11:22:33:44:55",
 			}
 
 			// PostJSON marshals n through Network.MarshalJSON, so this posts
