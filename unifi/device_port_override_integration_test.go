@@ -71,10 +71,15 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 	}
 
 	// stat/device lags a write by a second or two, so a read taken straight
-	// after a PUT shows the old object. Polling for the field to appear is
-	// the difference between measuring the controller and measuring the lag:
-	// reading once made port overrides look like they were being discarded.
-	write := func(t *testing.T, body map[string]any, awaitKey string) (map[string]any, bool) {
+	// after a PUT shows the object as it was. Reading once made a successful
+	// write look like a discarded one.
+	//
+	// settled has to identify the write that just happened, not merely that
+	// the field is populated. The second arm runs against an object the
+	// first arm already populated, so "port_overrides is non-nil" is true
+	// before the second write lands, and the arm would measure the first
+	// arm's object -- or, once the mode check caught that, skip.
+	write := func(t *testing.T, body map[string]any, settled func(map[string]any) bool) (map[string]any, bool) {
 		t.Helper()
 		resp, status, err := s.PutJSON(ctx, writePath, body)
 		if err != nil || status != 200 {
@@ -89,11 +94,11 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 				t.Fatalf("re-read failed (HTTP %d): %v", status, err)
 			}
 			stored := firstData(t, fresh)
-			if awaitKey == "" || stored[awaitKey] != nil {
+			if settled == nil || settled(stored) {
 				return stored, true
 			}
 			if time.Now().After(deadline) {
-				t.Logf("%s never appeared on the device after the write", awaitKey)
+				t.Logf("the device never settled on the written value within the deadline")
 				return stored, true
 			}
 			time.Sleep(time.Second)
@@ -103,7 +108,12 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 	t.Run("port_overrides.setting_preference ownership", func(t *testing.T) {
 		measure := func(mode string) map[string]string {
 			asked := override(mode)
-			stored, ok := write(t, map[string]any{"_id": id, "port_overrides": []any{asked}}, "port_overrides")
+			// Settled means this arm's own mode is visible, which is the
+			// only signal that distinguishes it from the arm before.
+			stored, ok := write(t, map[string]any{"_id": id, "port_overrides": []any{asked}},
+				func(fresh map[string]any) bool {
+					return firstPortOverrideMode(fresh) == mode
+				})
 			if !ok {
 				t.Skipf("the %s arm was rejected, so ownership here is unmeasured", mode)
 			}
@@ -112,7 +122,9 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 				t.Skip("port_overrides did not survive the write, so nothing inside it can be measured")
 			}
 			if got, _ := scope[preferenceModeWire].(string); got != mode {
-				t.Skipf("asked for %s = %q, stored %q; the arm did not run under its own mode",
+				t.Skipf("asked for %s = %q, and the device still reported %q after waiting for it "+
+					"to settle; the arm did not run under its own mode, so anything measured from "+
+					"it would be the previous arm's object",
 					preferenceModeWire, mode, got)
 			}
 			return discardedFields(asked, scope)
@@ -153,11 +165,29 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 	// built without touching port_overrides marshals null there, so it
 	// cannot be written at all.
 	t.Run("port_overrides null", func(t *testing.T) {
-		if _, ok := write(t, map[string]any{"_id": id, "port_overrides": nil}, ""); ok {
+		if _, ok := write(t, map[string]any{"_id": id, "port_overrides": nil}, nil); ok {
 			t.Error("null port_overrides was accepted. The controller stopped rejecting it, which " +
 				"is worth knowing: it is one of the reasons the client cannot send this field unset.")
 		}
 	})
+}
+
+// firstPortOverrideMode reads the mode off the first port override, or ""
+// when the device carries none.
+//
+// Deliberately quiet: it runs on every poll iteration, and descend's logging
+// would report the same not-yet-settled state a dozen times per write.
+func firstPortOverrideMode(device map[string]any) string {
+	overrides, ok := device["port_overrides"].([]any)
+	if !ok || len(overrides) == 0 {
+		return ""
+	}
+	first, ok := overrides[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	mode, _ := first[preferenceModeWire].(string)
+	return mode
 }
 
 // deviceIDForMAC resolves an adopted device's controller id.
