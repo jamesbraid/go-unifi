@@ -210,7 +210,7 @@ func (c *ApiClient) ListDevice(ctx context.Context, site string) ([]Device, erro
 }
 
 func (c *ApiClient) GetDeviceByMAC(ctx context.Context, site, mac string) (*Device, error) {
-	return c.getDevice(ctx, site, mac)
+	return c.getDevice(ctx, site, types.NormalizeMAC(mac))
 }
 
 func (c *ApiClient) DeleteDevice(ctx context.Context, site, id string) error {
@@ -359,7 +359,7 @@ func (c *ApiClient) AdoptDevice(ctx context.Context, site, mac string) error {
 		MAC string `json:"mac"`
 	}{
 		Cmd: "adopt",
-		MAC: mac,
+		MAC: types.NormalizeMAC(mac),
 	}
 
 	var respBody struct {
@@ -380,7 +380,7 @@ func (c *ApiClient) ForgetDevice(ctx context.Context, site, mac string) error {
 		MACs []string `json:"macs"`
 	}{
 		Cmd:  "delete-device",
-		MACs: []string{mac},
+		MACs: []string{types.NormalizeMAC(mac)},
 	}
 
 	var respBody struct {
