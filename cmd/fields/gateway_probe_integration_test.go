@@ -237,11 +237,20 @@ func gatewayProbes(lanID, wanID string) []gatewayProbe {
 			// is accepted where "NORMAL" and "STANDARD" are rejected as
 			// unknown enum values. A backbone area over the LAN is the
 			// smallest router document it will construct.
+			//
+			// redistribute_bgp_routes rides along deliberately. The generated
+			// OSPFRouter marshals it unconditionally, so every SDK write now
+			// carries it; sending it here means the drift seed fails loudly if
+			// the write DTO ever stops accepting it, rather than the breakage
+			// surfacing in a consumer. Measured accepted on 10.4.57 —
+			// unrecognized keys on this endpoint answer HTTP 400
+			// "Unrecognized field", which this does not draw.
 			name: "ospf", methods: []string{"POST"}, path: "ospf/router",
 			payload: map[string]any{
 				"enabled":                       true,
 				"router_id":                     "0.0.0.1",
 				"announce_default_route":        false,
+				"redistribute_bgp_routes":       false,
 				"redistribute_connected_routes": false,
 				"redistribute_static_routes":    false,
 				"interfaces":                    []any{},

@@ -37,6 +37,7 @@ type OSPFRouter struct {
 	Areas                                 []OSPFRouterAreas      `json:"areas,omitempty"`
 	Enabled                               bool                   `json:"enabled"`
 	Interfaces                            []OSPFRouterInterfaces `json:"interfaces,omitempty"`
+	RedistributeBgpRoutes                 bool                   `json:"redistribute_bgp_routes"`
 	RedistributeConnectedRoutes           bool                   `json:"redistribute_connected_routes"`
 	RedistributeConnectedRoutesMetricType string                 `json:"redistribute_connected_routes_metric_type,omitempty"`
 	RedistributeStaticRoutes              bool                   `json:"redistribute_static_routes"`
