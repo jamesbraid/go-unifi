@@ -34,6 +34,9 @@ type Preference struct {
 // and recorded in overrides/fields.toml; the build of each set is in the
 // "measured" key beside it there.
 var PreferenceOwnedFields = map[string][]Preference{
+	"Device": {
+		{Container: "port_overrides", Mode: "setting_preference", Owns: []string{}},
+	},
 	"FirewallRule": {
 		{Mode: "setting_preference", Owns: []string{
 			"state_established",
