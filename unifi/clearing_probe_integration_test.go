@@ -205,7 +205,7 @@ func clearingProbeResources(t *testing.T, ctx context.Context, s *controllertest
 				"wpa_mode": "wpa2", "wpa_enc": "ccmp",
 				"usergroup_id": firstUserGroupID(ctx, t, s, site),
 				"wlangroup_id": firstWLANGroupID(ctx, t, s, site),
-				"ap_group_ids": []string{firstAPGroupID(ctx, t, s, site)},
+				"ap_group_ids": []string{requiredAPGroupID(ctx, t, s, site)},
 			},
 		},
 	}
@@ -223,10 +223,26 @@ func firstWLANGroupID(ctx context.Context, t *testing.T, s *controllertest.Sessi
 	return firstObjectID(ctx, t, s, site, "wlangroup")
 }
 
-// firstAPGroupID lives in probe_helpers_integration_test.go. This file had
-// its own copy until the shared helpers were extracted; both landed on main
-// from different pull requests, each green against a main that did not yet
-// carry the other.
+// requiredAPGroupID resolves the site's default AP group. Creating a WLAN
+// without one is api.err.ApGroupMissing. It is a v2 endpoint returning a bare
+// array rather than the v1 data envelope.
+func requiredAPGroupID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, "/v2/api/site/"+site+"/apgroups")
+	if err != nil || status != 200 {
+		t.Fatalf("list apgroups: status %d, %v", status, err)
+	}
+	items, _ := body.([]any)
+	for _, item := range items {
+		if obj, ok := item.(map[string]any); ok {
+			if id, _ := obj["_id"].(string); id != "" {
+				return id
+			}
+		}
+	}
+	t.Fatalf("no ap groups on this site; body %v", body)
+	return ""
+}
 
 func firstObjectID(ctx context.Context, t *testing.T, s *controllertest.Session, site, collection string) string {
 	t.Helper()

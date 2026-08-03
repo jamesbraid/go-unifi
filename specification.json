@@ -10895,6 +10895,12 @@
             }
           },
           {
+            "name": "redistribute_bgp_routes",
+            "bool": {
+              "computed_optional_required": "computed"
+            }
+          },
+          {
             "name": "redistribute_connected_routes",
             "bool": {
               "computed_optional_required": "computed"
@@ -25808,6 +25814,12 @@
                   }
                 ]
               }
+            }
+          },
+          {
+            "name": "redistribute_bgp_routes",
+            "bool": {
+              "computed_optional_required": "optional"
             }
           },
           {
