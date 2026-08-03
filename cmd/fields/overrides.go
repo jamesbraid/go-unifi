@@ -248,6 +248,27 @@ func (r *ResourceInfo) validatePreferences(override resourceOverride) error {
 				return fmt.Errorf("%s preference %q: lists itself in owns", r.StructName, key)
 			}
 		}
+
+		// An ownership set is a measurement, and a measurement with no build
+		// behind it cannot be told from a stale one -- which is the whole
+		// job of the key. Nothing else catches its absence: a misspelled
+		// "measured" decodes to empty without error, and the generated file
+		// does not carry the value, so the provenance can vanish without
+		// changing a single byte of output.
+		if strings.TrimSpace(override.Preference[key].Measured) == "" {
+			return fmt.Errorf("%s preference %q: no measured build. Record the controller version "+
+				"the set was measured against (measured = \"10.4.57\"); an ownership set with no "+
+				"provenance reads as current forever", r.StructName, key)
+		}
+
+		for _, excluded := range override.Preference[key].UOSExcludes {
+			if !slices.Contains(override.Preference[key].Owns, excluded) {
+				return fmt.Errorf("%s preference %q: uos_excludes names %q, which is not in owns. "+
+					"An exclusion says the console takes a field the mode owns elsewhere, so one "+
+					"that names an unowned field describes nothing",
+					r.StructName, key, excluded)
+			}
+		}
 	}
 	return nil
 }

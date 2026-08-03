@@ -118,7 +118,7 @@ func TestApplyOverridesPreferenceNamesMustExist(t *testing.T) {
 		{
 			name: "resolves",
 			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"igmp_snooping"}},
+				"setting_preference": {Owns: []string{"igmp_snooping"}, Measured: "10.4.57"},
 			},
 		},
 		{
@@ -126,21 +126,21 @@ func TestApplyOverridesPreferenceNamesMustExist(t *testing.T) {
 			// reports nothing, which is the bug the tables document.
 			name: "owned field misspelled",
 			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"igmp_snoping"}},
+				"setting_preference": {Owns: []string{"igmp_snoping"}, Measured: "10.4.57"},
 			},
 			wantErr: `owns "igmp_snoping", which is not a field on the resource`,
 		},
 		{
 			name: "mode field misspelled",
 			pref: map[string]fields.Preference{
-				"settings_preference": {Owns: []string{"igmp_snooping"}},
+				"settings_preference": {Owns: []string{"igmp_snooping"}, Measured: "10.4.57"},
 			},
 			wantErr: `preference "settings_preference": no such field on the resource`,
 		},
 		{
 			name: "mode owns itself",
 			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"setting_preference"}},
+				"setting_preference": {Owns: []string{"setting_preference"}, Measured: "10.4.57"},
 			},
 			wantErr: `lists itself in owns`,
 		},
@@ -197,13 +197,13 @@ func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
 			// An array container: one mode per element, governing that element.
 			name: "through an array",
 			pref: map[string]fields.Preference{
-				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}},
+				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}, Measured: "10.4.57"},
 			},
 		},
 		{
 			name: "through a single sub-object",
 			pref: map[string]fields.Preference{
-				"dns_verification.setting_preference": {Owns: []string{"domain"}},
+				"dns_verification.setting_preference": {Owns: []string{"domain"}, Measured: "10.4.57"},
 			},
 		},
 		{
@@ -211,14 +211,14 @@ func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
 			// the wrong scope would silently annotate the wrong attribute.
 			name: "nested and top-level modes coexist",
 			pref: map[string]fields.Preference{
-				"setting_preference":                {Owns: []string{}},
-				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}},
+				"setting_preference":                {Owns: []string{}, Measured: "10.4.57"},
+				"port_overrides.setting_preference": {Owns: []string{"stp_port_mode"}, Measured: "10.4.57"},
 			},
 		},
 		{
 			name: "owned name from another object",
 			pref: map[string]fields.Preference{
-				"port_overrides.setting_preference": {Owns: []string{"domain"}},
+				"port_overrides.setting_preference": {Owns: []string{"domain"}, Measured: "10.4.57"},
 			},
 			wantErr: `owns "domain", which is not a field on Thing.port_overrides`,
 		},
@@ -227,14 +227,14 @@ func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
 			// two spellings of the same thing.
 			name: "dotted owned name is rejected",
 			pref: map[string]fields.Preference{
-				"port_overrides.setting_preference": {Owns: []string{"port_overrides.stp_port_mode"}},
+				"port_overrides.setting_preference": {Owns: []string{"port_overrides.stp_port_mode"}, Measured: "10.4.57"},
 			},
 			wantErr: "owned names are relative to Thing.port_overrides",
 		},
 		{
 			name: "container does not exist",
 			pref: map[string]fields.Preference{
-				"port_overides.setting_preference": {Owns: []string{"stp_port_mode"}},
+				"port_overides.setting_preference": {Owns: []string{"stp_port_mode"}, Measured: "10.4.57"},
 			},
 			wantErr: `no field "port_overides" on the resource`,
 		},
@@ -284,4 +284,94 @@ owns = ["stp_port_mode"]
 	require.Contains(t, bare["Thing"].Preference, "port_overrides")
 	require.Empty(t, bare["Thing"].Preference["port_overrides"].Owns,
 		"the nested table swallowed owns, so the entry would govern nothing")
+}
+
+// TestApplyOverridesPreferenceProvenance covers the two rules that keep an
+// ownership entry meaningful rather than merely well-formed.
+//
+// measured is what separates a current measurement from a stale one, and
+// nothing else notices when it goes: a misspelled key decodes to empty
+// without error, and the generated file does not carry the value, so an
+// entry can lose its provenance without changing a byte of output.
+//
+// uos_excludes is a claim about a field the mode owns elsewhere. Naming one
+// that is not owned describes nothing, and would mean the table or the
+// generator had drifted apart.
+func TestApplyOverridesPreferenceProvenance(t *testing.T) {
+	fieldsOf := func() map[string]*FieldInfo {
+		return map[string]*FieldInfo{
+			"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
+			"IGMPSnooping":      NewFieldInfo("IGMPSnooping", "igmp_snooping", "bool", "", false, false, false, ""),
+			"MulticastEnhance":  NewFieldInfo("MulticastEnhance", "multicast_enhance_enabled", "bool", "", false, false, false, ""),
+		}
+	}
+
+	for _, tc := range []struct {
+		name    string
+		pref    map[string]fields.Preference
+		wantErr string
+	}{
+		{
+			name: "measured recorded",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"igmp_snooping"}, Measured: "10.4.57"},
+			},
+		},
+		{
+			name: "measured missing",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"igmp_snooping"}},
+			},
+			wantErr: "no measured build",
+		},
+		{
+			// What a misspelled `measured` key decodes to.
+			name: "measured blank",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Owns: []string{"igmp_snooping"}, Measured: "  "},
+			},
+			wantErr: "no measured build",
+		},
+		{
+			name: "an empty owns set still needs provenance",
+			pref: map[string]fields.Preference{
+				"setting_preference": {Measured: "10.4.57"},
+			},
+		},
+		{
+			name: "uos exclusion of an owned field",
+			pref: map[string]fields.Preference{
+				"setting_preference": {
+					Owns:        []string{"igmp_snooping", "multicast_enhance_enabled"},
+					UOSExcludes: []string{"igmp_snooping"},
+					Measured:    "10.4.57",
+				},
+			},
+		},
+		{
+			name: "uos exclusion of a field the mode does not own",
+			pref: map[string]fields.Preference{
+				"setting_preference": {
+					Owns:        []string{"igmp_snooping"},
+					UOSExcludes: []string{"multicast_enhance_enabled"},
+					Measured:    "10.4.57",
+				},
+			},
+			wantErr: `uos_excludes names "multicast_enhance_enabled", which is not in owns`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := resourceWithFields("Thing", fieldsOf())
+			withOverrides(t, map[string]resourceOverride{
+				"Thing": {Preference: tc.pref},
+			}, func() {
+				err := r.applyOverrides()
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, tc.wantErr)
+			})
+		})
+	}
 }
