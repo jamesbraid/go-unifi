@@ -34,14 +34,19 @@ import (
 // from the vendor schema there; see the hook in cmd/fields/main.go) — the
 // two write paths genuinely differ.
 //
-// A failing tagged variant does not on its own mean the field came back.
-// Read what assertTaggedFate reports: only "stored exactly what was sent"
-// is the controller honoring the field, and only that earns the pin. A
-// stored value that differs from the submitted ids -- a normalized [], say
-// -- is still the field being ignored, and the answer there is to measure
-// what the controller does with the ids, not to pin. Once it is genuinely
-// honored, restore the stanza in overrides/fields.toml and flip those
-// assertions:
+// A failing tagged variant does not on its own mean the field came back, and
+// no outcome here earns the pin by itself. Read what assertTaggedFate
+// reports. A stored value that differs from the submitted ids -- a
+// normalized [], say -- is still the field being ignored. A value that
+// round-trips exactly is persistence, which is necessary and not sufficient:
+// the controller could hold the ids as an opaque blob and go on deriving
+// trunking from tagged_vlan_mgmt alone. Either way the next step is a
+// behavioural measurement -- does a port carrying the profile actually trunk
+// the named VLANs, and stop when they are removed -- and the pin goes back
+// only on that. TestPortProfileDoesNotModelTaggedNetworks holds the other
+// half: the generated type must not grow the field while the controller is
+// still stripping it. When the behaviour is genuinely there, restore the
+// stanza in overrides/fields.toml and flip both guards:
 //
 //	[PortProfile.field.tagged_networkconf_ids]
 //	add = true
@@ -259,15 +264,21 @@ func assertSurvived(t *testing.T, phase string, stored map[string]any, wantName,
 // must be absent from the stored document (wantStripped), or present and
 // intact where a variant expects otherwise.
 //
-// Under wantStripped there are three outcomes, not two, and only one of them
-// justifies restoring the pin. The key being back is not enough: a controller
-// that starts storing a normalized default there -- [] most plausibly --
-// while still discarding the submitted ids would trip a presence-only check
-// and have this test recommend a pin for a field that remains a silent no-op,
-// which is the exact failure the pin was dropped to stop faking. So compare
-// against what was sent. Equal means honored, and the pin is warranted;
-// anything else means the field came back changed and nobody yet knows what
-// the controller does with it, which is a re-measurement, not a pin.
+// Under wantStripped there are three outcomes, not two, and none of them
+// authorizes restoring the pin on its own. The key being back is not enough:
+// a controller that starts storing a normalized default there -- [] most
+// plausibly -- while still discarding the submitted ids would trip a
+// presence-only check and have this test recommend a pin for a field that
+// remains a silent no-op, which is the exact failure the pin was dropped to
+// stop faking.
+//
+// Comparing against what was sent separates that case out, but round-tripping
+// is still only persistence. The controller could store the ids verbatim as
+// an opaque blob and go on deriving trunking from tagged_vlan_mgmt alone, and
+// a pin restored on that evidence would put the same silent no-op back. The
+// policy wants proof the controller *uses* the ids, which is a behavioural
+// measurement no read-back can stand in for -- so the exact-match branch
+// escalates to "measure the semantics", not to "restore the pin".
 func assertTaggedFate(t *testing.T, phase string, stored map[string]any, sent []string, wantStripped bool) {
 	t.Helper()
 	got, ok := stored["tagged_networkconf_ids"]
@@ -277,9 +288,13 @@ func assertTaggedFate(t *testing.T, phase string, stored map[string]any, sent []
 			t.Logf("%s STRIPPED tagged_networkconf_ids as measured (forward=%v tagged_vlan_mgmt=%v)",
 				phase, stored["forward"], stored["tagged_vlan_mgmt"])
 		case jsonEqual(got, sent):
-			t.Errorf("%s: controller now HONORS tagged_networkconf_ids — sent %v and stored it "+
-				"unchanged. Restore the [PortProfile.field.tagged_networkconf_ids] pin in "+
-				"overrides/fields.toml and flip this guard", phase, sent)
+			t.Errorf("%s: controller now PERSISTS tagged_networkconf_ids unchanged — sent %v and "+
+				"read it back identical. That is necessary for the pin and not sufficient: it "+
+				"proves storage, not use, and a controller that keeps the ids as an opaque blob "+
+				"while still deriving trunking from tagged_vlan_mgmt would look exactly like "+
+				"this. Before restoring the [PortProfile.field.tagged_networkconf_ids] pin, "+
+				"measure that a port carrying this profile actually trunks the named VLANs and "+
+				"stops trunking them when they are removed. Pin on that, not on this", phase, sent)
 		default:
 			t.Errorf("%s: controller now stores tagged_networkconf_ids but not what was sent "+
 				"(sent %v, stored %v). Do NOT restore the pin on this alone: a defaulted or "+
