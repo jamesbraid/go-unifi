@@ -154,9 +154,10 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 		if !ok {
 			t.Fatalf("no ownership recorded for Device.port_overrides.setting_preference; measured %v", owned)
 		}
-		if diff := comparePreference(entry.Owns, owned); diff != "" {
-			t.Errorf("Device.port_overrides.setting_preference no longer matches overrides/fields.toml:\n%s\n\n"+
-				"The controller moved or the table was wrong. Re-measure before editing it.", diff)
+		if diff := comparePreference(entry.OwnsOn(onUOSHarness()), owned, manual); diff != "" {
+			t.Errorf("Device.port_overrides.setting_preference no longer matches overrides/fields.toml "+
+				"(harness: %s):\n%s\n\nThe controller moved or the table was wrong. Re-measure before "+
+				"editing it.", harnessName(), diff)
 		}
 	})
 

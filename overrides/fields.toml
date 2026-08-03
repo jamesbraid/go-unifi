@@ -426,11 +426,21 @@ measured = "10.4.57"
 
 # Three of the five retention windows. The daily and monthly scales kept
 # what they were given under auto.
+# Inside UniFi OS the console owns the two short-scale windows outright:
+# 5minutes is pinned to 24 and hourly to 168 under BOTH modes, so the mode
+# owns neither there. Measured on the UOS 5.1.21 harness, which bundles this
+# exact Network build and reports it -- asking for 1 hour stores 24, so it is
+# a fixed value rather than a ceiling. Retention is console-wide storage
+# policy on UOS, which is why the Network app does not get to set it.
 [SettingSuperMgmt.preference.data_retention_setting_preference]
 owns = [
   "data_retention_time_in_hours_for_5minutes_scale",
   "data_retention_time_in_hours_for_hourly_scale",
   "data_retention_time_in_hours_for_others",
+]
+uos_excludes = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
 ]
 measured = "10.4.57"
 

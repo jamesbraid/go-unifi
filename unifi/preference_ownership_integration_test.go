@@ -243,20 +243,37 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 				if wire == probe.mode {
 					continue
 				}
-				t.Logf("refused under both modes, not this mode's doing: %s (%s)", wire, detail)
+				if _, alsoAuto := auto[wire]; alsoAuto {
+					t.Logf("refused under both modes, not this mode's doing: %s (%s)", wire, detail)
+					continue
+				}
+				// Refused under manual but kept under auto is the mode
+				// running backwards, which no probe here expects. Worth
+				// saying out loud rather than filing under "both".
+				t.Logf("refused under MANUAL only, which is the mode inverted: %s (%s)", wire, detail)
 			}
 
 			entry, ok := recorded[probe.resource][probe.key()]
 			if !ok {
-				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s); add to overrides/fields.toml:\n\n%s",
-					probe.resource, probe.key(), len(owned), preferenceTOML(probe, owned, controllerVersion(ctx, t, s)))
+				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s) on %s; add to "+
+					"overrides/fields.toml:\n\n%s\nRun the other harness before trusting this as the "+
+					"whole answer: UniFi OS pins fields the standalone controller leaves to manual "+
+					"mode, and anything it pins belongs in uos_excludes.",
+					probe.resource, probe.key(), len(owned), harnessName(),
+					preferenceTOML(probe, owned, controllerVersion(ctx, t, s)))
 				return
 			}
 
-			if diff := comparePreference(entry.Owns, owned); diff != "" {
-				t.Errorf("%s.%s ownership no longer matches overrides/fields.toml:\n%s\n\n"+
+			// Ownership is a property of the product, not just the Network
+			// build: UniFi OS pins some fields the standalone controller
+			// leaves to manual mode, and reports the same version while
+			// doing it. Compare against the answer for the harness actually
+			// under test.
+			want := entry.OwnsOn(onUOSHarness())
+			if diff := comparePreference(want, owned, manual); diff != "" {
+				t.Errorf("%s.%s ownership no longer matches overrides/fields.toml (harness: %s):\n%s\n\n"+
 					"The controller's behaviour moved or the table was wrong. Re-measure before editing it.",
-					probe.resource, probe.key(), diff)
+					probe.resource, probe.key(), harnessName(), diff)
 			}
 		})
 	}
@@ -383,7 +400,13 @@ func controllerVersion(ctx context.Context, t *testing.T, s *controllertest.Sess
 
 // comparePreference renders the difference between the recorded and measured
 // ownership sets, or "" when they agree.
-func comparePreference(recorded, measured []string) string {
+// refusedUnderManual is what the manual arm did not store, so a field missing
+// from the measured set can be reported for the right reason. "Not owned by
+// the mode" has two causes that want opposite responses: the controller stored
+// what was asked, or it refused the value whatever the mode said. Reporting
+// the second as the first sends the reader looking for a mode change that did
+// not happen -- and the run log directly above the failure contradicts it.
+func comparePreference(recorded, measured []string, refusedUnderManual map[string]string) string {
 	has := func(list []string, wire string) bool {
 		for _, w := range list {
 			if w == wire {
@@ -402,11 +425,34 @@ func comparePreference(recorded, measured []string) string {
 	sorted := append([]string(nil), recorded...)
 	sort.Strings(sorted)
 	for _, wire := range sorted {
-		if !has(measured, wire) {
-			fmt.Fprintf(&b, "  - %s (the table says the controller owns this; it stored what was asked)\n", wire)
+		if has(measured, wire) {
+			continue
 		}
+		if detail, refused := refusedUnderManual[wire]; refused {
+			fmt.Fprintf(&b, "  - %s (the table says the mode owns this, but the controller refused it "+
+				"under BOTH modes: %s. Not the mode's doing -- some other rule reaches this field "+
+				"now, so it belongs in uos_excludes or out of owns)\n", wire, detail)
+			continue
+		}
+		fmt.Fprintf(&b, "  - %s (the table says the controller owns this; it stored what was asked)\n", wire)
 	}
 	return b.String()
+}
+
+// onUOSHarness reports whether this run targets the UniFi OS harness, which
+// answers differently from the standalone controller for some fields.
+func onUOSHarness() bool {
+	return strings.EqualFold(os.Getenv("UNIFI_TEST_HARNESS"), "uos")
+}
+
+// harnessName labels a failure with the product it was measured against, so
+// a table mismatch does not read as a controller regression when it is a
+// difference between the two harnesses.
+func harnessName() string {
+	if onUOSHarness() {
+		return "UniFi OS"
+	}
+	return "standalone UniFi Network"
 }
 
 // key is the preference key this probe measures: the mode's wire name, or a

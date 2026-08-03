@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 )
@@ -34,6 +35,39 @@ type Preference struct {
 	// Measured names the controller build the set was measured against, so a
 	// table that has fallen behind reads as stale rather than merely wrong.
 	Measured string `toml:"measured"`
+
+	// UOSExcludes lists entries of Owns that do NOT hold when the same
+	// Network build runs inside UniFi OS, because the console owns the field
+	// outright and neither mode reaches it.
+	//
+	// Measured is the Network version and does not separate these: UOS
+	// 5.1.21 bundles Network 10.4.57 and reports that exact build, yet
+	// data_retention_time_in_hours_for_5minutes_scale is pinned to 24 there
+	// under both modes -- asking for 1 stores 24 -- while standalone 10.4.57
+	// stores whatever manual asks. Same code, different product, different
+	// answer, so one list cannot describe both.
+	//
+	// Only ever a subset of Owns. A field UOS pins is still owned by the
+	// mode on standalone, and that measurement stays recorded rather than
+	// being dropped to make the two agree.
+	UOSExcludes []string `toml:"uos_excludes"`
+}
+
+// OwnsOn returns the wire names the mode owns on one harness.
+//
+// uos selects the UniFi OS answer, which is Owns minus the fields the console
+// pins. Everything else gets Owns unchanged.
+func (p Preference) OwnsOn(uos bool) []string {
+	if !uos || len(p.UOSExcludes) == 0 {
+		return p.Owns
+	}
+	out := make([]string, 0, len(p.Owns))
+	for _, wire := range p.Owns {
+		if !slices.Contains(p.UOSExcludes, wire) {
+			out = append(out, wire)
+		}
+	}
+	return out
 }
 
 // preferenceFile is the subset of overrides/fields.toml this package decodes.
