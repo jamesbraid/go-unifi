@@ -126,3 +126,39 @@ func TestMaskedBodyHonoursCustomEncoder(t *testing.T) {
 		t.Fatal("named a field the vlan-only encoder never emits, and the mask accepted it")
 	}
 }
+
+// TestMaskedBodyNeedsTheDiscriminator pins the cost of the design above: a
+// masked Network write needs Purpose set even when the mask names only
+// "name".
+//
+// That is deliberate, not an oversight. The mask decides what a field's fate
+// would have been by running the encoder, and Network's encoder cannot decide
+// anything without a purpose -- so the alternative to failing here is
+// guessing, and a wrong guess writes WAN keys onto a vlan-only network.
+// Callers have the purpose: it comes back on the read that preceded the
+// write. What this asserts is that they are told so.
+func TestMaskedBodyNeedsTheDiscriminator(t *testing.T) {
+	_, err := maskedBody(&Network{ID: "netid", Name: strPtr("example")}, []string{"name"})
+	if err == nil {
+		t.Fatal("a network with no Purpose encoded anyway; the mask cannot know what that encoder would send")
+	}
+	if !strings.Contains(err.Error(), "Network.Purpose") {
+		t.Errorf("the error does not say what to set, so the caller cannot act on it: %v", err)
+	}
+
+	// With the discriminator, the same masked write goes through.
+	body, err := maskedBody(&Network{ID: "netid", Name: strPtr("example"), Purpose: PurposeVLANOnly}, []string{"name"})
+	if err != nil {
+		t.Fatalf("purpose set and the mask still refused: %v", err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["name"]; !ok {
+		t.Errorf("masked write dropped the one field it named: %s", body)
+	}
+	if _, ok := got["purpose"]; ok {
+		t.Errorf("purpose was needed to encode, but it was not named and must not be written: %s", body)
+	}
+}

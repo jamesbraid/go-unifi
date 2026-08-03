@@ -27,6 +27,16 @@ import (
 // just the full UOS stack, and wiring them waits on a device-emulation
 // harness.
 //
+// CORRECTION, 2026-08-01, on the firewall-zone half: that conclusion was right
+// about BGP and wrong about zones. The zone 404 is not a device gate at all --
+// it is api.err.CouldNotFindHotspotFirewallZone, thrown because the site has
+// never been migrated to zone-based firewalling. POST
+// /v2/api/site/{site}/firewall/migrate creates the default zone set and every
+// zone write works afterwards, with or without a gateway; see
+// migrateZoneBasedFirewall in drift_integration_test.go. This probe leaves the
+// site unmigrated on purpose so its logged 404 stays comparable with the
+// earlier runs above.
+//
 // Gated behind UNIFI_UOS_TEST: UOS is a heavy multi-minute systemd boot, so
 // it stays out of the default integration gate. It asserts only that the UOS
 // harness itself works (boot + login) -- a valid full-stack smoke test -- and

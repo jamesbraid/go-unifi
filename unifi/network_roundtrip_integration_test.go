@@ -61,8 +61,21 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 		known[w] = true
 	}
 
+	// remote-user-vpn authenticates against the built-in RADIUS server, which
+	// has to be running before the controller will accept the network.
+	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
+	radiusProfile := builtinRadiusProfileID(ctx, t, s, c.Site)
+
 	for _, tc := range roundTripSeeds() {
+		// Named, not keyed by purpose: two seeds share PurposeCorporate --
+		// one per setting_preference mode -- so the purpose alone would
+		// give them the same subtest name.
 		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.seed {
+				if v == "@radiusprofile" {
+					tc.seed[k] = radiusProfile
+				}
+			}
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", tc.seed)
 			if err != nil {
 				t.Fatalf("transport: %v", err)
@@ -205,10 +218,19 @@ func checkDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
 }
 
 // roundTripSeeds builds one richly-populated raw payload per purpose that a
-// bare simulation controller will accept. site-vpn, vpn-client and
-// remote-user-vpn are omitted: they need peer addressing, key material and a
-// gateway-bound local IP that this harness cannot supply (see
-// networkFieldCandidates for the measured rejections).
+// bare simulation controller will accept.
+//
+// The three VPN purposes were long omitted, on the grounds that they needed
+// peer addressing, key material and a gateway-bound local IP the harness
+// could not supply. Re-measured: that is not what blocks them. Each simply
+// has required fields, and the controller names the one it is missing --
+// remote-user-vpn wants local_port and a radiusprofile_id, vpn-client wants
+// an ip_subnet and then interface DNS (api.err.WireguardMissingInterfaceDns).
+// Supply those and all seven purposes round-trip on a bare controller, which
+// is what closes the encoder's biggest blind spot: three of its seven
+// marshalers had no round-trip coverage at all.
+//
+// "@radiusprofile" is resolved to the site's built-in profile before send.
 func roundTripSeeds() []roundTripSeed {
 	return []roundTripSeed{
 		{
@@ -287,6 +309,41 @@ func roundTripSeeds() []roundTripSeed {
 				"wan_dns_preference": "manual", "wan_dns1": "10.91.40.53",
 				"wan_load_balance_type": "failover-only", "wan_failover_priority": 2,
 				"report_wan_event": true, "wan_smartq_enabled": false,
+			},
+		},
+		{
+			purpose: PurposeSiteVPN,
+			seed: map[string]any{
+				"name": "rt-site-vpn", "purpose": PurposeSiteVPN, "enabled": true,
+				"vpn_type": "ipsec-vpn", "ipsec_interface": "wan",
+				"ipsec_peer_ip": "203.0.113.9", "ipsec_key_exchange": "ikev2",
+				"x_ipsec_pre_shared_key": "s3cret-psk", "ipsec_profile": "customized",
+				"ipsec_encryption": "aes256", "ipsec_hash": "sha256", "ipsec_dh_group": 14,
+				"ipsec_esp_encryption": "aes256", "ipsec_esp_hash": "sha256",
+				"ipsec_esp_dh_group": 14, "remote_vpn_subnets": []string{"192.0.2.0/24"},
+			},
+		},
+		{
+			purpose: PurposeVPNClient,
+			seed: map[string]any{
+				"name": "rt-vpn-client", "purpose": PurposeVPNClient, "enabled": true,
+				"vpn_type": "wireguard-client", "wireguard_client_mode": "manual",
+				"ip_subnet":                "10.198.0.1/24",
+				"wireguard_client_peer_ip": "203.0.113.20", "wireguard_client_peer_port": 51820,
+				"wireguard_client_peer_public_key": "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=",
+				"x_wireguard_private_key":          "6KpcbNfK7kFzOlKjnDbSaYbmDbAZBOKwFqjOWMkSCFU=",
+				"vpn_client_pull_dns":              false,
+				"dhcpd_dns_enabled":                true, "dhcpd_dns_1": "1.1.1.1",
+			},
+		},
+		{
+			purpose: PurposeUserVPN,
+			seed: map[string]any{
+				"name": "rt-user-vpn", "purpose": PurposeUserVPN, "enabled": true,
+				"vpn_type": "openvpn-server", "openvpn_mode": "server",
+				"openvpn_encryption_cipher": "AES_256_CBC",
+				"ip_subnet":                 "10.199.0.1/24", "local_port": 1195,
+				"radiusprofile_id": "@radiusprofile",
 			},
 		},
 	}

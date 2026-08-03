@@ -682,6 +682,10 @@ func main() {
 	// against nothing.
 	generatedResources := map[string]bool{}
 
+	// Schema validation patterns, accumulated across every resource and
+	// written out per package once the loop finishes.
+	var unifiValidation, settingsValidation []validationEntry
+
 	// Initialize specification generator
 	sensitive, err := loadSensitiveMetadata(filepath.Join(metadataDir, "sensitive_metadata.json"))
 	if err != nil {
@@ -923,6 +927,15 @@ func main() {
 		// Add resource to specification generator
 		specGen.AddResource(resource)
 
+		// Capture the schema's validation patterns before the template
+		// renders them into comments, so they can be emitted as consumable
+		// Go alongside the structs.
+		if resource.IsSetting() {
+			settingsValidation = append(settingsValidation, collectValidation(resource)...)
+		} else {
+			unifiValidation = append(unifiValidation, collectValidation(resource)...)
+		}
+
 		var code string
 		if code, err = resource.generateCode(false); err != nil {
 			panic(err)
@@ -1005,6 +1018,29 @@ const UnifiVersion = %q
 		panic(err)
 	}
 	writtenGenerated[filepath.Join(outDir, "preference.generated.go")] = true
+
+	// Write the validation patterns and enumeration values per package.
+	for _, target := range []struct {
+		pkg     string
+		dir     string
+		entries []validationEntry
+	}{
+		{pkg: "unifi", dir: outDir, entries: unifiValidation},
+		{pkg: "settings", dir: filepath.Join(outDir, "settings"), entries: settingsValidation},
+	} {
+		if len(target.entries) == 0 {
+			continue
+		}
+		validationGo, err := renderValidationFile(target.pkg, target.entries)
+		if err != nil {
+			panic(fmt.Errorf("render %s validation file: %w", target.pkg, err))
+		}
+		path := filepath.Join(target.dir, "validation.generated.go")
+		if err := os.WriteFile(path, validationGo, 0o644); err != nil {
+			panic(err)
+		}
+		writtenGenerated[path] = true
+	}
 
 	// A resource that left the schema must also leave the SDK, or the public
 	// API silently diverges from the controller (and apidiff never sees the

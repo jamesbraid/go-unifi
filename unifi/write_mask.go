@@ -31,9 +31,22 @@ func maskedBody(d any, fields []string) (json.RawMessage, error) {
 
 	// Marshal first so any custom MarshalJSON is honoured: the mask filters
 	// what the encoder would have sent, not what the struct happens to hold.
+	//
+	// This is why a masked write still needs the object's discriminator, even
+	// when the mask does not name it. Network is the only type here with one:
+	// its encoder emits a different field set per purpose, so without Purpose
+	// there is no answer to "would this field have been sent", and a mask that
+	// guessed would be free to write wan_dns1 onto a vlan-only network --
+	// exactly what TestMaskedBodyRejectsFieldsTheEncoderDrops exists to stop.
+	// Populating it is a read away, and every real caller has it already.
 	raw, err := json.Marshal(d)
 	if err != nil {
-		return nil, fmt.Errorf("unable to encode the object: %w", err)
+		return nil, fmt.Errorf(
+			"unable to encode the object: %w.\n\n"+
+				"A masked write filters what this type's encoder would have sent, so the encoder has "+
+				"to be able to run. Where the encoder varies by a discriminator -- Network.Purpose is "+
+				"the one such field in this package -- set it, even if the mask does not name it",
+			err)
 	}
 
 	var encoded map[string]json.RawMessage

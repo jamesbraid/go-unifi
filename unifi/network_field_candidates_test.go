@@ -12,21 +12,28 @@ type fieldCandidate struct {
 	Prereq  map[string]any
 }
 
+// probeTunnelIP is the route-based site-vpn tunnel address the probe uses. It
+// has to miss every other subnet in play at once: the probe's own scratch
+// networks (10.99.x/24), the site LAN (192.168.x), remote_vpn_subnets
+// (192.0.2.0/24) and the seeded probe WAN (203.0.113.0/24). A /30 in the
+// RFC1918 172.16/12 block collides with none of them.
+const probeTunnelIP = "172.31.99.1/30"
+
 // siteVPNBasePrereq is the minimum realistic IPsec site-vpn payload the
 // simulated 10.x controller accepts; a bare vpn_type + one advanced field
 // gets api.err.Invalid with no further detail. Peer addressing, a
 // "customized" profile with explicit phase 1/2 parameters, a PSK, and a
 // remote subnet round out a config the controller will actually persist.
-// ipsec_local_ip / ipsec_dynamic_routing are deliberately not here: the
-// controller only accepts a real (non-"any") ipsec_local_ip when
-// ipsec_dynamic_routing is true, and rejects it as api.err.UnrecognizedLocalIp
-// unless that address is bound to an actually-adopted gateway's WAN
-// interface -- unsatisfiable in this container-only, no-hardware simulation.
-// mergeRouteBasedPrereq layers the route-based (dynamic routing) pairing plus
-// each candidate's own gating fields on top via extra.
+// ipsec_local_ip / ipsec_dynamic_routing are deliberately not here; they are
+// route-based-only and mergeRouteBasedPrereq layers them (plus each
+// candidate's own gating fields) on top via extra.
+//
+// ipsec_interface is "@wanif" rather than a literal: the probe seeds its own
+// static WAN and substitutes the slot it landed in (see ensureStaticWAN in
+// network_field_probe_integration_test.go).
 var siteVPNBasePrereq = map[string]any{
 	"vpn_type":               "ipsec-vpn",
-	"ipsec_interface":        "wan",
+	"ipsec_interface":        "@wanif",
 	"ipsec_peer_ip":          "203.0.113.9",
 	"ipsec_key_exchange":     "ikev2",
 	"x_ipsec_pre_shared_key": "s3cret-psk",
@@ -55,15 +62,19 @@ func mergePrereq(base map[string]any, extra map[string]any) map[string]any {
 }
 
 // mergeRouteBasedPrereq is siteVPNBasePrereq in route-based / dynamic-routing
-// mode, which requires a real ipsec_local_ip -- the controller further
-// requires that address be recognized as bound to an adopted gateway's WAN
-// interface (api.err.UnrecognizedLocalIp), which this bare simulation cannot
-// provide. Use for the route-based candidates (tunnel IP, dynamic subnets)
-// even though they stay REJECTED here as a result.
+// mode, which requires a real (non-"any") ipsec_local_ip. The controller
+// further requires that address be one it recognizes as local to the site
+// (api.err.UnrecognizedLocalIp). An earlier pass used a literal 198.51.100.5,
+// which is in no such set, and recorded the resulting rejection as the
+// candidates' verdict -- a non-result, not a measurement. "@wanlocalip" is
+// substituted by the probe with the wan_ip of a static WAN it seeds first
+// (ensureStaticWAN); ipsec_separate_ikev2_networks is pinned false because
+// dynamic routing and separate IKEv2 child SAs are mutually exclusive.
 func mergeRouteBasedPrereq(extra map[string]any) map[string]any {
 	return mergePrereq(siteVPNBasePrereq, mergePrereq(map[string]any{
-		"ipsec_local_ip":        "198.51.100.5",
-		"ipsec_dynamic_routing": true,
+		"ipsec_local_ip":                "@wanlocalip",
+		"ipsec_dynamic_routing":         true,
+		"ipsec_separate_ikev2_networks": false,
 	}, extra))
 }
 
@@ -82,9 +93,12 @@ func mergeRouteBasedPrereq(extra map[string]any) map[string]any {
 // local_port, an L2TP PSK, both PPPoE credentials, a real radiusprofile_id,
 // or a fuller site-vpn base config; see the corresponding git history for
 // the before/after) -- and were wired into network_encode.go and removed
-// from both this table and networkEncoderPresenceAllowlistTODOs. The 4
-// remaining below stayed STRIPPED/REJECTED after that same enrichment
-// treatment.
+// from both this table and networkEncoderPresenceAllowlistTODOs.
+//
+// Of the 4 left, the 3 route-based site-vpn fields came back PERSISTED in
+// 2026-08 once the probe seeded a static WAN for their ipsec_local_ip. They
+// stay here until the encoder emits them; the table is then their regression
+// cover, since a controller that stops persisting one logs STRIPPED.
 var networkFieldCandidates = []fieldCandidate{
 	// igmp_proxy_downstream_networkconf_ids: shape of a referenced networkconf
 	// id; a real id must be substituted to test acceptance live.
@@ -92,8 +106,15 @@ var networkFieldCandidates = []fieldCandidate{
 
 	// Route-based (dynamic routing) site-vpn tunnel IP. Requires vpn_type
 	// "ipsec-vpn" and ipsec_dynamic_routing true to be meaningful.
-	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: "192.0.2.4/30", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true})},
-	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip": "192.0.2.4/30"})},
+	//
+	// probeTunnelIP is deliberately outside remote_vpn_subnets: 192.0.2.4/30
+	// (used until the 2026-08 re-probe) sits inside the 192.0.2.0/24 the same
+	// payload declares as the remote subnet, which is its own rejection.
+	// Each candidate also gets its own ipsec_peer_ip so a create that outlives
+	// its cleanup cannot collide with the next one
+	// (api.err.IpsecPeerIpOverlapped keys on peer IP + interface + local IP).
+	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: probeTunnelIP, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.11", "ipsec_tunnel_ip_enabled": true})},
+	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.12", "ipsec_tunnel_ip": probeTunnelIP})},
 
 	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle;
 	// pairs naturally with the ipsec_dynamic_routing flag the encoder already
@@ -102,7 +123,7 @@ var networkFieldCandidates = []fieldCandidate{
 		Wire:    "remote_vpn_dynamic_subnets_enabled",
 		Purpose: PurposeSiteVPN,
 		Value:   true,
-		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_tunnel_ip_enabled": true, "ipsec_tunnel_ip": "192.0.2.4/30"}),
+		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.13", "ipsec_tunnel_ip_enabled": true, "ipsec_tunnel_ip": probeTunnelIP}),
 	},
 }
 

@@ -24,7 +24,8 @@ var updateWriteShape = flag.Bool("update-write-shape", false,
 // A field with no omitempty is asserted on every write. A caller that builds
 // an object from partial input -- a Terraform provider filling a struct from
 // a resource model, say -- therefore sends a zero value for everything it
-// never mentioned: false for a bool, null for a slice, map or pointer.
+// never mentioned: false for a bool, "" for a string, 0 for a number, null
+// for a slice, map or pointer.
 //
 // The 10.4.57 regeneration added roaming_assistant_na_enabled to WLAN. Before
 // it, the key never reached the wire and the controller kept its own value.
@@ -90,8 +91,9 @@ func TestGeneratedWriteShape(t *testing.T) {
 
 	if len(added) > 0 {
 		t.Errorf("regeneration widened the write shape by %d field(s):\n  %s\n\n"+
-			"Each of these is now sent as false on every write where the caller left it unset, and the "+
-			"controller will store false. Decide which this is:\n"+
+			"Each of these is now sent on every write where the caller left it unset -- false for a "+
+			"bool, \"\" for a string, 0 for a number, null for a slice, map or pointer -- and the "+
+			"controller will store that. Decide which this is:\n"+
 			"  - the caller should be able to leave it alone: give it omitempty = true in "+
 			"overrides/fields.toml, so unset stays unset\n"+
 			"  - asserting the zero value is correct: re-record with\n"+
@@ -106,8 +108,7 @@ func TestGeneratedWriteShape(t *testing.T) {
 }
 
 // alwaysSerializedFields returns "Struct.wire_name" for every field in the
-// generated code that carries a json tag without omitempty and a type whose
-// zero value still marshals.
+// generated code that carries a json tag without omitempty.
 //
 // The generated files are parsed rather than reflected over because the set
 // has to stay complete on its own. Reflection needs a list of types to walk,
@@ -158,13 +159,19 @@ func alwaysSerializedFields() ([]string, error) {
 // alwaysSerializedField reports whether a struct field goes on the wire even
 // when the caller never set it, and returns its wire name.
 //
-// Two shapes qualify, and the second is why this is not a bool-only check. A
-// bool asserts false, which the controller stores. A slice, map or pointer
-// asserts null, which the controller may reject outright: WLAN's
+// omitempty is the whole test. encoding/json emits a tagged field's zero
+// value for every type there is, so the type does not narrow anything: a bool
+// asserts false and the controller stores it, a string asserts "" and a
+// number asserts 0 and the controller stores those too, and a slice, map or
+// pointer asserts null, which the controller may reject outright -- WLAN's
 // schedule_with_duration did exactly that, and it made every WLAN
 // read-modify-write fail until it was given omitempty.
+//
+// This used to gate on bool-or-nullable, which quietly excluded 60 fields
+// whose zero value is just as destructive, Network.purpose and the
+// dhcpd_dns_* slots among them.
 func alwaysSerializedField(field *ast.Field) (string, bool) {
-	if field.Tag == nil || !nullableOrBool(field.Type) {
+	if field.Tag == nil {
 		return "", false
 	}
 
@@ -185,18 +192,6 @@ func alwaysSerializedField(field *ast.Field) (string, bool) {
 		return "", false
 	}
 	return name, true
-}
-
-// nullableOrBool reports whether a field type marshals to a fixed zero value
-// when unset: false for a bool, null for a slice, map or pointer.
-func nullableOrBool(expr ast.Expr) bool {
-	switch t := expr.(type) {
-	case *ast.Ident:
-		return t.Name == "bool"
-	case *ast.ArrayType, *ast.MapType, *ast.StarExpr:
-		return true
-	}
-	return false
 }
 
 // structTag pulls one key out of a struct tag. reflect.StructTag.Get would do
