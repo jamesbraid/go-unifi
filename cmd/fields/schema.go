@@ -455,7 +455,7 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 			continue
 		}
 
-		attr := g.fieldToResourceAttribute(r, field)
+		attr := g.fieldToResourceAttribute(r, "", field)
 		if attr != nil {
 			attrs = append(attrs, *attr)
 		}
@@ -465,7 +465,13 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 }
 
 // fieldToResourceAttribute converts a FieldInfo to a ResourceAttribute.
-func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
+func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, container string, field *FieldInfo) *resource.Attribute {
+	attr := g.buildResourceAttribute(r, container, field)
+	describePreference(r, container, field, attr)
+	return attr
+}
+
+func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, container string, field *FieldInfo) *resource.Attribute {
 	if field == nil {
 		return nil
 	}
@@ -488,7 +494,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 	if field.IsArray {
 		if field.Fields != nil {
 			// Nested object array - use list_nested
-			nestedAttrs := g.generateNestedResourceAttributes(r, field)
+			nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 			attr.ListNested = &resource.ListNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				NestedObject: resource.NestedAttributeObject{
@@ -510,7 +516,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 
 	// Handle nested object types
 	if field.Fields != nil {
-		nestedAttrs := g.generateNestedResourceAttributes(r, field)
+		nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 		attr.SingleNested = &resource.SingleNestedAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			Attributes:               nestedAttrs,
@@ -556,7 +562,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 	default:
 		// Check if it's a custom type defined in Types
 		if _, ok := r.Types[field.FieldType]; ok {
-			nestedAttrs := g.generateNestedResourceAttributesFromType(r, field.FieldType)
+			nestedAttrs := g.generateNestedResourceAttributesFromType(r, joinContainer(container, field.JSONName), field.FieldType)
 			attr.SingleNested = &resource.SingleNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				Attributes:               nestedAttrs,
@@ -576,7 +582,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 }
 
 // generateNestedResourceAttributes generates nested attributes for resources.
-func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInfo, field *FieldInfo) []resource.Attribute {
+func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInfo, container string, field *FieldInfo) []resource.Attribute {
 	if field.Fields == nil {
 		return nil
 	}
@@ -594,7 +600,7 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 			continue
 		}
 
-		attr := g.fieldToResourceAttribute(r, childField)
+		attr := g.fieldToResourceAttribute(r, container, childField)
 		if attr != nil {
 			attrs = append(attrs, *attr)
 		}
@@ -604,13 +610,13 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 }
 
 // generateNestedResourceAttributesFromType generates nested attributes from a type name.
-func (g *SpecificationGenerator) generateNestedResourceAttributesFromType(r *ResourceInfo, typeName string) []resource.Attribute {
+func (g *SpecificationGenerator) generateNestedResourceAttributesFromType(r *ResourceInfo, container string, typeName string) []resource.Attribute {
 	typeInfo, ok := r.Types[typeName]
 	if !ok || typeInfo.Fields == nil {
 		return nil
 	}
 
-	return g.generateNestedResourceAttributes(r, typeInfo)
+	return g.generateNestedResourceAttributes(r, container, typeInfo)
 }
 
 // buildAssociatedExternalType creates an AssociatedExternalType for a field.

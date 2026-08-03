@@ -677,6 +677,11 @@ func main() {
 	// disappeared upstream can be removed afterwards.
 	writtenGenerated := map[string]bool{}
 
+	// Resources this run actually produced, so a preference table naming a
+	// resource the schema no longer defines is reported rather than emitted
+	// against nothing.
+	generatedResources := map[string]bool{}
+
 	// Schema validation patterns, accumulated across every resource and
 	// written out per package once the loop finishes.
 	var unifiValidation, settingsValidation []validationEntry
@@ -917,6 +922,7 @@ func main() {
 		if err := resource.applyOverrides(); err != nil {
 			panic(err)
 		}
+		generatedResources[resource.StructName] = true
 
 		// Add resource to specification generator
 		specGen.AddResource(resource)
@@ -1003,6 +1009,15 @@ const UnifiVersion = %q
 		panic(err)
 	}
 	writtenGenerated[filepath.Join(outDir, "version.generated.go")] = true
+
+	preferenceGo, err := generatePreferenceFile(generatedResources)
+	if err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "preference.generated.go"), preferenceGo, 0o644); err != nil {
+		panic(err)
+	}
+	writtenGenerated[filepath.Join(outDir, "preference.generated.go")] = true
 
 	// Write the validation patterns and enumeration values per package.
 	for _, target := range []struct {

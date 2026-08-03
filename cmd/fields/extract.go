@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
+	"github.com/ubiquiti-community/go-unifi/internal/fields"
 	"pault.ag/go/debian/deb"
 )
 
@@ -590,17 +591,5 @@ func findModuleRoot(dir string) string {
 	if dir == "" {
 		panic("dir not set")
 	}
-	dir = filepath.Clean(dir)
-	// Look for enclosing go.mod.
-	for {
-		if fi, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil && !fi.IsDir() {
-			return dir
-		}
-		d := filepath.Dir(dir)
-		if d == dir {
-			break
-		}
-		dir = d
-	}
-	return ""
+	return fields.ModuleRootFrom(dir)
 }

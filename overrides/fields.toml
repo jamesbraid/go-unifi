@@ -1,5 +1,5 @@
 # Declarative resource and field overrides, applied on top of the extracted
-# schema. Three kinds of entry:
+# schema. Four kinds of entry:
 #
 #   [Resource]                REST path when it differs from the lowercased
 #                             schema file name
@@ -9,6 +9,25 @@
 #                             schema does not (or no longer does) define;
 #                             ignored when the schema defines the field, so
 #                             the schema's validation wins when it exists
+#   [Resource.preference.<wire>]
+#                             what an auto|manual mode field owns: the wire
+#                             names the controller overwrites with its own
+#                             values while the mode is "auto". Measured, not
+#                             declared -- run TestIntegrationPreferenceOwnership
+#                             and paste what it prints. Every name is checked
+#                             against the generated struct, so a typo fails
+#                             generation instead of quietly owning nothing.
+#
+# A mode nested in a sub-object takes a dotted path, and the key MUST be
+# quoted:
+#
+#   [Device.preference."port_overrides.setting_preference"]
+#
+# TOML accepts an unquoted dotted key: it reads the key as nested tables and
+# decodes to a different entry, one that owns nothing. Names in owns stay
+# relative to the object holding the mode, because a mode governs its own
+# object; an array container carries one mode per element, so no sibling path
+# exists to write.
 #
 # Field entries are applied AFTER the resource's FieldProcessor, so they
 # always win. Anything conditional on the schema-derived type, pattern-based
@@ -235,6 +254,220 @@ type = "bool"
 # means what nil means: this device has no port overrides.
 [Device.field.port_overrides]
 nil_as_empty = true
+
+# Ownership of the auto|manual mode fields, measured by
+# TestIntegrationPreferenceOwnership. On "auto" the controller manages the
+# listed fields itself and stores its own values over the payload's, with no
+# error and no warning -- so a caller who configures one of these under auto
+# gets it accepted, discarded, and never told.
+#
+# The sets come from writing the same payload twice, once under each mode,
+# and comparing each write against what it asked for. Do not hand-edit them:
+# re-run the sweep, which prints the entry to paste.
+
+# Twice what the encoder's own history recorded. The earlier count of six came
+# from comparing the *_enabled toggles the encoder sends, so the four
+# non-toggle fields here -- the lease time (replaced with the controller's
+# 86400), the search domain, and the tftp and controller addresses (blanked)
+# -- were never in view. Note dhcpd_dns_1 and dhcpd_wins_1 survive while the
+# toggles that switch them on do not: the addresses are stored and never
+# handed out, which is why this fails so quietly.
+[Network.preference.setting_preference]
+owns = [
+  "dhcpd_dns_enabled",
+  "dhcpd_gateway_enabled",
+  "dhcpd_leasetime",
+  "dhcpd_ntp_enabled",
+  "dhcpd_tftp_server",
+  "dhcpd_time_offset_enabled",
+  "dhcpd_unifi_controller",
+  "dhcpd_wins_enabled",
+  "dhcpguard_enabled",
+  "domain_name",
+  "igmp_snooping",
+  "upnp_lan_enabled",
+]
+measured = "10.4.57"
+
+# Measured with ipv6_interface_type "none": "static" needs a deployable
+# prefix, which a gateway-less harness cannot supply (the controller answers
+# api.err.NotDeployableIPv6Subnet), so a static-prefix network may own more
+# than this.
+[Network.preference.ipv6_setting_preference]
+owns = [
+  "dhcpdv6_dns_auto",
+  "dhcpdv6_leasetime",
+  "ipv6_ra_preferred_lifetime",
+]
+measured = "10.4.57"
+
+# Only the first two slots. wan_dns3 and wan_dns4 were set in the same payload
+# and survived under auto, so the controller takes over the resolvers it hands
+# out and leaves the extras alone.
+[Network.preference.wan_dns_preference]
+owns = [
+  "wan_dns1",
+  "wan_dns2",
+]
+measured = "10.4.57"
+
+# Owns nothing: wan_ipv6_dns1 and wan_ipv6_dns2 were stored as asked under
+# both modes. Measured on a harness with no gateway and no real WAN, so the
+# auto path may have had nothing to fill in; an empty set here is weaker
+# evidence than a populated one.
+[Network.preference.wan_ipv6_dns_preference]
+owns = []
+measured = "10.4.57"
+
+# The WLAN advanced block. dtim_na is not owned while dtim_ng is, and both
+# were set in the same payload, so the split is the controller's and not an
+# artefact of what was measured.
+[WLAN.preference.setting_preference]
+owns = [
+  "bc_filter_enabled",
+  "bss_transition",
+  "dtim_mode",
+  "dtim_ng",
+  "fast_roaming_enabled",
+  "group_rekey",
+  "l2_isolation",
+  "mcastenhance_enabled",
+  "proxy_arp",
+  "uapsd_enabled",
+]
+measured = "10.4.57"
+
+# A second mode on the same object, governing minimum data rates
+# independently of the WLAN's general one. The advertising-rate flags and
+# minrate_ng_enabled survived auto; the rest did not.
+[WLAN.preference.minrate_setting_preference]
+owns = [
+  "minrate_na_data_rate_kbps",
+  "minrate_na_enabled",
+  "minrate_ng_data_rate_kbps",
+]
+measured = "10.4.57"
+
+# The switch-port advanced block. Note autoneg, lldpmed_enabled and
+# stp_port_mode are forced back ON here rather than off: auto restores the
+# controller's defaults in whichever direction they point, so "owned" is not
+# a synonym for "disabled".
+[PortProfile.preference.setting_preference]
+owns = [
+  "autoneg",
+  "egress_rate_limit_kbps_enabled",
+  "isolation",
+  "lldpmed_enabled",
+  "lldpmed_notify_enabled",
+  "port_keepalive_enabled",
+  "stormctrl_bcast_enabled",
+  "stormctrl_mcast_enabled",
+  "stormctrl_ucast_enabled",
+  "stp_port_mode",
+]
+measured = "10.4.57"
+
+[FirewallRule.preference.setting_preference]
+owns = [
+  "state_established",
+  "state_related",
+]
+measured = "10.4.57"
+
+# Owns nothing. Every field in the probe payload survived auto, including the
+# ones the controller echoes back in a different representation (the filter
+# objects gain their invert_* defaults, rule_index comes back numeric), so
+# this is a mode that carries the enum without acting on it.
+[Nat.preference.setting_preference]
+owns = []
+measured = "10.4.57"
+
+# Under auto the site's NTP servers revert to the ubnt pool, so a caller who
+# points a site at internal time servers under auto is silently ignored.
+[SettingNtp.preference.setting_preference]
+owns = [
+  "ntp_server_1",
+  "ntp_server_2",
+  "ntp_server_3",
+  "ntp_server_4",
+]
+measured = "10.4.57"
+
+# Every connection-tracking timeout except other_timeout, which stored what
+# was asked under both modes.
+[SettingUsg.preference.timeout_setting_preference]
+owns = [
+  "icmp_timeout",
+  "tcp_close_timeout",
+  "tcp_close_wait_timeout",
+  "tcp_established_timeout",
+  "tcp_fin_wait_timeout",
+  "tcp_last_ack_timeout",
+  "tcp_syn_recv_timeout",
+  "tcp_syn_sent_timeout",
+  "tcp_time_wait_timeout",
+  "udp_other_timeout",
+  "udp_stream_timeout",
+]
+measured = "10.4.57"
+
+# Nested in the gateway's DNS verification block, and quoted because an
+# unquoted dotted key decodes as nested tables into an entry that owns
+# nothing. Under auto the controller substitutes its own verification
+# servers -- ui.com against 1.1.1.1 and 8.8.8.8 -- so a site pointed at
+# internal resolvers for this check is silently ignored.
+[SettingUsg.preference."dns_verification.setting_preference"]
+owns = [
+  "domain",
+  "primary_dns_server",
+  "secondary_dns_server",
+]
+measured = "10.4.57"
+
+# Three of the five retention windows. The daily and monthly scales kept
+# what they were given under auto.
+# Inside UniFi OS the console owns the two short-scale windows outright:
+# 5minutes is pinned to 24 and hourly to 168 under BOTH modes, so the mode
+# owns neither there. Measured on the UOS 5.1.21 harness, which bundles this
+# exact Network build and reports it -- asking for 1 hour stores 24, so it is
+# a fixed value rather than a ceiling. Retention is console-wide storage
+# policy on UOS, which is why the Network app does not get to set it.
+[SettingSuperMgmt.preference.data_retention_setting_preference]
+owns = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
+  "data_retention_time_in_hours_for_others",
+]
+uos_excludes = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
+]
+measured = "10.4.57"
+
+# Only the schedule. The channel and radio lists are rewritten by the
+# controller under both modes, so they are not this mode's doing.
+[SettingRadioAi.preference.setting_preference]
+owns = [
+  "cron_expr",
+]
+measured = "10.4.57"
+
+# layout_preference is a real mode, not a UI-only choice: under auto the
+# submitted widget list is dropped entirely. Worth stating because the name
+# suggests otherwise, and guessing would have got it wrong.
+[SettingDashboard.preference.layout_preference]
+owns = [
+  "widgets",
+]
+measured = "10.4.57"
+
+# Nested in each port override, and quoted for the same reason as the gateway's
+# DNS verification block. Owns nothing: every field of an override survived
+# auto, so the mode carries the enum without acting on it. Measured against an
+# adopted UXGENT -- a switch with more port shapes may differ.
+[Device.preference."port_overrides.setting_preference"]
+owns = []
+measured = "10.4.57"
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
