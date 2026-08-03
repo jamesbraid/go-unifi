@@ -115,7 +115,7 @@ type WLAN struct {
 	Schedule                    []string                   `json:"schedule,omitempty"` // (sun|mon|tue|wed|thu|fri|sat)(\-(sun|mon|tue|wed|thu|fri|sat))?\|([0-2][0-9][0-5][0-9])\-([0-2][0-9][0-5][0-9])
 	ScheduleEnabled             bool                       `json:"schedule_enabled"`
 	ScheduleReversed            bool                       `json:"schedule_reversed"`
-	ScheduleWithDuration        []WLANScheduleWithDuration `json:"schedule_with_duration"`
+	ScheduleWithDuration        []WLANScheduleWithDuration `json:"schedule_with_duration,omitempty"`
 	Security                    string                     `json:"security,omitempty"`           // open|wpapsk|wep|wpaeap|osen
 	SettingPreference           string                     `json:"setting_preference,omitempty"` // auto|manual
 	TdlsProhibit                bool                       `json:"tdls_prohibit"`
@@ -891,6 +891,50 @@ func (c *ApiClient) createWLAN(
 
 	res := respBody.Data[0]
 
+	return &res, nil
+}
+
+// UpdateWLANFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateWLANFields(ctx context.Context, site string, d *WLAN, fields ...string) (*WLAN, error) {
+	return c.updateWLANFields(ctx, site, d, fields)
+}
+
+// updateWLANFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateWLANFields(
+	ctx context.Context,
+	site string,
+	d *WLAN,
+	fields []string,
+) (*WLAN, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta   `json:"meta"`
+		Data []WLAN `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/wlanconf/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getWLAN(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
 	return &res, nil
 }
 

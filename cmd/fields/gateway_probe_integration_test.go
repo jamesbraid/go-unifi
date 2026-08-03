@@ -341,14 +341,18 @@ func sweepGatewayEndpoints(ctx context.Context, t *testing.T, c *controllertest.
 // all: the zone write path resolves the site's HOTSPOT-keyed zone before doing
 // anything else, and a site whose default zone set was never created has none.
 //
-// CAVEAT on the firewall/zone row: that 404 is not the whole story. The handler
-// PERSISTS the zone and then throws, so the write lands even though the status
-// says otherwise — but only when the POST is the first request to the zone
-// collection, which it is not here (this sweep lists every collection first).
-// TestIntegrationSeededUOSFirewallZoneSeed is the test that pins that down.
-// Read "STILL-GATED firewall-zone" below as "answered 404", not "wrote
-// nothing": this sweep classifies status codes, and only a read-back can tell
-// those apart.
+// CAVEAT on the firewall/zone row: the 404 means "this site has not been
+// migrated to zone-based firewalling", not "this endpoint wants a gateway".
+// POST /v2/api/site/{site}/firewall/migrate creates the default zone set, and
+// every zone write — create, update and delete — works afterwards; see
+// migrateZoneBasedFirewall in drift_integration_test.go. This sweep does not
+// migrate on purpose, because an unmigrated site is what isolates the gateway
+// variable this table is measuring. Read "STILL-GATED firewall-zone" below as
+// "answered 404 on an unmigrated site".
+//
+// The rejected POST does also persist its zone document before throwing, but
+// only when it is the site's first zone call, which it is not here (this sweep
+// lists every collection first). Nothing depends on that quirk any more.
 //
 // The bgp/config row has since been explained and cleared. It is gated on a
 // device capability the gateway must report (udapi_caps bit 1<<22 alongside a
@@ -358,14 +362,18 @@ func sweepGatewayEndpoints(ctx context.Context, t *testing.T, c *controllertest.
 // "this endpoint wants a capable device", not "this endpoint is unreachable".
 // TestIntegrationSeededUOSBgpConfig is where a capable one is adopted.
 //
-// CAVEAT on the firewall/zone row: that 404 is not the whole story. The handler
-// PERSISTS the zone and then throws, so the write lands even though the status
-// says otherwise — but only when the POST is the first request to the zone
-// collection, which it is not here (this sweep lists every collection first).
-// TestIntegrationSeededUOSFirewallZoneSeed is the test that pins that down.
-// Read "STILL-GATED firewall-zone" below as "answered 404", not "wrote
-// nothing": this sweep classifies status codes, and only a read-back can tell
-// those apart.
+// CAVEAT on the firewall/zone row: the 404 means "this site has not been
+// migrated to zone-based firewalling", not "this endpoint wants a gateway".
+// POST /v2/api/site/{site}/firewall/migrate creates the default zone set, and
+// every zone write — create, update and delete — works afterwards; see
+// migrateZoneBasedFirewall in drift_integration_test.go. This sweep does not
+// migrate on purpose, because an unmigrated site is what isolates the gateway
+// variable this table is measuring. Read "STILL-GATED firewall-zone" below as
+// "answered 404 on an unmigrated site".
+//
+// The rejected POST does also persist its zone document before throwing, but
+// only when it is the site's first zone call, which it is not here (this sweep
+// lists every collection first). Nothing depends on that quirk any more.
 //
 // The test asserts only that the harness boots and the gateway adopts — a valid
 // smoke test. The endpoint verdicts are logged data, not assertions: the point

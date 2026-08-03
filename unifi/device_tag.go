@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+
+	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
 
 // just to fix compile issues with the import.
@@ -46,7 +48,7 @@ func (c *ApiClient) AssignDeviceTag(ctx context.Context, site string, mac string
 		Removals:  removals,
 	}
 
-	err := c.do(ctx, http.MethodPost, fmt.Sprintf("v2/api/site/%s/device-tags/device-tag-assignment/%s", site, mac), body, &respBody)
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("v2/api/site/%s/device-tags/device-tag-assignment/%s", site, types.NormalizeMAC(mac)), body, &respBody)
 	if err != nil {
 		return nil, err
 	}

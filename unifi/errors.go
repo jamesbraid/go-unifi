@@ -50,11 +50,41 @@ func (err *NotFoundError) Error() string {
 	}
 }
 
+// ValidationError is the controller's own account of why it rejected a
+// field: which field, and the pattern the value had to match. The controller
+// sends this alongside the error code, and the SDK used to drop it, leaving
+// callers with a bare api.err.InvalidPayload and no way to tell which of
+// eighty fields was at fault.
+type ValidationError struct {
+	Field   string `json:"field"`
+	Pattern string `json:"pattern"`
+}
+
+// APIError is an error the controller reported in its response envelope. RC
+// and Message carry the controller's own code and message; Validation is set
+// only when the controller named a specific field.
 type APIError struct {
 	RC      string
 	Message string
+	// Validation is the controller's field-level detail, when it sent any.
+	// Reach it with errors.As on *APIError to map the failure back onto the
+	// field that caused it.
+	Validation *ValidationError
 }
 
 func (err *APIError) Error() string {
-	return err.Message
+	if err.Validation == nil || err.Validation.Field == "" {
+		return err.Message
+	}
+
+	detail := err.Validation.Field
+	if err.Validation.Pattern != "" {
+		detail = fmt.Sprintf("%s must match %s", detail, err.Validation.Pattern)
+	} else {
+		detail = fmt.Sprintf("%s is invalid", detail)
+	}
+	if err.Message == "" {
+		return detail
+	}
+	return fmt.Sprintf("%s: %s", err.Message, detail)
 }

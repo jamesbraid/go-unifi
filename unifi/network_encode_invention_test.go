@@ -17,12 +17,10 @@ import (
 // (setting_preference forced to "auto").
 var networkEncoderJustifiedNonZero = map[string]map[string]string{
 	PurposeCorporate: {
-		"purpose":             "identity: the field MarshalJSON dispatches on",
-		"ipv6_interface_type": ipv6InterfaceTypeJustification,
+		"purpose": "identity: the field MarshalJSON dispatches on",
 	},
 	PurposeGuest: {
-		"purpose":             "identity: the field MarshalJSON dispatches on",
-		"ipv6_interface_type": ipv6InterfaceTypeJustification,
+		"purpose": "identity: the field MarshalJSON dispatches on",
 	},
 	PurposeVLANOnly: {
 		"purpose": "identity: the field MarshalJSON dispatches on",
@@ -47,19 +45,6 @@ var networkEncoderJustifiedNonZero = map[string]map[string]string{
 		"purpose": "identity: the field MarshalJSON dispatches on",
 	},
 }
-
-// ipv6InterfaceTypeJustification records why marshalCorporate and
-// marshalGuest still fill a nil IPV6InterfaceType with "none".
-//
-// Probed on 10.4.57 alongside the other invented defaults. Forcing "none"
-// discards nothing that omitting the key does not also discard: a caller's
-// ipv6_subnet is dropped either way, and ipv6_ra_enabled survives either way.
-// The only observable difference is whether "none" ends up stored. What that
-// costs cannot be settled on a gateway-less controller -- the "static" path
-// needed to tell the two apart is rejected outright with
-// api.err.NotDeployableIPv6Subnet, because a deployable prefix requires real
-// hardware. Revisit once the harness can adopt a gateway.
-const ipv6InterfaceTypeJustification = "unresolved: needs a gateway to tell absent from \"none\"; measured to discard nothing that omitting does not"
 
 // isZeroJSON reports whether v is the JSON rendering of a Go zero value:
 // null, false, "", 0, an empty array or an empty object. Emitting one of

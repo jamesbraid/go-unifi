@@ -13,40 +13,46 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 )
 
-// TestIntegrationSeededUOSFirewallZoneSeed proves the one thing that makes
-// FirewallZone drift-checkable: POST /v2/api/site/{site}/firewall/zone
-// PERSISTS the zone even though it answers 404
-// api.err.CouldNotFindHotspotFirewallZone. The 404 is thrown after the write,
-// while the handler looks for the hotspot zone the site has never had, so
-// reading the collection back is the only way to see the object.
+// TestIntegrationSeededUOSZoneMigration runs the zone-based-firewall migration
+// on the seeded UniFi OS Server image with a gateway adopted — the highest
+// fidelity target available here — and checks the two things the base drift
+// gate cannot.
 //
-// Every probe before this one classified that 404 as "gated, nothing created"
-// because it never re-read the collection. It creates a zone every time.
+// migrateZoneBasedFirewall (drift_integration_test.go) documents the migration
+// itself; that runs gateway-less on the standalone sim. This test covers what
+// hardware changes:
 //
-// Two conditions, both measured 2026-07-24 on the seeded UniFi OS Server image
-// (real mode, wizard completed — Network 10.4.57, the same app the standalone
-// sim runs):
+//   - The migration still runs INLINE. A gateway is the one thing that can move
+//     it off the synchronous path: when a gateway is present AND has SSL
+//     inspection enabled, the controller defers the migration to an async task
+//     instead. The adopted UXGENT does not trigger that, measured 2026-08-01 —
+//     all six default zones were already there on the first read after the POST
+//     returned. If a future emulator profile turns SSL inspection on, this is
+//     the test that will catch the zones arriving late or not at all.
 //
-//   - The POST must be the FIRST request to the zone collection on that site.
-//     Reading the collection first poisons it: three runs that GET before
-//     posting never landed a zone (one of them retried twenty times over five
-//     minutes), while every run that posted first landed one immediately.
-//   - Only that first POST lands. A second answers the same 404 and creates
-//     nothing, so a site yields exactly one seeded zone — which is all a drift
-//     comparison needs.
+//   - The migration creates the predefined FIREWALL POLICIES, and that part
+//     genuinely does need a gateway. Measured 2026-08-01 across three cells:
+//     sim gateway-less gives 6 zones and 0 policies; sim with an adopted UXGENT
+//     gives 6 zones and 10 policies; seeded UOS with an adopted UXGENT gives
+//     the same 6 and 10. So the gateway is the variable, not the UOS image, and
+//     FirewallPolicy can never be seeded from the base gate.
 //
-// An adopted gateway is NOT required, settled 2026-07-25 after this test was
-// written: four sites on one gateway-less standalone -sim boot separated the
-// two factors, and post-first landed a zone (2/2) while pre-read-then-post
-// landed none (1/1). The gateway this test adopts is incidental to the write;
-// it stays because this test is also the seeded-UOS-with-hardware case, and
-// the gateway-free path is now covered by the base drift gate
-// (seedFirewallZone in drift_integration_test.go).
+// The 10 policies are all predefined=true (two per IP version of "Block All
+// Other Traffic", plus established/related, invalid-traffic and IPv6 neighbour
+// discovery pairs). They are NOT conversions of user rules — a fresh site has
+// none to convert. Their fields already match overrides/resources/
+// FirewallPolicy.json exactly (zero live-only fields, 2026-08-01), so promoting
+// FirewallPolicy into a gateway-gated drift comparison is a clean follow-up.
+//
+// This test replaced one that proved a controller bug instead: before the
+// migration endpoint was found, the only way to get a zone onto a site was that
+// a rejected POST persisted its document before throwing. See
+// migrateZoneBasedFirewall for why that route is gone.
 //
 // Gated behind UNIFI_GATEWAY_TEST: the seeded UOS is a systemd boot of minutes.
-func TestIntegrationSeededUOSFirewallZoneSeed(t *testing.T) {
+func TestIntegrationSeededUOSZoneMigration(t *testing.T) {
 	if os.Getenv("UNIFI_GATEWAY_TEST") == "" {
-		t.Skip("set UNIFI_GATEWAY_TEST=1 to run the seeded UOS zone-seed test")
+		t.Skip("set UNIFI_GATEWAY_TEST=1 to run the seeded UOS zone migration test")
 	}
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -60,60 +66,92 @@ func TestIntegrationSeededUOSFirewallZoneSeed(t *testing.T) {
 	s := c.NewSession(ctx, t)
 	t.Logf("seeded UOS up at %s (network API %s)", c.RootURL, c.BaseURL)
 
-	// Do NOT read the collection before writing to it. A GET on the zone
-	// collection before the first POST makes that POST fail to persist —
-	// measured 2026-07-24, twenty retries over five minutes never landed a
-	// zone after a pre-read, while the identical POST issued as the first
-	// zone call on the same image lands immediately.
-	//
-	// Adopting a gateway first is not a prerequisite for the write (see the
-	// doc comment) — it is what makes this the with-hardware case.
 	d := controllertest.AdoptGateway(ctx, t, c, s)
 	t.Logf("gateway adopted: mac=%s model=%q type=%q state=%d", d.MAC, d.Model, d.Type, d.State)
 
+	// Creates the six default zones and asserts they are actually there.
+	migrateZoneBasedFirewall(ctx, t, c, s)
+
+	// With the site migrated, zone writes work normally. Prove both directions
+	// the pre-migration controller refused: a clean create, and an update that
+	// actually applies.
 	const zoneName = "probe-seeded-zone"
-	body, status, err := s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone", map[string]any{
+	created, status, err := s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone", map[string]any{
 		"name":        zoneName,
 		"network_ids": []string{},
 	})
 	if err != nil {
 		t.Fatalf("zone POST transport error: %v", err)
 	}
-	t.Logf("zone POST answered HTTP %d: %s", status, jsonString(body))
+	if status >= 300 {
+		t.Fatalf("zone POST on a migrated site: HTTP %d %s (want 201)", status, jsonString(created))
+	}
+	zone, ok := created.(map[string]any)
+	if !ok {
+		t.Fatalf("zone POST returned no object: %s", jsonString(created))
+	}
+	zoneID, _ := zone["_id"].(string)
+	if zoneID == "" {
+		t.Fatalf("zone POST returned no _id: %s", jsonString(created))
+	}
+	t.Logf("zone created: HTTP %d %s", status, jsonString(created))
 
-	// The status lies about what happened; the collection is the truth.
+	const renamed = "probe-seeded-zone-renamed"
+	upBody, upStatus, upErr := s.PutJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone/"+zoneID, map[string]any{
+		"_id":         zoneID,
+		"name":        renamed,
+		"network_ids": []string{},
+	})
+	if upErr != nil {
+		t.Fatalf("zone PUT transport error: %v", upErr)
+	}
+	if upStatus >= 300 {
+		t.Fatalf("zone PUT on a migrated site: HTTP %d %s (want 200)", upStatus, jsonString(upBody))
+	}
+
+	// The status is not the evidence — read the collection back.
 	zones, gstatus, gerr := s.GetJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone")
 	if gerr != nil || gstatus != 200 {
-		t.Fatalf("list zones after seed: status=%d err=%v", gstatus, gerr)
+		t.Fatalf("list zones after update: status=%d err=%v", gstatus, gerr)
 	}
 	list, ok := zones.([]any)
 	if !ok {
 		t.Fatalf("zone collection is not a list: %s", jsonString(zones))
 	}
-	var seeded map[string]any
+	var found map[string]any
 	for _, item := range list {
 		z, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		if n, _ := z["name"].(string); n == zoneName {
-			seeded = z
+		if id, _ := z["_id"].(string); id == zoneID {
+			found = z
 			break
 		}
 	}
-	if seeded == nil {
-		t.Fatalf("zone %q absent after POST with a gateway adopted: the write no longer persists, so FirewallZone drift needs a new seeding route (collection: %s)",
-			zoneName, jsonString(zones))
+	if found == nil {
+		t.Fatalf("zone %s absent after a successful PUT: %s", zoneID, jsonString(zones))
 	}
-	t.Logf("SEEDED FirewallZone despite HTTP %d: %s", status, jsonString(seeded))
+	if n, _ := found["name"].(string); n != renamed {
+		t.Fatalf("zone PUT answered HTTP %d but the name is still %q, want %q — the update did not apply",
+			upStatus, n, renamed)
+	}
+	t.Logf("zone update applied: %s", jsonString(found))
 
-	// The live object carries fields the hand-written schema does not, which is
-	// exactly the drift the v2 gate exists to catch once this seed is wired in.
-	for _, k := range []string{"_id", "attr_no_edit", "cloud_template", "external_id"} {
-		if _, present := seeded[k]; !present {
-			t.Logf("live zone has no %q", k)
-		}
+	// The gateway-only half: the migration should have created the predefined
+	// firewall policies. This is the collection the base gate can never seed.
+	policies, pstatus, perr := s.GetJSON(ctx, "/v2/api/site/"+c.Site+"/firewall-policies")
+	if perr != nil || pstatus != 200 {
+		t.Fatalf("list firewall-policies: status=%d err=%v", pstatus, perr)
 	}
+	plist, ok := policies.([]any)
+	if !ok || len(plist) == 0 {
+		t.Fatalf("firewall-policies is empty after migrating a site with an adopted %s. "+
+			"The migration created the zones but no policies, so either the predefined policy set moved "+
+			"behind another gate or the migration was deferred to the async task: %s",
+			controllertest.GatewayModel, jsonString(policies))
+	}
+	t.Logf("migration created %d firewall policies", len(plist))
 }
 
 // TestIntegrationSeededUOSBgpConfig writes a BGP configuration against an

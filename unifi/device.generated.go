@@ -143,6 +143,27 @@ type Device struct {
 	Y float64 `json:"y,omitempty"`
 }
 
+// MarshalJSON fixes up the write shape of this type.
+//
+// Read-only fields are dropped: the controller reports them and rejects them
+// on a write, so without this an update after a read fails on the
+// server-assigned fields the read filled in.
+//
+// Slices marked nil-as-empty are sent as [] rather than null. They serialize
+// unconditionally by design -- an empty list has to reach the wire to clear
+// the value -- but a caller that never touched the field holds nil, and the
+// controller rejects null where it expects an array.
+func (src Device) MarshalJSON() ([]byte, error) {
+	type Alias Device
+	return json.Marshal(&struct {
+		PortOverrides []DevicePortOverrides `json:"port_overrides"`
+		*Alias
+	}{
+		PortOverrides: emptyIfNil(src.PortOverrides),
+		Alias:         (*Alias)(&src),
+	})
+}
+
 func (dst *Device) UnmarshalJSON(b []byte) error {
 	type Alias Device
 	aux := &struct {
@@ -1578,6 +1599,50 @@ func (c *ApiClient) createDevice(
 	return &res, nil
 }
 
+// UpdateDeviceFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateDeviceFields(ctx context.Context, site string, d *Device, fields ...string) (*Device, error) {
+	return c.updateDeviceFields(ctx, site, d, fields)
+}
+
+// updateDeviceFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateDeviceFields(
+	ctx context.Context,
+	site string,
+	d *Device,
+	fields []string,
+) (*Device, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta     `json:"meta"`
+		Data []Device `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/device/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.rereadDevice(ctx, site, d)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
+	return &res, nil
+}
+
 func (c *ApiClient) updateDevice(
 	ctx context.Context,
 	site string,
@@ -1600,8 +1665,12 @@ func (c *ApiClient) updateDevice(
 
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
+	// Re-read through rereadDevice, not by id: the device read endpoint is
+	// stat/device/{mac}, so passing the database id answers 404 and turns a
+	// successful write into a NotFound. See that function for why the MAC
+	// cannot simply be used unconditionally.
 	if len(respBody.Data) == 0 {
-		return c.getDevice(ctx, site, d.ID)
+		return c.rereadDevice(ctx, site, d)
 	}
 
 	if len(respBody.Data) != 1 {

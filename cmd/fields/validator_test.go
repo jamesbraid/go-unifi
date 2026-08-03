@@ -31,35 +31,41 @@ func TestBuildStringValidators(t *testing.T) {
 			wantCount:  1,
 			wantType:   "LengthBetween",
 		},
+		// The forms below used to be recognised as length rules. Three of
+		// them are not: a hex or colour pattern constrains content as well as
+		// length, and LengthBetween(32, 32) on [0-9A-Fa-f]{32} accepts 32
+		// characters the controller rejects. Keeping the controller's own
+		// regex is both simpler and tighter. Neither .{n} nor .{n,} occurs
+		// anywhere in the extracted schema, so nothing recognises them.
 		{
-			name:       "length at least pattern",
+			name:       "open-ended length is kept as a regex",
 			validation: ".{1,}",
 			wantCount:  1,
-			wantType:   "LengthAtLeast",
+			wantType:   "RegexMatches",
 		},
 		{
-			name:       "exact length pattern",
+			name:       "exact length is kept as a regex",
 			validation: ".{32}",
 			wantCount:  1,
-			wantType:   "LengthBetween",
+			wantType:   "RegexMatches",
 		},
 		{
-			name:       "hex pattern 32 chars",
+			name:       "hex of fixed width is content plus length",
 			validation: "[0-9A-Fa-f]{32}",
 			wantCount:  1,
-			wantType:   "LengthBetween",
+			wantType:   "RegexMatches",
 		},
 		{
-			name:       "hex pattern 512 chars",
+			name:       "long hex is content plus length",
 			validation: "[0-9A-Fa-f]{512}",
 			wantCount:  1,
-			wantType:   "LengthBetween",
+			wantType:   "RegexMatches",
 		},
 		{
-			name:       "color hex pattern",
+			name:       "colour hex is content plus length",
 			validation: "^#(?:[0-9a-fA-F]{3}){1,2}$",
 			wantCount:  1,
-			wantType:   "LengthBetween",
+			wantType:   "RegexMatches",
 		},
 		{
 			name:       "regex pattern",
