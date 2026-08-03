@@ -71,22 +71,33 @@ func TestIntegrationV2Drift(t *testing.T) {
 	//                        lowercase area_type ("normal", not "NORMAL")
 	//   NetworkMembersGroup  405 -- the v2 collection is not POST-writable here
 	// Promoting the three seedable schemas into this gate is a follow-up.
-	migrateZoneBasedFirewall(ctx, t, c, s)
-	seedFirewallZone(ctx, t, c, s)
+	//
+	// None of it runs against a UNIFI_TEST_URL target. The comparison itself
+	// only reads, so it is worth pointing at a real controller — a populated
+	// site is the best drift subject there is — but the seeding is not. The
+	// zone migration in particular switches the site to zone-based
+	// firewalling and converts its existing firewall and traffic rules into
+	// policies, permanently and site-wide. That is fine on a container we
+	// throw away and unacceptable on someone's network, which is why every
+	// other mutating probe in the suite skips URL targets too.
+	if seedable(t) {
+		migrateZoneBasedFirewall(ctx, t, c, s)
+		seedFirewallZone(ctx, t, c, s)
 
-	seed := map[string]any{
-		"enabled":     true,
-		"key":         "probe.example.com",
-		"record_type": "A",
-		"value":       "192.0.2.1",
-		"ttl":         3600,
-	}
-	seedBody, seedStatus, seedErr := s.PostJSON(ctx, fmt.Sprintf("/v2/api/site/%s/static-dns", c.Site), seed)
-	if seedErr != nil {
-		t.Fatalf("seed DNS record: status=%d err=%v", seedStatus, seedErr)
-	}
-	if seedStatus >= 300 {
-		t.Fatalf("seed DNS record: status=%d body=%v", seedStatus, seedBody)
+		seed := map[string]any{
+			"enabled":     true,
+			"key":         "probe.example.com",
+			"record_type": "A",
+			"value":       "192.0.2.1",
+			"ttl":         3600,
+		}
+		seedBody, seedStatus, seedErr := s.PostJSON(ctx, fmt.Sprintf("/v2/api/site/%s/static-dns", c.Site), seed)
+		if seedErr != nil {
+			t.Fatalf("seed DNS record: status=%d err=%v", seedStatus, seedErr)
+		}
+		if seedStatus >= 300 {
+			t.Fatalf("seed DNS record: status=%d body=%v", seedStatus, seedBody)
+		}
 	}
 
 	wd, err := os.Getwd()
@@ -149,6 +160,27 @@ func TestIntegrationV2Drift(t *testing.T) {
 			}
 		})
 	}
+}
+
+// seedable reports whether this run may write to the controller it is
+// pointed at.
+//
+// Only a controller the harness booted itself qualifies. UNIFI_TEST_URL
+// targets an existing one, and nothing about that variable says whether the
+// thing on the other end is another throwaway container or a production
+// site; the suite's convention is to assume the latter and leave it alone.
+func seedable(t *testing.T) bool {
+	t.Helper()
+
+	if os.Getenv("UNIFI_TEST_URL") == "" {
+		return true
+	}
+	// Said once, up front, so the per-schema "no live objects" skips below
+	// are attributable rather than mysterious.
+	t.Log("UNIFI_TEST_URL is set, so this run seeds nothing and compares the site as it stands. " +
+		"Schemas whose collections are empty here will skip. The CI gate runs against a disposable " +
+		"container, seeds, and fails on an empty collection.")
+	return false
 }
 
 // migrateZoneBasedFirewall switches the site to zone-based firewalling, which
