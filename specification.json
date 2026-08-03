@@ -29400,7 +29400,7 @@
           {
             "name": "schedule_with_duration",
             "list_nested": {
-              "computed_optional_required": "optional",
+              "computed_optional_required": "computed_optional",
               "nested_object": {
                 "attributes": [
                   {

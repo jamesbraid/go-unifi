@@ -27,12 +27,17 @@ type fieldOverride struct {
 	UnmarshalType string `toml:"unmarshal_type"`
 	UnmarshalFunc string `toml:"unmarshal_func"`
 	Doc           string `toml:"doc"`
+	NilAsEmpty    bool   `toml:"nil_as_empty"`
 }
 
 // resourceOverride is one [Resource] table from overrides/fields.toml.
 type resourceOverride struct {
-	Path  string                   `toml:"path"`
-	Field map[string]fieldOverride `toml:"field"`
+	Path string `toml:"path"`
+	// ListPath overrides the collection path for the list call alone. The
+	// v2 network members group needs it: every other verb is served by the
+	// singular path, and only the list is served by the plural one.
+	ListPath string                   `toml:"list_path"`
+	Field    map[string]fieldOverride `toml:"field"`
 }
 
 var (
@@ -147,6 +152,9 @@ func (r *ResourceInfo) applyOverrides() error {
 			}
 			if fo.Doc != "" {
 				f.Doc = newlineRe.ReplaceAllString(fo.Doc, " ")
+			}
+			if fo.NilAsEmpty {
+				f.NilAsEmpty = true
 			}
 		case fo.Add:
 			if fo.Name == "" || fo.Type == "" {

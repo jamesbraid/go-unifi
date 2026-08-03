@@ -38,6 +38,29 @@ type APGroup struct {
 	Name        string   `json:"name"`
 }
 
+// MarshalJSON fixes up the write shape of this type.
+//
+// Read-only fields are dropped: the controller reports them and rejects them
+// on a write, so without this an update after a read fails on the
+// server-assigned fields the read filled in.
+//
+// Slices marked nil-as-empty are sent as [] rather than null. They serialize
+// unconditionally by design -- an empty list has to reach the wire to clear
+// the value -- but a caller that never touched the field holds nil, and the
+// controller rejects null where it expects an array.
+func (src APGroup) MarshalJSON() ([]byte, error) {
+	type Alias APGroup
+	return json.Marshal(&struct {
+		HiddenID   *struct{} `json:"attr_hidden_id,omitempty"`
+		NoDelete   *struct{} `json:"attr_no_delete,omitempty"`
+		DeviceMacs []string  `json:"device_macs"`
+		*Alias
+	}{
+		DeviceMacs: emptyIfNil(src.DeviceMacs),
+		Alias:      (*Alias)(&src),
+	})
+}
+
 func (dst *APGroup) UnmarshalJSON(b []byte) error {
 	type Alias APGroup
 	aux := &struct {
@@ -131,6 +154,40 @@ func (c *ApiClient) createAPGroup(
 		&respBody,
 	)
 	if err != nil {
+		return nil, err
+	}
+
+	return &respBody, nil
+}
+
+// UpdateAPGroupFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateAPGroupFields(ctx context.Context, site string, d *APGroup, fields ...string) (*APGroup, error) {
+	return c.updateAPGroupFields(ctx, site, d, fields)
+}
+
+// updateAPGroupFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateAPGroupFields(
+	ctx context.Context,
+	site string,
+	d *APGroup,
+	fields []string,
+) (*APGroup, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody APGroup
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
 		return nil, err
 	}
 

@@ -500,6 +500,50 @@ func (c *ApiClient) createPortProfile(
 	return &res, nil
 }
 
+// UpdatePortProfileFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdatePortProfileFields(ctx context.Context, site string, d *PortProfile, fields ...string) (*PortProfile, error) {
+	return c.updatePortProfileFields(ctx, site, d, fields)
+}
+
+// updatePortProfileFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updatePortProfileFields(
+	ctx context.Context,
+	site string,
+	d *PortProfile,
+	fields []string,
+) (*PortProfile, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta          `json:"meta"`
+		Data []PortProfile `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/portconf/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getPortProfile(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
+	return &res, nil
+}
+
 func (c *ApiClient) updatePortProfile(
 	ctx context.Context,
 	site string,

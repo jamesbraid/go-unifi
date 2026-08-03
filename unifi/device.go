@@ -213,6 +213,30 @@ func (c *ApiClient) GetDeviceByMAC(ctx context.Context, site, mac string) (*Devi
 	return c.getDevice(ctx, site, types.NormalizeMAC(mac))
 }
 
+// rereadDevice fetches a device by whichever identifier it carries, for the
+// update paths that have to re-read after a controller answers a successful
+// PUT with an empty data array.
+//
+// Device is the one resource whose read endpoint is keyed by MAC --
+// stat/device/{mac}, not {id} -- so the generated "re-read by id" does not
+// work here. But a masked write only needs the id (it addresses the object
+// through the URL), so a caller doing the documented partial update,
+// &Device{ID: id, Name: name}, legitimately holds no MAC. Passing that empty
+// string through builds stat/device/ with a trailing slash, which is the
+// list endpoint: it answers every device on the site, the caller's
+// len(Data) != 1 check trips, and a write that succeeded reports NotFound.
+// On a single-device site it answers one device and looks like it worked,
+// which is worse.
+//
+// So take the MAC when there is one, and otherwise go the way GetDevice
+// goes: list and filter on id.
+func (c *ApiClient) rereadDevice(ctx context.Context, site string, d *Device) (*Device, error) {
+	if d.MAC != "" {
+		return c.getDevice(ctx, site, d.MAC)
+	}
+	return c.GetDevice(ctx, site, d.ID)
+}
+
 func (c *ApiClient) DeleteDevice(ctx context.Context, site, id string) error {
 	return c.deleteDevice(ctx, site, id)
 }
@@ -316,10 +340,27 @@ func getDiff[T any](original, target *T, skipFields ...string) (map[string]any, 
 }
 
 // getDeviceDiff compares two Device objects and returns a map containing only changed fields.
+//
+// port_overrides needs handling the generic diff cannot do. getDiff compares
+// the two objects as the encoder renders them, and Device's encoder sends nil
+// port_overrides as [] -- deliberately, because the controller rejects null
+// there and an empty list is the only way to clear the field. That is right
+// for a full write and wrong here: a caller updating one unrelated field
+// holds a Device it never populated port_overrides on, so the diff sees []
+// against the stored overrides, calls it a change, and the patch wipes every
+// port override on the device.
+//
+// nil means "not supplied" and comes out of the patch. An explicitly empty
+// slice still means "clear these", and still goes through -- which is why
+// this tests the field rather than the rendered [].
 func getDeviceDiff(original, target *Device) (map[string]any, error) {
 	patch, err := getDiff(original, target, "_id", "site_id", "adopted", "state")
 	if err != nil {
 		return nil, err
+	}
+
+	if target.PortOverrides == nil {
+		delete(patch, "port_overrides")
 	}
 
 	return patch, nil

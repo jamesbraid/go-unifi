@@ -121,10 +121,14 @@ type ResourceInfo struct {
 	// ResourcePath is the REST path segment, which several resources
 	// override; Collection keeps the controller's collection name (the
 	// lowercased schema file base name) for sensitive_metadata lookups.
-	ResourcePath   string
-	Collection     string
-	Types          map[string]*FieldInfo
-	FieldProcessor func(name string, f *FieldInfo) error
+	ResourcePath string
+	// ListResourcePath is the collection path used by the list call, for the
+	// rare resource whose list endpoint differs from the one every other
+	// verb uses. Defaults to ResourcePath.
+	ListResourcePath string
+	Collection       string
+	Types            map[string]*FieldInfo
+	FieldProcessor   func(name string, f *FieldInfo) error
 }
 
 type FieldInfo struct {
@@ -145,6 +149,12 @@ type FieldInfo struct {
 	// Doc renders as a doc comment above the generated field (e.g. a
 	// "Deprecated:" marker on compat pins); set from overrides/fields.toml.
 	Doc string
+	// NilAsEmpty makes the generated MarshalJSON send [] rather than null
+	// for a nil slice. A slice serialized unconditionally otherwise puts
+	// null on the wire whenever the caller left it alone, and the
+	// controller rejects null for several of these (measured by
+	// TestIntegrationNullWrites).
+	NilAsEmpty bool
 }
 
 // HasReadOnly reports whether any of the type's fields is read-only, i.e.
@@ -152,6 +162,17 @@ type FieldInfo struct {
 func (f *FieldInfo) HasReadOnly() bool {
 	for _, child := range f.Fields {
 		if child != nil && child.ReadOnly {
+			return true
+		}
+	}
+	return false
+}
+
+// HasNilAsEmpty reports whether any of the type's fields needs a nil slice
+// rendered as [], i.e. whether the generated type needs a MarshalJSON for it.
+func (f *FieldInfo) HasNilAsEmpty() bool {
+	for _, child := range f.Fields {
+		if child != nil && child.NilAsEmpty {
 			return true
 		}
 	}
@@ -215,6 +236,7 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	switch {
 	case resource.IsSetting():
 		resource.ResourcePath = strcase.ToSnake(strings.TrimPrefix(structName, "Setting"))
+		resource.ListResourcePath = resource.ResourcePath
 		baseType.Fields[" Key"] = NewFieldInfo("Key", "key", fields.String, "", false, false, false, "")
 	case resource.StructName == "FirewallPolicy":
 		resource.FieldProcessor = func(name string, f *FieldInfo) error {
@@ -247,6 +269,10 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 	// overrides/fields.toml.
 	if override, ok := resourceOverrides()[structName]; ok && override.Path != "" {
 		resource.ResourcePath = override.Path
+	}
+	resource.ListResourcePath = resource.ResourcePath
+	if override, ok := resourceOverrides()[structName]; ok && override.ListPath != "" {
+		resource.ListResourcePath = override.ListPath
 	}
 
 	return resource

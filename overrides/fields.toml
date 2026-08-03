@@ -31,15 +31,34 @@ path = "static-dns"
 [APGroup.field.device_macs]
 name = "DeviceMacs"
 omitempty = false
+nil_as_empty = true
 
 [APGroup.field.name]
 omitempty = false
 
+# The site's default AP group carries both of these, and the write DTO
+# rejects them: measured on 10.4.57, a PUT of the default group back verbatim
+# answers HTTP 400 with "hiddenId: must be null" and "nonDeletable: must be
+# false". Reading the default group and writing it back is the ordinary way
+# to edit its membership, so without this that is impossible. readonly keeps
+# them unmarshalling and drops them from the write, exactly as on
+# FirewallZone.
+[APGroup.field.attr_hidden_id]
+readonly = true
+
+[APGroup.field.attr_no_delete]
+readonly = true
+
 # True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
 # attr_* envelope. Definition imported from ubiquiti-community/unifi-api
 # (see resources/../README.md).
+# The collection is asymmetric, measured on 10.4.57: create, read-one, update
+# and delete are served by the singular path, and only the list is served by
+# the plural one. The client used the plural path throughout, so every verb
+# except the list was broken -- create answered 405 and the rest 404.
 [NetworkMembersGroup]
-path = "network-members-groups"
+path = "network-members-group"
+list_path = "network-members-groups"
 
 [NetworkMembersGroup.field._id]
 json = "id"
@@ -65,6 +84,7 @@ omitempty = false
 
 [NetworkMembersGroup.field.members]
 omitempty = false
+nil_as_empty = true
 
 [NetworkMembersGroup.field.type]
 omitempty = false
@@ -135,6 +155,7 @@ readonly = true
 # empty list must serialize as "network_ids":[].
 [FirewallZone.field.network_ids]
 omitempty = false
+nil_as_empty = true
 
 # Fields the 10.x schema does not define but the controller still accepts
 # (or older controllers require).
@@ -207,6 +228,13 @@ add = true
 doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
 name = "MdnsEnabled"
 type = "bool"
+
+# Serialized unconditionally, so a Device the caller never gave overrides
+# marshals null here, and the controller rejects that -- measured, and it
+# meant such a Device could not be written at all. Send [] instead, which
+# means what nil means: this device has no port overrides.
+[Device.field.port_overrides]
+nil_as_empty = true
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
@@ -295,6 +323,18 @@ add = true
 doc = "Deprecated: removed in UniFi Network 6; retained for backwards compatibility."
 name = "WLANGroupID"
 type = "string"
+omitempty = true
+
+# A slice serialized unconditionally marshals as null when the caller has not
+# set it, and the controller answers api.err.InvalidPayload for a null here.
+# The controller does not return the key either, so a WLAN read back through
+# the client always carried a null it never came with, and every
+# read-modify-write of a WLAN was rejected outright -- measured on 10.4.57 by
+# bisecting the round-trip payload one key at a time.
+#
+# omitempty drops it when empty. That also makes an explicitly empty schedule
+# inexpressible, which is a smaller loss than every write failing.
+[WLAN.field.schedule_with_duration]
 omitempty = true
 
 # Removed in v7, retained for backwards compatibility.
