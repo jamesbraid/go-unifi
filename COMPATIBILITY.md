@@ -45,7 +45,7 @@ Four kinds of drift, four different answers:
 
   | Removed | Replacement |
   | --- | --- |
-  | `settings.RoamingAssistant` (`Enabled`, `Rssi`) and `Device.RadioTable[].AssistedRoamingEnabled` / `.AssistedRoamingRssi` | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, and `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz |
+  | `settings.RoamingAssistant` (`Enabled`, `Rssi`) and `DeviceRadioTable.AssistedRoamingEnabled` / `.AssistedRoamingRssi` | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, and `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz |
   | `settings.Ips.Suppression` (`*SettingIpsSuppression`) | `settings.IpsSuppression`, a setting in its own right (key `ips_suppression`) |
   | `settings.SettingIpsAlerts` / `SettingIpsTracking` / `SettingIpsWhitelist` | `settings.SettingIpsSuppressionAlerts` / `SettingIpsSuppressionTracking` / `SettingIpsSuppressionWhitelist` |
   | `settings.Usg.GeoIPFilteringEnabled` / `.GeoIPFilteringBlock` / `.GeoIPFilteringCountries` / `.GeoIPFilteringTrafficDirection` | `settings.UsgGeo.IPFiltering` (`*SettingUsgGeoIPFiltering`), whose members are `Enabled`, `Action`, `Countries`, `TrafficDirection` |
