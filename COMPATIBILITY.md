@@ -53,8 +53,13 @@ Four kinds of drift, four different answers:
   Two of those are more than a rename. Roaming assistance stopped being one
   site setting plus a per-radio device field and became two per-band WLAN
   ones, so a caller carrying it on `Device.RadioTable` has to decide which
-  band it meant. And `geo_ip_filtering_block` became `Action` while keeping
-  its `block|allow` values — same values, new field name, new setting.
+  band it meant — and for one band there is no answer. `Radio` still takes
+  `ng|na|ad|6e`, but the only successors are `Na` (5 GHz) and `6E`. **A
+  2.4 GHz (`ng`) or 60 GHz (`ad`) assisted-roaming configuration has no
+  replacement**; it is gone, not moved, and porting it onto the `Na` or
+  `6E` fields would silently apply a 2.4 GHz policy to a different band.
+  And `geo_ip_filtering_block` became `Action` while keeping its
+  `block|allow` values — same values, new field name, new setting.
 
 ## Versioning honesty
 
