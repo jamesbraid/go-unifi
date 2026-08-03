@@ -213,6 +213,30 @@ func (c *ApiClient) GetDeviceByMAC(ctx context.Context, site, mac string) (*Devi
 	return c.getDevice(ctx, site, mac)
 }
 
+// rereadDevice fetches a device by whichever identifier it carries, for the
+// update paths that have to re-read after a controller answers a successful
+// PUT with an empty data array.
+//
+// Device is the one resource whose read endpoint is keyed by MAC --
+// stat/device/{mac}, not {id} -- so the generated "re-read by id" does not
+// work here. But a masked write only needs the id (it addresses the object
+// through the URL), so a caller doing the documented partial update,
+// &Device{ID: id, Name: name}, legitimately holds no MAC. Passing that empty
+// string through builds stat/device/ with a trailing slash, which is the
+// list endpoint: it answers every device on the site, the caller's
+// len(Data) != 1 check trips, and a write that succeeded reports NotFound.
+// On a single-device site it answers one device and looks like it worked,
+// which is worse.
+//
+// So take the MAC when there is one, and otherwise go the way GetDevice
+// goes: list and filter on id.
+func (c *ApiClient) rereadDevice(ctx context.Context, site string, d *Device) (*Device, error) {
+	if d.MAC != "" {
+		return c.getDevice(ctx, site, d.MAC)
+	}
+	return c.GetDevice(ctx, site, d.ID)
+}
+
 func (c *ApiClient) DeleteDevice(ctx context.Context, site, id string) error {
 	return c.deleteDevice(ctx, site, id)
 }

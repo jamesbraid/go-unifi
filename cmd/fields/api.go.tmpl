@@ -382,7 +382,7 @@ func (c *ApiClient) update{{ .StructName }}Fields(
 	return &respBody, nil
 {{- else }}
 	if len(respBody.Data) == 0 {
-		return c.get{{ .StructName }}(ctx, site, d.{{ if eq .StructName "Device" }}MAC{{ else }}ID{{ end }})
+		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}get{{ .StructName }}(ctx, site, d.ID){{ end }}
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -423,12 +423,13 @@ func (c *ApiClient) update{{ .StructName }}(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	{{- if eq .StructName "Device" }}
-	// Re-read by MAC: the device read endpoint is stat/device/{mac}, not
-	// {id}, so passing the database id answers 404 and turns a successful
-	// write into a NotFound.
+	// Re-read through rereadDevice, not by id: the device read endpoint is
+	// stat/device/{mac}, so passing the database id answers 404 and turns a
+	// successful write into a NotFound. See that function for why the MAC
+	// cannot simply be used unconditionally.
 	{{- end }}
 	if len(respBody.Data) == 0 {
-		return c.get{{ .StructName }}(ctx, site, d.{{ if eq .StructName "Device" }}MAC{{ else }}ID{{ end }})
+		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}get{{ .StructName }}(ctx, site, d.ID){{ end }}
 	}
 
 	if len(respBody.Data) != 1 {
