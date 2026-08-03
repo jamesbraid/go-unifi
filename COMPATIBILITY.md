@@ -26,7 +26,15 @@ Three kinds of drift, three different answers:
   it, generated from an explicit pin in `overrides/fields.toml` with a
   deprecation note (e.g. `Network.MdnsEnabled`, `Device.X`/`Device.Y`).
   Pins are reviewed each controller train and sunset when they stop being
-  harmless.
+  harmless. A pin requires a live measurement that the controller still
+  honors the field; when it does not, the removal stands. PortProfile's
+  `tagged_networkconf_ids` (dropped upstream in 2023) is the measured
+  counter-example: 10.4.57 strips it from every create and update shape —
+  port profiles express tagged VLANs only as `tagged_vlan_mgmt` +
+  `excluded_networkconf_ids` — so the SDK does not model it, and
+  `TestIntegrationPortProfileTaggedNetworks` holds the measurement in
+  place. (Device `port_overrides` still honors the same wire name; the two
+  write paths differ.)
 - **Upstream removes an *endpoint or resource*** → we remove it in the same
   release, verified dead against a live controller first. Shipping API
   surface that errors on every current controller is worse than an honest
