@@ -45,6 +45,7 @@ func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
 			fmt.Fprintf(&body, "Mode: %q, Owns: []string{", mode)
 
 			owns := prefs[key].Owns
+			excludes := prefs[key].UOSExcludes
 			if len(owns) == 0 {
 				// A measured empty set is a result: this mode carries the
 				// enum and acts on nothing. Rendered explicitly so it reads
@@ -56,7 +57,19 @@ func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
 			for _, wire := range slices.Sorted(slices.Values(owns)) {
 				fmt.Fprintf(&body, "\t\t\t%q,\n", wire)
 			}
-			body.WriteString("\t\t}},\n")
+			body.WriteString("\t\t}")
+			// Carried through rather than folded into Owns: a consumer
+			// deciding what to send has to know which product it is talking
+			// to, and publishing only the standalone answer would have it
+			// describe UniFi OS wrongly with no way to tell.
+			if len(excludes) > 0 {
+				body.WriteString(", UOSExcludes: []string{\n")
+				for _, wire := range slices.Sorted(slices.Values(excludes)) {
+					fmt.Fprintf(&body, "\t\t\t%q,\n", wire)
+				}
+				body.WriteString("\t\t}")
+			}
+			body.WriteString("},\n")
 		}
 		body.WriteString("\t},\n")
 	}
@@ -65,6 +78,8 @@ func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
 // Generated code. DO NOT EDIT.
 
 package unifi
+
+import "slices"
 
 // Preference is one auto|manual mode field and the fields it governs.
 type Preference struct {
@@ -80,7 +95,38 @@ type Preference struct {
 	// "auto", relative to Container -- a mode governs its own object. An
 	// empty list is a measured result, not a gap: that mode was probed and
 	// owns nothing.
+	//
+	// This is the standalone UniFi Network answer. Inside UniFi OS, subtract
+	// UOSExcludes -- or call OwnsOn, which does it for you.
 	Owns []string
+
+	// UOSExcludes lists entries of Owns that do NOT hold inside UniFi OS,
+	// because the console owns the field outright and neither mode reaches
+	// it. Always a subset of Owns.
+	//
+	// The Network version does not separate the two products: UniFi OS
+	// bundles the same build and reports it, while pinning some fields the
+	// standalone controller leaves to manual mode. A consumer that assumes
+	// Owns holds everywhere will describe UniFi OS wrongly, so the
+	// difference is published rather than folded away.
+	UOSExcludes []string
+}
+
+// OwnsOn returns the wire names this mode owns on one product.
+//
+// uos selects the UniFi OS answer, which is Owns minus the fields the console
+// pins. Everything else gets Owns unchanged.
+func (p Preference) OwnsOn(uos bool) []string {
+	if !uos || len(p.UOSExcludes) == 0 {
+		return p.Owns
+	}
+	out := make([]string, 0, len(p.Owns))
+	for _, wire := range p.Owns {
+		if !slices.Contains(p.UOSExcludes, wire) {
+			out = append(out, wire)
+		}
+	}
+	return out
 }
 
 // PreferenceOwnedFields records what each auto|manual mode field owns.

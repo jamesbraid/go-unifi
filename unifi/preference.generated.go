@@ -2,6 +2,8 @@
 
 package unifi
 
+import "slices"
+
 // Preference is one auto|manual mode field and the fields it governs.
 type Preference struct {
 	// Container is the dotted wire path to the sub-object holding the mode,
@@ -16,7 +18,38 @@ type Preference struct {
 	// "auto", relative to Container -- a mode governs its own object. An
 	// empty list is a measured result, not a gap: that mode was probed and
 	// owns nothing.
+	//
+	// This is the standalone UniFi Network answer. Inside UniFi OS, subtract
+	// UOSExcludes -- or call OwnsOn, which does it for you.
 	Owns []string
+
+	// UOSExcludes lists entries of Owns that do NOT hold inside UniFi OS,
+	// because the console owns the field outright and neither mode reaches
+	// it. Always a subset of Owns.
+	//
+	// The Network version does not separate the two products: UniFi OS
+	// bundles the same build and reports it, while pinning some fields the
+	// standalone controller leaves to manual mode. A consumer that assumes
+	// Owns holds everywhere will describe UniFi OS wrongly, so the
+	// difference is published rather than folded away.
+	UOSExcludes []string
+}
+
+// OwnsOn returns the wire names this mode owns on one product.
+//
+// uos selects the UniFi OS answer, which is Owns minus the fields the console
+// pins. Everything else gets Owns unchanged.
+func (p Preference) OwnsOn(uos bool) []string {
+	if !uos || len(p.UOSExcludes) == 0 {
+		return p.Owns
+	}
+	out := make([]string, 0, len(p.Owns))
+	for _, wire := range p.Owns {
+		if !slices.Contains(p.UOSExcludes, wire) {
+			out = append(out, wire)
+		}
+	}
+	return out
 }
 
 // PreferenceOwnedFields records what each auto|manual mode field owns.
@@ -109,6 +142,9 @@ var PreferenceOwnedFields = map[string][]Preference{
 			"data_retention_time_in_hours_for_5minutes_scale",
 			"data_retention_time_in_hours_for_hourly_scale",
 			"data_retention_time_in_hours_for_others",
+		}, UOSExcludes: []string{
+			"data_retention_time_in_hours_for_5minutes_scale",
+			"data_retention_time_in_hours_for_hourly_scale",
 		}},
 	},
 	"SettingUsg": {
