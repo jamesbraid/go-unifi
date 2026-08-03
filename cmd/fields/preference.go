@@ -178,7 +178,7 @@ func describePreference(r *ResourceInfo, container string, field *FieldInfo, att
 	// mode nested in a sub-object never annotates a same-named field on the
 	// resource, and vice versa.
 	if pref, ok := prefs[joinContainer(container, field.JSONName)]; ok {
-		setAttributeDescription(attr, modeDescription(r, container, pref))
+		setAttributeDescription(attr, modeDescription(pref))
 		return
 	}
 
@@ -188,7 +188,9 @@ func describePreference(r *ResourceInfo, container string, field *FieldInfo, att
 			continue
 		}
 		if slices.Contains(prefs[key].Owns, field.JSONName) {
-			name := specAttributeName(r, container, mode)
+			// mode is the wire name, which is also what the attribute is
+			// called -- see modeDescription.
+			name := mode
 			setAttributeDescription(attr, fmt.Sprintf(
 				"Ignored while %s is \"auto\": the controller stores its own value for this field, "+
 					"answers rc: ok, and reports nothing. Set %s to \"manual\" to configure it.",
@@ -199,7 +201,7 @@ func describePreference(r *ResourceInfo, container string, field *FieldInfo, att
 }
 
 // modeDescription renders the description for a mode field itself.
-func modeDescription(r *ResourceInfo, container string, pref fields.Preference) string {
+func modeDescription(pref fields.Preference) string {
 	measured := pref.Measured
 	if measured == "" {
 		measured = "an unrecorded build"
@@ -209,45 +211,17 @@ func modeDescription(r *ResourceInfo, container string, pref fields.Preference) 
 			"auto|manual. Measured against UniFi Network %s: this mode governs no fields, "+
 				"so \"auto\" discards nothing.", measured)
 	}
-	owns := make([]string, 0, len(pref.Owns))
-	for _, wire := range pref.Owns {
-		owns = append(owns, specAttributeName(r, container, wire))
-	}
+	// The wire name is the attribute name: buildResourceAttribute names
+	// attributes from JSONName, precisely because deriving them from the Go
+	// field name produced names no API user would recognise. A description
+	// is read next to the name a practitioner types, so it has to use the
+	// same one.
+	owns := slices.Clone(pref.Owns)
 	slices.Sort(owns)
 	return fmt.Sprintf(
 		"auto|manual. While \"auto\", the controller manages these attributes itself and overwrites "+
 			"whatever is sent for them, without reporting it: %s. Measured against UniFi Network %s.",
 		strings.Join(owns, ", "), measured)
-}
-
-// specAttributeName maps a wire name to the attribute name this spec emits
-// for it.
-//
-// The two are not the same. Attribute names come from the Go field name via
-// toTerraformName, which splits differently around digits and acronyms:
-// ipv6_setting_preference is emitted as ipv_6_setting_preference. A
-// description is read in provider documentation, next to the name a
-// practitioner types, so it has to name the attribute rather than the wire
-// field it came from. Falls back to the wire name if the field cannot be
-// resolved, which is better than naming nothing.
-func specAttributeName(r *ResourceInfo, container, wire string) string {
-	scope, err := r.resolveContainer(container)
-	if err != nil {
-		return wire
-	}
-	if f, ok := scope[wire]; ok {
-		return toTerraformName(f.FieldName)
-	}
-	base := r.Types[r.StructName]
-	if base == nil {
-		return wire
-	}
-	for _, f := range base.Fields {
-		if f != nil && f.JSONName == wire {
-			return toTerraformName(f.FieldName)
-		}
-	}
-	return wire
 }
 
 // setAttributeDescription sets Description on whichever typed attribute the
