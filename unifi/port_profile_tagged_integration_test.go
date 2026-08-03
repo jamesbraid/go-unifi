@@ -70,35 +70,48 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 	tagged := []string{vlan51}
 	excluded := []string{vlan52}
 
+	// wantForward carries the measured 10.4.57 result for each shape, from
+	// the matrix in this test's doc comment: forward is derived from
+	// tagged_vlan_mgmt, so "custom" keeps "customize" and everything else
+	// is rewritten to "all". Asserting it per variant is what stops a
+	// controller that kept stripping the ids but changed the derivation
+	// from passing silently -- the stripping is only half the measurement.
+	//
+	// wantTaggedMgmt is asserted only where the variant submits the field.
+	// The legacy shapes do not, and what the controller defaults it to was
+	// never measured; pinning a guess would fake exactly the kind of
+	// unmeasured claim this whole test exists to refuse.
 	variants := []struct {
 		name    string
 		payload map[string]any
 		// wantTaggedStripped: the controller must accept the write and store
 		// the document without tagged_networkconf_ids.
 		wantTaggedStripped bool
+		wantForward        string
+		wantTaggedMgmt     string
 	}{
 		{"legacy", map[string]any{
 			"forward":                "customize",
 			"native_networkconf_id":  lanID,
 			"tagged_networkconf_ids": tagged,
-		}, true},
+		}, true, "all", ""},
 		{"legacy_opmode", map[string]any{
 			"op_mode":                "switch",
 			"forward":                "customize",
 			"native_networkconf_id":  lanID,
 			"tagged_networkconf_ids": tagged,
-		}, true},
+		}, true, "all", ""},
 		{"mgmt_custom_plus_tagged", map[string]any{
 			"forward":                "customize",
 			"native_networkconf_id":  lanID,
 			"tagged_vlan_mgmt":       "custom",
 			"tagged_networkconf_ids": tagged,
-		}, true},
+		}, true, "customize", "custom"},
 		{"mgmt_auto_plus_tagged", map[string]any{
 			"native_networkconf_id":  lanID,
 			"tagged_vlan_mgmt":       "auto",
 			"tagged_networkconf_ids": tagged,
-		}, true},
+		}, true, "all", "auto"},
 		// Control: the shape the 10.x UI writes. tagged_networkconf_ids is
 		// absent by design; excluded_networkconf_ids must persist or the
 		// exclusion mechanism the SDK models has changed under us.
@@ -107,7 +120,7 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 			"native_networkconf_id":    lanID,
 			"tagged_vlan_mgmt":         "custom",
 			"excluded_networkconf_ids": excluded,
-		}, false},
+		}, false, "customize", "custom"},
 	}
 
 	for _, v := range variants {
@@ -132,13 +145,11 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 
 			stored := fetchPortConf(ctx, t, s, c.Site, id)
 			assertSurvived(t, "CREATE", stored, createName, lanID)
+			assertDerivedMode(t, "CREATE", stored, v.wantForward, v.wantTaggedMgmt)
 			assertTaggedFate(t, "CREATE", stored, tagged, v.wantTaggedStripped)
 			if !v.wantTaggedStripped {
 				if got, ok := stored["excluded_networkconf_ids"]; !ok || !jsonEqual(got, excluded) {
 					t.Errorf("CREATE lost excluded_networkconf_ids: want %v got %v (ok=%v)", excluded, got, ok)
-				}
-				if fwd := stored["forward"]; fwd != "customize" {
-					t.Errorf("CREATE rewrote forward under tagged_vlan_mgmt=custom: got %v, want customize", fwd)
 				}
 			}
 
@@ -164,22 +175,51 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 			}
 			after := fetchPortConf(ctx, t, s, c.Site, id)
 			assertSurvived(t, "PUT", after, updateName, lanID)
+			// Every assertion CREATE makes, because "the PUT behaves
+			// identically" is the claim under test and a controller that
+			// diverged only on updates is the interesting failure.
+			assertDerivedMode(t, "PUT", after, v.wantForward, v.wantTaggedMgmt)
 			assertTaggedFate(t, "PUT", after, tagged, v.wantTaggedStripped)
 			if !v.wantTaggedStripped {
 				if got, ok := after["excluded_networkconf_ids"]; !ok || !jsonEqual(got, excluded) {
 					t.Errorf("PUT lost excluded_networkconf_ids: want %v got %v (ok=%v)", excluded, got, ok)
 				}
-				// Same assertion as CREATE, because "the PUT behaves
-				// identically" is the claim and forward is half of it. A
-				// controller that kept the exclusion list but rewrote
-				// forward to "all" on updates only would stop the profile
-				// applying its custom tagged VLANs, and checking only the
-				// list would call that a pass.
-				if fwd := after["forward"]; fwd != "customize" {
-					t.Errorf("PUT rewrote forward under tagged_vlan_mgmt=custom: got %v, want customize", fwd)
-				}
 			}
 		})
+	}
+}
+
+// assertDerivedMode pins what the controller decided about forwarding.
+//
+// Stripping tagged_networkconf_ids is only half of what was measured; the
+// other half is that forward stops being a field you set and becomes one
+// derived from tagged_vlan_mgmt. A controller that kept stripping the ids
+// but changed that derivation would leave every other assertion here happy
+// while the SDK's model of port profiles quietly went wrong, and the
+// stripping result -- the thing this test exists to hold -- would still
+// report green.
+//
+// wantMgmt is empty for the shapes that never submit tagged_vlan_mgmt: what
+// the controller defaults it to on those was not measured, and asserting a
+// guess would manufacture the kind of unmeasured claim this test refuses on
+// principle. Logged instead, so the value is in the run output the day
+// somebody does measure it.
+func assertDerivedMode(t *testing.T, phase string, stored map[string]any, wantForward, wantMgmt string) {
+	t.Helper()
+
+	if got, _ := stored["forward"].(string); got != wantForward {
+		t.Errorf("%s: forward is %q, want %q — the controller changed how it derives forwarding "+
+			"from tagged_vlan_mgmt, so the port-profile model needs re-measuring", phase, got, wantForward)
+	}
+
+	got, _ := stored["tagged_vlan_mgmt"].(string)
+	if wantMgmt == "" {
+		t.Logf("%s stored tagged_vlan_mgmt=%q (unasserted: this shape does not submit it)", phase, got)
+		return
+	}
+	if got != wantMgmt {
+		t.Errorf("%s: tagged_vlan_mgmt is %q, want %q — the field the derivation reads did not "+
+			"round-trip", phase, got, wantMgmt)
 	}
 }
 
