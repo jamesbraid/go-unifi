@@ -66,8 +66,15 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 	lanID := firstCorporateNetworkID(ctx, t, s, c.Site)
 	vlan51 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan51", 51)
 	vlan52 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan52", 52)
+	vlan53 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan53", 53)
 
-	tagged := []string{vlan51}
+	// Two ids, not one. The pin this test gates is an array field, and a
+	// controller that persisted only the first element would round-trip a
+	// singleton exactly -- so assertTaggedFate would call the field honored
+	// and recommend the pin, while every profile with more than one tagged
+	// VLAN silently lost the rest. A list only demonstrates list support if
+	// it is long enough to be truncated.
+	tagged := []string{vlan51, vlan53}
 	excluded := []string{vlan52}
 
 	// wantForward carries the measured 10.4.57 result for each shape, from
