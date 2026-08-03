@@ -340,10 +340,27 @@ func getDiff[T any](original, target *T, skipFields ...string) (map[string]any, 
 }
 
 // getDeviceDiff compares two Device objects and returns a map containing only changed fields.
+//
+// port_overrides needs handling the generic diff cannot do. getDiff compares
+// the two objects as the encoder renders them, and Device's encoder sends nil
+// port_overrides as [] -- deliberately, because the controller rejects null
+// there and an empty list is the only way to clear the field. That is right
+// for a full write and wrong here: a caller updating one unrelated field
+// holds a Device it never populated port_overrides on, so the diff sees []
+// against the stored overrides, calls it a change, and the patch wipes every
+// port override on the device.
+//
+// nil means "not supplied" and comes out of the patch. An explicitly empty
+// slice still means "clear these", and still goes through -- which is why
+// this tests the field rather than the rendered [].
 func getDeviceDiff(original, target *Device) (map[string]any, error) {
 	patch, err := getDiff(original, target, "_id", "site_id", "adopted", "state")
 	if err != nil {
 		return nil, err
+	}
+
+	if target.PortOverrides == nil {
+		delete(patch, "port_overrides")
 	}
 
 	return patch, nil
