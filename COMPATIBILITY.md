@@ -40,12 +40,14 @@ Four kinds of drift, four different answers:
   the successor here. The old name is gone from the schema, so no pin brings
   it back. The mapping is the only thing that helps. Both sides below are Go
   identifiers, because the thing that sends you here is a build that stopped
-  compiling. 10.4.57 moved three:
+  compiling. 10.4.57 moved three settings, and the table carries every
+  identifier those moves renamed, child types included:
 
   | Removed | Replacement |
   | --- | --- |
   | `settings.RoamingAssistant` (`Enabled`, `Rssi`) and `Device.RadioTable[].AssistedRoamingEnabled` / `.AssistedRoamingRssi` | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, and `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz |
   | `settings.Ips.Suppression` (`*SettingIpsSuppression`) | `settings.IpsSuppression`, a setting in its own right (key `ips_suppression`) |
+  | `settings.SettingIpsAlerts` / `SettingIpsTracking` / `SettingIpsWhitelist` | `settings.SettingIpsSuppressionAlerts` / `SettingIpsSuppressionTracking` / `SettingIpsSuppressionWhitelist` |
   | `settings.Usg.GeoIPFilteringEnabled` / `.GeoIPFilteringBlock` / `.GeoIPFilteringCountries` / `.GeoIPFilteringTrafficDirection` | `settings.UsgGeo.IPFiltering` (`*SettingUsgGeoIPFiltering`), whose members are `Enabled`, `Action`, `Countries`, `TrafficDirection` |
 
   Two of those are more than a rename. Roaming assistance stopped being one
