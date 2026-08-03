@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -58,28 +59,45 @@ func TestIntegrationV2Drift(t *testing.T) {
 	//   BgpConfig            needs an adopted gateway that claims the BGP
 	//                        capability bit, which no bare harness has --
 	//                        covered by TestIntegrationSeededUOSBgpConfig
-	//   FirewallPolicy       needs source/destination zone ids
+	//   FirewallPolicy       needs source/destination zone ids. Running the
+	//                        zone migration below is NOT enough on its own:
+	//                        measured 2026-08-01, firewall-policies is still
+	//                        [] afterwards, because the rule-conversion step
+	//                        has no firewall or traffic rules to convert on a
+	//                        fresh site.
 	//   Nat, TrafficRoute    seedable -- they need a WAN networkconf, which the
 	//                        demo site lacks and adoption does not create
 	//   OSPFRouter           seedable -- needs a non-empty areas list and a
 	//                        lowercase area_type ("normal", not "NORMAL")
 	//   NetworkMembersGroup  405 -- the v2 collection is not POST-writable here
 	// Promoting the three seedable schemas into this gate is a follow-up.
-	seedFirewallZone(ctx, t, c, s)
+	//
+	// None of it runs against a UNIFI_TEST_URL target. The comparison itself
+	// only reads, so it is worth pointing at a real controller — a populated
+	// site is the best drift subject there is — but the seeding is not. The
+	// zone migration in particular switches the site to zone-based
+	// firewalling and converts its existing firewall and traffic rules into
+	// policies, permanently and site-wide. That is fine on a container we
+	// throw away and unacceptable on someone's network, which is why every
+	// other mutating probe in the suite skips URL targets too.
+	if seedable(t) {
+		migrateZoneBasedFirewall(ctx, t, c, s)
+		seedFirewallZone(ctx, t, c, s)
 
-	seed := map[string]any{
-		"enabled":     true,
-		"key":         "probe.example.com",
-		"record_type": "A",
-		"value":       "192.0.2.1",
-		"ttl":         3600,
-	}
-	seedBody, seedStatus, seedErr := s.PostJSON(ctx, fmt.Sprintf("/v2/api/site/%s/static-dns", c.Site), seed)
-	if seedErr != nil {
-		t.Fatalf("seed DNS record: status=%d err=%v", seedStatus, seedErr)
-	}
-	if seedStatus >= 300 {
-		t.Fatalf("seed DNS record: status=%d body=%v", seedStatus, seedBody)
+		seed := map[string]any{
+			"enabled":     true,
+			"key":         "probe.example.com",
+			"record_type": "A",
+			"value":       "192.0.2.1",
+			"ttl":         3600,
+		}
+		seedBody, seedStatus, seedErr := s.PostJSON(ctx, fmt.Sprintf("/v2/api/site/%s/static-dns", c.Site), seed)
+		if seedErr != nil {
+			t.Fatalf("seed DNS record: status=%d err=%v", seedStatus, seedErr)
+		}
+		if seedStatus >= 300 {
+			t.Fatalf("seed DNS record: status=%d body=%v", seedStatus, seedBody)
+		}
 	}
 
 	wd, err := os.Getwd()
@@ -144,33 +162,139 @@ func TestIntegrationV2Drift(t *testing.T) {
 	}
 }
 
-// seedFirewallZone lands one firewall zone so FirewallZone.json has a live
-// object to compare against.
+// seedable reports whether this run may write to the controller it is
+// pointed at.
 //
-// POST /v2/api/site/{site}/firewall/zone answers 404
-// api.err.CouldNotFindHotspotFirewallZone and PERSISTS THE ZONE ANYWAY: the
-// handler writes the object, then throws looking for a "hotspot" zone the site
-// has never had. Every probe before 2026-07-24 classified that 404 as "gated,
-// nothing created" because none of them read the collection back. The status is
-// therefore not a result here — only the collection read below is.
+// Only a controller the harness booted itself qualifies. UNIFI_TEST_URL
+// targets an existing one, and nothing about that variable says whether the
+// thing on the other end is another throwaway container or a production
+// site; the suite's convention is to assume the latter and leave it alone.
+func seedable(t *testing.T) bool {
+	t.Helper()
+
+	if os.Getenv("UNIFI_TEST_URL") == "" {
+		return true
+	}
+	// Said once, up front, so the per-schema "no live objects" skips below
+	// are attributable rather than mysterious.
+	t.Log("UNIFI_TEST_URL is set, so this run seeds nothing and compares the site as it stands. " +
+		"Schemas whose collections are empty here will skip. The CI gate runs against a disposable " +
+		"container, seeds, and fails on an empty collection.")
+	return false
+}
+
+// migrateZoneBasedFirewall switches the site to zone-based firewalling, which
+// is the only thing that creates the default firewall zones — and, as a
+// consequence, the only thing that makes the zone collection writable at all.
 //
-// CALL THIS BEFORE ANYTHING READS THE ZONE COLLECTION, and do NOT add a
-// "does one already exist?" pre-read to it. A GET on the collection before
-// the first POST stops that POST persisting: measured 2026-07-25 on one
-// standalone -sim boot across four sites, a POST issued as the site's first
-// zone call landed immediately (2/2 sites) while a POST after a pre-read
-// landed nothing — an earlier run retried twenty times over five minutes
-// after a pre-read and never landed one. The v2Probes loop below GETs this
-// collection, so seeding after it silently stops working and FirewallZone
-// goes back to skipping, which reads like success.
+// Until a site is migrated, every zone write fails on a lookup of the site's
+// "hotspot" zone, which does not exist yet:
+// com/ubnt/service/firewall/policy/c/c/YPBkdOLFaXsxg resolves it through
+// zoneDao.findOneBySiteIdAndZoneKey(siteId, HOTSPOT) and throws
+// api.err.CouldNotFindHotspotFirewallZone when it comes back empty. The call
+// ordering inside that class is what produced the behaviour this helper used to
+// depend on: CREATE saves the document at pc 5 and only looks the hotspot zone
+// up at pc 28, so a rejected POST left the zone behind, while UPDATE and DELETE
+// look it up first and therefore wrote nothing at all.
 //
-// No adopted gateway is required, which the same run settled: all four sites
-// were on a plain gateway-less controllertest.Start, so the pre-read is the
-// whole story and the gateway never was. That is what lets this live in the
-// base gate rather than behind UNIFI_GATEWAY_TEST.
+// Seeding through that ordering quirk worked but was miserable: it depended on
+// the POST being the site's first-ever zone call (a plain GET beforehand stopped
+// the write landing), it could only ever create — never update — and it hung the
+// whole FirewallZone drift check off a controller bug that any patch release
+// could fix, in which case the check would go back to skipping and a skip reads
+// exactly like a pass.
 //
-// Only the first POST per site lands; a second answers the same 404 and
-// creates nothing. One zone per site is all a drift comparison needs.
+// POST /v2/api/site/{site}/firewall/migrate is the supported route to the same
+// place. It runs the ZONE_BASED_FIREWALL site-feature migration, whose first
+// step creates the six default zones from a hardcoded key list; the same
+// migration then converts any existing firewall and traffic rules into firewall
+// policies. Measured against 10.4.57-sim, gateway-less, 2026-08-01:
+//
+//   - the POST answers 204 with an empty body, so Session.do reports
+//     ErrNotJSON — check the status, not the error
+//   - the zone collection goes from [] to exactly six zones: Internal,
+//     External, Gateway, Vpn, Hotspot, Dmz (that capitalisation is literally
+//     StringUtils.capitalize over the zone keys), all default_zone=true, with
+//     attr_no_edit=true on External, Gateway and Vpn
+//   - Internal comes back already holding the site's LAN in network_ids
+//   - a subsequent zone POST answers 201 instead of 404, and a PUT answers 200
+//     and the change is there on read-back
+//   - it is idempotent: a second call is a no-op, still 204, no duplicate zones
+//   - reading the collection first does NOT break any of this, unlike the
+//     ordering quirk it replaces
+//
+// No adopted gateway is needed. A gateway only changes anything if one is
+// present AND has SSL inspection enabled, in which case the migration is
+// deferred to an async task instead of running inline; gateway-less always
+// takes the synchronous branch, which is why this can live in the base gate.
+//
+// One way this can look like it worked without working: the migration service is
+// conditional on the controller's DB mode, and a postgresql-mode controller
+// wires a no-op implementation that still answers 204. The zone read below is
+// what actually settles it.
+func migrateZoneBasedFirewall(ctx context.Context, t *testing.T, c *controllertest.Controller, s *controllertest.Session) {
+	t.Helper()
+
+	_, status, err := s.PostJSON(ctx, fmt.Sprintf("/v2/api/site/%s/firewall/migrate", c.Site), nil)
+	// A 204 carries no body, which Session.do reports as ErrNotJSON. That is
+	// the success shape here, so only a genuine transport failure (status 0)
+	// or a non-2xx counts as an error.
+	if status == 0 {
+		t.Fatalf("zone-based firewall migration: transport error: %v", err)
+	}
+	if status >= 300 {
+		t.Fatalf("zone-based firewall migration: POST returned HTTP %d (want 204)", status)
+	}
+	t.Logf("zone-based firewall migration: POST answered HTTP %d", status)
+
+	// The status is not the evidence — read the collection back.
+	zones, gstatus, gerr := s.GetJSON(ctx, fmt.Sprintf("/v2/api/site/%s/firewall/zone", c.Site))
+	if gerr != nil || gstatus != 200 {
+		t.Fatalf("zone-based firewall migration: list zones: status=%d err=%v", gstatus, gerr)
+	}
+	list, ok := zones.([]any)
+	if !ok {
+		t.Fatalf("zone-based firewall migration: collection is not a list: %v", zones)
+	}
+
+	// Assert on zone_key, not on name: the keys are what the migration is
+	// defined in terms of, and they survive a user renaming a zone.
+	want := map[string]bool{"internal": false, "external": false, "gateway": false, "vpn": false, "hotspot": false, "dmz": false}
+	for _, item := range list {
+		z, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if k, _ := z["zone_key"].(string); k != "" {
+			if _, expected := want[k]; expected {
+				want[k] = true
+			}
+		}
+	}
+	var missing []string
+	for k, seen := range want {
+		if !seen {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		// Loud on purpose: a silent skip here is indistinguishable from a pass.
+		t.Fatalf("zone-based firewall migration: POST answered HTTP %d but the site has no %v zone(s). "+
+			"Either the migration no longer creates the defaults, or this controller wired the no-op "+
+			"migration service (non-mongo DB mode), in which case it answers 204 and does nothing. "+
+			"Collection: %v", status, missing, zones)
+	}
+	t.Logf("zone-based firewall migration: site has all six default zones")
+}
+
+// seedFirewallZone lands one non-default firewall zone so the FirewallZone
+// drift comparison sees a user-created object alongside the six defaults the
+// migration creates.
+//
+// This must run after migrateZoneBasedFirewall: on an unmigrated site the POST
+// answers 404 api.err.CouldNotFindHotspotFirewallZone (see that function for
+// why). On a migrated site it answers a clean 201.
 func seedFirewallZone(ctx context.Context, t *testing.T, c *controllertest.Controller, s *controllertest.Session) {
 	t.Helper()
 
@@ -184,8 +308,12 @@ func seedFirewallZone(ctx context.Context, t *testing.T, c *controllertest.Contr
 	if err != nil {
 		t.Fatalf("seed firewall zone: transport error: %v", err)
 	}
-	t.Logf("seed firewall zone: POST answered HTTP %d (expected 404, the write lands anyway): %v", status, body)
+	if status >= 300 {
+		t.Fatalf("seed firewall zone: POST returned HTTP %d (want 201): %v — "+
+			"a 404 CouldNotFindHotspotFirewallZone here means the site was not migrated first", status, body)
+	}
 
+	// The status is not the evidence — read the collection back.
 	zones, status, err := s.GetJSON(ctx, path)
 	if err != nil || status != 200 {
 		t.Fatalf("seed firewall zone: list back: status=%d err=%v", status, err)
@@ -203,11 +331,6 @@ func seedFirewallZone(ctx context.Context, t *testing.T, c *controllertest.Contr
 			return
 		}
 	}
-	// Loud on purpose. Skipping here would hide both a controller change and
-	// the far likelier cause: something started reading this collection before
-	// the seed runs.
-	t.Fatalf("seed firewall zone: %q absent after the POST. Either this controller "+
-		"no longer persists the rejected write, or something read %s before the seed "+
-		"did — a pre-read stops the write landing. Collection: %v",
-		zoneName, path, zones)
+	t.Fatalf("seed firewall zone: %q absent after a successful POST — the write did not persist. Collection: %v",
+		zoneName, zones)
 }
