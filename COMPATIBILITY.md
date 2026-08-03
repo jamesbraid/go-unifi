@@ -45,21 +45,33 @@ Four kinds of drift, four different answers:
 
   | Removed | Replacement |
   | --- | --- |
-  | `settings.RoamingAssistant` (`Enabled`, `Rssi`) and `DeviceRadioTable.AssistedRoamingEnabled` / `.AssistedRoamingRssi` | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, and `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz |
+  | `settings.RoamingAssistant` (`Enabled`, `Rssi`) — one value for the site | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, plus `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz. Set them on each WLAN that had the site behaviour |
+  | `DeviceRadioTable.AssistedRoamingEnabled` / `.AssistedRoamingRssi` — one value per AP radio | **None with the same scope.** See below |
   | `settings.Ips.Suppression` (`*SettingIpsSuppression`) | `settings.IpsSuppression`, a setting in its own right (key `ips_suppression`) |
   | `settings.SettingIpsAlerts` / `SettingIpsTracking` / `SettingIpsWhitelist` | `settings.SettingIpsSuppressionAlerts` / `SettingIpsSuppressionTracking` / `SettingIpsSuppressionWhitelist` |
   | `settings.Usg.GeoIPFilteringEnabled` / `.GeoIPFilteringBlock` / `.GeoIPFilteringCountries` / `.GeoIPFilteringTrafficDirection` | `settings.UsgGeo.IPFiltering` (`*SettingUsgGeoIPFiltering`), whose members are `Enabled`, `Action`, `Countries`, `TrafficDirection` |
 
-  Two of those are more than a rename. Roaming assistance stopped being one
-  site setting plus a per-radio device field and became two per-band WLAN
-  ones, so a caller carrying it on `Device.RadioTable` has to decide which
-  band it meant — and for one band there is no answer. `Radio` still takes
-  `ng|na|ad|6e`, but the only successors are `Na` (5 GHz) and `6E`. **A
-  2.4 GHz (`ng`) or 60 GHz (`ad`) assisted-roaming configuration has no
-  replacement**; it is gone, not moved, and porting it onto the `Na` or
-  `6E` fields would silently apply a 2.4 GHz policy to a different band.
-  And `geo_ip_filtering_block` became `Action` while keeping its
-  `block|allow` values — same values, new field name, new setting.
+  Roaming assistance is the one to read carefully, because two different
+  things were removed and only one of them has a real successor.
+
+  The site setting moved to the WLAN. That narrows its scope — one value
+  per site becomes one per WLAN — but the behaviour is expressible: set it
+  on every WLAN that relied on the site default.
+
+  The per-radio device fields did not move anywhere. `DeviceRadioTable`
+  held a value per AP radio, and nothing in the current schema does. The
+  WLAN fields are the nearest equivalent and are not a substitute: they
+  apply to every AP broadcasting that WLAN, so **a deployment that set
+  different assisted-roaming values on individual APs cannot express that
+  any more**, on any band. Band narrows it further — `Radio` still takes
+  `ng|na|ad|6e` while the only successors are `Na` (5 GHz) and `6E`, so a
+  2.4 GHz or 60 GHz configuration has nothing to move to at all. Porting
+  either onto the `Na`/`6E` fields does not preserve it; it applies a
+  policy to APs and bands it was never written for.
+
+  `geo_ip_filtering_block` is the milder case: it became `Action` while
+  keeping its `block|allow` values — same values, new field name, new
+  setting.
 
 ## Versioning honesty
 
