@@ -34,9 +34,14 @@ import (
 // from the vendor schema there; see the hook in cmd/fields/main.go) — the
 // two write paths genuinely differ.
 //
-// If the tagged variants ever FAIL here, the controller has started
-// honoring the field again: restore the pin in overrides/fields.toml and
-// flip those assertions. The stanza is:
+// A failing tagged variant does not on its own mean the field came back.
+// Read what assertTaggedFate reports: only "stored exactly what was sent"
+// is the controller honoring the field, and only that earns the pin. A
+// stored value that differs from the submitted ids -- a normalized [], say
+// -- is still the field being ignored, and the answer there is to measure
+// what the controller does with the ids, not to pin. Once it is genuinely
+// honored, restore the stanza in overrides/fields.toml and flip those
+// assertions:
 //
 //	[PortProfile.field.tagged_networkconf_ids]
 //	add = true
@@ -150,6 +155,15 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 			if !v.wantTaggedStripped {
 				if got, ok := after["excluded_networkconf_ids"]; !ok || !jsonEqual(got, excluded) {
 					t.Errorf("PUT lost excluded_networkconf_ids: want %v got %v (ok=%v)", excluded, got, ok)
+				}
+				// Same assertion as CREATE, because "the PUT behaves
+				// identically" is the claim and forward is half of it. A
+				// controller that kept the exclusion list but rewrote
+				// forward to "all" on updates only would stop the profile
+				// applying its custom tagged VLANs, and checking only the
+				// list would call that a pass.
+				if fwd := after["forward"]; fwd != "customize" {
+					t.Errorf("PUT rewrote forward under tagged_vlan_mgmt=custom: got %v, want customize", fwd)
 				}
 			}
 		})
