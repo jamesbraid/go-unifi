@@ -159,17 +159,34 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 // assertTaggedFate enforces the measured behavior: tagged_networkconf_ids
 // must be absent from the stored document (wantStripped), or present and
 // intact where a variant expects otherwise.
+//
+// Under wantStripped there are three outcomes, not two, and only one of them
+// justifies restoring the pin. The key being back is not enough: a controller
+// that starts storing a normalized default there -- [] most plausibly --
+// while still discarding the submitted ids would trip a presence-only check
+// and have this test recommend a pin for a field that remains a silent no-op,
+// which is the exact failure the pin was dropped to stop faking. So compare
+// against what was sent. Equal means honored, and the pin is warranted;
+// anything else means the field came back changed and nobody yet knows what
+// the controller does with it, which is a re-measurement, not a pin.
 func assertTaggedFate(t *testing.T, phase string, stored map[string]any, sent []string, wantStripped bool) {
 	t.Helper()
 	got, ok := stored["tagged_networkconf_ids"]
 	if wantStripped {
-		if ok {
-			t.Errorf("%s: controller now PERSISTS tagged_networkconf_ids (= %v) — restore the "+
-				"[PortProfile.field.tagged_networkconf_ids] pin in overrides/fields.toml and flip this guard", phase, got)
-			return
+		switch {
+		case !ok:
+			t.Logf("%s STRIPPED tagged_networkconf_ids as measured (forward=%v tagged_vlan_mgmt=%v)",
+				phase, stored["forward"], stored["tagged_vlan_mgmt"])
+		case jsonEqual(got, sent):
+			t.Errorf("%s: controller now HONORS tagged_networkconf_ids — sent %v and stored it "+
+				"unchanged. Restore the [PortProfile.field.tagged_networkconf_ids] pin in "+
+				"overrides/fields.toml and flip this guard", phase, sent)
+		default:
+			t.Errorf("%s: controller now stores tagged_networkconf_ids but not what was sent "+
+				"(sent %v, stored %v). Do NOT restore the pin on this alone: a defaulted or "+
+				"normalized value is still the field being ignored. Re-measure what the "+
+				"controller does with the ids first", phase, sent, got)
 		}
-		t.Logf("%s STRIPPED tagged_networkconf_ids as measured (forward=%v tagged_vlan_mgmt=%v)",
-			phase, stored["forward"], stored["tagged_vlan_mgmt"])
 		return
 	}
 	if ok && !jsonEqual(got, sent) {
