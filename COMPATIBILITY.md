@@ -38,12 +38,21 @@ Four kinds of drift, four different answers:
   object form).
 - **Upstream *relocates* a setting or field** → we follow the move and name
   the successor here. The old name is gone from the schema, so no pin brings
-  it back. The mapping is the only thing that helps. 10.4.57 moved three:
-  - `RoamingAssistant` and the per-radio `assisted_roaming_*` fields → WLAN
-    `roaming_assistant_na_*` and `roaming_assistant_6e_*`
-  - `Ips.Suppression` → its own `ips_suppression` setting
-  - `Usg`'s `geo_ip_filtering_*` fields → `usg_geo.ip_filtering` (`block`
-    became `action`)
+  it back. The mapping is the only thing that helps. Both sides below are Go
+  identifiers, because the thing that sends you here is a build that stopped
+  compiling. 10.4.57 moved three:
+
+  | Removed | Replacement |
+  | --- | --- |
+  | `settings.RoamingAssistant` (`Enabled`, `Rssi`) and `Device.RadioTable[].AssistedRoamingEnabled` / `.AssistedRoamingRssi` | `WLAN.RoamingAssistantNaEnabled` / `.RoamingAssistantNaRssi`, and `WLAN.RoamingAssistant6EEnabled` / `.RoamingAssistant6ERssi` for 6 GHz |
+  | `settings.Ips.Suppression` (`*SettingIpsSuppression`) | `settings.IpsSuppression`, a setting in its own right (key `ips_suppression`) |
+  | `settings.Usg.GeoIPFilteringEnabled` / `.GeoIPFilteringBlock` / `.GeoIPFilteringCountries` / `.GeoIPFilteringTrafficDirection` | `settings.UsgGeo.IPFiltering` (`*SettingUsgGeoIPFiltering`), whose members are `Enabled`, `Action`, `Countries`, `TrafficDirection` |
+
+  Two of those are more than a rename. Roaming assistance stopped being one
+  site setting plus a per-radio device field and became two per-band WLAN
+  ones, so a caller carrying it on `Device.RadioTable` has to decide which
+  band it meant. And `geo_ip_filtering_block` became `Action` while keeping
+  its `block|allow` values — same values, new field name, new setting.
 
 ## Versioning honesty
 
