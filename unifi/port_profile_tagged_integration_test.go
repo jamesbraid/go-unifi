@@ -112,7 +112,8 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 
 	for _, v := range variants {
 		t.Run(v.name, func(t *testing.T) {
-			payload := map[string]any{"name": "probe-tagged-" + v.name}
+			createName := "probe-tagged-" + v.name
+			payload := map[string]any{"name": createName}
 			for k, val := range v.payload {
 				payload[k] = val
 			}
@@ -130,6 +131,7 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 			defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/portconf/"+id) //nolint:errcheck
 
 			stored := fetchPortConf(ctx, t, s, c.Site, id)
+			assertSurvived(t, "CREATE", stored, createName, lanID)
 			assertTaggedFate(t, "CREATE", stored, tagged, v.wantTaggedStripped)
 			if !v.wantTaggedStripped {
 				if got, ok := stored["excluded_networkconf_ids"]; !ok || !jsonEqual(got, excluded) {
@@ -142,7 +144,17 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 
 			// The update path answers separately from create; a PUT of the
 			// same shape must behave identically.
+			//
+			// The name changes, and it is the only thing that does. Resending
+			// the created document unchanged would leave every read-back
+			// assertion below satisfied by the CREATE, so a controller that
+			// accepted updates and applied none -- or returned an
+			// application error inside an HTTP 200 envelope -- would look
+			// exactly like one that behaved. The sentinel is what makes the
+			// PUT observable at all.
+			updateName := createName + "-updated"
 			payload["_id"] = id
+			payload["name"] = updateName
 			respBody, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/rest/portconf/"+id, payload)
 			if err != nil {
 				t.Fatalf("update portconf: transport error: %v", err)
@@ -151,6 +163,7 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 				t.Fatalf("controller now REJECTS this shape on PUT (HTTP %d): %v — re-measure and update this guard", status, respBody)
 			}
 			after := fetchPortConf(ctx, t, s, c.Site, id)
+			assertSurvived(t, "PUT", after, updateName, lanID)
 			assertTaggedFate(t, "PUT", after, tagged, v.wantTaggedStripped)
 			if !v.wantTaggedStripped {
 				if got, ok := after["excluded_networkconf_ids"]; !ok || !jsonEqual(got, excluded) {
@@ -167,6 +180,31 @@ func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// assertSurvived checks the fields every variant submits and no variant
+// expects the controller to touch.
+//
+// Without it the tagged variants assert only an absence, and an absence is
+// what a controller that discarded the whole write would also produce. A
+// 200 that stored nothing, or stored a document with the submitted name and
+// native network dropped, would read as "tagged_networkconf_ids was
+// stripped, as measured" -- the test would report the finding it is supposed
+// to be establishing. Pinning two fields that must survive is what separates
+// selective stripping from wholesale rejection.
+//
+// name doubles as the update sentinel, so the caller passes whichever value
+// that phase submitted.
+func assertSurvived(t *testing.T, phase string, stored map[string]any, wantName, wantNativeID string) {
+	t.Helper()
+	if got, _ := stored["name"].(string); got != wantName {
+		t.Errorf("%s: name is %q, want %q — the write did not land, so nothing else read back here means anything",
+			phase, got, wantName)
+	}
+	if got, _ := stored["native_networkconf_id"].(string); got != wantNativeID {
+		t.Errorf("%s: native_networkconf_id is %q, want %q — a submitted field the controller should keep went missing",
+			phase, got, wantNativeID)
 	}
 }
 
