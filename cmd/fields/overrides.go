@@ -65,8 +65,28 @@ func resourceOverrides() map[string]resourceOverride {
 
 		path := filepath.Join(root, "overrides", "fields.toml")
 		overrides := map[string]resourceOverride{}
-		if _, err := toml.DecodeFile(path, &overrides); err != nil {
+		md, err := toml.DecodeFile(path, &overrides)
+		if err != nil {
 			panic(fmt.Sprintf("unable to load %s: %v", path, err))
+		}
+		// TOML ignores a key no struct field claims, so a misspelling is
+		// accepted in silence and the property it meant to set stays at its
+		// zero value: "onws" leaves owns empty, and an empty owns set is a
+		// measured result here, so the mode publishes as owning nothing.
+		// That is the exact silent failure these tables were written to
+		// document, reproduced in the file that documents it.
+		//
+		// Nothing in the file is legitimately undecoded, so any leftover is
+		// a typo.
+		if undecoded := md.Undecoded(); len(undecoded) > 0 {
+			keys := make([]string, 0, len(undecoded))
+			for _, key := range undecoded {
+				keys = append(keys, key.String())
+			}
+			slices.Sort(keys)
+			panic(fmt.Sprintf("%s has %d key(s) nothing reads: %s.\n\nEach is a misspelling or a "+
+				"property this tool does not support. A key nothing reads sets nothing, and TOML "+
+				"will not complain about it.", path, len(keys), strings.Join(keys, ", ")))
 		}
 		resourceOverridesMap = overrides
 	})

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -92,8 +93,31 @@ func LoadPreferences() (map[string]map[string]Preference, error) {
 
 	path := filepath.Join(root, "overrides", "fields.toml")
 	var file map[string]preferenceFile
-	if _, err := toml.DecodeFile(path, &file); err != nil {
+	md, err := toml.DecodeFile(path, &file)
+	if err != nil {
 		return nil, fmt.Errorf("unable to load %s: %w", path, err)
+	}
+
+	// A key no struct field claims is ignored rather than rejected, so a
+	// misspelled property silently leaves the real one unset -- "onws"
+	// yields an empty Owns, which reads here as a measured "owns nothing".
+	//
+	// Only preference properties can be judged from this side: this struct
+	// deliberately models a subset of the file, so everything else is
+	// undecoded by design and says nothing about correctness. A preference
+	// property is Resource.preference.<mode>.<property>, four segments deep.
+	var unknown []string
+	for _, key := range md.Undecoded() {
+		if len(key) == 4 && key[1] == "preference" {
+			unknown = append(unknown, key.String())
+		}
+	}
+	if len(unknown) > 0 {
+		slices.Sort(unknown)
+		return nil, fmt.Errorf("%s has %d preference key(s) nothing reads: %s.\n\nEach is a "+
+			"misspelling: the property it meant to set is still at its zero value, and an empty "+
+			"owns set reads as a measured result rather than a mistake",
+			path, len(unknown), strings.Join(unknown, ", "))
 	}
 
 	out := map[string]map[string]Preference{}
