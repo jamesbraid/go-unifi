@@ -31,3 +31,46 @@ func TestDriftCompareEmptyObserved(t *testing.T) {
 	require.Empty(t, r.LiveOnly)
 	require.Equal(t, []string{"name"}, r.SchemaOnly)
 }
+
+func TestObservedObjects(t *testing.T) {
+	tests := []struct {
+		name string
+		body any
+		want []map[string]any
+	}{
+		{
+			name: "collection",
+			body: []any{map[string]any{"_id": "a"}, map[string]any{"_id": "b"}},
+			want: []map[string]any{{"_id": "a"}, {"_id": "b"}},
+		},
+		{
+			// ospf/router and bgp/config answer with the document itself
+			// rather than a one-element list.
+			name: "singleton object",
+			body: map[string]any{"router_id": "0.0.0.1"},
+			want: []map[string]any{{"router_id": "0.0.0.1"}},
+		},
+		{
+			name: "empty collection",
+			body: []any{},
+			want: nil,
+		},
+		{
+			// Some controllers serve an empty v2 collection as JSON null.
+			name: "null body",
+			body: nil,
+			want: nil,
+		},
+		{
+			name: "non-object members are dropped",
+			body: []any{"scalar", map[string]any{"_id": "a"}},
+			want: []map[string]any{{"_id": "a"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, observedObjects(tt.body))
+		})
+	}
+}

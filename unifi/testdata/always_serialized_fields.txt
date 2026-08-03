@@ -266,6 +266,7 @@ NetworkNATOutboundIPAddresses.ip_address
 NetworkOptimization.enabled
 OSPFRouter.announce_default_route
 OSPFRouter.enabled
+OSPFRouter.redistribute_bgp_routes
 OSPFRouter.redistribute_connected_routes
 OSPFRouter.redistribute_static_routes
 OSPFRouterInterfaces.passive_interface
