@@ -78,10 +78,17 @@ func TestIntegrationGatewayIPSecLocalIP(t *testing.T) {
 	type attempt struct {
 		label string
 		ip    string
+		// iface is the ipsec_interface to submit the address under. An
+		// address only belongs to the uplink it was reported on, so pairing
+		// wan2's address with "wan" would measure a mismatch rather than the
+		// address: a rejection could not tell us whether the controller
+		// failed to recognize the address or merely disagreed about where it
+		// lives.
+		iface string
 	}
-	attempts := []attempt{{label: "control-foreign-ip", ip: controlForeignLocalIP}}
+	attempts := []attempt{{label: "control-foreign-ip", ip: controlForeignLocalIP, iface: "wan"}}
 	for slot, ip := range addrs {
-		attempts = append(attempts, attempt{label: "gateway-" + slot, ip: ip})
+		attempts = append(attempts, attempt{label: "gateway-" + slot, ip: ip, iface: ipsecInterfaceForSlot(slot)})
 	}
 
 	for i, a := range attempts {
@@ -98,10 +105,9 @@ func TestIntegrationGatewayIPSecLocalIP(t *testing.T) {
 				payload[k] = v
 			}
 			// The prereq carries the ungated probe's placeholders; this test
-			// resolves them itself. ipsec_interface is wan because the
-			// gateway's first uplink is what an address would come from.
+			// resolves them itself.
 			payload["ipsec_local_ip"] = a.ip
-			payload["ipsec_interface"] = "wan"
+			payload["ipsec_interface"] = a.iface
 			payload["ipsec_peer_ip"] = fmt.Sprintf("203.0.113.%d", 20+i)
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
@@ -109,26 +115,41 @@ func TestIntegrationGatewayIPSecLocalIP(t *testing.T) {
 				t.Fatalf("transport: %v", err)
 			}
 			if status != 200 {
-				t.Logf("REJECTED ipsec_local_ip %s (HTTP %d): %s", a.ip, status, jsonText(body))
+				t.Logf("REJECTED ipsec_local_ip %s on %s (HTTP %d): %s", a.ip, a.iface, status, jsonText(body))
 				return
 			}
 
 			id, _ := firstData(t, body)["_id"].(string)
 			if id == "" {
-				t.Logf("ACCEPTED ipsec_local_ip %s (HTTP 200) but no _id came back: %s", a.ip, jsonText(body))
+				t.Logf("ACCEPTED ipsec_local_ip %s on %s (HTTP 200) but no _id came back: %s", a.ip, a.iface, jsonText(body))
 				return
 			}
 			defer deleteNetwork(ctx, t, s, c.Site, id)
 
 			stored := fetchNetwork(ctx, t, s, c.Site, id)
 			if stored == nil {
-				t.Logf("ACCEPTED ipsec_local_ip %s (HTTP 200) but the document could not be read back", a.ip)
+				t.Logf("ACCEPTED ipsec_local_ip %s on %s (HTTP 200) but the document could not be read back", a.ip, a.iface)
 				return
 			}
-			t.Logf("ACCEPTED ipsec_local_ip %s; stored ipsec_local_ip=%v ipsec_tunnel_ip=%v ipsec_tunnel_ip_enabled=%v",
-				a.ip, stored["ipsec_local_ip"], stored["ipsec_tunnel_ip"], stored["ipsec_tunnel_ip_enabled"])
+			t.Logf("ACCEPTED ipsec_local_ip %s on %s; stored ipsec_local_ip=%v ipsec_tunnel_ip=%v ipsec_tunnel_ip_enabled=%v",
+				a.ip, a.iface, stored["ipsec_local_ip"], stored["ipsec_tunnel_ip"], stored["ipsec_tunnel_ip_enabled"])
 		})
 	}
+}
+
+// ipsecInterfaceForSlot converts a device WAN slot key into the
+// ipsec_interface value naming the same uplink.
+//
+// The two vocabularies differ only on the first slot: a device reports its
+// primary uplink under wan1, and Network.ipsec_interface calls it "wan". The
+// generated field carries the controller's own pattern for the rest --
+// wan[2-9]? -- so wan1 is not merely unconventional there, it is invalid, and
+// wan2..wan9 pass through as they are.
+func ipsecInterfaceForSlot(slot string) string {
+	if slot == "wan1" {
+		return "wan"
+	}
+	return slot
 }
 
 // gatewayWANAddresses returns the addresses one device reports under its
