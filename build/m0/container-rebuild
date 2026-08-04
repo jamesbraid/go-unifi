@@ -17,6 +17,8 @@ export XDG_CACHE_HOME="$work_root/xdg-cache"
 
 go run ./cmd/rebuild-manifest -root=. -output="$output_root/before.json" \
     >"$output_root/before.sha256"
+go run ./cmd/fields/ -output-dir=./unifi/ -generate-spec \
+    -spec-output=./specification.json >"$output_root/fields.log"
 go generate ./... >"$output_root/generate.log"
 go run ./cmd/rebuild-manifest -root=. -compare="$output_root/before.json" \
     -output="$output_root/after.json" >"$output_root/after.sha256"

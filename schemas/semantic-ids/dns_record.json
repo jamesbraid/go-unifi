@@ -1,0 +1,41 @@
+{
+  "format_version": 1,
+  "resource": "dns_record",
+  "extraction_rules_sha256": "f4e02b550837d6d9526390a3b690c07f88842f32ca99a7ba7d4577209ab3bdb6",
+  "fields": [
+    {
+      "wire_name": "enabled",
+      "id": "unifi.network.dns_record.field.enabled"
+    },
+    {
+      "wire_name": "key",
+      "id": "unifi.network.dns_record.field.key"
+    },
+    {
+      "wire_name": "port",
+      "id": "unifi.network.dns_record.field.port"
+    },
+    {
+      "wire_name": "priority",
+      "id": "unifi.network.dns_record.field.priority"
+    },
+    {
+      "wire_name": "record_type",
+      "id": "unifi.network.dns_record.field.record_type"
+    },
+    {
+      "wire_name": "ttl",
+      "id": "unifi.network.dns_record.field.ttl"
+    },
+    {
+      "wire_name": "value",
+      "id": "unifi.network.dns_record.field.value"
+    },
+    {
+      "wire_name": "weight",
+      "id": "unifi.network.dns_record.field.weight"
+    }
+  ],
+  "tombstones": [],
+  "migrations": []
+}

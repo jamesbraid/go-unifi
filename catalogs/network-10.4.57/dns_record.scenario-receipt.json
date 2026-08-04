@@ -1,19 +1,22 @@
 {
   "format_version": 1,
   "scenario_id": "dns-record-list-v1",
-  "target": {
-    "name": "network-10.4.57-seeded",
-    "product": "unifi-network",
-    "version": "10.4.57",
-    "architecture": "amd64",
-    "image_index_sha256": "sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
-    "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
-    "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
+  "scenario_path": "/v2/api/site/{site}/static-dns",
+  "scenario_mode": "read_only",
+  "request_shape": {
+    "method": "GET",
+    "path": "/v2/api/site/{site}/static-dns",
+    "query": "none",
+    "body": "none"
   },
-  "mode": "read_only",
-  "operation_digest": "fcae2fd0f6a3ed9793541c61fc9f9ed5ae00187f8084fb95c042b5be2ca4aa6e",
+  "execution_mode": "fixture",
+  "operation_digest": "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8",
+  "response_sha256": "ec876c02c16e6e9a9ae7072b7c7288fc807373f04f5108f7b93105d33759acb4",
+  "normalization": "field_presence_and_json_type_v1",
+  "redaction": "drop_all_observed_values_v1",
+  "cleanup": "not_required_read_only",
   "observed_record_count": 1,
   "redacted_field_count": 2,
   "canonical_observation_sha256": "cb33ab1fbaaf398934cd001158baf1bdbdd6aea2b0db94efaa226a332c9db3cf",
-  "result": "candidate"
+  "verdict": "candidate"
 }

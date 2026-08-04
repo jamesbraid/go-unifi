@@ -2,9 +2,11 @@
   "format_version": 1,
   "campaign_id": "network-10.4.57-dns-record",
   "profile_class": "fresh_seeded",
-  "classification": "equivalent",
+  "classification": "unchanged",
   "promotion": "review_required",
   "candidate_only": true,
+  "normalized_operation": "unifi.network.dns_record.operation.patch.v1",
+  "catalog_identity": "unifi.network.dns_record",
   "target": {
     "name": "network-10.4.57-seeded",
     "product": "unifi-network",
@@ -12,17 +14,22 @@
     "architecture": "amd64",
     "image_index_sha256": "sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
     "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
-    "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
+    "controller_fingerprint": "sha256:3af14713d39e67ad63caa797434856135fefad1a13770b10ff3a51400b37ca0c"
   },
-  "builder_image_digest": "local/go-unifi-schema-builder@sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",
+  "builder_image_digest": "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+  "execution_mode": "fixture",
   "inputs": {
-    "baseline_catalog_sha256": "433c08f1ef47a8310ab37523d68f43870aa79eb2e8b9beb8dbd73d2905a0496b",
-    "candidate_catalog_sha256": "433c08f1ef47a8310ab37523d68f43870aa79eb2e8b9beb8dbd73d2905a0496b",
-    "scenario_receipt_sha256": "47202799c62ce2556ac75ee3aa37a388ec27edd5d2a198ae684e8a8b8839c462",
-    "capture_lock_sha256": "136421431577ad8cce79aee0a25619577d78f41c1d7c70b914b0317bfbbf08ae"
+    "baseline_catalog_sha256": "f2f50e2d9cc79cd26263ac91e0770038c43344fcec7c7120c4b009a650d21fa4",
+    "admission_receipt_sha256": "8cbc07eff15ffe9baf824164f278488616d367a67db5f5b0e56eb88d11cae3a1",
+    "candidate_catalog_sha256": "45a92dc1a75de66bb1ef3704412eb9fbe36f23fe91535654f5e8c16073d80669",
+    "scenario_receipt_sha256": "d600ad61e1d9c936d65b3d23065c54387653ab674542b0fbbabcd6e86237128d",
+    "execution_receipt_sha256": "a9303cb1ce18e690acfaccf2d1f4614066ba4ead33dbf131330602561df84b41",
+    "capture_lock_sha256": "45cdd9e52b5a6a5c73605fdff5f6cba085231234226f64d01cb3e1b17ceeaeba"
   },
   "structural_diff": [],
   "observation_diff": [],
+  "coverage_diff": [],
+  "semantic_history_diff": [],
   "conflicts": [],
   "claim_coverage": [
     {

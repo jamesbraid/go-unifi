@@ -14,11 +14,15 @@
   },
   "inputs": {
     "extraction_rules_sha256": "f4e02b550837d6d9526390a3b690c07f88842f32ca99a7ba7d4577209ab3bdb6",
-    "generator_inputs_sha256": "27e217a955df5047b131cd17446cd4a17a4ae392e9242fa3ddc5c888443abaef"
+    "generator_inputs_sha256": "3c3f2d2da4c9135a16f5049c0a08c0924ffe1911bd0aabd8d92956dd737755ea"
   },
   "snapshots": {
     "structural_sha256": "f70b3d8f5501cf64c2d96a5e3767ce2eef46ddf04b11e3a19e27237c02360f97",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c"
+  },
+  "scout": {
+    "dns_structural_projection_sha256": "5a733c9c1a642175fe85e48f4c4b1ee70d7ceb10d41629873535208ab4a804b5",
+    "dns_semantic_predecessor_sha256": "224cf5e5f2cfb519bab61af2782a95c03981b95b6b10336ecd62d572dc13fd85"
   },
   "captured_at": "2026-08-04T04:50:10Z"
 }

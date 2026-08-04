@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/ubiquiti-community/go-unifi/control/dnsrecord"
 )
 
 // Input binds one candidate scout run to its baseline and immutable builder.
@@ -20,9 +22,15 @@ type Input struct {
 	CampaignID                     string
 	ProfileClass                   string
 	BuilderImageDigest             string
+	BaselinePath                   string
+	CandidatePath                  string
 	BaselineCatalog                []byte
+	AdmissionReceipt               []byte
 	CandidateCatalog               []byte
 	ScenarioReceipt                []byte
+	ExecutionReceipt               []byte
+	RunnerEvidence                 *RunnerEvidence
+	ProvisionerReceipt             []byte
 	Elapsed                        time.Duration
 	HumanDecisions                 []string
 	ManualGeneratedFileEdits       bool
@@ -54,8 +62,11 @@ type catalogDocument struct {
 }
 
 type catalogSources struct {
-	CaptureLockSHA256   string `json:"capture_lock_sha256"`
-	SpecificationSHA256 string `json:"specification_sha256"`
+	CaptureLockSHA256          string `json:"capture_lock_sha256"`
+	SpecificationSHA256        string `json:"specification_sha256,omitempty"`
+	StructuralProjectionSHA256 string `json:"structural_projection_sha256,omitempty"`
+	SemanticPredecessorSHA256  string `json:"semantic_predecessor_sha256,omitempty"`
+	SemanticIDsSHA256          string `json:"semantic_ids_sha256,omitempty"`
 }
 
 type structuralRecord struct {
@@ -92,21 +103,38 @@ type admission struct {
 }
 
 type catalogMigration struct {
-	FromID string `json:"from_id"`
-	ToID   string `json:"to_id"`
-	Reason string `json:"reason"`
+	FromID   string `json:"from_id"`
+	ToID     string `json:"to_id"`
+	Reason   string `json:"reason"`
+	Reviewed bool   `json:"reviewed,omitempty"`
+}
+
+type requestShape struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Query  string `json:"query"`
+	Body   string `json:"body"`
 }
 
 type scenarioReceipt struct {
-	FormatVersion              int           `json:"format_version"`
-	ScenarioID                 string        `json:"scenario_id"`
-	Target                     targetProfile `json:"target"`
-	Mode                       string        `json:"mode"`
-	OperationDigest            string        `json:"operation_digest"`
-	ObservedRecordCount        int           `json:"observed_record_count"`
-	RedactedFieldCount         int           `json:"redacted_field_count"`
-	CanonicalObservationSHA256 string        `json:"canonical_observation_sha256"`
-	Result                     string        `json:"result"`
+	FormatVersion                  int          `json:"format_version"`
+	ScenarioID                     string       `json:"scenario_id"`
+	ScenarioPath                   string       `json:"scenario_path,omitempty"`
+	ScenarioMode                   string       `json:"scenario_mode,omitempty"`
+	RequestShape                   requestShape `json:"request_shape,omitempty"`
+	ExecutionMode                  string       `json:"execution_mode,omitempty"`
+	MeasuredTargetFingerprint      string       `json:"measured_target_fingerprint,omitempty"`
+	ControllerVersion              string       `json:"controller_version,omitempty"`
+	ObservedInstanceIdentitySHA256 string       `json:"observed_instance_identity_sha256,omitempty"`
+	ResponseSHA256                 string       `json:"response_sha256,omitempty"`
+	Normalization                  string       `json:"normalization,omitempty"`
+	Redaction                      string       `json:"redaction,omitempty"`
+	Cleanup                        string       `json:"cleanup,omitempty"`
+	OperationDigest                string       `json:"operation_digest"`
+	ObservedRecordCount            int          `json:"observed_record_count"`
+	RedactedFieldCount             int          `json:"redacted_field_count"`
+	CanonicalObservationSHA256     string       `json:"canonical_observation_sha256"`
+	Verdict                        string       `json:"verdict,omitempty"`
 }
 
 type attestation struct {
@@ -116,11 +144,16 @@ type attestation struct {
 	Classification                 string            `json:"classification"`
 	Promotion                      string            `json:"promotion"`
 	CandidateOnly                  bool              `json:"candidate_only"`
+	NormalizedOperation            string            `json:"normalized_operation"`
+	CatalogIdentity                string            `json:"catalog_identity"`
 	Target                         targetProfile     `json:"target"`
 	BuilderImageDigest             string            `json:"builder_image_digest"`
+	ExecutionMode                  string            `json:"execution_mode"`
 	Inputs                         attestationInputs `json:"inputs"`
 	StructuralDiff                 []string          `json:"structural_diff"`
 	ObservationDiff                []string          `json:"observation_diff"`
+	CoverageDiff                   []string          `json:"coverage_diff"`
+	SemanticHistoryDiff            []string          `json:"semantic_history_diff"`
 	Conflicts                      []conflict        `json:"conflicts"`
 	ClaimCoverage                  []coverageRecord  `json:"claim_coverage"`
 	AffectedAdmittedOperations     []string          `json:"affected_admitted_operations"`
@@ -132,10 +165,13 @@ type attestation struct {
 }
 
 type attestationInputs struct {
-	BaselineCatalogSHA256  string `json:"baseline_catalog_sha256"`
-	CandidateCatalogSHA256 string `json:"candidate_catalog_sha256"`
-	ScenarioReceiptSHA256  string `json:"scenario_receipt_sha256"`
-	CaptureLockSHA256      string `json:"capture_lock_sha256"`
+	BaselineCatalogSHA256    string `json:"baseline_catalog_sha256"`
+	AdmissionReceiptSHA256   string `json:"admission_receipt_sha256"`
+	CandidateCatalogSHA256   string `json:"candidate_catalog_sha256"`
+	ScenarioReceiptSHA256    string `json:"scenario_receipt_sha256"`
+	ExecutionReceiptSHA256   string `json:"execution_receipt_sha256"`
+	ProvisionerReceiptSHA256 string `json:"provisioner_receipt_sha256,omitempty"`
+	CaptureLockSHA256        string `json:"capture_lock_sha256"`
 }
 
 // BuildAttestation compares a candidate catalog with an admitted baseline.
@@ -149,6 +185,20 @@ func BuildAttestation(input Input) ([]byte, error) {
 	}
 	if !pinnedImageDigest(input.BuilderImageDigest) {
 		return nil, fmt.Errorf("builder image digest must end in @sha256:<64 lowercase hex>")
+	}
+	if strings.TrimSpace(input.BaselinePath) == "" || strings.TrimSpace(input.CandidatePath) == "" {
+		return nil, fmt.Errorf("baseline and candidate catalog paths are required")
+	}
+	baselinePath, err := filepath.Abs(filepath.Clean(input.BaselinePath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve baseline catalog path: %w", err)
+	}
+	candidatePath, err := filepath.Abs(filepath.Clean(input.CandidatePath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve candidate catalog path: %w", err)
+	}
+	if baselinePath == candidatePath {
+		return nil, fmt.Errorf("baseline and candidate catalog paths must differ")
 	}
 	if input.Elapsed < 0 {
 		return nil, fmt.Errorf("elapsed duration cannot be negative")
@@ -174,33 +224,111 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if err := validateCatalog(candidate); err != nil {
 		return nil, fmt.Errorf("candidate catalog: %w", err)
 	}
-	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || receipt.Mode == "" {
+	if baseline.Admission.State != "admitted" {
+		return nil, fmt.Errorf("baseline catalog must be admitted, got %q", baseline.Admission.State)
+	}
+	if err := validateAdmissionReceipt(baselineCanonical, baseline, input.AdmissionReceipt); err != nil {
+		return nil, fmt.Errorf("baseline admission: %w", err)
+	}
+	if !catalogRecordsConsistent(baseline) {
+		return nil, fmt.Errorf("admitted baseline catalog records are inconsistent")
+	}
+	if candidate.Admission.State != "candidate" && candidate.Admission.State != "blocked" {
+		return nil, fmt.Errorf("candidate catalog must be candidate or blocked, got %q", candidate.Admission.State)
+	}
+	if bytes.Equal(baselineCanonical, candidateCanonical) {
+		return nil, fmt.Errorf("baseline and candidate catalog hashes must differ")
+	}
+	if baseline.CatalogID != candidate.CatalogID {
+		return nil, fmt.Errorf("baseline and candidate catalog identities do not match")
+	}
+	catalogIdentity, _, ok := strings.Cut(candidate.CatalogID, "@")
+	operation := dnsrecord.NormalizedOperation()
+	if !ok || catalogIdentity != operation.CatalogIdentity {
+		return nil, fmt.Errorf("catalog identity %q does not match normalized operation", candidate.CatalogID)
+	}
+	if baseline.Admission.OperationDigest != candidate.Admission.OperationDigest {
+		return nil, fmt.Errorf("baseline and candidate operation identities do not match")
+	}
+	if candidate.Admission.OperationDigest != dnsrecord.OperationDigest() {
+		return nil, fmt.Errorf("catalog operation identity does not match normalized operation")
+	}
+	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || receipt.ScenarioMode == "" {
 		return nil, fmt.Errorf("scenario receipt identity is incomplete")
 	}
-	if !reflect.DeepEqual(receipt.Target, candidate.Target) {
-		return nil, fmt.Errorf("scenario receipt target does not match candidate catalog")
+	if receipt.ScenarioPath == "" || receipt.RequestShape.Method == "" ||
+		receipt.RequestShape.Path == "" || receipt.RequestShape.Query == "" || receipt.RequestShape.Body == "" ||
+		receipt.ResponseSHA256 == "" || receipt.Normalization == "" || receipt.Redaction == "" ||
+		receipt.Cleanup == "" || receipt.CanonicalObservationSHA256 == "" || receipt.Verdict == "" {
+		return nil, fmt.Errorf("scenario receipt bindings are incomplete")
+	}
+	if receipt.RequestShape.Path != receipt.ScenarioPath {
+		return nil, fmt.Errorf("scenario receipt request path does not match scenario path")
+	}
+	switch receipt.ExecutionMode {
+	case "fixture":
+		if receipt.MeasuredTargetFingerprint != "" || receipt.ControllerVersion != "" || receipt.ObservedInstanceIdentitySHA256 != "" {
+			return nil, fmt.Errorf("fixture receipt target claim is not permitted")
+		}
+	case "live":
+		if receipt.MeasuredTargetFingerprint == "" || receipt.MeasuredTargetFingerprint != candidate.Target.ControllerFingerprint {
+			return nil, fmt.Errorf("live scenario receipt target fingerprint does not match candidate catalog")
+		}
+		if receipt.ControllerVersion == "" || receipt.ControllerVersion != candidate.Target.Version {
+			return nil, fmt.Errorf("live scenario receipt controller version does not match candidate catalog")
+		}
+		if receipt.ObservedInstanceIdentitySHA256 == "" {
+			return nil, fmt.Errorf("live scenario receipt observed instance identity is required")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported scenario receipt execution mode %q", receipt.ExecutionMode)
 	}
 	if receipt.OperationDigest != candidate.Admission.OperationDigest {
 		return nil, fmt.Errorf("scenario receipt operation does not match candidate catalog")
 	}
-	if receipt.Result != candidate.Admission.State {
+	if receipt.Verdict != candidate.Admission.State {
 		return nil, fmt.Errorf("scenario receipt result does not match candidate admission")
 	}
+	_, executionMode, err := validateExecutionReceipt(
+		input.ExecutionReceipt, input.RunnerEvidence, input.ProvisionerReceipt,
+		input.BuilderImageDigest, candidate, receipt,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	structuralDiff := recordDiff(baseline.StructuralRecords, candidate.StructuralRecords, func(record structuralRecord) string { return record.ID })
-	observationDiff := recordDiff(baseline.ObservedRecords, candidate.ObservedRecords, func(record observedRecord) string { return record.ID })
-	classification := "equivalent"
+	structural := compareRecords(baseline.StructuralRecords, candidate.StructuralRecords, func(record structuralRecord) string { return record.ID })
+	observations := compareRecords(baseline.ObservedRecords, candidate.ObservedRecords, func(record observedRecord) string { return record.ID })
+	coverageComparison := compareRecords(baseline.Coverage, candidate.Coverage, func(record coverageRecord) string { return record.ID })
+	tombstones := compareRecords(baseline.Tombstones, candidate.Tombstones, func(record string) string { return record })
+	migrations := compareRecords(baseline.Migrations, candidate.Migrations, func(record catalogMigration) string {
+		return record.FromID + "->" + record.ToID
+	})
+	semanticHistoryDiff := make([]string, 0, len(tombstones.All)+len(migrations.All))
+	semanticHistoryDiff = append(semanticHistoryDiff, tombstones.All...)
+	semanticHistoryDiff = append(semanticHistoryDiff, migrations.All...)
+	sort.Strings(semanticHistoryDiff)
+	classification := "unchanged"
 	providerImpact := "none"
-	if len(structuralDiff) > 0 || len(observationDiff) > 0 {
-		classification = "candidate_change"
+	if len(structural.Added) > 0 || len(observations.Added) > 0 || len(coverageComparison.Added) > 0 {
+		classification = "additive_candidate"
+		providerImpact = "review_required"
+	}
+	if len(structural.Destructive) > 0 || len(observations.Destructive) > 0 ||
+		len(coverageComparison.Destructive) > 0 || len(semanticHistoryDiff) > 0 {
+		classification = "breaking_suspect"
 		providerImpact = "review_required"
 	}
 	if candidate.Admission.State == "blocked" || len(candidate.Conflicts) > 0 {
-		classification = "blocked"
+		classification = "capture_invalid"
+		providerImpact = "review_required"
+	}
+	if input.ManualGeneratedFileEdits || !catalogRecordsConsistent(candidate) {
+		classification = "generator_defect"
 		providerImpact = "review_required"
 	}
 	affectedOperations := []string{}
-	if classification != "equivalent" {
+	if classification != "unchanged" {
 		affectedOperations = append(affectedOperations, candidate.Admission.OperationDigest)
 	}
 
@@ -223,22 +351,30 @@ func BuildAttestation(input Input) ([]byte, error) {
 	})
 
 	return encodeCanonical(attestation{
-		FormatVersion:      1,
-		CampaignID:         input.CampaignID,
-		ProfileClass:       input.ProfileClass,
-		Classification:     classification,
-		Promotion:          "review_required",
-		CandidateOnly:      true,
-		Target:             candidate.Target,
-		BuilderImageDigest: input.BuilderImageDigest,
+		FormatVersion:       1,
+		CampaignID:          input.CampaignID,
+		ProfileClass:        input.ProfileClass,
+		Classification:      classification,
+		Promotion:           "review_required",
+		CandidateOnly:       true,
+		NormalizedOperation: operation.Identity,
+		CatalogIdentity:     operation.CatalogIdentity,
+		Target:              candidate.Target,
+		BuilderImageDigest:  input.BuilderImageDigest,
+		ExecutionMode:       executionMode,
 		Inputs: attestationInputs{
-			BaselineCatalogSHA256:  digest(baselineCanonical),
-			CandidateCatalogSHA256: digest(candidateCanonical),
-			ScenarioReceiptSHA256:  digest(receiptCanonical),
-			CaptureLockSHA256:      candidate.Sources.CaptureLockSHA256,
+			BaselineCatalogSHA256:    digest(baselineCanonical),
+			AdmissionReceiptSHA256:   digest(input.AdmissionReceipt),
+			CandidateCatalogSHA256:   digest(candidateCanonical),
+			ScenarioReceiptSHA256:    digest(receiptCanonical),
+			ExecutionReceiptSHA256:   digest(input.ExecutionReceipt),
+			ProvisionerReceiptSHA256: optionalCanonicalDigest(input.ProvisionerReceipt),
+			CaptureLockSHA256:        candidate.Sources.CaptureLockSHA256,
 		},
-		StructuralDiff:                 structuralDiff,
-		ObservationDiff:                observationDiff,
+		StructuralDiff:                 structural.All,
+		ObservationDiff:                observations.All,
+		CoverageDiff:                   coverageComparison.All,
+		SemanticHistoryDiff:            semanticHistoryDiff,
 		Conflicts:                      conflicts,
 		ClaimCoverage:                  coverage,
 		AffectedAdmittedOperations:     affectedOperations,
@@ -250,14 +386,55 @@ func BuildAttestation(input Input) ([]byte, error) {
 	})
 }
 
+func catalogRecordsConsistent(document catalogDocument) bool {
+	structuralFields := make(map[string]string, len(document.StructuralRecords))
+	for _, record := range document.StructuralRecords {
+		if record.ID == "" || record.Field == "" {
+			return false
+		}
+		if _, exists := structuralFields[record.ID]; exists {
+			return false
+		}
+		structuralFields[record.ID] = record.Field
+	}
+	observedIDs := make(map[string]struct{}, len(document.ObservedRecords))
+	for _, record := range document.ObservedRecords {
+		field, exists := structuralFields[record.ID]
+		if !exists || field != record.Field {
+			return false
+		}
+		if _, duplicate := observedIDs[record.ID]; duplicate {
+			return false
+		}
+		observedIDs[record.ID] = struct{}{}
+	}
+	coverageIDs := make(map[string]struct{}, len(document.Coverage))
+	for _, record := range document.Coverage {
+		if _, exists := structuralFields[record.ID]; !exists {
+			return false
+		}
+		if record.State != "observed" && record.State != "not_observed" {
+			return false
+		}
+		if _, duplicate := coverageIDs[record.ID]; duplicate {
+			return false
+		}
+		coverageIDs[record.ID] = struct{}{}
+	}
+	return len(structuralFields) == len(observedIDs) && len(structuralFields) == len(coverageIDs)
+}
+
 func validateCatalog(document catalogDocument) error {
+	hasLegacyStructure := document.Sources.SpecificationSHA256 != ""
+	hasProjectedStructure := document.Sources.StructuralProjectionSHA256 != "" &&
+		document.Sources.SemanticPredecessorSHA256 != "" && document.Sources.SemanticIDsSHA256 != ""
 	if document.FormatVersion != 1 || document.CatalogID == "" || document.Target.Name == "" ||
 		document.Target.ImageIndexSHA256 == "" || document.Target.ImageManifestSHA256 == "" ||
-		document.Sources.CaptureLockSHA256 == "" || document.Sources.SpecificationSHA256 == "" ||
+		document.Sources.CaptureLockSHA256 == "" || (!hasLegacyStructure && !hasProjectedStructure) ||
 		document.Admission.OperationDigest == "" {
 		return fmt.Errorf("catalog identity and immutable inputs are required")
 	}
-	if document.Admission.State != "candidate" && document.Admission.State != "blocked" {
+	if document.Admission.State != "admitted" && document.Admission.State != "candidate" && document.Admission.State != "blocked" {
 		return fmt.Errorf("unsupported admission state %q", document.Admission.State)
 	}
 	return nil
@@ -290,7 +467,13 @@ func coveredClaim(coverage []coverageRecord, claim string) bool {
 	return false
 }
 
-func recordDiff[T any](baseline, candidate []T, id func(T) string) []string {
+type recordComparison struct {
+	Added       []string
+	Destructive []string
+	All         []string
+}
+
+func compareRecords[T any](baseline, candidate []T, id func(T) string) recordComparison {
 	baselineRecords := make(map[string][]byte, len(baseline))
 	candidateRecords := make(map[string][]byte, len(candidate))
 	for _, record := range baseline {
@@ -299,22 +482,34 @@ func recordDiff[T any](baseline, candidate []T, id func(T) string) []string {
 	for _, record := range candidate {
 		candidateRecords[id(record)], _ = json.Marshal(record)
 	}
-	changed := make(map[string]struct{})
+	added := make(map[string]struct{})
+	destructive := make(map[string]struct{})
 	for recordID, baselineRecord := range baselineRecords {
 		if candidateRecord, ok := candidateRecords[recordID]; !ok || !bytes.Equal(baselineRecord, candidateRecord) {
-			changed[recordID] = struct{}{}
+			destructive[recordID] = struct{}{}
 		}
 	}
-	for recordID, candidateRecord := range candidateRecords {
-		if baselineRecord, ok := baselineRecords[recordID]; !ok || !bytes.Equal(baselineRecord, candidateRecord) {
-			changed[recordID] = struct{}{}
+	for recordID := range candidateRecords {
+		if _, ok := baselineRecords[recordID]; !ok {
+			added[recordID] = struct{}{}
 		}
 	}
-	result := make([]string, 0, len(changed))
-	for recordID := range changed {
-		result = append(result, recordID)
+	result := recordComparison{
+		Added:       make([]string, 0, len(added)),
+		Destructive: make([]string, 0, len(destructive)),
+		All:         make([]string, 0, len(added)+len(destructive)),
 	}
-	sort.Strings(result)
+	for recordID := range added {
+		result.Added = append(result.Added, recordID)
+		result.All = append(result.All, recordID)
+	}
+	for recordID := range destructive {
+		result.Destructive = append(result.Destructive, recordID)
+		result.All = append(result.All, recordID)
+	}
+	sort.Strings(result.Added)
+	sort.Strings(result.Destructive)
+	sort.Strings(result.All)
 	return result
 }
 
@@ -363,4 +558,16 @@ func encodeCanonical(value any) ([]byte, error) {
 func digest(document []byte) string {
 	sum := sha256.Sum256(document)
 	return hex.EncodeToString(sum[:])
+}
+
+func optionalCanonicalDigest(document []byte) string {
+	if len(document) == 0 {
+		return ""
+	}
+	var value any
+	canonical, err := decodeCanonical(document, &value)
+	if err != nil {
+		return ""
+	}
+	return digest(canonical)
 }

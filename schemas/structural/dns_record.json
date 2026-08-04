@@ -1,0 +1,50 @@
+{
+  "format_version": 1,
+  "resource": "dns_record",
+  "source": {
+    "structural_sha256": "f70b3d8f5501cf64c2d96a5e3767ce2eef46ddf04b11e3a19e27237c02360f97",
+    "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c"
+  },
+  "fields": [
+    {
+      "wire_name": "enabled",
+      "json_type": "bool",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "key",
+      "json_type": "string",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "port",
+      "json_type": "number",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "priority",
+      "json_type": "number",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "record_type",
+      "json_type": "string",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "ttl",
+      "json_type": "number",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "value",
+      "json_type": "string",
+      "secret_candidate": false
+    },
+    {
+      "wire_name": "weight",
+      "json_type": "number",
+      "secret_candidate": false
+    }
+  ]
+}

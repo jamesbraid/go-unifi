@@ -20,12 +20,15 @@ import (
 
 const FormatVersion = 1
 
+const generatorEntrypointDirective = "//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
+
 type Lock struct {
 	FormatVersion int        `json:"format_version"`
 	Controller    Controller `json:"controller"`
 	Source        Source     `json:"source"`
 	Inputs        Inputs     `json:"inputs"`
 	Snapshots     Snapshots  `json:"snapshots"`
+	Scout         *Scout     `json:"scout,omitempty"`
 	CapturedAt    string     `json:"captured_at"`
 }
 
@@ -52,6 +55,14 @@ type Inputs struct {
 type Snapshots struct {
 	StructuralSHA256  string `json:"structural_sha256"`
 	SensitivitySHA256 string `json:"sensitivity_sha256"`
+}
+
+// Scout pins the reviewed evidence inputs that are outside the extracted
+// controller snapshots. A capture can be completed without scout evidence,
+// but scout refuses to run until both digests have been added to the lock.
+type Scout struct {
+	DNSStructuralProjectionSHA256 string `json:"dns_structural_projection_sha256"`
+	DNSSemanticPredecessorSHA256  string `json:"dns_semantic_predecessor_sha256"`
 }
 
 type StoredArtifact struct {
@@ -142,6 +153,10 @@ func (l Lock) validate(requireInspection bool) error {
 		}
 		digests["snapshots.structural_sha256"] = l.Snapshots.StructuralSHA256
 		digests["snapshots.sensitivity_sha256"] = l.Snapshots.SensitivitySHA256
+	}
+	if l.Scout != nil {
+		digests["scout.dns_structural_projection_sha256"] = l.Scout.DNSStructuralProjectionSHA256
+		digests["scout.dns_semantic_predecessor_sha256"] = l.Scout.DNSSemanticPredecessorSHA256
 	}
 	for name, value := range digests {
 		if !validSHA256(value) {
@@ -408,8 +423,12 @@ func StoreArtifact(sourceFilename, contentStore string) (StoredArtifact, error) 
 }
 
 func ComputeInputDigests(moduleRoot string) (Inputs, error) {
+	if err := validateGeneratorEntrypoint(moduleRoot); err != nil {
+		return Inputs{}, err
+	}
+
 	extractionFiles := []string{"cmd/fields/extract.go"}
-	generatorFiles := []string{"go.mod", "go.sum"}
+	generatorFiles := []string{"go.mod", "go.sum", "unifi/unifi.go"}
 
 	for _, dir := range []string{
 		"cmd/fields",
@@ -459,6 +478,38 @@ func ComputeInputDigests(moduleRoot string) (Inputs, error) {
 		ExtractionRulesSHA256: extractionDigest,
 		GeneratorInputsSHA256: generatorDigest,
 	}, nil
+}
+
+func validateGeneratorEntrypoint(moduleRoot string) error {
+	filename := filepath.Join(moduleRoot, "unifi", "unifi.go")
+	f, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open generator entrypoint: %w", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	found := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "//go:generate") {
+			continue
+		}
+		if line != generatorEntrypointDirective {
+			return fmt.Errorf("unifi/unifi.go go:generate directive must be %q", generatorEntrypointDirective)
+		}
+		if found {
+			return fmt.Errorf("unifi/unifi.go must contain only one go:generate directive")
+		}
+		found = true
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read generator entrypoint: %w", err)
+	}
+	if found {
+		return nil
+	}
+	return fmt.Errorf("unifi/unifi.go must contain go:generate directive %q", generatorEntrypointDirective)
 }
 
 func digestNamedFiles(root string, names []string) (string, error) {

@@ -15,6 +15,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/ulikunitz/xz v0.5.15
+	gopkg.in/yaml.v3 v3.0.1
 	pault.ag/go/debian v0.21.0
 )
 
@@ -95,7 +96,6 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	pault.ag/go/topsort v0.1.1 // indirect
 )
 
