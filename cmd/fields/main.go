@@ -240,6 +240,14 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		baseType.Fields[" Key"] = NewFieldInfo("Key", "key", fields.String, "", false, false, false, "")
 	case resource.StructName == "FirewallPolicy":
 		resource.FieldProcessor = func(name string, f *FieldInfo) error {
+			// time_all_day is semantically different when absent versus false:
+			// most ALWAYS schedules omit it, while legacy schedules can retain an
+			// explicit false value alongside stale timing metadata. Preserve that
+			// wire-level distinction so clients can round-trip or normalize it.
+			if name == "TimeAllDay" {
+				f.OmitEmpty = true
+				f.IsPointer = true
+			}
 			// The source/destination `port` is not a single number: the
 			// firmware stores and expects it as a string, and it may carry a
 			// comma-separated list (e.g. "80,443"). Model it as a string and
