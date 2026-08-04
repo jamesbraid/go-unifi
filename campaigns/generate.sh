@@ -4,8 +4,10 @@ set -euo pipefail
 readonly builder_image=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
 readonly target=network-10.4.57
 readonly baseline=../catalogs/${target}/dns_record.admitted-catalog.json
+readonly admission_receipt=../catalogs/${target}/dns_record.admission-receipt.json
 readonly candidate=../catalogs/${target}/dns_record.catalog.json
 readonly receipt=../catalogs/${target}/dns_record.scenario-receipt.json
+readonly execution_receipt=fixtures/dns_record.execution-receipt.json
 work_root=$(mktemp -d "${TMPDIR:-/tmp}/go-unifi-campaign.XXXXXX")
 readonly work_root
 cleanup() {
@@ -21,23 +23,6 @@ for field in enabled key port priority record_type ttl value weight; do
     claim_args+=("-reconfirmed-claim" "unifi.network.dns_record.field.${field}")
 done
 
-controller_fingerprint=$(jq -er '.target.controller_fingerprint' "${candidate}")
-readonly controller_fingerprint
-attempt_json=$(jq -cn \
-    --arg builder_image "${builder_image}" \
-    --arg controller_fingerprint "${controller_fingerprint}" \
-    '{
-      id: "fixture-attempt-1",
-      outcome: "completed",
-      execution_mode: "fixture",
-      builder_image_digest: $builder_image,
-      builder_provenance: "fixture",
-      controller_fingerprint: $controller_fingerprint,
-      controller_provenance: "fixture",
-      runtime_provenance: "fixture"
-    }')
-readonly attempt_json
-
 jq -e '.admission.state == "admitted"' "${baseline}" >/dev/null
 if [[ "$(realpath "${baseline}")" == "$(realpath "${candidate}")" ]]; then
     echo "admitted baseline and candidate resolve to the same path" >&2
@@ -49,9 +34,12 @@ go run ../cmd/campaign \
     -profile-class fresh_seeded \
     -builder-image "${builder_image}" \
     -baseline "${baseline}" \
+    -admission-receipt "${admission_receipt}" \
     -candidate "${candidate}" \
     -receipt "${receipt}" \
-    -attempt-json "${attempt_json}" \
+    -execution-receipt "${execution_receipt}" \
+    -attempt-ledger "${work_root}/attempts.ndjson" \
+    -attempt-id "fixture-attempt-1" \
     -elapsed-milliseconds 0 \
     -decision "offline deterministic replay" \
     "${claim_args[@]}" \
@@ -73,9 +61,12 @@ go run ../cmd/campaign \
     -profile-class fresh_seeded \
     -builder-image "${builder_image}" \
     -baseline "${baseline}" \
+    -admission-receipt "${admission_receipt}" \
     -candidate "${work_root}/mutated.catalog.json" \
     -receipt "${work_root}/mutated.receipt.json" \
-    -attempt-json "${attempt_json}" \
+    -execution-receipt "${execution_receipt}" \
+    -attempt-ledger "${work_root}/attempts.ndjson" \
+    -attempt-id "fixture-attempt-2" \
     -elapsed-milliseconds 0 \
     -decision "reject unreviewed vendor field" \
     "${claim_args[@]}" \

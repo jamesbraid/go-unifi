@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -24,57 +23,85 @@ func run(args []string, stderr io.Writer) int {
 	profileClass := flags.String("profile-class", "", "fresh_seeded, persisted_single_hop, or long_lived_multi_hop")
 	builderImage := flags.String("builder-image", "", "digest-pinned builder image")
 	baselinePath := flags.String("baseline", "", "admitted baseline catalog")
+	admissionReceiptPath := flags.String("admission-receipt", "", "trusted baseline admission receipt")
 	candidatePath := flags.String("candidate", "", "candidate catalog")
 	receiptPath := flags.String("receipt", "", "candidate scenario receipt")
+	executionReceiptPath := flags.String("execution-receipt", "", "fixture- or runner-scoped execution receipt")
+	provisionerReceiptPath := flags.String("provisioner-receipt", "", "independent live provisioner receipt")
+	runnerWorkflowPath := flags.String("runner-workflow", "", "checked workflow measured for runner execution")
+	attemptLedgerPath := flags.String("attempt-ledger", "", "append-only NDJSON attempt ledger")
+	attemptID := flags.String("attempt-id", "", "unique campaign attempt identifier")
 	elapsedMilliseconds := flags.Int64("elapsed-milliseconds", 0, "measured campaign duration")
 	manualEdits := flags.Bool("manual-generated-file-edits", false, "record manual edits to generated files")
 	outputPath := flags.String("output", "", "candidate attestation output")
 	var decisions, reconfirmed stringList
-	var attemptJSON stringList
 	flags.Var(&decisions, "decision", "human decision recorded in the campaign (repeatable)")
 	flags.Var(&reconfirmed, "reconfirmed-claim", "automatically reconfirmed catalog claim (repeatable)")
-	flags.Var(&attemptJSON, "attempt-json", "campaign attempt provenance as JSON (repeatable, in execution order)")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	if *campaignID == "" || *profileClass == "" || *builderImage == "" || *baselinePath == "" ||
-		*candidatePath == "" || *receiptPath == "" || *outputPath == "" || len(attemptJSON) == 0 {
-		fmt.Fprintln(stderr, "campaign-id, profile-class, builder-image, baseline, candidate, receipt, attempt-json, and output are required")
+	if *campaignID == "" || *profileClass == "" || *builderImage == "" || *baselinePath == "" || *admissionReceiptPath == "" ||
+		*candidatePath == "" || *receiptPath == "" || *executionReceiptPath == "" || *attemptLedgerPath == "" || *attemptID == "" || *outputPath == "" {
+		fmt.Fprintln(stderr, "campaign-id, profile-class, builder-image, baseline, admission-receipt, candidate, receipt, execution-receipt, attempt-ledger, attempt-id, and output are required")
 		return 2
+	}
+	executionReceipt, err := os.ReadFile(*executionReceiptPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "read execution receipt: %v\n", err)
+		return 1
+	}
+	if err := campaign.BeginAttempt(*attemptLedgerPath, *attemptID, executionReceipt); err != nil {
+		fmt.Fprintf(stderr, "begin campaign attempt: %v\n", err)
+		return 1
+	}
+	fail := func(errorClass, format string, args ...any) int {
+		fmt.Fprintf(stderr, format+"\n", args...)
+		if err := campaign.FinishAttempt(*attemptLedgerPath, *attemptID, "failed", errorClass); err != nil {
+			fmt.Fprintf(stderr, "finish failed campaign attempt: %v\n", err)
+		}
+		return 1
 	}
 	baselineInfo, err := os.Stat(*baselinePath)
 	if err != nil {
-		fmt.Fprintf(stderr, "stat baseline catalog: %v\n", err)
-		return 1
+		return fail("input_read", "stat baseline catalog: %v", err)
 	}
 	candidateInfo, err := os.Stat(*candidatePath)
 	if err != nil {
-		fmt.Fprintf(stderr, "stat candidate catalog: %v\n", err)
-		return 1
+		return fail("input_read", "stat candidate catalog: %v", err)
 	}
 	if os.SameFile(baselineInfo, candidateInfo) {
-		fmt.Fprintln(stderr, "baseline and candidate catalogs resolve to the same file")
-		return 1
+		return fail("input_validation", "baseline and candidate catalogs resolve to the same file")
 	}
 	baseline, err := os.ReadFile(*baselinePath)
 	if err != nil {
-		fmt.Fprintf(stderr, "read baseline catalog: %v\n", err)
-		return 1
+		return fail("input_read", "read baseline catalog: %v", err)
+	}
+	admissionReceipt, err := os.ReadFile(*admissionReceiptPath)
+	if err != nil {
+		return fail("input_read", "read admission receipt: %v", err)
 	}
 	candidate, err := os.ReadFile(*candidatePath)
 	if err != nil {
-		fmt.Fprintf(stderr, "read candidate catalog: %v\n", err)
-		return 1
+		return fail("input_read", "read candidate catalog: %v", err)
 	}
 	receipt, err := os.ReadFile(*receiptPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "read scenario receipt: %v\n", err)
-		return 1
+		return fail("input_read", "read scenario receipt: %v", err)
 	}
-	attempts, err := parseAttempts(attemptJSON)
-	if err != nil {
-		fmt.Fprintf(stderr, "decode campaign attempts: %v\n", err)
-		return 1
+	var provisionerReceipt []byte
+	if *provisionerReceiptPath != "" {
+		provisionerReceipt, err = os.ReadFile(*provisionerReceiptPath)
+		if err != nil {
+			return fail("input_read", "read provisioner receipt: %v", err)
+		}
+	}
+	var runnerEvidence *campaign.RunnerEvidence
+	if *runnerWorkflowPath != "" {
+		measured, measureErr := campaign.MeasureRunnerEvidence(*runnerWorkflowPath, *builderImage)
+		if measureErr != nil {
+			return fail("runner_measurement", "measure runner evidence: %v", measureErr)
+		}
+		runnerEvidence = &measured
 	}
 	attestation, err := campaign.BuildAttestation(campaign.Input{
 		CampaignID:                     *campaignID,
@@ -83,44 +110,28 @@ func run(args []string, stderr io.Writer) int {
 		BaselinePath:                   *baselinePath,
 		CandidatePath:                  *candidatePath,
 		BaselineCatalog:                baseline,
+		AdmissionReceipt:               admissionReceipt,
 		CandidateCatalog:               candidate,
 		ScenarioReceipt:                receipt,
-		Attempts:                       attempts,
+		ExecutionReceipt:               executionReceipt,
+		RunnerEvidence:                 runnerEvidence,
+		ProvisionerReceipt:             provisionerReceipt,
 		Elapsed:                        time.Duration(*elapsedMilliseconds) * time.Millisecond,
 		HumanDecisions:                 decisions,
 		ManualGeneratedFileEdits:       *manualEdits,
 		AutomaticallyReconfirmedClaims: reconfirmed,
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "build attestation: %v\n", err)
-		return 1
+		return fail("campaign_validation", "build attestation: %v", err)
 	}
 	if err := writeAtomic(*outputPath, attestation); err != nil {
-		fmt.Fprintf(stderr, "write attestation: %v\n", err)
+		return fail("attestation_write", "write attestation: %v", err)
+	}
+	if err := campaign.FinishAttempt(*attemptLedgerPath, *attemptID, "succeeded", ""); err != nil {
+		fmt.Fprintf(stderr, "finish successful campaign attempt: %v\n", err)
 		return 1
 	}
 	return 0
-}
-
-func parseAttempts(documents []string) ([]campaign.Attempt, error) {
-	attempts := make([]campaign.Attempt, 0, len(documents))
-	for index, document := range documents {
-		decoder := json.NewDecoder(strings.NewReader(document))
-		decoder.DisallowUnknownFields()
-		var attempt campaign.Attempt
-		if err := decoder.Decode(&attempt); err != nil {
-			return nil, fmt.Errorf("attempt %d: %w", index+1, err)
-		}
-		var trailing any
-		if err := decoder.Decode(&trailing); err != io.EOF {
-			if err == nil {
-				return nil, fmt.Errorf("attempt %d: trailing JSON value", index+1)
-			}
-			return nil, fmt.Errorf("attempt %d: %w", index+1, err)
-		}
-		attempts = append(attempts, attempt)
-	}
-	return attempts, nil
 }
 
 type stringList []string

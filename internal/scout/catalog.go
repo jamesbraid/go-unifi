@@ -543,8 +543,10 @@ func canonicalDocumentDigest(document []byte) (string, error) {
 	return digest(bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})), nil
 }
 
-// ProvisionerReceiptFingerprint derives the runtime identity used by the
-// target profile. No caller-supplied fingerprint is accepted in the receipt.
+// ProvisionerReceiptFingerprint derives the stable target profile identity.
+// The ephemeral instance identity is validated above and bound separately by
+// scout and campaign receipts, so two fresh instances of the same locked
+// image retain the same profile fingerprint.
 func ProvisionerReceiptFingerprint(receipt ProvisionerTargetReceipt) (string, error) {
 	if receipt.FormatVersion != 1 {
 		return "", fmt.Errorf("measured target receipt format_version must be 1")
@@ -568,7 +570,20 @@ func ProvisionerReceiptFingerprint(receipt ProvisionerTargetReceipt) (string, er
 			return "", fmt.Errorf("measured target receipt %s must be sha256:<64 lowercase hex>", name)
 		}
 	}
-	document, err := json.Marshal(receipt)
+	stableProfile := struct {
+		FormatVersion       int    `json:"format_version"`
+		ProfileName         string `json:"profile_name"`
+		Product             string `json:"product"`
+		Version             string `json:"version"`
+		Architecture        string `json:"architecture"`
+		ImageIndexSHA256    string `json:"image_index_sha256"`
+		ImageManifestSHA256 string `json:"image_manifest_sha256"`
+	}{
+		FormatVersion: receipt.FormatVersion, ProfileName: receipt.ProfileName, Product: receipt.Product,
+		Version: receipt.Version, Architecture: receipt.Architecture, ImageIndexSHA256: receipt.ImageIndexSHA256,
+		ImageManifestSHA256: receipt.ImageManifestSHA256,
+	}
+	document, err := json.Marshal(stableProfile)
 	if err != nil {
 		return "", err
 	}

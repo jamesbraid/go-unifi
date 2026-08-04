@@ -1,6 +1,10 @@
 package dnsrecord
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -149,5 +153,27 @@ func TestOperationArtifactDocumentsSafetyContract(t *testing.T) {
 	artifact.Identity = "tampered"
 	if NormalizedOperation().Identity == artifact.Identity {
 		t.Fatal("caller mutation changed the normalized operation identity")
+	}
+}
+
+func TestCheckedOperationArtifactMatchesCanonicalDigest(t *testing.T) {
+	document, err := os.ReadFile("operation.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var artifact OperationArtifact
+	if err := json.Unmarshal(document, &artifact); err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := json.Marshal(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(canonical)
+	if got, want := hex.EncodeToString(sum[:]), "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8"; got != want {
+		t.Fatalf("checked operation digest = %q, want %q", got, want)
+	}
+	if !reflect.DeepEqual(artifact, NormalizedOperation()) {
+		t.Fatalf("checked operation = %#v, runtime operation = %#v", artifact, NormalizedOperation())
 	}
 }

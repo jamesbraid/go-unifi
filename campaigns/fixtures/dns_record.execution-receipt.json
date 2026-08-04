@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "receipt_id": "unifi.network.dns_record.fixture-execution.1",
+  "mode": "fixture",
+  "builder_image_digest": "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+  "builder_provenance": "fixture_bundle",
+  "controller_fingerprint": "sha256:3af14713d39e67ad63caa797434856135fefad1a13770b10ff3a51400b37ca0c",
+  "controller_provenance": "fixture",
+  "runtime_provenance": "fixture",
+  "checksum_sha256": "75509722f3826627efae88706ed7085dc085291f9d90b0925f28c30b5c67be06"
+}
