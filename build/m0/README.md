@@ -4,6 +4,10 @@
 generated-output manifest. The builder contains Go 1.26.5 and the full module
 cache from `go.sum`. Runtime networking is disabled.
 
+The builder acquisition stage uses the fixed Go module proxy and committed
+`go.sum` hashes with telemetry and checksum-database caching disabled. The
+runtime image then sets `GOPROXY=off`; missing dependency bytes fail closed.
+
 The Docker daemon must run natively on amd64. Cross-architecture emulation is
 not accepted as promotion evidence. The source worktree must also be clean so
 both runs start from the same committed archive. Docker Buildx, `jq`, and `tar`
@@ -26,6 +30,8 @@ per-file manifests remain beside it for diagnosis.
 `builder.lock.json` pins BuildKit, the base OCI index, selected amd64 manifests,
 the Dockerfile frontend, builder inputs, final image manifest, and image config.
 `rebuild.sh` creates an ephemeral builder from that immutable BuildKit index and
-derives image identity from OCI descriptors. When any builder input changes,
-rebuild the image with `--provenance=false`, verify two identical image manifests,
-and update the lock in the same review.
+derives image identity from OCI descriptors. It fixes `SOURCE_DATE_EPOCH`,
+rewrites layer timestamps, and uses two fresh BuildKit instances so cache reuse
+cannot hide nondeterminism. When any builder input changes, rebuild the image
+with `--provenance=false`, verify two identical image manifests, and update the
+lock in the same review.

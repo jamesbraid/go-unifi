@@ -6,7 +6,8 @@ repository_root=$(CDPATH='' cd -- "$script_dir/../.." && pwd)
 content_store=${GO_UNIFI_CONTENT_STORE:-}
 receipt_root=${1:-"$repository_root/.tmp/m0-rebuild"}
 image_name=go-unifi-schema-builder:m0-$$
-builder_name=go-unifi-m0-$$
+first_builder_name=go-unifi-m0-$$-1
+second_builder_name=go-unifi-m0-$$-2
 lock_file=$repository_root/build/m0/builder.lock.json
 
 if [ -z "$content_store" ]; then
@@ -34,7 +35,8 @@ cleanup() {
     result=$?
     trap - EXIT HUP INT TERM
     docker image rm "$image_name" >/dev/null 2>&1 || true
-    docker buildx rm --force "$builder_name" >/dev/null 2>&1 || true
+    docker buildx rm --force "$first_builder_name" >/dev/null 2>&1 || true
+    docker buildx rm --force "$second_builder_name" >/dev/null 2>&1 || true
     rm -rf "$scratch"
     exit "$result"
 }
@@ -46,20 +48,31 @@ mkdir -p "$scratch/source" "$receipt_root/run-1" "$receipt_root/run-2"
 git -C "$repository_root" archive --format=tar HEAD | tar -x -C "$scratch/source"
 
 expected_buildkit_image=$(jq -er '.buildkit_image' "$lock_file")
+expected_buildkit_version=$(jq -er '.buildkit_version' "$lock_file")
 expected_buildkit_index=$(jq -er '.buildkit_index_sha256' "$lock_file")
 expected_buildkit_manifest=$(jq -er '.buildkit_platform_manifest_sha256' "$lock_file")
+expected_source_date_epoch=$(jq -er '.source_date_epoch' "$lock_file")
+expected_compatibility_version=$(jq -er '.buildkit_compatibility_version' "$lock_file")
 expected_manifest=$(jq -er '.image_manifest_sha256' "$lock_file")
 expected_config=$(jq -er '.image_config_sha256' "$lock_file")
 
-docker buildx create --name "$builder_name" --driver docker-container \
+docker buildx create --name "$first_builder_name" --driver docker-container \
     --driver-opt "image=$expected_buildkit_image@$expected_buildkit_index" --use >/dev/null
-docker buildx inspect --bootstrap "$builder_name" >/dev/null
+docker buildx inspect --bootstrap "$first_builder_name" >/dev/null
 
-for build in 1 2; do
-    docker buildx build --builder "$builder_name" --platform linux/amd64 \
-        --provenance=false --output "type=oci,dest=$scratch/builder-$build.tar" \
-        --file "$repository_root/build/m0/Dockerfile" "$repository_root"
-done
+docker buildx build --builder "$first_builder_name" --platform linux/amd64 \
+    --provenance=false --build-arg "SOURCE_DATE_EPOCH=$expected_source_date_epoch" \
+    --output "type=oci,dest=$scratch/builder-1.tar,rewrite-timestamp=true,compatibility-version=$expected_compatibility_version" \
+    --file "$repository_root/build/m0/Dockerfile" "$repository_root"
+docker buildx rm --force "$first_builder_name" >/dev/null
+
+docker buildx create --name "$second_builder_name" --driver docker-container \
+    --driver-opt "image=$expected_buildkit_image@$expected_buildkit_index" --use >/dev/null
+docker buildx inspect --bootstrap "$second_builder_name" >/dev/null
+docker buildx build --builder "$second_builder_name" --platform linux/amd64 \
+    --provenance=false --build-arg "SOURCE_DATE_EPOCH=$expected_source_date_epoch" \
+    --output "type=oci,dest=$scratch/builder-2.tar,rewrite-timestamp=true,compatibility-version=$expected_compatibility_version" \
+    --file "$repository_root/build/m0/Dockerfile" "$repository_root"
 
 oci_manifest() {
     tar -xOf "$1" index.json | jq -er \
@@ -89,8 +102,9 @@ if [ "$actual_config" != "$expected_config" ]; then
     exit 1
 fi
 
-docker buildx build --builder "$builder_name" --platform linux/amd64 \
-    --provenance=false --load \
+docker buildx build --builder "$second_builder_name" --platform linux/amd64 \
+    --provenance=false --build-arg "SOURCE_DATE_EPOCH=$expected_source_date_epoch" \
+    --output "type=docker,rewrite-timestamp=true" \
     --file "$repository_root/build/m0/Dockerfile" \
     --tag "$image_name" "$repository_root"
 loaded_config=$(docker image inspect --format '{{.Id}}' "$image_name")
@@ -124,8 +138,11 @@ cat >"$receipt_root/receipt.json" <<EOF
   "source_commit": "$source_commit",
   "platform": "linux/amd64",
   "buildkit_image": "$expected_buildkit_image",
+  "buildkit_version": "$expected_buildkit_version",
   "buildkit_index_sha256": "$expected_buildkit_index",
   "buildkit_amd64_manifest_sha256": "$expected_buildkit_manifest",
+  "source_date_epoch": $expected_source_date_epoch,
+  "buildkit_compatibility_version": $expected_compatibility_version,
   "builder_image_manifest_sha256": "$actual_manifest",
   "builder_image_config_sha256": "$actual_config",
   "capture_lock_sha256": "$capture_lock_sha256",

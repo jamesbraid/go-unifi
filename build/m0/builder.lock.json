@@ -7,13 +7,16 @@
   "base_platform_manifest_sha256": "sha256:3f6236bd765f898a2a3c2946112b04097814c4529d44534674700cd07b9c6b4c",
   "dockerfile_frontend_sha256": "sha256:26147acbda4f14c5add9946e2fd2ed543fc402884fd75146bd342a7f6271dc1d",
   "buildkit_image": "docker.io/moby/buildkit",
+  "buildkit_version": "0.31.2",
   "buildkit_index_sha256": "sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec",
   "buildkit_platform_manifest_sha256": "sha256:63db51c9b30208a7c2b1c40392c7ebb9ce2f85ba238a18a85420f8f5ea2d4684",
-  "dockerfile_sha256": "8d326ac1cdbbbb91a7ab407bb7fba13c6c0e8c7b90599e1572f1670fdca6fffc",
+  "source_date_epoch": 1785733153,
+  "buildkit_compatibility_version": 20,
+  "dockerfile_sha256": "ab8c66d2794f2e28a0607f802670c6dfe4e20245807939c2e8a137f47b85eae6",
   "container_rebuild_sha256": "b86ac1e1071f443b036dc5af614e2e695adceb2b17a39d7a9d79270469d0b433",
-  "rebuild_script_sha256": "d09ec1c7328770499362536cedfbca7ac63e1aba02fc516b77975d5a06be465c",
+  "rebuild_script_sha256": "8a8ad8fe47819ecf47619e522660ab3890c32c7c4f25d083b417bfb4f142e3c9",
   "go_mod_sha256": "94cade3f8130346736f1f28b27bb3bb6f75e444ec4ec05986c240721f8d109b3",
   "go_sum_sha256": "01015f5e1a3a8a7868127c544d2c7e591902c976fae06720ae4beb23ef030615",
-  "image_manifest_sha256": "sha256:ef540d13ec1f9b630b7429600e417faf749a654c40d907c4d5f109f8bf8ffaae",
-  "image_config_sha256": "sha256:ed35de9c6b15310d98f6ee96817734ad0222f35c1befb69a9922638fb4e333fb"
+  "image_manifest_sha256": "sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",
+  "image_config_sha256": "sha256:70a6f50a854685290f50e857d563068f14bb178bd9753a5f997f2db4f422c86f"
 }
