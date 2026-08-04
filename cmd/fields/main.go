@@ -12,7 +12,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
+	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
@@ -328,106 +328,110 @@ func cleanName(name string, reps []replacement) string {
 }
 
 func usage() {
-	fmt.Printf("Usage: %s [OPTIONS] version\n", path.Base(os.Args[0]))
+	fmt.Printf("Usage: %s [OPTIONS]\n", path.Base(os.Args[0]))
 	flag.PrintDefaults()
 }
 
-// buildSchemas obtains a controller artifact (downloading it unless a local
-// file is given), extracts the field definitions and metadata into the
-// schemas directory, and records the UniFi Network version it found there,
-// along with the source artifact (URL or local path) as the ARTIFACT marker.
-func buildSchemas(
+func buildLockedSchemas(
 	schemasDir, fieldsDir, metadataDir, customDir string,
-	localFile string,
-	downloadURL *url.URL,
-	requestedVersion *version.Version,
-) (*version.Version, error) {
-	// Scratch space lives inside the workspace (gitignored .tmp/) rather
-	// than the system temp dir: it keeps multi-GB transients off tmpfs
-	// /tmp mounts and, being on the same filesystem as schemas/, lets the
-	// cache be swapped in with atomic renames below.
+	artifactPath string,
+	expectedNetworkVersion string,
+	expectedSnapshots *capturelock.Snapshots,
+) (*version.Version, capturelock.Snapshots, error) {
 	tmpRoot := filepath.Join(filepath.Dir(schemasDir), ".tmp")
 	if err := os.MkdirAll(tmpRoot, 0o755); err != nil {
-		return nil, err
+		return nil, capturelock.Snapshots{}, err
 	}
 	workDir, err := os.MkdirTemp(tmpRoot, "schema-run-")
 	if err != nil {
-		return nil, err
+		return nil, capturelock.Snapshots{}, err
 	}
 	defer os.RemoveAll(workDir)
 
-	artifactPath := localFile
-	if artifactPath == "" {
-		fmt.Printf("downloading %s\n", downloadURL)
-		artifactPath, err = downloadArtifact(downloadURL, workDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	arts, err := extractArtifacts(artifactPath, workDir)
 	if err != nil {
-		return nil, err
+		return nil, capturelock.Snapshots{}, err
 	}
-
 	networkVersion, err := readNetworkVersion(arts.aceJar)
 	if err != nil {
-		if requestedVersion == nil {
-			return nil, fmt.Errorf("unable to determine UniFi Network version: %w", err)
-		}
-		networkVersion = requestedVersion
+		return nil, capturelock.Snapshots{}, fmt.Errorf("unable to determine UniFi Network version: %w", err)
 	}
-	if requestedVersion != nil && !networkVersion.Equal(requestedVersion) {
-		fmt.Printf("warning: artifact reports version %s, requested %s\n", networkVersion, requestedVersion)
+	if expectedNetworkVersion != "" && networkVersion.String() != expectedNetworkVersion {
+		return nil, capturelock.Snapshots{}, fmt.Errorf(
+			"artifact reports UniFi Network %s, lock requires %s",
+			networkVersion,
+			expectedNetworkVersion,
+		)
 	}
-	fmt.Printf("UniFi Network version: %s\n", networkVersion)
 
 	defsJar, err := resolveDefsJar(arts, workDir)
 	if err != nil {
-		return nil, err
+		return nil, capturelock.Snapshots{}, err
 	}
-
-	// Extract into staging first, then swap the cache in with renames.
-	// Staging lives in workDir (same filesystem as schemas/), so each swap
-	// is an atomic rename; invalidating the markers before the swap is the
-	// belt to that suspender - a crash between the two renames still
-	// leaves a cache the next run refuses to trust.
 	stagingFields := filepath.Join(workDir, "fields")
 	stagingMetadata := filepath.Join(workDir, "metadata")
 	if err := extractSchemas(defsJar, stagingFields, stagingMetadata, customDir); err != nil {
-		return nil, err
+		return nil, capturelock.Snapshots{}, err
 	}
-
-	for _, marker := range []string{"VERSION", "SOURCE", "ARTIFACT"} {
-		if err := os.Remove(filepath.Join(schemasDir, marker)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+	structuralDigest, err := capturelock.DigestTree(stagingFields)
+	if err != nil {
+		return nil, capturelock.Snapshots{}, fmt.Errorf("digest structural snapshot: %w", err)
+	}
+	sensitivityDigest, err := capturelock.DigestFile(filepath.Join(stagingMetadata, "sensitive_metadata.json"))
+	if err != nil {
+		return nil, capturelock.Snapshots{}, fmt.Errorf("digest sensitivity snapshot: %w", err)
+	}
+	snapshots := capturelock.Snapshots{
+		StructuralSHA256:  structuralDigest,
+		SensitivitySHA256: sensitivityDigest,
+	}
+	if expectedSnapshots != nil {
+		if structuralDigest != expectedSnapshots.StructuralSHA256 {
+			return nil, capturelock.Snapshots{}, fmt.Errorf(
+				"structural snapshot SHA-256 is %s, lock requires %s",
+				structuralDigest,
+				expectedSnapshots.StructuralSHA256,
+			)
+		}
+		if sensitivityDigest != expectedSnapshots.SensitivitySHA256 {
+			return nil, capturelock.Snapshots{}, fmt.Errorf(
+				"sensitivity snapshot SHA-256 is %s, lock requires %s",
+				sensitivityDigest,
+				expectedSnapshots.SensitivitySHA256,
+			)
 		}
 	}
+
 	for _, swap := range []struct{ from, to string }{
 		{stagingFields, fieldsDir},
 		{stagingMetadata, metadataDir},
 	} {
 		if err := os.RemoveAll(swap.to); err != nil {
-			return nil, err
+			return nil, capturelock.Snapshots{}, err
 		}
 		if err := os.Rename(swap.from, swap.to); err != nil {
-			return nil, err
+			return nil, capturelock.Snapshots{}, err
 		}
 	}
+	return networkVersion, snapshots, nil
+}
 
-	if err := writeMarker(schemasDir, "VERSION", networkVersion.String()); err != nil {
-		return nil, err
+func verifyInputDigests(want, got capturelock.Inputs) error {
+	if want.ExtractionRulesSHA256 != got.ExtractionRulesSHA256 {
+		return fmt.Errorf(
+			"extraction-rules SHA-256 is %s, lock requires %s",
+			got.ExtractionRulesSHA256,
+			want.ExtractionRulesSHA256,
+		)
 	}
-
-	artifact := "local " + filepath.Base(artifactPath)
-	if downloadURL != nil {
-		artifact = downloadURL.String()
+	if want.GeneratorInputsSHA256 != got.GeneratorInputsSHA256 {
+		return fmt.Errorf(
+			"generator-input SHA-256 is %s, lock requires %s",
+			got.GeneratorInputsSHA256,
+			want.GeneratorInputsSHA256,
+		)
 	}
-	if err := writeMarker(schemasDir, "ARTIFACT", artifact); err != nil {
-		return nil, err
-	}
-
-	return networkVersion, nil
+	return nil
 }
 
 var handWrittenTypesCache = map[string]map[string]string{}
@@ -475,44 +479,6 @@ func handWrittenTypes(dir string) map[string]string {
 	return decls
 }
 
-func readMarker(dir, name string) string {
-	b, err := os.ReadFile(filepath.Join(dir, name))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(b))
-}
-
-func writeMarker(dir, name, value string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, name), []byte(value+"\n"), 0o644)
-}
-
-// cacheFieldsValid guards the cache-hit path with the same bar the fresh
-// extraction enforces: the manifest must exist, list a plausible number of
-// definitions, and every listed file must be present — a partial or legacy
-// cache must trigger a rebuild, not generate (and delete resources) from an
-// incomplete schema set.
-func cacheFieldsValid(fieldsDir string) bool {
-	manifest, err := os.ReadFile(filepath.Join(fieldsDir, extractedManifest))
-	if err != nil {
-		return false
-	}
-
-	names := strings.Fields(string(manifest))
-	if len(names) < minFieldFiles {
-		return false
-	}
-	for _, name := range names {
-		if !fileExists(filepath.Join(fieldsDir, name)) {
-			return false
-		}
-	}
-	return true
-}
-
 func fileExists(path string) bool {
 	fi, err := os.Stat(path)
 	return err == nil && !fi.IsDir()
@@ -525,21 +491,30 @@ func main() {
 		"unifi",
 		"The output directory of the generated Go code",
 	)
-	downloadOnly := flag.Bool(
-		"download-only",
+	extractOnly := flag.Bool(
+		"extract-only",
 		false,
-		"Only download and build the fields JSON directory, do not generate",
+		"Only verify the lock and extract the fields JSON directory",
 	)
-	useLatestVersion := flag.Bool("latest", false, "Use the latest available version")
-	localFile := flag.String(
-		"file",
+	verifyLockOnly := flag.Bool(
+		"verify-lock-only",
+		false,
+		"Verify lock structure and generator-input digests without resolving the retained artifact",
+	)
+	lockPathFlag := flag.String(
+		"lock",
 		"",
-		"Extract schemas from a local UniFi .deb or UniFi OS Server installer instead of downloading",
+		"Capture lock path (default: schemas/capture.lock.json under the module root)",
 	)
-	printLatest := flag.Bool(
-		"print-latest",
-		false,
-		"Print the latest available release (product and version) and exit",
+	contentStoreFlag := flag.String(
+		"content-store",
+		os.Getenv("GO_UNIFI_CONTENT_STORE"),
+		"Restricted content-addressed artifact store (or GO_UNIFI_CONTENT_STORE)",
+	)
+	snapshotOutput := flag.String(
+		"snapshot-output",
+		"",
+		"Capture helper: inspect a draft lock and write snapshot digests without updating the lock",
 	)
 	generateSpec := flag.Bool(
 		"generate-spec",
@@ -553,28 +528,8 @@ func main() {
 	)
 
 	flag.Parse()
-
-	if *printLatest {
-		rel, err := latestRelease()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(rel.ID())
-		return
-	}
-
-	specifiedVersion := flag.Arg(0)
-	switch {
-	case *localFile != "" && (specifiedVersion != "" || *useLatestVersion):
-		fmt.Print("error: cannot combine -file with a version or -latest\n\n")
-		usage()
-		os.Exit(1)
-	case *localFile == "" && specifiedVersion != "" && *useLatestVersion:
-		fmt.Print("error: cannot specify version with latest\n\n")
-		usage()
-		os.Exit(1)
-	case *localFile == "" && specifiedVersion == "" && !*useLatestVersion:
-		fmt.Print("error: must specify version, latest, or a local file\n\n")
+	if flag.NArg() != 0 {
+		fmt.Print("error: generation accepts no version argument; capture a new lock separately\n\n")
 		usage()
 		os.Exit(1)
 	}
@@ -594,78 +549,66 @@ func main() {
 	metadataDir := filepath.Join(schemasDir, "metadata")
 	customDir := filepath.Join(moduleRoot, "overrides", "resources")
 	outDir := filepath.Join(wd, *outputDirFlag)
-
-	// Resolve where the schemas should come from. The source ID recorded in
-	// schemas/SOURCE lets repeat runs skip the download when the snapshot is
-	// already current.
-	var source string
-	var downloadURL *url.URL
-	var requestedVersion *version.Version
-
-	switch {
-	case *localFile != "":
-		// Local artifacts are always re-extracted.
-	case *useLatestVersion:
-		rel, err := latestRelease()
-		if err != nil {
-			panic(err)
-		}
-		source = rel.ID()
-		downloadURL = rel.URL
-		if rel.Product == unifiControllerProduct {
-			requestedVersion = rel.Version
-		}
-	default:
-		requestedVersion, err = version.NewVersion(specifiedVersion)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		downloadURL, err = url.Parse(fmt.Sprintf("https://dl.ui.com/unifi/%s/unifi_sysvinit_all.deb", requestedVersion))
-		if err != nil {
-			panic(err)
-		}
-		source = fmt.Sprintf("%s %s", unifiControllerProduct, requestedVersion)
+	lockPath := *lockPathFlag
+	if lockPath == "" {
+		lockPath = filepath.Join(schemasDir, "capture.lock.json")
 	}
-
-	var unifiVersion *version.Version
-
-	snapshotCurrent := source != "" &&
-		source == readMarker(schemasDir, "SOURCE") &&
-		readMarker(schemasDir, "VERSION") != "" &&
-		cacheFieldsValid(fieldsDir) &&
-		fileExists(filepath.Join(metadataDir, "sensitive_metadata.json"))
-
-	if snapshotCurrent {
-		unifiVersion, err = version.NewVersion(readMarker(schemasDir, "VERSION"))
-		if err != nil {
-			panic(err)
-		}
-
-		// The cache only tracks the upstream release; the overlay under
-		// overrides/resources can change independently, so re-sync it even
-		// when skipping the download.
-		if err := syncCustom(customDir, fieldsDir); err != nil {
-			panic(err)
-		}
+	var lock capturelock.Lock
+	if *snapshotOutput != "" {
+		lock, err = capturelock.LoadDraftFile(lockPath)
 	} else {
-		unifiVersion, err = buildSchemas(schemasDir, fieldsDir, metadataDir, customDir, *localFile, downloadURL, requestedVersion)
-		if err != nil {
+		lock, err = capturelock.LoadFile(lockPath)
+	}
+	if err != nil {
+		panic(err)
+	}
+	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
+	if err != nil {
+		panic(err)
+	}
+	if err := verifyInputDigests(lock.Inputs, inputs); err != nil {
+		panic(err)
+	}
+	if *verifyLockOnly {
+		fmt.Println("Capture lock inputs verified!")
+		return
+	}
+	artifactPath, err := capturelock.ResolveArtifact(*contentStoreFlag, lock)
+	if err != nil {
+		panic(err)
+	}
+	var expectedSnapshots *capturelock.Snapshots
+	if *snapshotOutput == "" {
+		expectedSnapshots = &lock.Snapshots
+	}
+	unifiVersion, snapshots, err := buildLockedSchemas(
+		schemasDir,
+		fieldsDir,
+		metadataDir,
+		customDir,
+		artifactPath,
+		lock.Controller.NetworkVersion,
+		expectedSnapshots,
+	)
+	if err != nil {
+		panic(err)
+	}
+	if *snapshotOutput != "" {
+		if err := capturelock.WriteInspectionFile(*snapshotOutput, capturelock.Inspection{
+			NetworkVersion: unifiVersion.String(),
+			Snapshots:      snapshots,
+		}); err != nil {
 			panic(err)
 		}
-
-		if source == "" {
-			source = fmt.Sprintf("local %s", unifiVersion)
-		}
-		if err := writeMarker(schemasDir, "SOURCE", source); err != nil {
-			panic(err)
-		}
+		return
+	}
+	if err := capturelock.WriteCompatibilityProjections(schemasDir, lock); err != nil {
+		panic(err)
 	}
 
-	if *downloadOnly {
+	if *extractOnly {
 		fmt.Println("Fields JSON ready!")
-		os.Exit(0)
+		return
 	}
 
 	fieldsFiles, err := os.ReadDir(fieldsDir)

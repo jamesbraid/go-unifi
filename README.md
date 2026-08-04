@@ -4,22 +4,46 @@ Built primarily for my [Terraform provider for Unifi](https://github.com/ubiquit
 
 ## Versioning
 
-Each release names the one UniFi Network version it was generated and tested against. Semantic versioning tracks the Go API, with one deviation: controller-forced breaking changes ship in documented minor releases rather than a `/vN` bump per controller train. Pin an exact version for module-strict guarantees.
+Each release names the UniFi Network version it was generated and tested
+against. Semantic versioning tracks the Go API, with one deviation:
+controller-forced breaking changes ship in documented minor releases rather
+than a `/vN` bump per controller train. Pin an exact version for module-strict
+guarantees.
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the full policy: how upstream schema drift is absorbed, and why older SDK tags stay the way to target older controllers.
 
 ## Note on Code Generation
 
-The generator builds the data models and basic REST methods from the JSON field definitions the controller ships in `internal-dependencies.jar` (field names plus regex and enum validation). The definitions extract into a gitignored cache under [schemas/](schemas/); only the controller version markers are tracked, never the extracted files.
+The generator builds data models and basic REST methods from the JSON field
+definitions in `internal-dependencies.jar`. These definitions contain field
+names plus regex and enum validation. They extract into a gitignored cache
+under [schemas/](schemas/). Controller bytes and extracted definitions stay
+outside Git.
 
-`go generate ./...` refreshes everything: it checks the Ubiquiti firmware update API for the latest release, downloads it when the local cache is stale (UniFi Network `.deb` preferred, UniFi OS Server installer as fallback), re-extracts the schemas, and regenerates the Go code and `specification.json`. To generate from a manually downloaded artifact instead, run `go run ./cmd/fields -file <deb-or-installer> -output-dir=unifi`.
+[`schemas/capture.lock.json`](schemas/capture.lock.json) identifies the exact
+controller artifact and expected extracted snapshots. Put the retained artifact
+in a restricted content-addressed store and set `GO_UNIFI_CONTENT_STORE`. Then
+run `go generate ./...`. Generation verifies every digest and fails if the
+retained bytes are missing or changed. It never looks up "latest," downloads a
+replacement, or updates the lock.
 
-A nightly workflow runs the same check and opens an auto-merging PR when Ubiquiti publishes a new controller version. The tests and the live-controller integration gate must pass first, and a breaking change waits for a manual tag.
+Maintainers capture a new artifact separately with `cmd/schema-capture`. That
+command stores the bytes by SHA-256 and proposes a new lock. Ordinary generation
+remains offline. See [schemas/README.md](schemas/README.md) for the capture and
+rebuild procedures.
 
-This code generation is kind of gross. I wanted to use the java classes in the jar like scala2go, but the jar is obfuscated and I couldn't find that information anywhere else — maybe the web UI has it, but not in any practically extractable form. Still planning to dig through the bits some more later on.
+This code generation is kind of gross. I wanted to use the Java classes in the
+jar like scala2go, but the jar is obfuscated. I couldn't find that information
+anywhere else. The web UI may have it, but not in a practically extractable
+form. I still plan to dig through the bits later.
 
 ## Testing
 
-`go test ./...` runs the unit and schema tests; no controller or Docker needed.
+`go test ./...` runs the unit and schema tests. It needs no controller or Docker.
 
-`go test -tags integration ./...` boots a real controller and tests against it. The `internal/controllertest` harness starts a disposable simulation-mode controller from the published `ghcr.io/jamesbraid/unifi-network` image, and the drift probe in `cmd/fields` compares the hand-written v2 schemas against what the live API serves. Set `UNIFI_TEST_URL` to reuse an existing controller instead of a container, or `UNIFI_TEST_IMAGE` to pin a build. CI runs this gate on every schema change.
+`go test -tags integration ./...` boots a real controller. The
+`internal/controllertest` harness starts a disposable simulation-mode controller
+from the published `ghcr.io/jamesbraid/unifi-network` image. The drift probe in
+`cmd/fields` compares the hand-written v2 schemas with the live API. Set
+`UNIFI_TEST_URL` to reuse an existing controller, or `UNIFI_TEST_IMAGE` to pin a
+build. CI runs this gate on every schema change.

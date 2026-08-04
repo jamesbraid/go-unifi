@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "platform": "linux/amd64",
+  "go_version": "1.26.5",
+  "base_image": "docker.io/library/golang:1.26.5-bookworm",
+  "base_index_sha256": "sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+  "base_platform_manifest_sha256": "sha256:3f6236bd765f898a2a3c2946112b04097814c4529d44534674700cd07b9c6b4c",
+  "dockerfile_frontend_sha256": "sha256:26147acbda4f14c5add9946e2fd2ed543fc402884fd75146bd342a7f6271dc1d",
+  "dockerfile_sha256": "8d326ac1cdbbbb91a7ab407bb7fba13c6c0e8c7b90599e1572f1670fdca6fffc",
+  "container_rebuild_sha256": "b86ac1e1071f443b036dc5af614e2e695adceb2b17a39d7a9d79270469d0b433",
+  "rebuild_script_sha256": "45e4a378f3b756a6cc29c22eed42a8c05e2a295bf1fe98ef2f82e75c101ce7e4",
+  "go_mod_sha256": "94cade3f8130346736f1f28b27bb3bb6f75e444ec4ec05986c240721f8d109b3",
+  "go_sum_sha256": "01015f5e1a3a8a7868127c544d2c7e591902c976fae06720ae4beb23ef030615",
+  "image_manifest_sha256": "sha256:23dd3cabc28c3830cd1d555cc92d52a0ae175f86db0d37517985643195e79cb4",
+  "image_config_sha256": "sha256:a0d99c2797fe261a7748134fe83d2809c5d6be3f3b846689f9a5a4aa467eb8a7"
+}

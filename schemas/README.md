@@ -2,45 +2,66 @@
 
 `cmd/fields` generates the Go client and `specification.json` from the JSON
 field definitions the UniFi Network application ships inside
-`internal-dependencies.jar`. Those definitions are extracted **transiently at
-build time** into this directory and are deliberately **not committed or
-redistributed** — they originate from software proprietary to Ubiquiti Inc.
-or its licensors, and this repository publishes only its own code and the
-generated interoperable client. Only the three marker files and this README
-are tracked.
+`internal-dependencies.jar`. The controller artifact and extracted definitions
+are not committed or redistributed. A restricted content-addressed store holds
+the retained artifact. This directory contains only permitted generated output,
+digests, and provenance.
 
 ## Layout
 
 ```
-VERSION    UniFi Network application version of the local cache (tracked)
-SOURCE     release identity the cache came from — "<product> <full-version>
-           <firmware-record-id>" (tracked); generation skips the download
-           when this matches the latest release
-ARTIFACT   URL of the controller artifact the cache came from (tracked);
-           a provenance record of the release the cache was extracted from
-fields/    extracted per-entity field validators + exploded Setting*.json +
-           the overlay copies from overrides/resources/   (gitignored)
-metadata/  extracted sensitive_metadata.json, which feeds the specification's
-           sensitive flags                                 (gitignored)
+capture.lock.json  sole structural-source lock (tracked)
+VERSION            Network version projection of capture.lock.json (tracked)
+SOURCE             product/build projection of capture.lock.json (tracked)
+ARTIFACT           source-location projection of capture.lock.json (tracked)
+GENERATED_SHA256   complete generated-output digest (tracked)
+fields/            extracted structural snapshot plus overlays (gitignored)
+metadata/          extracted sensitivity input (gitignored)
 ```
+
+Do not edit `VERSION`, `SOURCE`, or `ARTIFACT`. Generation rewrites them from
+the lock. `specification.json` remains a bootstrap and golden artifact. It does
+not define Terraform policy.
+
+`GENERATED_SHA256` covers generated Go, `specification.json`, the lock, and the
+three compatibility projections. It does not hash itself.
 
 ## Regenerating
 
+Set the restricted store path and generate from the lock:
+
 ```sh
-go generate ./...                    # latest release (deb preferred, UniFi OS
-                                     # Server installer fallback)
-go run ./cmd/fields -file <artifact> -output-dir=unifi   # from a local download
+export GO_UNIFI_CONTENT_STORE=/restricted/go-unifi/artifacts
+go generate ./...
 ```
 
-`-file` accepts either a UniFi Network `.deb` or a UniFi OS Server
-self-extracting installer; the format and Network version are detected from
-the artifact. CI caches `fields/` and `metadata/` keyed on `SOURCE`, so only
-runs that encounter a new release download anything.
+`cmd/fields` verifies the artifact size and SHA-256, generator-input digests,
+Network version, structural snapshot, and sensitivity snapshot before it
+replaces the local cache. A missing object, corrupt lock, changed generator, or
+snapshot mismatch stops the run.
 
-When the cache is current, runs re-sync the overlay files: overrides are
-re-copied and, using the `.extracted` manifest, copies of since-deleted
-override files are removed. Caches predating the manifest are treated as
-invalid and rebuilt.
+To propose a lock for a new artifact:
+
+```sh
+go run ./cmd/schema-capture \
+  -file=/restricted/incoming/unifi.deb \
+  -source-location=https://downloads.example.invalid/unifi.deb \
+  -media-type=application/vnd.debian.binary-package \
+  -product=unifi-controller \
+  -build='v10.4.57+build-record' \
+  -network-version=10.4.57 \
+  -content-store="$GO_UNIFI_CONTENT_STORE"
+```
+
+Use `-url` instead of `-file` when capture should fetch an explicitly selected
+artifact. Capture never discovers or blesses a replacement during ordinary
+generation. Review the proposed lock and generated API changes together.
+
+The lock records an operator-pinned checksum. Signing-key trust and key
+rotation are release-workflow concerns, not part of this initial contract.
+
+For the two-run, network-disabled Linux/amd64 rebuild, see
+[`build/m0/README.md`](../build/m0/README.md).
 
 ## Override layers
 
@@ -49,7 +70,7 @@ Schema adjustments are human-maintained under [overrides/](../overrides/)
 compat fields in `fields.toml`), with conditional logic in
 `cmd/fields/main.go` FieldProcessors and hand-written client code in
 `unifi/`. See the comments at the top of `overrides/fields.toml` for the
-selection rules; hand-written files must not re-declare generated types (the
+selection rules. Hand-written files must not re-declare generated types (the
 generator fails with a collision error naming the offending file).
 
 ## Live verification

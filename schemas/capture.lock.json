@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "controller": {
+    "product": "unifi-controller",
+    "build": "v10.4.57+atag-10.4.57-34628 86432683-a50a-4fd9-8e7b-21180c41611b",
+    "network_version": "10.4.57"
+  },
+  "source": {
+    "location": "https://fw-download.ubnt.com/data/unifi-controller/fa30-debian-10.4.57-86432683-a50a-4fd9-8e7b-21180c41611b.deb",
+    "media_type": "application/vnd.debian.binary-package",
+    "byte_size": 130327194,
+    "sha256": "fc378cf8cd2bec3d334bf7b72eabfcd1861e5fae67b9c16735471132105b2072",
+    "content_store_locator": "sha256/fc378cf8cd2bec3d334bf7b72eabfcd1861e5fae67b9c16735471132105b2072"
+  },
+  "inputs": {
+    "extraction_rules_sha256": "f4e02b550837d6d9526390a3b690c07f88842f32ca99a7ba7d4577209ab3bdb6",
+    "generator_inputs_sha256": "27e217a955df5047b131cd17446cd4a17a4ae392e9242fa3ddc5c888443abaef"
+  },
+  "snapshots": {
+    "structural_sha256": "f70b3d8f5501cf64c2d96a5e3767ce2eef46ddf04b11e3a19e27237c02360f97",
+    "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c"
+  },
+  "captured_at": "2026-08-04T04:50:10Z"
+}
