@@ -5,7 +5,27 @@ package unifi
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 )
+
+// ListDNSRecordRaw returns the controller's DNS collection JSON without
+// decoding it through DNSRecord. Observation tooling uses this narrow seam so
+// controller-added fields remain available for structural admission checks.
+func (c *ApiClient) ListDNSRecordRaw(ctx context.Context, site string) (json.RawMessage, error) {
+	var response json.RawMessage
+	if err := c.do(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("v2/api/site/%s/static-dns", site),
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
 
 func (c *ApiClient) ListDNSRecord(ctx context.Context, site string) ([]DNSRecord, error) {
 	return c.listDNSRecord(ctx, site)
