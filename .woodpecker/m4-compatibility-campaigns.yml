@@ -1,0 +1,20 @@
+when:
+  - event: manual
+  - event: push
+    branch: emdash/m4-compatibility-campaigns
+
+labels:
+  pool: skunkworks
+
+steps:
+  - name: compatibility-campaigns
+    image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    commands:
+      - apt-get update
+      - apt-get install --yes --no-install-recommends jq
+      - go mod download all
+      - GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go test ./... -count=1
+      - GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go generate ./scout ./campaigns
+      - git diff --exit-code -- catalogs campaigns
+      - jq -e '.classification == "equivalent" and .promotion == "review_required"' campaigns/network-10.4.57/dns_record.attestation.json
+      - jq -e '.classification == "blocked" and .promotion == "review_required" and .conflicts[0].field == "vendor_flag"' campaigns/network-10.4.57/dns_record.mutation-attestation.json

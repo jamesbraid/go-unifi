@@ -1,0 +1,9 @@
+{
+  "name": "network-10.4.57-seeded",
+  "product": "unifi-network",
+  "version": "10.4.57",
+  "architecture": "amd64",
+  "image_index_sha256": "sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
+  "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
+  "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
+}
