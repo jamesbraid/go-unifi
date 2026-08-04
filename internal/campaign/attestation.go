@@ -54,8 +54,10 @@ type catalogDocument struct {
 }
 
 type catalogSources struct {
-	CaptureLockSHA256   string `json:"capture_lock_sha256"`
-	SpecificationSHA256 string `json:"specification_sha256"`
+	CaptureLockSHA256          string `json:"capture_lock_sha256"`
+	SpecificationSHA256        string `json:"specification_sha256,omitempty"`
+	StructuralProjectionSHA256 string `json:"structural_projection_sha256,omitempty"`
+	SemanticIDsSHA256          string `json:"semantic_ids_sha256,omitempty"`
 }
 
 type structuralRecord struct {
@@ -92,21 +94,39 @@ type admission struct {
 }
 
 type catalogMigration struct {
-	FromID string `json:"from_id"`
-	ToID   string `json:"to_id"`
-	Reason string `json:"reason"`
+	FromID   string `json:"from_id"`
+	ToID     string `json:"to_id"`
+	Reason   string `json:"reason"`
+	Reviewed bool   `json:"reviewed,omitempty"`
+}
+
+type requestShape struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Query  string `json:"query"`
+	Body   string `json:"body"`
 }
 
 type scenarioReceipt struct {
 	FormatVersion              int           `json:"format_version"`
 	ScenarioID                 string        `json:"scenario_id"`
-	Target                     targetProfile `json:"target"`
-	Mode                       string        `json:"mode"`
+	ScenarioPath               string        `json:"scenario_path,omitempty"`
+	ScenarioMode               string        `json:"scenario_mode,omitempty"`
+	RequestShape               requestShape  `json:"request_shape,omitempty"`
+	ExecutionMode              string        `json:"execution_mode,omitempty"`
+	MeasuredTargetFingerprint  string        `json:"measured_target_fingerprint,omitempty"`
+	ResponseSHA256             string        `json:"response_sha256,omitempty"`
+	Normalization              string        `json:"normalization,omitempty"`
+	Redaction                  string        `json:"redaction,omitempty"`
+	Cleanup                    string        `json:"cleanup,omitempty"`
+	Target                     targetProfile `json:"target,omitempty"`
+	Mode                       string        `json:"mode,omitempty"`
 	OperationDigest            string        `json:"operation_digest"`
 	ObservedRecordCount        int           `json:"observed_record_count"`
 	RedactedFieldCount         int           `json:"redacted_field_count"`
 	CanonicalObservationSHA256 string        `json:"canonical_observation_sha256"`
-	Result                     string        `json:"result"`
+	Result                     string        `json:"result,omitempty"`
+	Verdict                    string        `json:"verdict,omitempty"`
 }
 
 type attestation struct {
@@ -174,16 +194,42 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if err := validateCatalog(candidate); err != nil {
 		return nil, fmt.Errorf("candidate catalog: %w", err)
 	}
-	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || receipt.Mode == "" {
+	mode := receipt.ScenarioMode
+	if mode == "" {
+		mode = receipt.Mode
+	}
+	verdict := receipt.Verdict
+	if verdict == "" {
+		verdict = receipt.Result
+	}
+	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || mode == "" {
 		return nil, fmt.Errorf("scenario receipt identity is incomplete")
 	}
-	if !reflect.DeepEqual(receipt.Target, candidate.Target) {
-		return nil, fmt.Errorf("scenario receipt target does not match candidate catalog")
+	switch receipt.ExecutionMode {
+	case "":
+		if !reflect.DeepEqual(receipt.Target, candidate.Target) {
+			return nil, fmt.Errorf("scenario receipt target does not match candidate catalog")
+		}
+	case "fixture":
+		if receipt.Target != (targetProfile{}) || receipt.MeasuredTargetFingerprint != "" {
+			return nil, fmt.Errorf("fixture receipt target claim is not permitted")
+		}
+		if receipt.ScenarioPath == "" || receipt.RequestShape.Method == "" ||
+			receipt.RequestShape.Path == "" || receipt.ResponseSHA256 == "" ||
+			receipt.Normalization == "" || receipt.Redaction == "" || receipt.Cleanup == "" {
+			return nil, fmt.Errorf("fixture scenario receipt bindings are incomplete")
+		}
+	case "live":
+		if receipt.MeasuredTargetFingerprint == "" || receipt.MeasuredTargetFingerprint != candidate.Target.ControllerFingerprint {
+			return nil, fmt.Errorf("live scenario receipt target fingerprint does not match candidate catalog")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported scenario receipt execution mode %q", receipt.ExecutionMode)
 	}
 	if receipt.OperationDigest != candidate.Admission.OperationDigest {
 		return nil, fmt.Errorf("scenario receipt operation does not match candidate catalog")
 	}
-	if receipt.Result != candidate.Admission.State {
+	if verdict != candidate.Admission.State {
 		return nil, fmt.Errorf("scenario receipt result does not match candidate admission")
 	}
 
@@ -251,9 +297,11 @@ func BuildAttestation(input Input) ([]byte, error) {
 }
 
 func validateCatalog(document catalogDocument) error {
+	hasLegacyStructure := document.Sources.SpecificationSHA256 != ""
+	hasProjectedStructure := document.Sources.StructuralProjectionSHA256 != "" && document.Sources.SemanticIDsSHA256 != ""
 	if document.FormatVersion != 1 || document.CatalogID == "" || document.Target.Name == "" ||
 		document.Target.ImageIndexSHA256 == "" || document.Target.ImageManifestSHA256 == "" ||
-		document.Sources.CaptureLockSHA256 == "" || document.Sources.SpecificationSHA256 == "" ||
+		document.Sources.CaptureLockSHA256 == "" || (!hasLegacyStructure && !hasProjectedStructure) ||
 		document.Admission.OperationDigest == "" {
 		return fmt.Errorf("catalog identity and immutable inputs are required")
 	}

@@ -15,6 +15,8 @@ VERSION            Network version projection of capture.lock.json (tracked)
 SOURCE             product/build projection of capture.lock.json (tracked)
 ARTIFACT           source-location projection of capture.lock.json (tracked)
 GENERATED_SHA256   complete generated-output digest (tracked)
+structural/        policy-free controller projections for scouting (tracked)
+semantic-ids/      reviewed stable scout identities and lineage (tracked)
 fields/            extracted structural snapshot plus overlays (gitignored)
 metadata/          extracted sensitivity input (gitignored)
 ```

@@ -11,6 +11,13 @@ import (
 	"strings"
 )
 
+const (
+	dnsScenarioPath     = "/v2/api/site/{site}/static-dns"
+	normalizationPolicy = "field_presence_and_json_type_v1"
+	redactionPolicy     = "drop_all_observed_values_v1"
+	cleanupPolicy       = "not_required_read_only"
+)
+
 var ignoredControllerFields = map[string]struct{}{
 	"_id":            {},
 	"site_id":        {},
@@ -20,26 +27,43 @@ var ignoredControllerFields = map[string]struct{}{
 	"attr_no_edit":   {},
 }
 
-// BuildDNSCatalog joins the generated DNS structure with a declared,
-// sanitized observation. Observed values never enter either output.
+// BuildDNSCatalog joins a policy-free DNS structural projection with one raw
+// controller response. Observed values never enter either output.
 func BuildDNSCatalog(input Input) (Result, error) {
 	if input.Target.Name == "" || input.Target.Product == "" || input.Target.Version == "" ||
 		input.Target.Architecture == "" || input.Target.ImageIndexSHA256 == "" ||
 		input.Target.ImageManifestSHA256 == "" || input.Target.ControllerFingerprint == "" {
 		return Result{}, fmt.Errorf("immutable target digest and identity are required")
 	}
-	if input.Scenario.Mode != "read_only" && input.Scenario.Mode != "disposable" {
+	if input.Scenario.Mode != "read_only" {
 		return Result{}, fmt.Errorf("unsupported scenario mode %q", input.Scenario.Mode)
 	}
 	if input.Scenario.ID == "" || input.Scenario.Resource != "dns_record" ||
-		input.Scenario.Method == "" || input.Scenario.Path == "" {
-		return Result{}, fmt.Errorf("incomplete DNS scenario")
+		input.Scenario.Method != "GET" || input.Scenario.Path != dnsScenarioPath {
+		return Result{}, fmt.Errorf("incomplete or unsupported DNS scenario")
 	}
-	if input.CaptureLockSHA256 == "" {
-		return Result{}, fmt.Errorf("capture lock digest is required")
+	if input.LockedSources.CaptureLockSHA256 == "" || input.LockedSources.ExtractionRulesSHA256 == "" ||
+		input.LockedSources.StructuralSHA256 == "" || input.LockedSources.SensitivitySHA256 == "" {
+		return Result{}, fmt.Errorf("complete locked source digests are required")
+	}
+	switch input.ExecutionMode {
+	case "fixture":
+		if input.MeasuredTargetFingerprint != "" {
+			return Result{}, fmt.Errorf("fixture execution cannot claim a measured target fingerprint")
+		}
+	case "live":
+		if input.MeasuredTargetFingerprint == "" {
+			return Result{}, fmt.Errorf("live execution requires a measured target fingerprint")
+		}
+	default:
+		return Result{}, fmt.Errorf("unsupported execution mode %q", input.ExecutionMode)
 	}
 
-	fields, err := dnsStructuralFields(input.Specification)
+	fields, err := loadStructuralProjection(input)
+	if err != nil {
+		return Result{}, err
+	}
+	semanticIDs, tombstones, migrations, err := loadSemanticRegistry(input, fields)
 	if err != nil {
 		return Result{}, err
 	}
@@ -47,32 +71,29 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	secretCandidates := make(map[string]struct{}, len(input.SecretCandidateFields))
-	for _, name := range input.SecretCandidateFields {
-		secretCandidates[name] = struct{}{}
-	}
 
 	structuralNames := make([]string, 0, len(fields))
 	structuralByName := make(map[string]structuralRecord, len(fields))
 	for name, field := range fields {
-		id := catalogFieldID(name)
-		_, secretCandidate := secretCandidates[name]
-		record := structuralRecord{
-			ID:               id,
-			Field:            name,
-			Type:             field.Type,
-			DefinitionSHA256: digest(field.Definition),
-			SecretCandidate:  secretCandidate,
+		definition, err := json.Marshal(field)
+		if err != nil {
+			return Result{}, fmt.Errorf("encode structural field %q: %w", name, err)
 		}
 		structuralNames = append(structuralNames, name)
-		structuralByName[name] = record
+		structuralByName[name] = structuralRecord{
+			ID:               semanticIDs[name],
+			Field:            name,
+			Type:             field.JSONType,
+			DefinitionSHA256: digest(definition),
+			SecretCandidate:  field.SecretCandidate,
+		}
 	}
 	sort.Strings(structuralNames)
 
 	observed := make(map[string]*observedRecord, len(fields))
 	for _, name := range structuralNames {
 		observed[name] = &observedRecord{
-			ID:       catalogFieldID(name),
+			ID:       semanticIDs[name],
 			Field:    name,
 			JSONType: "unobserved",
 		}
@@ -108,11 +129,11 @@ func BuildDNSCatalog(input Input) (Result, error) {
 			} else if observedType != "null" && observedType != entry.JSONType {
 				entry.JSONType = "mixed"
 			}
-			if nonNull && !compatibleType(field.Type, observedType) {
+			if nonNull && !compatibleType(field.JSONType, observedType) {
 				conflicts = append(conflicts, conflict{
 					Kind:     "type_mismatch",
 					Field:    name,
-					Expected: field.Type,
+					Expected: field.JSONType,
 					Observed: observedType,
 				})
 			}
@@ -160,8 +181,9 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		CatalogID:     fmt.Sprintf("unifi.network.dns_record@%s", input.Target.Version),
 		Target:        input.Target,
 		Sources: catalogSources{
-			CaptureLockSHA256:   input.CaptureLockSHA256,
-			SpecificationSHA256: digest(input.Specification),
+			CaptureLockSHA256:          input.LockedSources.CaptureLockSHA256,
+			StructuralProjectionSHA256: digest(input.StructuralProjection),
+			SemanticIDsSHA256:          digest(input.SemanticIDs),
 		},
 		StructuralRecords: structuralRecords,
 		ObservedRecords:   observedRecords,
@@ -171,8 +193,8 @@ func BuildDNSCatalog(input Input) (Result, error) {
 			State:           admissionState,
 			OperationDigest: operationDigest,
 		},
-		Tombstones: []string{},
-		Migrations: []catalogMigration{},
+		Tombstones: tombstones,
+		Migrations: migrations,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("encode catalog: %w", err)
@@ -180,13 +202,20 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	receiptBytes, err := encodeCanonical(scenarioReceipt{
 		FormatVersion:              1,
 		ScenarioID:                 input.Scenario.ID,
-		Target:                     input.Target,
-		Mode:                       input.Scenario.Mode,
+		ScenarioPath:               input.Scenario.Path,
+		ScenarioMode:               input.Scenario.Mode,
+		RequestShape:               requestShape{Method: input.Scenario.Method, Path: input.Scenario.Path, Query: "none", Body: "none"},
+		ExecutionMode:              input.ExecutionMode,
+		MeasuredTargetFingerprint:  input.MeasuredTargetFingerprint,
 		OperationDigest:            operationDigest,
+		ResponseSHA256:             digest(input.ObservedResponse),
+		Normalization:              normalizationPolicy,
+		Redaction:                  redactionPolicy,
+		Cleanup:                    cleanupPolicy,
 		ObservedRecordCount:        len(records),
 		RedactedFieldCount:         redactedFields,
 		CanonicalObservationSHA256: digest(observationBytes),
-		Result:                     admissionState,
+		Verdict:                    admissionState,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("encode scenario receipt: %w", err)
@@ -194,55 +223,141 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	return Result{Catalog: catalogBytes, Receipt: receiptBytes}, nil
 }
 
-type structuralField struct {
-	Type       string
-	Definition []byte
+func loadStructuralProjection(input Input) (map[string]structuralProjectionField, error) {
+	var projection structuralProjection
+	if err := decodeStrictSingleJSON(input.StructuralProjection, &projection); err != nil {
+		return nil, fmt.Errorf("decode structural projection: %w", err)
+	}
+	if projection.FormatVersion != 1 || projection.Resource != "dns_record" {
+		return nil, fmt.Errorf("unsupported DNS structural projection")
+	}
+	if projection.Source.StructuralSHA256 != input.LockedSources.StructuralSHA256 {
+		return nil, fmt.Errorf("structural snapshot digest does not match capture lock")
+	}
+	if projection.Source.SensitivitySHA256 != input.LockedSources.SensitivitySHA256 {
+		return nil, fmt.Errorf("sensitivity snapshot digest does not match capture lock")
+	}
+	if len(projection.Fields) == 0 {
+		return nil, fmt.Errorf("DNS structural projection has no fields")
+	}
+	fields := make(map[string]structuralProjectionField, len(projection.Fields))
+	for _, field := range projection.Fields {
+		if field.WireName == "" || !supportedJSONType(field.JSONType) {
+			return nil, fmt.Errorf("invalid DNS structural field %q", field.WireName)
+		}
+		if _, exists := fields[field.WireName]; exists {
+			return nil, fmt.Errorf("duplicate DNS structural field %q", field.WireName)
+		}
+		fields[field.WireName] = field
+	}
+	return fields, nil
 }
 
-func dnsStructuralFields(document []byte) (map[string]structuralField, error) {
-	var specification struct {
-		Resources []struct {
-			Name   string `json:"name"`
-			Schema struct {
-				Attributes []map[string]json.RawMessage `json:"attributes"`
-			} `json:"schema"`
-		} `json:"resources"`
+func loadSemanticRegistry(input Input, fields map[string]structuralProjectionField) (map[string]string, []string, []catalogMigration, error) {
+	var registry semanticRegistry
+	if err := decodeStrictSingleJSON(input.SemanticIDs, &registry); err != nil {
+		return nil, nil, nil, fmt.Errorf("decode semantic IDs: %w", err)
 	}
-	if err := decodeSingleJSON(document, &specification); err != nil {
-		return nil, fmt.Errorf("decode specification: %w", err)
+	if registry.FormatVersion != 1 || registry.Resource != "dns_record" {
+		return nil, nil, nil, fmt.Errorf("unsupported DNS semantic ID registry")
 	}
-	for _, resource := range specification.Resources {
-		if resource.Name != "dns_record" {
+	if registry.ExtractionRulesSHA256 != input.LockedSources.ExtractionRulesSHA256 {
+		return nil, nil, nil, fmt.Errorf("extraction rules digest does not match capture lock")
+	}
+	if registry.PriorIDs == nil || registry.Tombstones == nil || registry.Migrations == nil {
+		return nil, nil, nil, fmt.Errorf("semantic ID history must declare prior_ids, tombstones, and migrations")
+	}
+
+	semanticIDs := make(map[string]string, len(registry.Fields))
+	activeIDs := make(map[string]struct{}, len(registry.Fields))
+	for _, field := range registry.Fields {
+		if field.WireName == "" || !strings.HasPrefix(field.ID, "unifi.network.dns_record.") {
+			return nil, nil, nil, fmt.Errorf("invalid semantic ID for field %q", field.WireName)
+		}
+		if _, exists := semanticIDs[field.WireName]; exists {
+			return nil, nil, nil, fmt.Errorf("duplicate semantic mapping for field %q", field.WireName)
+		}
+		if _, exists := activeIDs[field.ID]; exists {
+			return nil, nil, nil, fmt.Errorf("duplicate active semantic ID %q", field.ID)
+		}
+		if _, exists := fields[field.WireName]; !exists {
+			return nil, nil, nil, fmt.Errorf("semantic field %q is absent from structural projection", field.WireName)
+		}
+		semanticIDs[field.WireName] = field.ID
+		activeIDs[field.ID] = struct{}{}
+	}
+	for name := range fields {
+		if _, exists := semanticIDs[name]; !exists {
+			return nil, nil, nil, fmt.Errorf("structural field %q has no semantic ID", name)
+		}
+	}
+
+	priorIDs := make(map[string]struct{}, len(registry.PriorIDs))
+	for _, id := range registry.PriorIDs {
+		if id == "" {
+			return nil, nil, nil, fmt.Errorf("prior semantic ID cannot be empty")
+		}
+		if _, duplicate := priorIDs[id]; duplicate {
+			return nil, nil, nil, fmt.Errorf("duplicate prior semantic ID %q", id)
+		}
+		priorIDs[id] = struct{}{}
+	}
+	tombstoned := make(map[string]struct{}, len(registry.Tombstones))
+	tombstones := make([]string, 0, len(registry.Tombstones))
+	for _, tombstone := range registry.Tombstones {
+		if tombstone.ID == "" || strings.TrimSpace(tombstone.Reason) == "" {
+			return nil, nil, nil, fmt.Errorf("semantic tombstone requires ID and reason")
+		}
+		if _, existed := priorIDs[tombstone.ID]; !existed {
+			return nil, nil, nil, fmt.Errorf("tombstone %q was not a prior semantic ID", tombstone.ID)
+		}
+		if _, active := activeIDs[tombstone.ID]; active {
+			return nil, nil, nil, fmt.Errorf("active semantic ID %q cannot be tombstoned", tombstone.ID)
+		}
+		if _, duplicate := tombstoned[tombstone.ID]; duplicate {
+			return nil, nil, nil, fmt.Errorf("duplicate semantic tombstone %q", tombstone.ID)
+		}
+		tombstoned[tombstone.ID] = struct{}{}
+		tombstones = append(tombstones, tombstone.ID)
+	}
+	sort.Strings(tombstones)
+
+	migrated := make(map[string]struct{}, len(registry.Migrations))
+	migrations := make([]catalogMigration, len(registry.Migrations))
+	copy(migrations, registry.Migrations)
+	for _, migration := range migrations {
+		if migration.FromID == "" || migration.ToID == "" || strings.TrimSpace(migration.Reason) == "" {
+			return nil, nil, nil, fmt.Errorf("semantic migration requires from_id, to_id, and reason")
+		}
+		if !migration.Reviewed {
+			return nil, nil, nil, fmt.Errorf("semantic migration from %q must be reviewed", migration.FromID)
+		}
+		if _, existed := priorIDs[migration.FromID]; !existed {
+			return nil, nil, nil, fmt.Errorf("migration source %q was not a prior semantic ID", migration.FromID)
+		}
+		if _, active := activeIDs[migration.ToID]; !active {
+			return nil, nil, nil, fmt.Errorf("migration target %q is not an active semantic ID", migration.ToID)
+		}
+		if _, duplicate := migrated[migration.FromID]; duplicate {
+			return nil, nil, nil, fmt.Errorf("duplicate semantic migration from %q", migration.FromID)
+		}
+		migrated[migration.FromID] = struct{}{}
+	}
+	sort.Slice(migrations, func(i, j int) bool { return migrations[i].FromID < migrations[j].FromID })
+
+	for id := range priorIDs {
+		if _, active := activeIDs[id]; active {
 			continue
 		}
-		fields := make(map[string]structuralField, len(resource.Schema.Attributes))
-		for _, attribute := range resource.Schema.Attributes {
-			var name string
-			if err := json.Unmarshal(attribute["name"], &name); err != nil || name == "" {
-				return nil, fmt.Errorf("DNS attribute has no name")
-			}
-			for _, attributeType := range []string{"bool", "string", "int64", "float64", "number", "list", "set", "map", "object"} {
-				definition, ok := attribute[attributeType]
-				if !ok {
-					continue
-				}
-				canonicalDefinition, err := canonicalJSON(definition)
-				if err != nil {
-					return nil, fmt.Errorf("DNS attribute %q: %w", name, err)
-				}
-				fields[name] = structuralField{Type: attributeType, Definition: canonicalDefinition}
-				break
-			}
-			if _, ok := fields[name]; !ok {
-				return nil, fmt.Errorf("DNS attribute %q has no supported type", name)
-			}
+		if _, removed := tombstoned[id]; removed {
+			continue
 		}
-		if len(fields) == 0 {
-			return nil, fmt.Errorf("DNS resource has no structural fields")
+		if _, moved := migrated[id]; moved {
+			continue
 		}
-		return fields, nil
+		return nil, nil, nil, fmt.Errorf("semantic registry strands prior semantic ID %q", id)
 	}
-	return nil, fmt.Errorf("specification has no dns_record resource")
+	return semanticIDs, tombstones, migrations, nil
 }
 
 func observedObjects(document []byte) ([]map[string]json.RawMessage, error) {
@@ -260,11 +375,24 @@ func observedObjects(document []byte) ([]map[string]json.RawMessage, error) {
 	return records, nil
 }
 
+func decodeStrictSingleJSON(document []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	return ensureJSONEOF(decoder)
+}
+
 func decodeSingleJSON(document []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(document))
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
+	return ensureJSONEOF(decoder)
+}
+
+func ensureJSONEOF(decoder *json.Decoder) error {
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
@@ -273,16 +401,6 @@ func decodeSingleJSON(document []byte, target any) error {
 		return err
 	}
 	return nil
-}
-
-func canonicalJSON(document []byte) ([]byte, error) {
-	decoder := json.NewDecoder(bytes.NewReader(document))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return nil, err
-	}
-	return json.Marshal(value)
 }
 
 func jsonValueType(raw []byte) (string, bool, error) {
@@ -310,21 +428,17 @@ func jsonValueType(raw []byte) (string, bool, error) {
 	}
 }
 
-func compatibleType(structuralType, observedType string) bool {
-	switch structuralType {
-	case "bool":
-		return observedType == "bool"
-	case "string":
-		return observedType == "string"
-	case "int64", "float64", "number":
-		return observedType == "number"
-	case "list", "set":
-		return observedType == "array"
-	case "map", "object":
-		return observedType == "object"
+func supportedJSONType(value string) bool {
+	switch value {
+	case "bool", "string", "number", "array", "object":
+		return true
 	default:
 		return false
 	}
+}
+
+func compatibleType(structuralType, observedType string) bool {
+	return structuralType == observedType
 }
 
 func unsafeFieldName(name string) bool {
@@ -335,10 +449,6 @@ func unsafeFieldName(name string) bool {
 		}
 	}
 	return false
-}
-
-func catalogFieldID(field string) string {
-	return "unifi.network.dns_record.field." + field
 }
 
 func digest(document []byte) string {
