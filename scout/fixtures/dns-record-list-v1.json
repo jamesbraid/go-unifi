@@ -1,0 +1,14 @@
+[
+  {
+    "_id": "000000000000000000000001",
+    "site_id": "000000000000000000000002",
+    "enabled": true,
+    "key": "scout.example.invalid",
+    "port": 53,
+    "priority": 10,
+    "record_type": "A",
+    "ttl": 300,
+    "value": "192.0.2.40",
+    "weight": 1
+  }
+]

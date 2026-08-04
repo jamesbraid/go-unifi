@@ -1,0 +1,7 @@
+{
+  "id": "dns-record-list-v1",
+  "mode": "read_only",
+  "resource": "dns_record",
+  "method": "GET",
+  "path": "/v2/api/site/{site}/static-dns"
+}
