@@ -2,9 +2,34 @@
 name: Schema Generation
 
 on:
-  schedule:
-    - cron: 0 0 * * *
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      artifact_url:
+        description: Exact controller artifact URL
+        required: true
+        type: string
+      product:
+        description: Controller product identity
+        required: true
+        default: unifi-controller
+        type: string
+      build_identity:
+        description: Full controller build identity
+        required: true
+        type: string
+      network_version:
+        description: Expected UniFi Network version
+        required: true
+        type: string
+      uos_version:
+        description: UniFi OS version, when applicable
+        required: false
+        type: string
+      media_type:
+        description: Controller artifact media type
+        required: true
+        default: application/vnd.debian.binary-package
+        type: string
 
 permissions:
   contents: write
@@ -30,48 +55,39 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      # The extracted definitions are a gitignored local cache (they are not
-      # committed or redistributed); restore it so only runs that encounter
-      # a new release download an artifact. Restore and save are split
-      # because generation rewrites schemas/SOURCE: the save key must be
-      # computed from the NEW marker or a fresh extraction would be saved
-      # under the previous release's (already existing, immutable) key.
-      - name: Restore schema cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            schemas/fields
-            schemas/metadata
-          key: schemas-${{ hashFiles('schemas/SOURCE', 'cmd/fields/**/*.go') }}
+      - name: Prepare ephemeral content store
+        run: echo "GO_UNIFI_CONTENT_STORE=$RUNNER_TEMP/go-unifi-content-store" >> "$GITHUB_ENV"
 
-      # Compare the latest release on the firmware update API with the
-      # tracked cache markers so unchanged nights skip the download.
-      - name: Check for a new controller release
-        id: check
+      # Capture is explicit. The job never queries "latest," and its ephemeral
+      # store is not promotion evidence. A maintainer must retain the exact
+      # digest in the restricted store before merging the proposed lock.
+      - name: Capture selected controller artifact
+        id: capture
+        env:
+          ARTIFACT_URL: ${{ inputs.artifact_url }}
+          PRODUCT: ${{ inputs.product }}
+          BUILD_IDENTITY: ${{ inputs.build_identity }}
+          NETWORK_VERSION: ${{ inputs.network_version }}
+          UOS_VERSION: ${{ inputs.uos_version }}
+          MEDIA_TYPE: ${{ inputs.media_type }}
         run: |
-          latest="$(go run ./cmd/fields -print-latest)"
-          current="$(cat schemas/SOURCE 2>/dev/null || true)"
-          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
-          if [ "${latest}" = "${current}" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Schema cache already current (${current})"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "New release ${latest} (cache: ${current:-none})"
-          fi
+          set -euo pipefail
+          captured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          go run ./cmd/schema-capture \
+            -url="$ARTIFACT_URL" \
+            -media-type="$MEDIA_TYPE" \
+            -product="$PRODUCT" \
+            -build="$BUILD_IDENTITY" \
+            -network-version="$NETWORK_VERSION" \
+            -uos-version="$UOS_VERSION" \
+            -captured-at="$captured_at"
+          echo "identity=${PRODUCT} ${BUILD_IDENTITY}" >> "$GITHUB_OUTPUT"
 
       - name: Generate
-        if: steps.check.outputs.changed == 'true'
         run: go generate ./...
 
-      - name: Save schema cache
-        if: steps.check.outputs.changed == 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            schemas/fields
-            schemas/metadata
-          key: schemas-${{ hashFiles('schemas/SOURCE', 'cmd/fields/**/*.go') }}
+      - name: Record generated output digest
+        run: go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
 
       # Controller schema drift can break the public Go API (removed
       # fields, type changes such as []string -> []struct). Compare the
@@ -83,7 +99,6 @@ jobs:
       # cmd/ holds main packages, which are not importable API, so
       # incompatibilities there are ignored.
       - name: Check API compatibility
-        if: steps.check.outputs.changed == 'true'
         id: compat
         env:
           APIDIFF: golang.org/x/exp/cmd/apidiff@v0.0.0-20260709172345-9ea1abe57597
@@ -123,36 +138,20 @@ jobs:
               fi
               echo '```'
               echo
-              echo 'Auto-merge is disabled; a maintainer must review. After a'
+              echo 'A maintainer must review. After a'
               echo 'manual merge the auto-release workflow will refuse to tag,'
               echo 'so tag by hand (accepted minor, or a /v2 major).'
             else
-              echo "No breaking API changes against \`${base:-any release tag}\`;"
-              echo 'auto-merge and auto-release proceed as usual.'
+              echo "No breaking API changes against \`${base:-any release tag}\`."
+              echo 'A maintainer must still review the lock and generated diff.'
             fi
             echo 'APIDIFF_SUMMARY'
           } >> "$GITHUB_OUTPUT"
 
-      # PRs created with the default workflow token cannot run CI to
-      # completion unattended (runs are either not triggered or held for
-      # approval), so the PR is opened with a bot identity when one is
-      # configured. Preferred: a GitHub App ("schema bot") — set the
-      # SCHEMA_BOT_APP_ID repo *variable* and SCHEMA_BOT_PRIVATE_KEY repo
-      # *secret*, and the step below mints a short-lived installation
-      # token. Fallbacks: a SCHEMA_UPDATE_TOKEN PAT secret, then the
-      # default token (PR still appears, needs manual attention).
-      # NOTE: auto-merge only waits for checks that branch protection marks
-      # required (the Test and Integration jobs); without that protection
-      # rule it merges immediately, ungated. Breaking API changes skip
-      # auto-merge entirely (see the Flag breaking change step below).
-      # NOTE: integration.yaml is path-filtered; integration-noop.yaml
-      # covers every other PR so the required Integration check always
-      # reports — see that file's comment for the full rationale.
-      # continue-on-error keeps the fallback chain real: a missing/invalid
-      # private key degrades to the PAT/default token (visible as a failed
-      # step) instead of killing the whole nightly run.
+      # Prefer a short-lived schema-bot token. A PAT or the workflow token is
+      # used when the app is not configured; every capture PR remains manual.
       - name: Mint bot token
-        if: steps.check.outputs.changed == 'true' && vars.SCHEMA_BOT_APP_ID != ''
+        if: vars.SCHEMA_BOT_APP_ID != ''
         id: bot
         continue-on-error: true
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -161,44 +160,32 @@ jobs:
           private-key: ${{ secrets.SCHEMA_BOT_PRIVATE_KEY }}
 
       - name: Create pull request
-        if: steps.check.outputs.changed == 'true'
         id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
           branch: schema-update
           delete-branch: true
-          title: Update to ${{ steps.check.outputs.latest }}
+          title: Update to ${{ steps.capture.outputs.identity }}
           commit-message: |
-            schemas: update to ${{ steps.check.outputs.latest }}
+            schemas: update to ${{ steps.capture.outputs.identity }}
 
-            Automated regeneration from the latest controller release on
-            the firmware update API.
+            Regenerate from the operator-selected controller artifact and
+            record its immutable capture lock.
           body: |
-            Automated schema refresh for `${{ steps.check.outputs.latest }}`.
+            Schema refresh for `${{ steps.capture.outputs.identity }}`.
+
+            Before merge, retain the captured digest in the restricted store
+            and review the lock, generated API diff, and integration evidence.
 
             ${{ steps.compat.outputs.summary }}
-
-      - name: Enable auto-merge
-        if: >-
-          steps.check.outputs.changed == 'true' &&
-          steps.pr.outputs.pull-request-number != '' &&
-          steps.compat.outputs.breaking != 'true'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
-        run: >-
-          gh pr merge --auto --squash
-          --repo "${{ github.repository }}"
-          "${{ steps.pr.outputs.pull-request-number }}"
 
       # Breaking drift still gets a PR, but a human decides the merge and
       # the version bump. The label makes the state visible at a glance;
       # the apidiff output is already in the PR body (updated in place on
-      # every rerun, unlike comments, which would pile up nightly).
+      # every rerun, unlike comments, which would pile up).
       - name: Flag breaking change
         if: >-
-          steps.check.outputs.changed == 'true' &&
           steps.pr.outputs.pull-request-number != '' &&
           steps.compat.outputs.breaking == 'true'
         continue-on-error: true

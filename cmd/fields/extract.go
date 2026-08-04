@@ -6,23 +6,18 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
@@ -67,56 +62,6 @@ var minFieldFiles = 15
 type artifacts struct {
 	aceJar      string
 	internalJar string
-}
-
-// httpClient retries transient failures; controller artifacts are large and
-// the nightly workflow should not fail on a single connection reset. The
-// overall timeout bounds a stalled connection (retryablehttp defaults to
-// none) while leaving ample room for the ~880MB installer on slow links.
-func httpClient() *http.Client {
-	rc := retryablehttp.NewClient()
-	rc.Logger = nil
-	rc.HTTPClient.Timeout = 15 * time.Minute
-	return rc.StandardClient()
-}
-
-func downloadArtifact(url *url.URL, outputDir string) (string, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("unable to build download request: %w", err)
-	}
-
-	resp, err := httpClient().Do(req)
-	if err != nil {
-		return "", fmt.Errorf("unable to download %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unable to download %s: HTTP %s", url, resp.Status)
-	}
-
-	name := path.Base(url.Path)
-	if name == "" || name == "/" || name == "." || name == ".." {
-		name = "unifi-artifact"
-	}
-
-	dest := filepath.Join(outputDir, name)
-	f, err := os.Create(dest)
-	if err != nil {
-		return "", fmt.Errorf("unable to create download file: %w", err)
-	}
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
-		return "", fmt.Errorf("unable to write download file: %w", err)
-	}
-	// A failed flush on close would silently truncate the artifact.
-	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("unable to write download file: %w", err)
-	}
-
-	return dest, nil
 }
 
 // extractArtifacts sniffs the packaging format of a controller distribution

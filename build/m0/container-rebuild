@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+source_root=${SOURCE_ROOT:-/source}
+output_root=${OUTPUT_ROOT:-/out}
+work_root=$(mktemp -d /tmp/go-unifi-rebuild-XXXXXX)
+trap 'rm -rf "$work_root"' EXIT HUP INT TERM
+
+mkdir -p "$work_root/source" "$output_root"
+cp -a "$source_root/." "$work_root/source/"
+cd "$work_root/source"
+
+export GO_UNIFI_CONTENT_STORE=/content
+export GOCACHE="$work_root/go-build"
+export HOME="$work_root/home"
+export XDG_CACHE_HOME="$work_root/xdg-cache"
+
+go run ./cmd/rebuild-manifest -root=. -output="$output_root/before.json" \
+    >"$output_root/before.sha256"
+go generate ./... >"$output_root/generate.log"
+go run ./cmd/rebuild-manifest -root=. -compare="$output_root/before.json" \
+    -output="$output_root/after.json" >"$output_root/after.sha256"
+go test -count=1 ./... >"$output_root/test.log"

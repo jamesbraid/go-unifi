@@ -1,0 +1,158 @@
+// Package rebuild records and compares the complete generated-output surface.
+package rebuild
+
+import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+const ManifestFormatVersion = 1
+
+type Manifest struct {
+	FormatVersion int    `json:"format_version"`
+	OutputSHA256  string `json:"output_sha256"`
+	Files         []File `json:"files"`
+}
+
+type File struct {
+	Path   string `json:"path"`
+	Bytes  int64  `json:"bytes"`
+	SHA256 string `json:"sha256"`
+}
+
+var requiredOutputs = []string{
+	"schemas/ARTIFACT",
+	"schemas/SOURCE",
+	"schemas/VERSION",
+	"schemas/capture.lock.json",
+	"specification.json",
+}
+
+func BuildManifest(root string) (Manifest, error) {
+	names := append([]string(nil), requiredOutputs...)
+	unifiRoot := filepath.Join(root, "unifi")
+	err := filepath.WalkDir(unifiRoot, func(filename string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".generated.go") {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("generated output %s is not a regular file", filename)
+		}
+		rel, err := filepath.Rel(root, filename)
+		if err != nil {
+			return err
+		}
+		names = append(names, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return Manifest{}, fmt.Errorf("scan generated Go: %w", err)
+	}
+	if len(names) == len(requiredOutputs) {
+		return Manifest{}, errors.New("no generated Go outputs found")
+	}
+	sort.Strings(names)
+
+	manifest := Manifest{FormatVersion: ManifestFormatVersion}
+	outputDigest := sha256.New()
+	for _, name := range names {
+		filename := filepath.Join(root, filepath.FromSlash(name))
+		stat, err := os.Stat(filename)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("required rebuild output %s: %w", name, err)
+		}
+		if !stat.Mode().IsRegular() {
+			return Manifest{}, fmt.Errorf("required rebuild output %s is not a regular file", name)
+		}
+		digest, err := digestFile(filename)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("digest rebuild output %s: %w", name, err)
+		}
+		manifest.Files = append(manifest.Files, File{Path: name, Bytes: stat.Size(), SHA256: digest})
+		fmt.Fprintf(outputDigest, "%s\x00%d\x00%s\x00", name, stat.Size(), digest)
+	}
+	manifest.OutputSHA256 = hex.EncodeToString(outputDigest.Sum(nil))
+	return manifest, nil
+}
+
+func Compare(want, got Manifest) error {
+	if want.FormatVersion != ManifestFormatVersion || got.FormatVersion != ManifestFormatVersion {
+		return fmt.Errorf("rebuild manifest format must be %d", ManifestFormatVersion)
+	}
+	limit := len(want.Files)
+	if len(got.Files) < limit {
+		limit = len(got.Files)
+	}
+	for index := 0; index < limit; index++ {
+		if want.Files[index] != got.Files[index] {
+			return fmt.Errorf(
+				"nondeterministic generated output at %s (first %#v, second %#v)",
+				want.Files[index].Path,
+				want.Files[index],
+				got.Files[index],
+			)
+		}
+	}
+	if len(want.Files) != len(got.Files) {
+		return fmt.Errorf("nondeterministic generated output file count: first %d, second %d", len(want.Files), len(got.Files))
+	}
+	if want.OutputSHA256 != got.OutputSHA256 {
+		return fmt.Errorf("nondeterministic generated output digest: first %s, second %s", want.OutputSHA256, got.OutputSHA256)
+	}
+	return nil
+}
+
+func WriteManifest(filename string, manifest Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filename, append(data, '\n'), 0o644)
+}
+
+func LoadManifest(filename string) (Manifest, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer f.Close()
+	decoder := json.NewDecoder(bufio.NewReader(f))
+	decoder.DisallowUnknownFields()
+	var manifest Manifest
+	if err := decoder.Decode(&manifest); err != nil {
+		return Manifest{}, err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return Manifest{}, errors.New("manifest contains more than one JSON value")
+		}
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+func digestFile(filename string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}

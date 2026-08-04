@@ -13,6 +13,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
+	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ulikunitz/xz"
 )
 
@@ -136,8 +137,8 @@ func fieldsUserJSON() []byte {
 	return []byte(`{"name": ".{0,128}", "x_password": ".{1,128}"}`)
 }
 
-// runExtraction drives the full artifact -> schemas pipeline used by
-// buildSchemas and returns the fields/metadata dirs.
+// runExtraction drives the full artifact -> schemas pipeline and returns the
+// fields/metadata dirs.
 func runExtraction(t *testing.T, artifact []byte) (fieldsDir, metadataDir string) {
 	t.Helper()
 
@@ -307,7 +308,7 @@ func TestNewFieldInfoRejectsUnsafeSchemaText(t *testing.T) {
 	require.NotContains(t, f.FieldValidation, "`")
 }
 
-func TestBuildSchemasWritesArtifactMarker(t *testing.T) {
+func TestBuildLockedSchemasRejectsSnapshotMismatchBeforeReplacingCache(t *testing.T) {
 	restoreMin := minFieldFiles
 	minFieldFiles = 1
 	t.Cleanup(func() { minFieldFiles = restoreMin })
@@ -319,21 +320,67 @@ func TestBuildSchemasWritesArtifactMarker(t *testing.T) {
 			return m
 		}()),
 	})
-
-	schemasDir := t.TempDir()
+	artifact := writeTempArtifact(t, deb)
 	customDir := filepath.Join(t.TempDir(), "custom")
 	require.NoError(t, os.MkdirAll(customDir, 0o755))
 
-	_, err := buildSchemas(schemasDir,
-		filepath.Join(schemasDir, "fields"),
-		filepath.Join(schemasDir, "metadata"),
+	firstSchemas := t.TempDir()
+	_, snapshots, err := buildLockedSchemas(
+		firstSchemas,
+		filepath.Join(firstSchemas, "fields"),
+		filepath.Join(firstSchemas, "metadata"),
 		customDir,
-		writeTempArtifact(t, deb), nil, nil)
+		artifact,
+		"10.4.57",
+		nil,
+	)
 	require.NoError(t, err)
+	require.Len(t, snapshots.StructuralSHA256, 64)
+	require.Len(t, snapshots.SensitivitySHA256, 64)
 
-	marker, err := os.ReadFile(filepath.Join(schemasDir, "ARTIFACT"))
+	schemasDir := t.TempDir()
+	fieldsDir := filepath.Join(schemasDir, "fields")
+	metadataDir := filepath.Join(schemasDir, "metadata")
+	require.NoError(t, os.MkdirAll(fieldsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(fieldsDir, "sentinel"), []byte("old cache"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(schemasDir, "VERSION"), []byte("old\n"), 0o644))
+
+	wrong := snapshots
+	wrong.StructuralSHA256 = strings.Repeat("0", 64)
+	_, _, err = buildLockedSchemas(
+		schemasDir,
+		fieldsDir,
+		metadataDir,
+		customDir,
+		artifact,
+		"10.4.57",
+		&wrong,
+	)
+	require.ErrorContains(t, err, "structural snapshot SHA-256")
+
+	sentinel, err := os.ReadFile(filepath.Join(fieldsDir, "sentinel"))
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(marker), "local "), "marker = %q", marker)
+	require.Equal(t, "old cache", string(sentinel))
+	marker, err := os.ReadFile(filepath.Join(schemasDir, "VERSION"))
+	require.NoError(t, err)
+	require.Equal(t, "old\n", string(marker))
+}
+
+func TestVerifyInputDigestsRejectsGeneratorAndExtractionDrift(t *testing.T) {
+	want := capturelock.Inputs{
+		ExtractionRulesSHA256: strings.Repeat("a", 64),
+		GeneratorInputsSHA256: strings.Repeat("b", 64),
+	}
+
+	require.NoError(t, verifyInputDigests(want, want))
+
+	got := want
+	got.ExtractionRulesSHA256 = strings.Repeat("c", 64)
+	require.ErrorContains(t, verifyInputDigests(want, got), "extraction-rules SHA-256")
+
+	got = want
+	got.GeneratorInputsSHA256 = strings.Repeat("d", 64)
+	require.ErrorContains(t, verifyInputDigests(want, got), "generator-input SHA-256")
 }
 
 func TestReadNetworkVersionMissing(t *testing.T) {
