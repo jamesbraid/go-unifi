@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "receipt_id": "unifi.network.dns_record.admission.1",
+  "baseline_catalog_sha256": "f2f50e2d9cc79cd26263ac91e0770038c43344fcec7c7120c4b009a650d21fa4",
+  "catalog_identity": "unifi.network.dns_record@10.4.57",
+  "operation_identity": "unifi.network.dns_record.operation.patch.v1",
+  "operation_digest": "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8",
+  "admission_revision": 1,
+  "decision": "admit reviewed DNS 10.4.57 baseline",
+  "provenance": {
+    "kind": "operator_review",
+    "source_commit": "3db6d9a50a04ce103524527bb246956c445fcb63",
+    "artifact": "catalogs/network-10.4.57/dns_record.admitted-catalog.json"
+  },
+  "checksum_sha256": "17e15d9c998c8d444229f39c8850b97c4ba263500239157877a5894548e9762f"
+}

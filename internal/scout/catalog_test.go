@@ -3,6 +3,7 @@ package scout
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -449,6 +450,34 @@ func testTargetReceipt(target TargetProfile) ProvisionerTargetReceipt {
 		ImageIndexSHA256:       target.ImageIndexSHA256,
 		ImageManifestSHA256:    target.ImageManifestSHA256,
 		InstanceIdentitySHA256: "sha256:" + strings.Repeat("4", 64),
+	}
+}
+
+func TestProvisionerReceiptFingerprintIsStableAcrossFreshInstances(t *testing.T) {
+	var target TargetProfile
+	profile, err := os.ReadFile("../../scout/profiles/network-10.4.57-seeded.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(profile, &target); err != nil {
+		t.Fatal(err)
+	}
+	first := testTargetReceipt(target)
+	second := first
+	second.InstanceIdentitySHA256 = "sha256:" + strings.Repeat("5", 64)
+	firstFingerprint, err := ProvisionerReceiptFingerprint(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFingerprint, err := ProvisionerReceiptFingerprint(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstFingerprint != secondFingerprint {
+		t.Fatalf("fresh instance changed stable profile fingerprint: %q != %q", firstFingerprint, secondFingerprint)
+	}
+	if firstFingerprint != target.ControllerFingerprint {
+		t.Fatalf("stable receipt fingerprint = %q, locked profile = %q, receipt = %#v", firstFingerprint, target.ControllerFingerprint, first)
 	}
 }
 

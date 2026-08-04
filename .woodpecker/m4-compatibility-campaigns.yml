@@ -13,9 +13,9 @@ steps:
       CAMPAIGN_BUILDER_IMAGE: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
     commands:
       - apt-get update
-      - apt-get install --yes --no-install-recommends jq
+      - apt-get install --yes --no-install-recommends docker.io jq
       - go mod download all
-      - GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go test ./control/dnsrecord ./internal/campaign ./cmd/scout -count=1
+      - GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go test ./control/dnsrecord ./internal/campaign ./cmd/scout ./cmd/campaign ./cmd/campaign-receipt ./cmd/provisioner-receipt -count=1
       - GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go generate ./scout ./campaigns
       - mkdir -p /tmp/go-unifi-campaign-run-1
       - cp campaigns/network-10.4.57/dns_record.attestation.json /tmp/go-unifi-campaign-run-1/dns_record.attestation.json
@@ -29,19 +29,26 @@ steps:
       - jq -e '.classification == "capture_invalid" and .promotion == "review_required" and .candidate_only == true and .conflicts[0].field == "vendor_flag"' campaigns/network-10.4.57/dns_record.mutation-attestation.json
       - jq -e 'all(.profiles[] | select(.class == "persisted_single_hop" or .class == "long_lived_multi_hop"); .state == "uncovered")' campaigns/network-10.4.57/dns_record.profile-matrix.json
       - |
-        runner_attempt=$(jq -cn \
-          --arg builder "$CAMPAIGN_BUILDER_IMAGE" \
-          --arg controller "$(jq -er '.target.controller_fingerprint' catalogs/network-10.4.57/dns_record.catalog.json)" \
-          '{id:"runner-attempt-1",outcome:"completed",execution_mode:"fixture",builder_image_digest:$builder,builder_provenance:"runner",controller_fingerprint:$controller,controller_provenance:"fixture",runtime_provenance:"fixture"}')
+        go run ./cmd/campaign-receipt \
+          -workflow .woodpecker/m4-compatibility-campaigns.yml \
+          -builder-image "$CAMPAIGN_BUILDER_IMAGE" \
+          -controller-fingerprint "$(jq -er '.target.controller_fingerprint' catalogs/network-10.4.57/dns_record.catalog.json)" \
+          -output /tmp/dns_record.runner-execution-receipt.json
         GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go run ./cmd/campaign \
           -campaign-id network-10.4.57-dns-record-runner \
           -profile-class fresh_seeded \
           -builder-image "$CAMPAIGN_BUILDER_IMAGE" \
           -baseline catalogs/network-10.4.57/dns_record.admitted-catalog.json \
+          -admission-receipt catalogs/network-10.4.57/dns_record.admission-receipt.json \
           -candidate catalogs/network-10.4.57/dns_record.catalog.json \
           -receipt catalogs/network-10.4.57/dns_record.scenario-receipt.json \
-          -attempt-json "$runner_attempt" \
+          -execution-receipt /tmp/dns_record.runner-execution-receipt.json \
+          -runner-workflow .woodpecker/m4-compatibility-campaigns.yml \
+          -attempt-ledger /tmp/dns_record.runner-attempts.ndjson \
+          -attempt-id runner-attempt-1 \
           -elapsed-milliseconds 0 \
           -decision "runner-measured builder with fixture-scoped controller" \
           -output /tmp/dns_record.runner-attestation.json
-        jq -e '.classification == "unchanged" and .candidate_only == true and .attempts[0].builder_provenance == "runner" and .attempts[0].builder_image_digest == env.CAMPAIGN_BUILDER_IMAGE and .attempts[0].controller_provenance == "fixture" and .attempts[0].runtime_provenance == "fixture"' /tmp/dns_record.runner-attestation.json
+        jq -e '.classification == "unchanged" and .candidate_only == true and .execution_mode == "runner" and .builder_image_digest == env.CAMPAIGN_BUILDER_IMAGE' /tmp/dns_record.runner-attestation.json
+        jq -e -s 'length == 2 and .[0].state == "started" and .[1].state == "succeeded"' /tmp/dns_record.runner-attempts.ndjson
+      - if [ "${CAMPAIGN_LIVE:-0}" = "1" ]; then ./campaigns/run-live.sh; fi
