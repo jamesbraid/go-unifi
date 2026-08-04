@@ -1,0 +1,15 @@
+[
+  {
+    "_id": "fixture-dns-record",
+    "site_id": "fixture-site",
+    "enabled": true,
+    "key": "fixture.example.invalid",
+    "port": 53,
+    "priority": 10,
+    "record_type": "A",
+    "ttl": 300,
+    "value": "192.0.2.10",
+    "vendor_flag": true,
+    "weight": 1
+  }
+]

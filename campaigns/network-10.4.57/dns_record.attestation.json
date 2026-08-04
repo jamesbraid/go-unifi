@@ -1,0 +1,78 @@
+{
+  "format_version": 1,
+  "campaign_id": "network-10.4.57-dns-record",
+  "profile_class": "fresh_seeded",
+  "classification": "equivalent",
+  "promotion": "review_required",
+  "candidate_only": true,
+  "target": {
+    "name": "network-10.4.57-seeded",
+    "product": "unifi-network",
+    "version": "10.4.57",
+    "architecture": "amd64",
+    "image_index_sha256": "sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
+    "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
+    "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
+  },
+  "builder_image_digest": "local/go-unifi-schema-builder@sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",
+  "inputs": {
+    "baseline_catalog_sha256": "433c08f1ef47a8310ab37523d68f43870aa79eb2e8b9beb8dbd73d2905a0496b",
+    "candidate_catalog_sha256": "433c08f1ef47a8310ab37523d68f43870aa79eb2e8b9beb8dbd73d2905a0496b",
+    "scenario_receipt_sha256": "47202799c62ce2556ac75ee3aa37a388ec27edd5d2a198ae684e8a8b8839c462",
+    "capture_lock_sha256": "136421431577ad8cce79aee0a25619577d78f41c1d7c70b914b0317bfbbf08ae"
+  },
+  "structural_diff": [],
+  "observation_diff": [],
+  "conflicts": [],
+  "claim_coverage": [
+    {
+      "id": "unifi.network.dns_record.field.enabled",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.key",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.port",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.priority",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.record_type",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.ttl",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.value",
+      "state": "observed"
+    },
+    {
+      "id": "unifi.network.dns_record.field.weight",
+      "state": "observed"
+    }
+  ],
+  "affected_admitted_operations": [],
+  "provider_contract_impact": "none",
+  "elapsed_milliseconds": 0,
+  "human_decisions": [
+    "offline deterministic replay"
+  ],
+  "manual_generated_file_edits": false,
+  "automatically_reconfirmed_claims": [
+    "unifi.network.dns_record.field.enabled",
+    "unifi.network.dns_record.field.key",
+    "unifi.network.dns_record.field.port",
+    "unifi.network.dns_record.field.priority",
+    "unifi.network.dns_record.field.record_type",
+    "unifi.network.dns_record.field.ttl",
+    "unifi.network.dns_record.field.value",
+    "unifi.network.dns_record.field.weight"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "campaign_id": "network-10.4.57-dns-record",
+  "profiles": [
+    {
+      "class": "fresh_seeded",
+      "state": "candidate_evidence",
+      "target_profile": "scout/profiles/network-10.4.57-seeded.json"
+    },
+    {
+      "class": "persisted_single_hop",
+      "state": "uncovered",
+      "reason": "no prior digest-pinned Network target is admitted for this campaign"
+    },
+    {
+      "class": "long_lived_multi_hop",
+      "state": "uncovered",
+      "reason": "no sanitized long-lived upgrade fixture is admitted"
+    }
+  ],
+  "promotion": "review_required"
+}
