@@ -9,6 +9,8 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/ubiquiti-community/go-unifi/control/dnsrecord"
 )
 
 const (
@@ -195,11 +197,7 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		return conflicts[i].Field < conflicts[j].Field
 	})
 
-	operationBytes, err := encodeCanonical(input.Scenario)
-	if err != nil {
-		return Result{}, fmt.Errorf("encode scenario: %w", err)
-	}
-	operationDigest := digest(operationBytes)
+	operationDigest := dnsrecord.OperationDigest()
 	admissionState := "candidate"
 	if len(conflicts) > 0 || !complete {
 		admissionState = "blocked"
