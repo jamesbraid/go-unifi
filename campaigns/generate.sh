@@ -35,7 +35,8 @@ go run ../cmd/campaign \
 go run ../cmd/scout \
     -target-profile ../scout/profiles/network-10.4.57-seeded.json \
     -scenario ../scout/scenarios/dns-record-list-v1.json \
-    -specification ../specification.json \
+    -structural ../schemas/structural/dns_record.json \
+    -semantic-ids ../schemas/semantic-ids/dns_record.json \
     -capture-lock ../schemas/capture.lock.json \
     -response ../scout/fixtures/dns-record-list-v1-vendor-mutation.json \
     -catalog-output "${work_root}/mutated.catalog.json" \

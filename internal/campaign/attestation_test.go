@@ -69,11 +69,11 @@ func TestBuildAttestationRejectsUnboundEvidence(t *testing.T) {
 		want   string
 	}{
 		"unpinned builder": {func(input *Input) { input.BuilderImageDigest = "golang:latest" }, "builder image digest"},
-		"receipt target mismatch": {func(input *Input) {
-			input.ScenarioReceipt = bytes.ReplaceAll(input.ScenarioReceipt, []byte("10.4.57"), []byte("10.5.0"))
-		}, "scenario receipt target"},
+		"fixture receipt target claim": {func(input *Input) {
+			input.ScenarioReceipt = bytes.Replace(input.ScenarioReceipt, []byte(`"execution_mode": "fixture"`), []byte(`"execution_mode": "fixture", "measured_target_fingerprint": "sha256:not-measured"`), 1)
+		}, "fixture receipt target"},
 		"receipt result mismatch": {func(input *Input) {
-			input.ScenarioReceipt = bytes.Replace(input.ScenarioReceipt, []byte(`"result": "candidate"`), []byte(`"result": "blocked"`), 1)
+			input.ScenarioReceipt = bytes.Replace(input.ScenarioReceipt, []byte(`"verdict": "candidate"`), []byte(`"verdict": "blocked"`), 1)
 		}, "scenario receipt result"},
 	}
 	for name, test := range tests {
@@ -139,7 +139,8 @@ func testCatalog(admission string, mutated bool) []byte {
   },
   "sources": {
     "capture_lock_sha256": "sha256:lock",
-    "specification_sha256": "sha256:specification"
+    "structural_projection_sha256": "sha256:structural",
+    "semantic_ids_sha256": "sha256:semantic-ids"
   },
   "structural_records": %s,
   "observed_records": %s,
@@ -155,20 +156,23 @@ func testReceipt(result string) []byte {
 	return []byte(fmt.Sprintf(`{
   "format_version": 1,
   "scenario_id": "dns-record-list-v1",
-  "target": {
-    "name": "network-10.4.57-seeded",
-    "product": "unifi-network",
-    "version": "10.4.57",
-    "architecture": "amd64",
-    "image_index_sha256": "sha256:index",
-    "image_manifest_sha256": "sha256:manifest",
-    "controller_fingerprint": "sha256:fingerprint"
+  "scenario_path": "/v2/api/site/{site}/static-dns",
+  "scenario_mode": "read_only",
+  "request_shape": {
+    "method": "GET",
+    "path": "/v2/api/site/{site}/static-dns",
+    "query": "none",
+    "body": "none"
   },
-  "mode": "read_only",
+  "execution_mode": "fixture",
   "operation_digest": "sha256:operation",
+  "response_sha256": "sha256:response",
+  "normalization": "field_presence_and_json_type_v1",
+  "redaction": "drop_all_observed_values_v1",
+  "cleanup": "not_required_read_only",
   "observed_record_count": 1,
   "redacted_field_count": 2,
   "canonical_observation_sha256": "sha256:observation",
-  "result": %q
+  "verdict": %q
 }`, result))
 }

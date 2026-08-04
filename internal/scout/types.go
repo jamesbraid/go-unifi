@@ -11,8 +11,8 @@ type TargetProfile struct {
 	ControllerFingerprint string `json:"controller_fingerprint"`
 }
 
-// Scenario is one declared controller interaction. Scout accepts only
-// read-only and disposable workflows.
+// Scenario is one declared controller interaction. Scout accepts only the
+// read-only DNS list workflow.
 type Scenario struct {
 	ID       string `json:"id"`
 	Mode     string `json:"mode"`
@@ -21,20 +21,70 @@ type Scenario struct {
 	Path     string `json:"path"`
 }
 
-// Input contains the immutable structural and observed evidence for one run.
-type Input struct {
-	Target                TargetProfile
-	Scenario              Scenario
+// LockedSources carries the digests read from the validated capture lock.
+type LockedSources struct {
 	CaptureLockSHA256     string
-	Specification         []byte
-	ObservedResponse      []byte
-	SecretCandidateFields []string
+	ExtractionRulesSHA256 string
+	StructuralSHA256      string
+	SensitivitySHA256     string
+}
+
+// Input contains the immutable structural and raw observed evidence for one
+// DNS run. ExecutionMode is either fixture or live; only a live run may carry
+// a measured target fingerprint.
+type Input struct {
+	Target                    TargetProfile
+	Scenario                  Scenario
+	ExecutionMode             string
+	MeasuredTargetFingerprint string
+	LockedSources             LockedSources
+	StructuralProjection      []byte
+	SemanticIDs               []byte
+	ObservedResponse          []byte
 }
 
 // Result contains value-free canonical evidence.
 type Result struct {
 	Catalog []byte
 	Receipt []byte
+}
+
+type structuralProjection struct {
+	FormatVersion int                         `json:"format_version"`
+	Resource      string                      `json:"resource"`
+	Source        structuralSource            `json:"source"`
+	Fields        []structuralProjectionField `json:"fields"`
+}
+
+type structuralSource struct {
+	StructuralSHA256  string `json:"structural_sha256"`
+	SensitivitySHA256 string `json:"sensitivity_sha256"`
+}
+
+type structuralProjectionField struct {
+	WireName        string `json:"wire_name"`
+	JSONType        string `json:"json_type"`
+	SecretCandidate bool   `json:"secret_candidate"`
+}
+
+type semanticRegistry struct {
+	FormatVersion         int                 `json:"format_version"`
+	Resource              string              `json:"resource"`
+	ExtractionRulesSHA256 string              `json:"extraction_rules_sha256"`
+	Fields                []semanticField     `json:"fields"`
+	PriorIDs              []string            `json:"prior_ids"`
+	Tombstones            []semanticTombstone `json:"tombstones"`
+	Migrations            []catalogMigration  `json:"migrations"`
+}
+
+type semanticField struct {
+	WireName string `json:"wire_name"`
+	ID       string `json:"id"`
+}
+
+type semanticTombstone struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
 }
 
 type catalog struct {
@@ -52,8 +102,9 @@ type catalog struct {
 }
 
 type catalogSources struct {
-	CaptureLockSHA256   string `json:"capture_lock_sha256"`
-	SpecificationSHA256 string `json:"specification_sha256"`
+	CaptureLockSHA256          string `json:"capture_lock_sha256"`
+	StructuralProjectionSHA256 string `json:"structural_projection_sha256"`
+	SemanticIDsSHA256          string `json:"semantic_ids_sha256"`
 }
 
 type structuralRecord struct {
@@ -90,19 +141,34 @@ type admission struct {
 }
 
 type catalogMigration struct {
-	FromID string `json:"from_id"`
-	ToID   string `json:"to_id"`
-	Reason string `json:"reason"`
+	FromID   string `json:"from_id"`
+	ToID     string `json:"to_id"`
+	Reason   string `json:"reason"`
+	Reviewed bool   `json:"reviewed"`
+}
+
+type requestShape struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Query  string `json:"query"`
+	Body   string `json:"body"`
 }
 
 type scenarioReceipt struct {
-	FormatVersion              int           `json:"format_version"`
-	ScenarioID                 string        `json:"scenario_id"`
-	Target                     TargetProfile `json:"target"`
-	Mode                       string        `json:"mode"`
-	OperationDigest            string        `json:"operation_digest"`
-	ObservedRecordCount        int           `json:"observed_record_count"`
-	RedactedFieldCount         int           `json:"redacted_field_count"`
-	CanonicalObservationSHA256 string        `json:"canonical_observation_sha256"`
-	Result                     string        `json:"result"`
+	FormatVersion              int          `json:"format_version"`
+	ScenarioID                 string       `json:"scenario_id"`
+	ScenarioPath               string       `json:"scenario_path"`
+	ScenarioMode               string       `json:"scenario_mode"`
+	RequestShape               requestShape `json:"request_shape"`
+	ExecutionMode              string       `json:"execution_mode"`
+	MeasuredTargetFingerprint  string       `json:"measured_target_fingerprint,omitempty"`
+	OperationDigest            string       `json:"operation_digest"`
+	ResponseSHA256             string       `json:"response_sha256"`
+	Normalization              string       `json:"normalization"`
+	Redaction                  string       `json:"redaction"`
+	Cleanup                    string       `json:"cleanup"`
+	ObservedRecordCount        int          `json:"observed_record_count"`
+	RedactedFieldCount         int          `json:"redacted_field_count"`
+	CanonicalObservationSHA256 string       `json:"canonical_observation_sha256"`
+	Verdict                    string       `json:"verdict"`
 }
