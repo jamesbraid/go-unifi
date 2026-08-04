@@ -359,8 +359,12 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 		"internal/capturelock/lock.go":     "lock-v1",
 		"overrides/resources/Network.json": "override-v1",
 		"overrides/fields.toml":            "fields-override-v1",
-		"go.mod":                           "module example.invalid/test",
-		"go.sum":                           "sum-v1",
+		"unifi/unifi.go": `package unifi
+
+//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
+`,
+		"go.mod": "module example.invalid/test",
+		"go.sum": "sum-v1",
 	}
 	for name, content := range files {
 		filename := filepath.Join(root, filepath.FromSlash(name))
@@ -405,6 +409,25 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 		t.Fatal("generator-only edit did not change generator-input digest")
 	}
 
+	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte(`package unifi
+
+//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
+
+// The directive-bearing package changed.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	afterEntrypoint, err := ComputeInputDigests(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterEntrypoint.ExtractionRulesSHA256 != afterGenerator.ExtractionRulesSHA256 {
+		t.Fatal("entrypoint-only edit changed extraction-rules digest")
+	}
+	if afterEntrypoint.GeneratorInputsSHA256 == afterGenerator.GeneratorInputsSHA256 {
+		t.Fatal("entrypoint-only edit did not change generator-input digest")
+	}
+
 	if err := os.WriteFile(filepath.Join(root, "cmd/fields/extract.go"), []byte("extract-v2"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -412,10 +435,53 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if afterExtraction.ExtractionRulesSHA256 == afterGenerator.ExtractionRulesSHA256 {
+	if afterExtraction.ExtractionRulesSHA256 == afterEntrypoint.ExtractionRulesSHA256 {
 		t.Fatal("extractor edit did not change extraction-rules digest")
 	}
-	if afterExtraction.GeneratorInputsSHA256 == afterGenerator.GeneratorInputsSHA256 {
+	if afterExtraction.GeneratorInputsSHA256 == afterEntrypoint.GeneratorInputsSHA256 {
 		t.Fatal("extractor edit did not change generator-input digest")
+	}
+}
+
+func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"cmd/fields/extract.go":        "extract-v1",
+		"cmd/fields/main.go":           "generate-v1",
+		"internal/capturelock/lock.go": "lock-v1",
+		"internal/fields/fields.go":    "fields-v1",
+		"overrides/fields.toml":        "fields-v1",
+		"go.mod":                       "module example.invalid/test",
+		"go.sum":                       "sum-v1",
+		"unifi/unifi.go": `package unifi
+
+//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
+//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
+`,
+	}
+	for name, content := range files {
+		filename := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, err := ComputeInputDigests(root)
+	if err == nil || !strings.Contains(err.Error(), "go:generate") {
+		t.Fatalf("ComputeInputDigests() error = %v, want invalid generator directive", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte(`package unifi
+
+//go:generate go run ../cmd/fields/ -output-dir=../generated/ -generate-spec -spec-output=../specification.json
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ComputeInputDigests(root)
+	if err == nil || !strings.Contains(err.Error(), "go:generate") {
+		t.Fatalf("ComputeInputDigests() error = %v, want output argument rejection", err)
 	}
 }
