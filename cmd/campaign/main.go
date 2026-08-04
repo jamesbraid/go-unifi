@@ -97,7 +97,7 @@ func run(args []string, stderr io.Writer) int {
 	}
 	var runnerEvidence *campaign.RunnerEvidence
 	if *runnerWorkflowPath != "" {
-		measured, measureErr := campaign.MeasureRunnerEvidence(*runnerWorkflowPath, *builderImage)
+		measured, measureErr := campaign.MeasureRunnerEvidence(*runnerWorkflowPath)
 		if measureErr != nil {
 			return fail("runner_measurement", "measure runner evidence: %v", measureErr)
 		}

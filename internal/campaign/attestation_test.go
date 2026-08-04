@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,22 @@ func TestValidateAdmissionReceiptRequiresPinnedTrackedArtifact(t *testing.T) {
 	}
 	if err := validateAdmissionReceipt(baselineCanonical, baselineDocument, receiptBytes); err != nil {
 		t.Fatal(err)
+	}
+	var trackedReceipt admissionReceipt
+	if _, err := decodeCanonical(receiptBytes, &trackedReceipt); err != nil {
+		t.Fatal(err)
+	}
+	committedBaseline, err := exec.Command("git", "show", trackedReceipt.Provenance.SourceCommit+":"+trackedReceipt.Provenance.Artifact).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var committedDocument catalogDocument
+	committedCanonical, err := decodeCanonical(committedBaseline, &committedDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digest(committedCanonical) != trackedReceipt.BaselineCatalogSHA256 {
+		t.Fatalf("admission source commit baseline digest = %q, receipt = %q", digest(committedCanonical), trackedReceipt.BaselineCatalogSHA256)
 	}
 
 	var fake admissionReceipt
