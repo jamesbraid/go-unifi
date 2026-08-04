@@ -20,7 +20,7 @@
   "execution_mode": "fixture",
   "inputs": {
     "baseline_catalog_sha256": "f2f50e2d9cc79cd26263ac91e0770038c43344fcec7c7120c4b009a650d21fa4",
-    "admission_receipt_sha256": "68193a14f031999b8f0b36abd5d9c5f7e6c8a2ea44720f30fa01526403cf1bde",
+    "admission_receipt_sha256": "8cbc07eff15ffe9baf824164f278488616d367a67db5f5b0e56eb88d11cae3a1",
     "candidate_catalog_sha256": "8a7f3f641344645e098415b00d63b82115e6f6ad01d6788a427c5bd39551d2c4",
     "scenario_receipt_sha256": "0d8df0a23c1941e60d5ed5021c23c308713a1c1bc17cd5670562504abcb27932",
     "execution_receipt_sha256": "a9303cb1ce18e690acfaccf2d1f4614066ba4ead33dbf131330602561df84b41",

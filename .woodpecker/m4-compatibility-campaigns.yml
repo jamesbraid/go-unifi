@@ -9,8 +9,6 @@ labels:
 steps:
   - name: compatibility-campaigns
     image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
-    environment:
-      CAMPAIGN_BUILDER_IMAGE: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
     commands:
       - apt-get update
       - apt-get install --yes --no-install-recommends docker.io jq
@@ -31,13 +29,12 @@ steps:
       - |
         go run ./cmd/campaign-receipt \
           -workflow .woodpecker/m4-compatibility-campaigns.yml \
-          -builder-image "$CAMPAIGN_BUILDER_IMAGE" \
           -controller-fingerprint "$(jq -er '.target.controller_fingerprint' catalogs/network-10.4.57/dns_record.catalog.json)" \
           -output /tmp/dns_record.runner-execution-receipt.json
         GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go run ./cmd/campaign \
           -campaign-id network-10.4.57-dns-record-runner \
           -profile-class fresh_seeded \
-          -builder-image "$CAMPAIGN_BUILDER_IMAGE" \
+          -builder-image golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651 \
           -baseline catalogs/network-10.4.57/dns_record.admitted-catalog.json \
           -admission-receipt catalogs/network-10.4.57/dns_record.admission-receipt.json \
           -candidate catalogs/network-10.4.57/dns_record.catalog.json \
@@ -49,6 +46,6 @@ steps:
           -elapsed-milliseconds 0 \
           -decision "runner-measured builder with fixture-scoped controller" \
           -output /tmp/dns_record.runner-attestation.json
-        jq -e '.classification == "unchanged" and .candidate_only == true and .execution_mode == "runner" and .builder_image_digest == env.CAMPAIGN_BUILDER_IMAGE' /tmp/dns_record.runner-attestation.json
+        jq -e '.classification == "unchanged" and .candidate_only == true and .execution_mode == "runner" and .builder_image_digest == "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"' /tmp/dns_record.runner-attestation.json
         jq -e -s 'length == 2 and .[0].state == "started" and .[1].state == "succeeded"' /tmp/dns_record.runner-attempts.ndjson
       - if [ "${CAMPAIGN_LIVE:-0}" = "1" ]; then ./campaigns/run-live.sh; fi

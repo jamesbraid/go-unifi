@@ -9,7 +9,8 @@ import (
 
 const (
 	trustedDNSAdmissionReceiptID       = "unifi.network.dns_record.admission.1"
-	trustedDNSAdmissionReceiptChecksum = "17e15d9c998c8d444229f39c8850b97c4ba263500239157877a5894548e9762f"
+	trustedDNSAdmissionReceiptChecksum = "e8622a993b2c131b9531e78fe2c23a5f28a1e65ef33ef13168b460bad998e06d"
+	trustedDNSAdmissionSourceCommit    = "4d2b7eba2474eaf05bb17275b92839c78e6c27e8"
 	trustedDNSAdmissionArtifact        = "catalogs/network-10.4.57/dns_record.admitted-catalog.json"
 )
 
@@ -61,7 +62,7 @@ func validateAdmissionReceipt(baselineCanonical []byte, baseline catalogDocument
 	}
 	operation := dnsrecord.NormalizedOperation()
 	if receipt.FormatVersion != 1 || receipt.AdmissionRevision != 1 || receipt.Decision == "" ||
-		receipt.Provenance.Kind != "operator_review" || receipt.Provenance.SourceCommit == "" ||
+		receipt.Provenance.Kind != "operator_review" || receipt.Provenance.SourceCommit != trustedDNSAdmissionSourceCommit ||
 		receipt.Provenance.Artifact != trustedDNSAdmissionArtifact {
 		return fmt.Errorf("trusted admission receipt is incomplete")
 	}

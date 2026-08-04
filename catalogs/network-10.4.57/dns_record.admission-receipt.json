@@ -9,8 +9,8 @@
   "decision": "admit reviewed DNS 10.4.57 baseline",
   "provenance": {
     "kind": "operator_review",
-    "source_commit": "3db6d9a50a04ce103524527bb246956c445fcb63",
+    "source_commit": "4d2b7eba2474eaf05bb17275b92839c78e6c27e8",
     "artifact": "catalogs/network-10.4.57/dns_record.admitted-catalog.json"
   },
-  "checksum_sha256": "17e15d9c998c8d444229f39c8850b97c4ba263500239157877a5894548e9762f"
+  "checksum_sha256": "e8622a993b2c131b9531e78fe2c23a5f28a1e65ef33ef13168b460bad998e06d"
 }

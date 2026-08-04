@@ -18,18 +18,17 @@ func run(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("go-unifi campaign-receipt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	workflow := flags.String("workflow", "", "checked runner workflow")
-	builder := flags.String("builder-image", "", "digest-pinned configured builder image")
 	controllerFingerprint := flags.String("controller-fingerprint", "", "fixture controller fingerprint")
 	provisionerPath := flags.String("provisioner-receipt", "", "optional independently measured live provisioner receipt")
 	output := flags.String("output", "", "execution receipt output")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	if *workflow == "" || *builder == "" || *output == "" || (*controllerFingerprint == "" && *provisionerPath == "") {
-		fmt.Fprintln(stderr, "workflow, builder-image, output, and controller-fingerprint or provisioner-receipt are required")
+	if *workflow == "" || *output == "" || (*controllerFingerprint == "" && *provisionerPath == "") {
+		fmt.Fprintln(stderr, "workflow, output, and controller-fingerprint or provisioner-receipt are required")
 		return 2
 	}
-	evidence, err := campaign.MeasureRunnerEvidence(*workflow, *builder)
+	evidence, err := campaign.MeasureRunnerEvidence(*workflow)
 	if err != nil {
 		fmt.Fprintf(stderr, "measure runner evidence: %v\n", err)
 		return 1

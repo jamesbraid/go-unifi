@@ -2,6 +2,7 @@ package campaign
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -60,6 +61,29 @@ func TestValidateExecutionReceiptBindsMeasuredRunnerEvidence(t *testing.T) {
 	forgedMeasurement.BuilderImage = "review.invalid/fake@sha256:" + strings.Repeat("a", 64)
 	if _, _, err := validateExecutionReceipt(receipt, &forgedMeasurement, nil, forgedMeasurement.BuilderImage, candidate, scenario); err == nil || !strings.Contains(err.Error(), "configured campaign builder") {
 		t.Fatalf("validateExecutionReceipt() error = %v, want measured builder rejection", err)
+	}
+}
+
+func TestMeasureRunnerEvidenceIgnoresFakeBuilderEnvironment(t *testing.T) {
+	t.Setenv("CI_REPO", "ubiquiti-community/go-unifi")
+	t.Setenv("CI_PIPELINE_NUMBER", "123")
+	t.Setenv("CAMPAIGN_BUILDER_IMAGE", "review.invalid/fake@sha256:"+strings.Repeat("a", 64))
+	evidence, err := MeasureRunnerEvidence("../../.woodpecker/m4-compatibility-campaigns.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.BuilderImage != testBuilderImage {
+		t.Fatalf("measured builder = %q, want checked workflow image %q", evidence.BuilderImage, testBuilderImage)
+	}
+
+	workflow := mustReadTestFile(t, "../../.woodpecker/m4-compatibility-campaigns.yml")
+	forged := strings.Replace(string(workflow), testBuilderImage, "review.invalid/fake@sha256:"+strings.Repeat("a", 64), 1)
+	path := t.TempDir() + "/workflow.yml"
+	if err := os.WriteFile(path, []byte(forged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MeasureRunnerEvidence(path); err == nil || !strings.Contains(err.Error(), "pinned builder") {
+		t.Fatalf("MeasureRunnerEvidence() error = %v, want pinned builder rejection", err)
 	}
 }
 

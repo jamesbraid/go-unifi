@@ -10,9 +10,14 @@ import (
 	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/internal/scout"
+	"gopkg.in/yaml.v3"
 )
 
-const fixtureExecutionReceiptID = "unifi.network.dns_record.fixture-execution.1"
+const (
+	fixtureExecutionReceiptID = "unifi.network.dns_record.fixture-execution.1"
+	runnerStepName            = "compatibility-campaigns"
+	runnerBuilderImage        = "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"
+)
 
 var sourceRevisionPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
@@ -29,10 +34,14 @@ type RunnerEvidence struct {
 
 // MeasureRunnerEvidence reads facts from the running checkout and CI process.
 // None of these values are accepted from an execution receipt.
-func MeasureRunnerEvidence(workflowPath, configuredBuilder string) (RunnerEvidence, error) {
+func MeasureRunnerEvidence(workflowPath string) (RunnerEvidence, error) {
 	workflow, err := os.ReadFile(workflowPath)
 	if err != nil {
 		return RunnerEvidence{}, fmt.Errorf("read workflow: %w", err)
+	}
+	builderImage, err := checkedWorkflowBuilder(workflow)
+	if err != nil {
+		return RunnerEvidence{}, err
 	}
 	command := exec.Command("git", "rev-parse", "HEAD")
 	revisionBytes, err := command.Output()
@@ -46,18 +55,40 @@ func MeasureRunnerEvidence(workflowPath, configuredBuilder string) (RunnerEviden
 		return RunnerEvidence{}, fmt.Errorf("CI_REPO and CI_PIPELINE_NUMBER are required")
 	}
 	pipelineIdentity := repository + "#" + pipelineNumber
-	observedBuilder := strings.TrimSpace(os.Getenv("CAMPAIGN_BUILDER_IMAGE"))
-	if observedBuilder == "" || observedBuilder != configuredBuilder {
-		return RunnerEvidence{}, fmt.Errorf("CAMPAIGN_BUILDER_IMAGE does not match configured campaign builder")
-	}
 	evidence := RunnerEvidence{
 		WorkflowSHA256: digest(workflow), SourceRevision: revision, PipelineIdentity: pipelineIdentity,
-		BuilderImage: observedBuilder, ObservedToolchain: runtime.Version(),
+		BuilderImage: builderImage, ObservedToolchain: runtime.Version(),
 	}
 	if !validSHA256(evidence.WorkflowSHA256) || !sourceRevisionPattern.MatchString(evidence.SourceRevision) {
 		return RunnerEvidence{}, fmt.Errorf("measured workflow or source revision is invalid")
 	}
 	return evidence, nil
+}
+
+func checkedWorkflowBuilder(document []byte) (string, error) {
+	var workflow struct {
+		Steps []struct {
+			Name  string `yaml:"name"`
+			Image string `yaml:"image"`
+		} `yaml:"steps"`
+	}
+	if err := yaml.Unmarshal(document, &workflow); err != nil {
+		return "", fmt.Errorf("decode checked runner workflow: %w", err)
+	}
+	found := ""
+	for _, step := range workflow.Steps {
+		if step.Name != runnerStepName {
+			continue
+		}
+		if found != "" {
+			return "", fmt.Errorf("checked runner workflow has duplicate %q steps", runnerStepName)
+		}
+		found = step.Image
+	}
+	if found != runnerBuilderImage {
+		return "", fmt.Errorf("checked runner workflow step %q does not use the pinned builder image", runnerStepName)
+	}
+	return found, nil
 }
 
 // BuildRunnerExecutionReceipt creates a checksum-bound receipt from runner
