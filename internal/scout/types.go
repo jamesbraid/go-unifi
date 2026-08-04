@@ -12,7 +12,8 @@ type TargetProfile struct {
 }
 
 // ProvisionerTargetReceipt is the independently measured runtime identity for
-// one disposable controller. Instance identity is retained only as a digest.
+// one disposable controller. InstanceIdentitySHA256 uses
+// InstanceIdentitySHA256() over the exact controller UUID bytes.
 type ProvisionerTargetReceipt struct {
 	FormatVersion          int    `json:"format_version"`
 	ProfileName            string `json:"profile_name"`
@@ -47,18 +48,20 @@ type LockedSources struct {
 
 // Input contains the immutable structural and raw observed evidence for one
 // DNS run. ExecutionMode is either fixture or live; only a live run may carry
-// a provisioner receipt and the controller version learned by the API client.
+// a provisioner receipt, controller version, and hashed controller identity
+// learned by the API client.
 type Input struct {
-	Target               TargetProfile
-	TargetReceipt        *ProvisionerTargetReceipt
-	ControllerVersion    string
-	Scenario             Scenario
-	ExecutionMode        string
-	LockedSources        LockedSources
-	StructuralProjection []byte
-	SemanticPredecessor  []byte
-	SemanticIDs          []byte
-	ObservedResponse     []byte
+	Target                         TargetProfile
+	TargetReceipt                  *ProvisionerTargetReceipt
+	ControllerVersion              string
+	ObservedInstanceIdentitySHA256 string
+	Scenario                       Scenario
+	ExecutionMode                  string
+	LockedSources                  LockedSources
+	StructuralProjection           []byte
+	SemanticPredecessor            []byte
+	SemanticIDs                    []byte
+	ObservedResponse               []byte
 }
 
 // Result contains value-free canonical evidence.
@@ -179,21 +182,22 @@ type requestShape struct {
 }
 
 type scenarioReceipt struct {
-	FormatVersion              int          `json:"format_version"`
-	ScenarioID                 string       `json:"scenario_id"`
-	ScenarioPath               string       `json:"scenario_path"`
-	ScenarioMode               string       `json:"scenario_mode"`
-	RequestShape               requestShape `json:"request_shape"`
-	ExecutionMode              string       `json:"execution_mode"`
-	MeasuredTargetFingerprint  string       `json:"measured_target_fingerprint,omitempty"`
-	ControllerVersion          string       `json:"controller_version,omitempty"`
-	OperationDigest            string       `json:"operation_digest"`
-	ResponseSHA256             string       `json:"response_sha256"`
-	Normalization              string       `json:"normalization"`
-	Redaction                  string       `json:"redaction"`
-	Cleanup                    string       `json:"cleanup"`
-	ObservedRecordCount        int          `json:"observed_record_count"`
-	RedactedFieldCount         int          `json:"redacted_field_count"`
-	CanonicalObservationSHA256 string       `json:"canonical_observation_sha256"`
-	Verdict                    string       `json:"verdict"`
+	FormatVersion                  int          `json:"format_version"`
+	ScenarioID                     string       `json:"scenario_id"`
+	ScenarioPath                   string       `json:"scenario_path"`
+	ScenarioMode                   string       `json:"scenario_mode"`
+	RequestShape                   requestShape `json:"request_shape"`
+	ExecutionMode                  string       `json:"execution_mode"`
+	MeasuredTargetFingerprint      string       `json:"measured_target_fingerprint,omitempty"`
+	ControllerVersion              string       `json:"controller_version,omitempty"`
+	ObservedInstanceIdentitySHA256 string       `json:"observed_instance_identity_sha256,omitempty"`
+	OperationDigest                string       `json:"operation_digest"`
+	ResponseSHA256                 string       `json:"response_sha256"`
+	Normalization                  string       `json:"normalization"`
+	Redaction                      string       `json:"redaction"`
+	Cleanup                        string       `json:"cleanup"`
+	ObservedRecordCount            int          `json:"observed_record_count"`
+	RedactedFieldCount             int          `json:"redacted_field_count"`
+	CanonicalObservationSHA256     string       `json:"canonical_observation_sha256"`
+	Verdict                        string       `json:"verdict"`
 }

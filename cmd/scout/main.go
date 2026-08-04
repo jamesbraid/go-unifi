@@ -91,6 +91,7 @@ func run(args []string, stderr io.Writer) int {
 	var observed []byte
 	var targetReceipt *scout.ProvisionerTargetReceipt
 	controllerVersion := ""
+	observedInstanceIdentitySHA256 := ""
 	executionMode := "fixture"
 	if *responsePath != "" {
 		if *targetReceiptPath != "" {
@@ -122,14 +123,16 @@ func run(args []string, stderr io.Writer) int {
 		}
 		observed = observation.Response
 		controllerVersion = observation.ControllerVersion
+		observedInstanceIdentitySHA256 = observation.InstanceIdentitySHA256
 	}
 
 	result, err := scout.BuildDNSCatalog(scout.Input{
-		Target:            target,
-		TargetReceipt:     targetReceipt,
-		ControllerVersion: controllerVersion,
-		Scenario:          scenario,
-		ExecutionMode:     executionMode,
+		Target:                         target,
+		TargetReceipt:                  targetReceipt,
+		ControllerVersion:              controllerVersion,
+		ObservedInstanceIdentitySHA256: observedInstanceIdentitySHA256,
+		Scenario:                       scenario,
+		ExecutionMode:                  executionMode,
 		LockedSources: scout.LockedSources{
 			CaptureLockSHA256:          sha256Hex(captureLockBytes),
 			ControllerNetworkVersion:   lock.Controller.NetworkVersion,
@@ -160,8 +163,9 @@ func run(args []string, stderr io.Writer) int {
 }
 
 type liveObservation struct {
-	Response          []byte
-	ControllerVersion string
+	Response               []byte
+	ControllerVersion      string
+	InstanceIdentitySHA256 string
 }
 
 func observeLive(ctx context.Context, scenario scout.Scenario) (liveObservation, error) {
@@ -194,7 +198,18 @@ func observeLive(ctx context.Context, scenario scout.Scenario) (liveObservation,
 	if client.Version() == "" {
 		return liveObservation{}, fmt.Errorf("controller did not report a Network version")
 	}
-	return liveObservation{Response: response, ControllerVersion: client.Version()}, nil
+	if client.ControllerUUID() == "" {
+		return liveObservation{}, fmt.Errorf("controller UUID is required for live evidence")
+	}
+	instanceIdentitySHA256, err := scout.InstanceIdentitySHA256(client.ControllerUUID())
+	if err != nil {
+		return liveObservation{}, err
+	}
+	return liveObservation{
+		Response:               response,
+		ControllerVersion:      client.Version(),
+		InstanceIdentitySHA256: instanceIdentitySHA256,
+	}, nil
 }
 
 func readStrictJSON(path string, target any) error {
