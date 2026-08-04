@@ -130,9 +130,12 @@ docker buildx build --builder "$second_builder_name" --platform linux/amd64 \
     --output "type=docker,rewrite-timestamp=true" \
     --file "$repository_root/build/m0/Dockerfile" \
     --tag "$image_name" "$repository_root"
-loaded_manifest=$(docker image inspect --format '{{.Id}}' "$image_name")
-if [ "$loaded_manifest" != "$expected_manifest" ]; then
-    echo "loaded builder manifest is $loaded_manifest, lock requires $expected_manifest" >&2
+# Classic image stores expose the config digest as .Id, while Docker 29's
+# containerd image store exposes the manifest digest. Both descriptors were
+# verified from the OCI exports above, so accept only either locked identity.
+loaded_image_id=$(docker image inspect --format '{{.Id}}' "$image_name")
+if [ "$loaded_image_id" != "$expected_manifest" ] && [ "$loaded_image_id" != "$expected_config" ]; then
+    echo "loaded builder identity is $loaded_image_id, lock requires manifest $expected_manifest or config $expected_config" >&2
     exit 1
 fi
 
