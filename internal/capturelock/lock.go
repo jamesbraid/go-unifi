@@ -28,6 +28,7 @@ type Lock struct {
 	Source        Source     `json:"source"`
 	Inputs        Inputs     `json:"inputs"`
 	Snapshots     Snapshots  `json:"snapshots"`
+	Scout         *Scout     `json:"scout,omitempty"`
 	CapturedAt    string     `json:"captured_at"`
 }
 
@@ -54,6 +55,14 @@ type Inputs struct {
 type Snapshots struct {
 	StructuralSHA256  string `json:"structural_sha256"`
 	SensitivitySHA256 string `json:"sensitivity_sha256"`
+}
+
+// Scout pins the reviewed evidence inputs that are outside the extracted
+// controller snapshots. A capture can be completed without scout evidence,
+// but scout refuses to run until both digests have been added to the lock.
+type Scout struct {
+	DNSStructuralProjectionSHA256 string `json:"dns_structural_projection_sha256"`
+	DNSSemanticPredecessorSHA256  string `json:"dns_semantic_predecessor_sha256"`
 }
 
 type StoredArtifact struct {
@@ -144,6 +153,10 @@ func (l Lock) validate(requireInspection bool) error {
 		}
 		digests["snapshots.structural_sha256"] = l.Snapshots.StructuralSHA256
 		digests["snapshots.sensitivity_sha256"] = l.Snapshots.SensitivitySHA256
+	}
+	if l.Scout != nil {
+		digests["scout.dns_structural_projection_sha256"] = l.Scout.DNSStructuralProjectionSHA256
+		digests["scout.dns_semantic_predecessor_sha256"] = l.Scout.DNSSemanticPredecessorSHA256
 	}
 	for name, value := range digests {
 		if !validSHA256(value) {

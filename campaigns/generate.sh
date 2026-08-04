@@ -36,6 +36,7 @@ go run ../cmd/scout \
     -target-profile ../scout/profiles/network-10.4.57-seeded.json \
     -scenario ../scout/scenarios/dns-record-list-v1.json \
     -structural ../schemas/structural/dns_record.json \
+    -semantic-predecessor ../schemas/semantic-ids/dns_record.previous.json \
     -semantic-ids ../schemas/semantic-ids/dns_record.json \
     -capture-lock ../schemas/capture.lock.json \
     -response ../scout/fixtures/dns-record-list-v1-vendor-mutation.json \

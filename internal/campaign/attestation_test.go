@@ -88,6 +88,35 @@ func TestBuildAttestationRejectsUnboundEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildAttestationRequiresCompleteBindingsForFixtureAndLive(t *testing.T) {
+	bindings := map[string]string{
+		"scenario path":   "  \"scenario_path\": \"/v2/api/site/{site}/static-dns\",\n",
+		"request shape":   "    \"method\": \"GET\",\n",
+		"response digest": "  \"response_sha256\": \"sha256:response\",\n",
+		"normalization":   "  \"normalization\": \"field_presence_and_json_type_v1\",\n",
+		"redaction":       "  \"redaction\": \"drop_all_observed_values_v1\",\n",
+		"cleanup":         "  \"cleanup\": \"not_required_read_only\",\n",
+	}
+	for _, executionMode := range []string{"fixture", "live"} {
+		for name, binding := range bindings {
+			t.Run(executionMode+"/"+name, func(t *testing.T) {
+				receipt := testReceipt("candidate")
+				if executionMode == "live" {
+					receipt = bytes.Replace(receipt, []byte(`"execution_mode": "fixture"`), []byte(`"execution_mode": "live", "measured_target_fingerprint": "sha256:fingerprint", "controller_version": "10.4.57"`), 1)
+				}
+				mutated := bytes.Replace(receipt, []byte(binding), nil, 1)
+				if bytes.Equal(mutated, receipt) {
+					t.Fatalf("test did not remove %s", name)
+				}
+				_, err := BuildAttestation(testInput(testCatalog("candidate", false), mutated))
+				if err == nil || !strings.Contains(err.Error(), "scenario receipt bindings are incomplete") {
+					t.Fatalf("BuildAttestation() error = %v, want incomplete binding rejection", err)
+				}
+			})
+		}
+	}
+}
+
 type attestationView struct {
 	FormatVersion          int      `json:"format_version"`
 	Classification         string   `json:"classification"`
@@ -140,6 +169,7 @@ func testCatalog(admission string, mutated bool) []byte {
   "sources": {
     "capture_lock_sha256": "sha256:lock",
     "structural_projection_sha256": "sha256:structural",
+    "semantic_predecessor_sha256": "sha256:semantic-predecessor",
     "semantic_ids_sha256": "sha256:semantic-ids"
   },
   "structural_records": %s,

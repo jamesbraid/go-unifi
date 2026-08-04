@@ -67,8 +67,7 @@ func TestBuildDNSCatalogIsCanonicalAndValueFree(t *testing.T) {
 
 func TestBuildDNSCatalogKeepsLiveUnknownFieldConflictSeparate(t *testing.T) {
 	input := testInput(t, `[{"enabled":true,"key":"fixture.example.invalid","port":53,"priority":10,"record_type":"A","ttl":300,"value":"192.0.2.20","new_field":true,"weight":1}]`)
-	input.ExecutionMode = "live"
-	input.MeasuredTargetFingerprint = "sha256:measured-target"
+	makeLiveInput(t, &input)
 	result, err := BuildDNSCatalog(input)
 	if err != nil {
 		t.Fatal(err)
@@ -99,6 +98,7 @@ func TestBuildDNSCatalogUsesExplicitSemanticIDAndSensitivityHint(t *testing.T) {
 		`{"wire_name":"value","json_type":"string","secret_candidate":false}`,
 		`{"wire_name":"answer","json_type":"string","secret_candidate":true}`))
 	input.SemanticIDs = []byte(strings.ReplaceAll(string(input.SemanticIDs), `"wire_name":"value"`, `"wire_name":"answer"`))
+	input.LockedSources.StructuralProjectionSHA256 = mustCanonicalDigest(t, input.StructuralProjection)
 
 	result, err := BuildDNSCatalog(input)
 	if err != nil {
@@ -137,13 +137,42 @@ func TestBuildDNSCatalogUsesExplicitSemanticIDAndSensitivityHint(t *testing.T) {
 	}
 }
 
+func TestBuildDNSCatalogRejectsProjectionSensitivityChangeUnderSameLock(t *testing.T) {
+	input := testInput(t, `[]`)
+	input.StructuralProjection = []byte(strings.Replace(
+		string(input.StructuralProjection),
+		`"wire_name":"value","json_type":"string","secret_candidate":false`,
+		`"wire_name":"value","json_type":"string","secret_candidate":true`,
+		1,
+	))
+
+	_, err := BuildDNSCatalog(input)
+	if err == nil || !strings.Contains(err.Error(), "structural projection digest") {
+		t.Fatalf("BuildDNSCatalog() error = %v, want locked projection digest rejection", err)
+	}
+}
+
+func TestBuildDNSCatalogRejectsCandidateRewrittenSemanticHistory(t *testing.T) {
+	input := testInput(t, `[]`)
+	input.SemanticIDs = []byte(strings.ReplaceAll(
+		string(input.SemanticIDs),
+		"unifi.network.dns_record.field.enabled",
+		"unifi.network.dns_record.field.enabled_rewritten",
+	))
+
+	_, err := BuildDNSCatalog(input)
+	if err == nil || !strings.Contains(err.Error(), "predecessor semantic ID") {
+		t.Fatalf("BuildDNSCatalog() error = %v, want immutable predecessor rejection", err)
+	}
+}
+
 func TestBuildDNSCatalogRejectsStrandedPriorSemanticID(t *testing.T) {
 	input := testInput(t, `[]`)
 	input.SemanticIDs = []byte(strings.Replace(string(input.SemanticIDs),
-		`"prior_ids":[`,
-		`"prior_ids":["unifi.network.dns_record.field.retired",`, 1))
+		`"id":"unifi.network.dns_record.field.value"`,
+		`"id":"unifi.network.dns_record.field.answer"`, 1))
 	_, err := BuildDNSCatalog(input)
-	if err == nil || !strings.Contains(err.Error(), "strands prior semantic ID") {
+	if err == nil || !strings.Contains(err.Error(), "strands predecessor semantic ID") {
 		t.Fatalf("BuildDNSCatalog() error = %v, want stranded semantic ID rejection", err)
 	}
 }
@@ -151,11 +180,11 @@ func TestBuildDNSCatalogRejectsStrandedPriorSemanticID(t *testing.T) {
 func TestBuildDNSCatalogRequiresReviewedSemanticMigration(t *testing.T) {
 	input := testInput(t, `[]`)
 	input.SemanticIDs = []byte(strings.Replace(string(input.SemanticIDs),
-		`"prior_ids":[`,
-		`"prior_ids":["unifi.network.dns_record.field.retired",`, 1))
+		`"id":"unifi.network.dns_record.field.value"`,
+		`"id":"unifi.network.dns_record.field.answer"`, 1))
 	input.SemanticIDs = []byte(strings.Replace(string(input.SemanticIDs),
 		`"migrations":[]`,
-		`"migrations":[{"from_id":"unifi.network.dns_record.field.retired","to_id":"unifi.network.dns_record.field.value","reason":"controller renamed the field","reviewed":false}]`, 1))
+		`"migrations":[{"from_id":"unifi.network.dns_record.field.value","to_id":"unifi.network.dns_record.field.answer","reason":"semantic meaning changed","reviewed":false}]`, 1))
 	_, err := BuildDNSCatalog(input)
 	if err == nil || !strings.Contains(err.Error(), "must be reviewed") {
 		t.Fatalf("BuildDNSCatalog() error = %v, want unreviewed migration rejection", err)
@@ -166,7 +195,7 @@ func TestBuildDNSCatalogRequiresReviewedSemanticMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(result.Catalog, []byte(`"from_id": "unifi.network.dns_record.field.retired"`)) {
+	if !bytes.Contains(result.Catalog, []byte(`"from_id": "unifi.network.dns_record.field.value"`)) {
 		t.Fatalf("reviewed migration missing from catalog: %s", result.Catalog)
 	}
 }
@@ -210,26 +239,48 @@ func TestBuildDNSCatalogBindsFixtureReceiptWithoutLiveTargetClaim(t *testing.T) 
 
 func TestBuildDNSCatalogRequiresMeasuredFingerprintOnlyForLiveExecution(t *testing.T) {
 	input := testInput(t, `[]`)
-	input.MeasuredTargetFingerprint = "sha256:not-measured"
+	receipt := testTargetReceipt(input.Target)
+	input.TargetReceipt = &receipt
 	_, err := BuildDNSCatalog(input)
-	if err == nil || !strings.Contains(err.Error(), "fixture execution cannot claim a measured target") {
+	if err == nil || !strings.Contains(err.Error(), "fixture execution cannot claim a measured target receipt") {
 		t.Fatalf("BuildDNSCatalog() error = %v, want fixture target claim rejection", err)
 	}
 
 	input.ExecutionMode = "live"
-	input.MeasuredTargetFingerprint = ""
+	input.TargetReceipt = nil
 	_, err = BuildDNSCatalog(input)
-	if err == nil || !strings.Contains(err.Error(), "live execution requires a measured target fingerprint") {
+	if err == nil || !strings.Contains(err.Error(), "live execution requires a measured target receipt") {
 		t.Fatalf("BuildDNSCatalog() error = %v, want missing live fingerprint rejection", err)
 	}
 
-	input.MeasuredTargetFingerprint = "sha256:measured-target"
+	makeLiveInput(t, &input)
 	result, err := BuildDNSCatalog(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(result.Receipt, []byte(`"measured_target_fingerprint": "sha256:measured-target"`)) {
+	if !bytes.Contains(result.Receipt, []byte(`"measured_target_fingerprint": "`+input.Target.ControllerFingerprint+`"`)) {
 		t.Fatalf("live receipt did not bind measured fingerprint: %s", result.Receipt)
+	}
+}
+
+func TestBuildDNSCatalogRejectsCopiedLiveFingerprint(t *testing.T) {
+	input := testInput(t, `[]`)
+	input.ExecutionMode = "live"
+
+	_, err := BuildDNSCatalog(input)
+	if err == nil || !strings.Contains(err.Error(), "measured target receipt") {
+		t.Fatalf("BuildDNSCatalog() error = %v, want independently measured target rejection", err)
+	}
+}
+
+func TestBuildDNSCatalogRejectsObservedControllerVersionMismatch(t *testing.T) {
+	input := testInput(t, `[]`)
+	makeLiveInput(t, &input)
+	input.ControllerVersion = "10.4.58"
+
+	_, err := BuildDNSCatalog(input)
+	if err == nil || !strings.Contains(err.Error(), "does not match target profile and capture lock") {
+		t.Fatalf("BuildDNSCatalog() error = %v, want observed version mismatch", err)
 	}
 }
 
@@ -323,9 +374,22 @@ func testInput(t *testing.T, observation string) Input {
     {"wire_name":"value","id":"unifi.network.dns_record.field.value"},
     {"wire_name":"weight","id":"unifi.network.dns_record.field.weight"}
   ],
-  "prior_ids":["unifi.network.dns_record.field.enabled","unifi.network.dns_record.field.key","unifi.network.dns_record.field.port","unifi.network.dns_record.field.priority","unifi.network.dns_record.field.record_type","unifi.network.dns_record.field.ttl","unifi.network.dns_record.field.value","unifi.network.dns_record.field.weight"],
   "tombstones":[],
   "migrations":[]
+}`)
+	semanticPredecessor := []byte(`{
+  "format_version":1,
+  "resource":"dns_record",
+  "fields":[
+    {"wire_name":"enabled","id":"unifi.network.dns_record.field.enabled"},
+    {"wire_name":"key","id":"unifi.network.dns_record.field.key"},
+    {"wire_name":"port","id":"unifi.network.dns_record.field.port"},
+    {"wire_name":"priority","id":"unifi.network.dns_record.field.priority"},
+    {"wire_name":"record_type","id":"unifi.network.dns_record.field.record_type"},
+    {"wire_name":"ttl","id":"unifi.network.dns_record.field.ttl"},
+    {"wire_name":"value","id":"unifi.network.dns_record.field.value"},
+    {"wire_name":"weight","id":"unifi.network.dns_record.field.weight"}
+  ]
 }`)
 	return Input{
 		Target: TargetProfile{
@@ -333,9 +397,9 @@ func testInput(t *testing.T, observation string) Input {
 			Product:               "unifi-network",
 			Version:               "10.4.57",
 			Architecture:          "amd64",
-			ImageIndexSHA256:      "sha256:index",
-			ImageManifestSHA256:   "sha256:manifest",
-			ControllerFingerprint: "sha256:declared-target",
+			ImageIndexSHA256:      "sha256:" + strings.Repeat("1", 64),
+			ImageManifestSHA256:   "sha256:" + strings.Repeat("2", 64),
+			ControllerFingerprint: "sha256:" + strings.Repeat("3", 64),
 		},
 		Scenario: Scenario{
 			ID:       "dns-record-list-v1",
@@ -346,13 +410,52 @@ func testInput(t *testing.T, observation string) Input {
 		},
 		ExecutionMode: "fixture",
 		LockedSources: LockedSources{
-			CaptureLockSHA256:     strings.Repeat("d", 64),
-			ExtractionRulesSHA256: testExtractionSHA,
-			StructuralSHA256:      testStructuralSHA,
-			SensitivitySHA256:     testSensitivitySHA,
+			CaptureLockSHA256:          strings.Repeat("d", 64),
+			ControllerNetworkVersion:   "10.4.57",
+			ExtractionRulesSHA256:      testExtractionSHA,
+			StructuralSHA256:           testStructuralSHA,
+			SensitivitySHA256:          testSensitivitySHA,
+			StructuralProjectionSHA256: mustCanonicalDigest(t, structural),
+			SemanticPredecessorSHA256:  mustCanonicalDigest(t, semanticPredecessor),
 		},
 		StructuralProjection: structural,
+		SemanticPredecessor:  semanticPredecessor,
 		SemanticIDs:          semanticIDs,
 		ObservedResponse:     []byte(observation),
 	}
+}
+
+func makeLiveInput(t *testing.T, input *Input) {
+	t.Helper()
+	receipt := testTargetReceipt(input.Target)
+	fingerprint, err := ProvisionerReceiptFingerprint(receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.Target.ControllerFingerprint = fingerprint
+	input.TargetReceipt = &receipt
+	input.ControllerVersion = input.Target.Version
+	input.ExecutionMode = "live"
+}
+
+func testTargetReceipt(target TargetProfile) ProvisionerTargetReceipt {
+	return ProvisionerTargetReceipt{
+		FormatVersion:          1,
+		ProfileName:            target.Name,
+		Product:                target.Product,
+		Version:                target.Version,
+		Architecture:           target.Architecture,
+		ImageIndexSHA256:       target.ImageIndexSHA256,
+		ImageManifestSHA256:    target.ImageManifestSHA256,
+		InstanceIdentitySHA256: "sha256:" + strings.Repeat("4", 64),
+	}
+}
+
+func mustCanonicalDigest(t *testing.T, document []byte) string {
+	t.Helper()
+	digest, err := canonicalDocumentDigest(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return digest
 }

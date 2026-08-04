@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,10 @@ func validLock(data []byte) Lock {
 		Snapshots: Snapshots{
 			StructuralSHA256:  strings.Repeat("c", 64),
 			SensitivitySHA256: strings.Repeat("d", 64),
+		},
+		Scout: &Scout{
+			DNSStructuralProjectionSHA256: strings.Repeat("e", 64),
+			DNSSemanticPredecessorSHA256:  strings.Repeat("f", 64),
 		},
 		CapturedAt: "2026-08-03T12:34:56Z",
 	}
@@ -69,7 +74,7 @@ func TestDraftLockAllowsOnlyInspectionOutputsToBeMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != lock {
+	if !reflect.DeepEqual(got, lock) {
 		t.Fatalf("LoadDraftFile() = %#v, want %#v", got, lock)
 	}
 	if _, err := LoadFile(path); err == nil || !strings.Contains(err.Error(), "controller.network_version") {
@@ -102,6 +107,8 @@ func TestValidateRequiresCompleteLock(t *testing.T) {
 		{name: "generator digest", edit: func(l *Lock) { l.Inputs.GeneratorInputsSHA256 = "" }, want: "inputs.generator_inputs_sha256"},
 		{name: "structural digest", edit: func(l *Lock) { l.Snapshots.StructuralSHA256 = "" }, want: "snapshots.structural_sha256"},
 		{name: "sensitivity digest", edit: func(l *Lock) { l.Snapshots.SensitivitySHA256 = "" }, want: "snapshots.sensitivity_sha256"},
+		{name: "scout projection digest", edit: func(l *Lock) { l.Scout.DNSStructuralProjectionSHA256 = "" }, want: "scout.dns_structural_projection_sha256"},
+		{name: "scout predecessor digest", edit: func(l *Lock) { l.Scout.DNSSemanticPredecessorSHA256 = "" }, want: "scout.dns_semantic_predecessor_sha256"},
 		{name: "capture time", edit: func(l *Lock) { l.CapturedAt = "yesterday" }, want: "captured_at"},
 		{name: "absolute locator", edit: func(l *Lock) { l.Source.ContentStoreLocator = "/tmp/artifact" }, want: "content_store_locator"},
 		{name: "traversal locator", edit: func(l *Lock) { l.Source.ContentStoreLocator = "../artifact" }, want: "content_store_locator"},
@@ -209,7 +216,7 @@ func TestWriteFileIsCanonicalAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != lock {
+	if !reflect.DeepEqual(got, lock) {
 		t.Fatalf("LoadFile() = %#v, want %#v", got, lock)
 	}
 }
@@ -350,6 +357,7 @@ func TestStoreArtifactUsesDigestPathAndRejectsCorruptExistingContent(t *testing.
 
 func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 	root := t.TempDir()
+	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
 	files := map[string]string{
 		"cmd/fields/extract.go":            "extract-v1",
 		"cmd/fields/main.go":               "generate-v1",
@@ -359,12 +367,9 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 		"internal/capturelock/lock.go":     "lock-v1",
 		"overrides/resources/Network.json": "override-v1",
 		"overrides/fields.toml":            "fields-override-v1",
-		"unifi/unifi.go": `package unifi
-
-//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
-`,
-		"go.mod": "module example.invalid/test",
-		"go.sum": "sum-v1",
+		"unifi/unifi.go":                   "package unifi\n\n" + directive + "\n",
+		"go.mod":                           "module example.invalid/test",
+		"go.sum":                           "sum-v1",
 	}
 	for name, content := range files {
 		filename := filepath.Join(root, filepath.FromSlash(name))
@@ -409,12 +414,8 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 		t.Fatal("generator-only edit did not change generator-input digest")
 	}
 
-	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte(`package unifi
-
-//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
-
-// The directive-bearing package changed.
-`), 0o644); err != nil {
+	changedEntrypoint := "package unifi\n\n" + directive + "\n\n// The directive-bearing package changed.\n"
+	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte(changedEntrypoint), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	afterEntrypoint, err := ComputeInputDigests(root)
@@ -445,6 +446,7 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 
 func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 	root := t.TempDir()
+	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
 	files := map[string]string{
 		"cmd/fields/extract.go":        "extract-v1",
 		"cmd/fields/main.go":           "generate-v1",
@@ -453,11 +455,7 @@ func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 		"overrides/fields.toml":        "fields-v1",
 		"go.mod":                       "module example.invalid/test",
 		"go.sum":                       "sum-v1",
-		"unifi/unifi.go": `package unifi
-
-//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
-//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
-`,
+		"unifi/unifi.go":               "package unifi\n\n" + directive + "\n" + directive + "\n",
 	}
 	for name, content := range files {
 		filename := filepath.Join(root, filepath.FromSlash(name))
@@ -474,10 +472,8 @@ func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 		t.Fatalf("ComputeInputDigests() error = %v, want invalid generator directive", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte(`package unifi
-
-//go:generate go run ../cmd/fields/ -output-dir=../generated/ -generate-spec -spec-output=../specification.json
-`), 0o644); err != nil {
+	invalidDirective := "//go:" + "generate go run ../cmd/fields/ -output-dir=../generated/ -generate-spec -spec-output=../specification.json"
+	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte("package unifi\n\n"+invalidDirective+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err = ComputeInputDigests(root)
