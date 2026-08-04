@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -25,17 +24,22 @@ func TestValidateAdmissionReceiptRequiresPinnedTrackedArtifact(t *testing.T) {
 	if _, err := decodeCanonical(receiptBytes, &trackedReceipt); err != nil {
 		t.Fatal(err)
 	}
-	committedBaseline, err := exec.Command("git", "show", trackedReceipt.Provenance.SourceCommit+":"+trackedReceipt.Provenance.Artifact).Output()
+	if digest(baselineCanonical) != trackedReceipt.BaselineCatalogSHA256 {
+		t.Fatalf("tracked baseline digest = %q, receipt = %q", digest(baselineCanonical), trackedReceipt.BaselineCatalogSHA256)
+	}
+	if trackedReceipt.Provenance.SourceCommit != trustedDNSAdmissionSourceCommit {
+		t.Fatalf("admission source commit = %q, trusted = %q", trackedReceipt.Provenance.SourceCommit, trustedDNSAdmissionSourceCommit)
+	}
+	wrongSource := trackedReceipt
+	wrongSource.Provenance.SourceCommit = strings.Repeat("a", 40)
+	wrongSource.ChecksumSHA256 = ""
+	wrongSource.ChecksumSHA256, err = admissionReceiptChecksum(wrongSource)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var committedDocument catalogDocument
-	committedCanonical, err := decodeCanonical(committedBaseline, &committedDocument)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if digest(committedCanonical) != trackedReceipt.BaselineCatalogSHA256 {
-		t.Fatalf("admission source commit baseline digest = %q, receipt = %q", digest(committedCanonical), trackedReceipt.BaselineCatalogSHA256)
+	wrongSourceBytes, _ := encodeCanonical(wrongSource)
+	if err := validateAdmissionReceipt(baselineCanonical, baselineDocument, wrongSourceBytes); err == nil || !strings.Contains(err.Error(), "trusted admission") {
+		t.Fatalf("validateAdmissionReceipt() error = %v, want source commit rejection", err)
 	}
 
 	var fake admissionReceipt
