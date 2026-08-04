@@ -14,7 +14,7 @@
   "buildkit_compatibility_version": 20,
   "dockerfile_sha256": "ab8c66d2794f2e28a0607f802670c6dfe4e20245807939c2e8a137f47b85eae6",
   "container_rebuild_sha256": "b86ac1e1071f443b036dc5af614e2e695adceb2b17a39d7a9d79270469d0b433",
-  "rebuild_script_sha256": "8a8ad8fe47819ecf47619e522660ab3890c32c7c4f25d083b417bfb4f142e3c9",
+  "rebuild_script_sha256": "ec737000946c553ff19edd3f039f99b59a7e55556cfa3d6e5a8517e106e2aa17",
   "go_mod_sha256": "94cade3f8130346736f1f28b27bb3bb6f75e444ec4ec05986c240721f8d109b3",
   "go_sum_sha256": "01015f5e1a3a8a7868127c544d2c7e591902c976fae06720ae4beb23ef030615",
   "image_manifest_sha256": "sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",

@@ -115,7 +115,7 @@ fi
 
 for run in 1 2; do
     docker run --rm --platform linux/amd64 --network none --read-only \
-        --tmpfs /tmp:rw,nosuid,size=4g \
+        --tmpfs /tmp:rw,exec,nosuid,size=4g \
         --mount "type=bind,src=$scratch/source,dst=/source,readonly" \
         --mount "type=bind,src=$content_store,dst=/content,readonly" \
         --mount "type=bind,src=$receipt_root/run-$run,dst=/out" \
