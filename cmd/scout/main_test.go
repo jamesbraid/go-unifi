@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,7 +39,7 @@ func TestObserveLiveKeepsUnknownDNSMemberAndBlocksAdmission(t *testing.T) {
 	t.Setenv("UNIFI_USERNAME", "admin")
 	t.Setenv("UNIFI_PASSWORD", "admin")
 
-	observed, err := observeLive(context.Background(), scout.Scenario{
+	observation, err := observeLive(context.Background(), scout.Scenario{
 		ID:       "dns-record-list-v1",
 		Mode:     "read_only",
 		Resource: "dns_record",
@@ -46,13 +49,15 @@ func TestObserveLiveKeepsUnknownDNSMemberAndBlocksAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(observed, []byte(`"vendor_flag"`)) {
-		t.Fatalf("live observation dropped unknown field: %s", observed)
+	if observation.ControllerVersion != "10.4.57" {
+		t.Fatalf("observed controller version = %q, want 10.4.57", observation.ControllerVersion)
+	}
+	if !bytes.Contains(observation.Response, []byte(`"vendor_flag"`)) {
+		t.Fatalf("live observation dropped unknown field: %s", observation.Response)
 	}
 
-	input := commandTestInput(observed)
-	input.ExecutionMode = "live"
-	input.MeasuredTargetFingerprint = "sha256:measured-target"
+	input := commandTestInput(t, observation.Response)
+	makeCommandLiveInput(t, &input, observation.ControllerVersion)
 	result, err := scout.BuildDNSCatalog(input)
 	if err != nil {
 		t.Fatal(err)
@@ -97,15 +102,17 @@ func TestRunBuildsOfflineDNSCatalog(t *testing.T) {
   "path":"/v2/api/site/{site}/static-dns"
 }`)
 	structural := write("structural.json", commandStructuralProjection())
+	semanticPredecessor := write("semantic-predecessor.json", commandSemanticPredecessor())
 	semanticIDs := write("semantic-ids.json", commandSemanticIDs())
-	captureLock := write("capture.lock.json", `{
+	captureLock := write("capture.lock.json", fmt.Sprintf(`{
   "format_version":1,
   "controller":{"product":"unifi-controller","build":"test-build","network_version":"10.4.57"},
   "source":{"location":"https://downloads.example.invalid/controller.deb","media_type":"application/vnd.debian.binary-package","byte_size":1,"sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
   "inputs":{"extraction_rules_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","generator_inputs_sha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"},
   "snapshots":{"structural_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","sensitivity_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+	"scout":{"dns_structural_projection_sha256":"%s","dns_semantic_predecessor_sha256":"%s"},
   "captured_at":"2026-08-04T00:00:00Z"
-}`)
+}`, commandCanonicalDigest(t, commandStructuralProjection()), commandCanonicalDigest(t, commandSemanticPredecessor())))
 	response := write("response.json", `[{
   "_id":"must-not-survive",
   "enabled":true,
@@ -124,6 +131,7 @@ func TestRunBuildsOfflineDNSCatalog(t *testing.T) {
 		"-target-profile", target,
 		"-scenario", scenario,
 		"-structural", structural,
+		"-semantic-predecessor", semanticPredecessor,
 		"-semantic-ids", semanticIDs,
 		"-capture-lock", captureLock,
 		"-response", response,
@@ -168,16 +176,19 @@ func TestRunRequiresDeclaredInputs(t *testing.T) {
 	}
 }
 
-func commandTestInput(observed []byte) scout.Input {
+func commandTestInput(t *testing.T, observed []byte) scout.Input {
+	t.Helper()
+	structural := commandStructuralProjection()
+	predecessor := commandSemanticPredecessor()
 	return scout.Input{
 		Target: scout.TargetProfile{
 			Name:                  "network-10.4.57-seeded",
 			Product:               "unifi-network",
 			Version:               "10.4.57",
 			Architecture:          "amd64",
-			ImageIndexSHA256:      "sha256:index",
-			ImageManifestSHA256:   "sha256:manifest",
-			ControllerFingerprint: "sha256:declared-target",
+			ImageIndexSHA256:      "sha256:" + strings.Repeat("1", 64),
+			ImageManifestSHA256:   "sha256:" + strings.Repeat("2", 64),
+			ControllerFingerprint: "sha256:" + strings.Repeat("3", 64),
 		},
 		Scenario: scout.Scenario{
 			ID:       "dns-record-list-v1",
@@ -188,15 +199,41 @@ func commandTestInput(observed []byte) scout.Input {
 		},
 		ExecutionMode: "fixture",
 		LockedSources: scout.LockedSources{
-			CaptureLockSHA256:     strings.Repeat("d", 64),
-			ExtractionRulesSHA256: strings.Repeat("a", 64),
-			StructuralSHA256:      strings.Repeat("b", 64),
-			SensitivitySHA256:     strings.Repeat("c", 64),
+			CaptureLockSHA256:          strings.Repeat("d", 64),
+			ControllerNetworkVersion:   "10.4.57",
+			ExtractionRulesSHA256:      strings.Repeat("a", 64),
+			StructuralSHA256:           strings.Repeat("b", 64),
+			SensitivitySHA256:          strings.Repeat("c", 64),
+			StructuralProjectionSHA256: commandCanonicalDigest(t, structural),
+			SemanticPredecessorSHA256:  commandCanonicalDigest(t, predecessor),
 		},
-		StructuralProjection: []byte(commandStructuralProjection()),
+		StructuralProjection: []byte(structural),
+		SemanticPredecessor:  []byte(predecessor),
 		SemanticIDs:          []byte(commandSemanticIDs()),
 		ObservedResponse:     observed,
 	}
+}
+
+func makeCommandLiveInput(t *testing.T, input *scout.Input, controllerVersion string) {
+	t.Helper()
+	receipt := scout.ProvisionerTargetReceipt{
+		FormatVersion:          1,
+		ProfileName:            input.Target.Name,
+		Product:                input.Target.Product,
+		Version:                input.Target.Version,
+		Architecture:           input.Target.Architecture,
+		ImageIndexSHA256:       input.Target.ImageIndexSHA256,
+		ImageManifestSHA256:    input.Target.ImageManifestSHA256,
+		InstanceIdentitySHA256: "sha256:" + strings.Repeat("4", 64),
+	}
+	fingerprint, err := scout.ProvisionerReceiptFingerprint(receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.Target.ControllerFingerprint = fingerprint
+	input.TargetReceipt = &receipt
+	input.ControllerVersion = controllerVersion
+	input.ExecutionMode = "live"
 }
 
 func commandStructuralProjection() string {
@@ -232,8 +269,38 @@ func commandSemanticIDs() string {
     {"wire_name":"value","id":"unifi.network.dns_record.field.value"},
     {"wire_name":"weight","id":"unifi.network.dns_record.field.weight"}
   ],
-  "prior_ids":["unifi.network.dns_record.field.enabled","unifi.network.dns_record.field.key","unifi.network.dns_record.field.port","unifi.network.dns_record.field.priority","unifi.network.dns_record.field.record_type","unifi.network.dns_record.field.ttl","unifi.network.dns_record.field.value","unifi.network.dns_record.field.weight"],
   "tombstones":[],
   "migrations":[]
 }`
+}
+
+func commandSemanticPredecessor() string {
+	return `{
+  "format_version":1,
+  "resource":"dns_record",
+  "fields":[
+    {"wire_name":"enabled","id":"unifi.network.dns_record.field.enabled"},
+    {"wire_name":"key","id":"unifi.network.dns_record.field.key"},
+    {"wire_name":"port","id":"unifi.network.dns_record.field.port"},
+    {"wire_name":"priority","id":"unifi.network.dns_record.field.priority"},
+    {"wire_name":"record_type","id":"unifi.network.dns_record.field.record_type"},
+    {"wire_name":"ttl","id":"unifi.network.dns_record.field.ttl"},
+    {"wire_name":"value","id":"unifi.network.dns_record.field.value"},
+    {"wire_name":"weight","id":"unifi.network.dns_record.field.weight"}
+  ]
+}`
+}
+
+func commandCanonicalDigest(t *testing.T, document string) string {
+	t.Helper()
+	var value any
+	if err := json.Unmarshal([]byte(document), &value); err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:])
 }

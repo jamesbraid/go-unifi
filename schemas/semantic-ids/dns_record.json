@@ -36,16 +36,6 @@
       "id": "unifi.network.dns_record.field.weight"
     }
   ],
-  "prior_ids": [
-    "unifi.network.dns_record.field.enabled",
-    "unifi.network.dns_record.field.key",
-    "unifi.network.dns_record.field.port",
-    "unifi.network.dns_record.field.priority",
-    "unifi.network.dns_record.field.record_type",
-    "unifi.network.dns_record.field.ttl",
-    "unifi.network.dns_record.field.value",
-    "unifi.network.dns_record.field.weight"
-  ],
   "tombstones": [],
   "migrations": []
 }

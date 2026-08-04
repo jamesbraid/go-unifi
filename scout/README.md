@@ -13,6 +13,7 @@ go run ./cmd/scout \
   -target-profile scout/profiles/network-10.4.57-seeded.json \
   -scenario scout/scenarios/dns-record-list-v1.json \
   -structural schemas/structural/dns_record.json \
+  -semantic-predecessor schemas/semantic-ids/dns_record.previous.json \
   -semantic-ids schemas/semantic-ids/dns_record.json \
   -capture-lock schemas/capture.lock.json \
   -response scout/fixtures/dns-record-list-v1.json \
@@ -21,8 +22,15 @@ go run ./cmd/scout \
 ```
 
 Omit `-response` to execute the declared read-only DNS list against a
-disposable target. Supply `UNIFI_API`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD`.
-`UNIFI_SITE` defaults to `default` and `UNIFI_INSECURE` defaults to `false`.
-The live request retains raw JSON through admission checks. A replay receipt is
-explicitly marked `fixture` and carries no measured-target claim. Credentials
-and observed values are never written to either output.
+disposable target. Live runs also require `-target-receipt` with the
+provisioner's measured product, version, architecture, image digests, and a
+SHA-256 digest of the runtime instance identity. Scout computes the receipt's
+fingerprint and requires it to match the target profile. It independently
+reads the Network version learned by the API client and requires that version
+to match both the profile and capture lock.
+
+Supply `UNIFI_API`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD`. `UNIFI_SITE`
+defaults to `default` and `UNIFI_INSECURE` defaults to `false`. The live request
+retains raw JSON through admission checks. Fixture runs forbid target receipts
+and carry no measured-target claim. Credentials, instance names, and observed
+values are never written to either output.

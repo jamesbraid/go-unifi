@@ -11,6 +11,19 @@ type TargetProfile struct {
 	ControllerFingerprint string `json:"controller_fingerprint"`
 }
 
+// ProvisionerTargetReceipt is the independently measured runtime identity for
+// one disposable controller. Instance identity is retained only as a digest.
+type ProvisionerTargetReceipt struct {
+	FormatVersion          int    `json:"format_version"`
+	ProfileName            string `json:"profile_name"`
+	Product                string `json:"product"`
+	Version                string `json:"version"`
+	Architecture           string `json:"architecture"`
+	ImageIndexSHA256       string `json:"image_index_sha256"`
+	ImageManifestSHA256    string `json:"image_manifest_sha256"`
+	InstanceIdentitySHA256 string `json:"instance_identity_sha256"`
+}
+
 // Scenario is one declared controller interaction. Scout accepts only the
 // read-only DNS list workflow.
 type Scenario struct {
@@ -23,24 +36,29 @@ type Scenario struct {
 
 // LockedSources carries the digests read from the validated capture lock.
 type LockedSources struct {
-	CaptureLockSHA256     string
-	ExtractionRulesSHA256 string
-	StructuralSHA256      string
-	SensitivitySHA256     string
+	CaptureLockSHA256          string
+	ControllerNetworkVersion   string
+	ExtractionRulesSHA256      string
+	StructuralSHA256           string
+	SensitivitySHA256          string
+	StructuralProjectionSHA256 string
+	SemanticPredecessorSHA256  string
 }
 
 // Input contains the immutable structural and raw observed evidence for one
 // DNS run. ExecutionMode is either fixture or live; only a live run may carry
-// a measured target fingerprint.
+// a provisioner receipt and the controller version learned by the API client.
 type Input struct {
-	Target                    TargetProfile
-	Scenario                  Scenario
-	ExecutionMode             string
-	MeasuredTargetFingerprint string
-	LockedSources             LockedSources
-	StructuralProjection      []byte
-	SemanticIDs               []byte
-	ObservedResponse          []byte
+	Target               TargetProfile
+	TargetReceipt        *ProvisionerTargetReceipt
+	ControllerVersion    string
+	Scenario             Scenario
+	ExecutionMode        string
+	LockedSources        LockedSources
+	StructuralProjection []byte
+	SemanticPredecessor  []byte
+	SemanticIDs          []byte
+	ObservedResponse     []byte
 }
 
 // Result contains value-free canonical evidence.
@@ -72,9 +90,14 @@ type semanticRegistry struct {
 	Resource              string              `json:"resource"`
 	ExtractionRulesSHA256 string              `json:"extraction_rules_sha256"`
 	Fields                []semanticField     `json:"fields"`
-	PriorIDs              []string            `json:"prior_ids"`
 	Tombstones            []semanticTombstone `json:"tombstones"`
 	Migrations            []catalogMigration  `json:"migrations"`
+}
+
+type semanticPredecessorRegistry struct {
+	FormatVersion int             `json:"format_version"`
+	Resource      string          `json:"resource"`
+	Fields        []semanticField `json:"fields"`
 }
 
 type semanticField struct {
@@ -104,6 +127,7 @@ type catalog struct {
 type catalogSources struct {
 	CaptureLockSHA256          string `json:"capture_lock_sha256"`
 	StructuralProjectionSHA256 string `json:"structural_projection_sha256"`
+	SemanticPredecessorSHA256  string `json:"semantic_predecessor_sha256"`
 	SemanticIDsSHA256          string `json:"semantic_ids_sha256"`
 }
 
@@ -162,6 +186,7 @@ type scenarioReceipt struct {
 	RequestShape               requestShape `json:"request_shape"`
 	ExecutionMode              string       `json:"execution_mode"`
 	MeasuredTargetFingerprint  string       `json:"measured_target_fingerprint,omitempty"`
+	ControllerVersion          string       `json:"controller_version,omitempty"`
 	OperationDigest            string       `json:"operation_digest"`
 	ResponseSHA256             string       `json:"response_sha256"`
 	Normalization              string       `json:"normalization"`

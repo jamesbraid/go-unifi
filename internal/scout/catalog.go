@@ -43,17 +43,40 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		return Result{}, fmt.Errorf("incomplete or unsupported DNS scenario")
 	}
 	if input.LockedSources.CaptureLockSHA256 == "" || input.LockedSources.ExtractionRulesSHA256 == "" ||
-		input.LockedSources.StructuralSHA256 == "" || input.LockedSources.SensitivitySHA256 == "" {
+		input.LockedSources.ControllerNetworkVersion == "" || input.LockedSources.StructuralSHA256 == "" ||
+		input.LockedSources.SensitivitySHA256 == "" || input.LockedSources.StructuralProjectionSHA256 == "" ||
+		input.LockedSources.SemanticPredecessorSHA256 == "" {
 		return Result{}, fmt.Errorf("complete locked source digests are required")
 	}
+	if input.Target.Version != input.LockedSources.ControllerNetworkVersion {
+		return Result{}, fmt.Errorf("target version does not match capture lock Network version")
+	}
+	measuredTargetFingerprint := ""
 	switch input.ExecutionMode {
 	case "fixture":
-		if input.MeasuredTargetFingerprint != "" {
-			return Result{}, fmt.Errorf("fixture execution cannot claim a measured target fingerprint")
+		if input.TargetReceipt != nil || input.ControllerVersion != "" {
+			return Result{}, fmt.Errorf("fixture execution cannot claim a measured target receipt or controller version")
 		}
 	case "live":
-		if input.MeasuredTargetFingerprint == "" {
-			return Result{}, fmt.Errorf("live execution requires a measured target fingerprint")
+		if input.TargetReceipt == nil {
+			return Result{}, fmt.Errorf("live execution requires a measured target receipt")
+		}
+		if input.ControllerVersion == "" {
+			return Result{}, fmt.Errorf("live execution requires the observed controller version")
+		}
+		if input.ControllerVersion != input.Target.Version || input.ControllerVersion != input.LockedSources.ControllerNetworkVersion {
+			return Result{}, fmt.Errorf("observed controller version %q does not match target profile and capture lock", input.ControllerVersion)
+		}
+		if err := targetReceiptMatchesProfile(*input.TargetReceipt, input.Target); err != nil {
+			return Result{}, err
+		}
+		var err error
+		measuredTargetFingerprint, err = ProvisionerReceiptFingerprint(*input.TargetReceipt)
+		if err != nil {
+			return Result{}, err
+		}
+		if measuredTargetFingerprint != input.Target.ControllerFingerprint {
+			return Result{}, fmt.Errorf("measured target receipt fingerprint does not match target profile")
 		}
 	default:
 		return Result{}, fmt.Errorf("unsupported execution mode %q", input.ExecutionMode)
@@ -66,6 +89,10 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	semanticIDs, tombstones, migrations, err := loadSemanticRegistry(input, fields)
 	if err != nil {
 		return Result{}, err
+	}
+	semanticIDsDigest, err := canonicalDocumentDigest(input.SemanticIDs)
+	if err != nil {
+		return Result{}, fmt.Errorf("canonicalize semantic IDs: %w", err)
 	}
 	records, err := observedObjects(input.ObservedResponse)
 	if err != nil {
@@ -182,8 +209,9 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		Target:        input.Target,
 		Sources: catalogSources{
 			CaptureLockSHA256:          input.LockedSources.CaptureLockSHA256,
-			StructuralProjectionSHA256: digest(input.StructuralProjection),
-			SemanticIDsSHA256:          digest(input.SemanticIDs),
+			StructuralProjectionSHA256: input.LockedSources.StructuralProjectionSHA256,
+			SemanticPredecessorSHA256:  input.LockedSources.SemanticPredecessorSHA256,
+			SemanticIDsSHA256:          semanticIDsDigest,
 		},
 		StructuralRecords: structuralRecords,
 		ObservedRecords:   observedRecords,
@@ -206,7 +234,8 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		ScenarioMode:               input.Scenario.Mode,
 		RequestShape:               requestShape{Method: input.Scenario.Method, Path: input.Scenario.Path, Query: "none", Body: "none"},
 		ExecutionMode:              input.ExecutionMode,
-		MeasuredTargetFingerprint:  input.MeasuredTargetFingerprint,
+		MeasuredTargetFingerprint:  measuredTargetFingerprint,
+		ControllerVersion:          input.ControllerVersion,
 		OperationDigest:            operationDigest,
 		ResponseSHA256:             digest(input.ObservedResponse),
 		Normalization:              normalizationPolicy,
@@ -237,6 +266,13 @@ func loadStructuralProjection(input Input) (map[string]structuralProjectionField
 	if projection.Source.SensitivitySHA256 != input.LockedSources.SensitivitySHA256 {
 		return nil, fmt.Errorf("sensitivity snapshot digest does not match capture lock")
 	}
+	projectionDigest, err := canonicalDocumentDigest(input.StructuralProjection)
+	if err != nil {
+		return nil, fmt.Errorf("canonicalize structural projection: %w", err)
+	}
+	if projectionDigest != input.LockedSources.StructuralProjectionSHA256 {
+		return nil, fmt.Errorf("structural projection digest does not match capture lock")
+	}
 	if len(projection.Fields) == 0 {
 		return nil, fmt.Errorf("DNS structural projection has no fields")
 	}
@@ -254,6 +290,10 @@ func loadStructuralProjection(input Input) (map[string]structuralProjectionField
 }
 
 func loadSemanticRegistry(input Input, fields map[string]structuralProjectionField) (map[string]string, []string, []catalogMigration, error) {
+	priorIDs, err := loadSemanticPredecessor(input)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	var registry semanticRegistry
 	if err := decodeStrictSingleJSON(input.SemanticIDs, &registry); err != nil {
 		return nil, nil, nil, fmt.Errorf("decode semantic IDs: %w", err)
@@ -264,8 +304,8 @@ func loadSemanticRegistry(input Input, fields map[string]structuralProjectionFie
 	if registry.ExtractionRulesSHA256 != input.LockedSources.ExtractionRulesSHA256 {
 		return nil, nil, nil, fmt.Errorf("extraction rules digest does not match capture lock")
 	}
-	if registry.PriorIDs == nil || registry.Tombstones == nil || registry.Migrations == nil {
-		return nil, nil, nil, fmt.Errorf("semantic ID history must declare prior_ids, tombstones, and migrations")
+	if registry.Tombstones == nil || registry.Migrations == nil {
+		return nil, nil, nil, fmt.Errorf("semantic ID registry must declare tombstones and migrations")
 	}
 
 	semanticIDs := make(map[string]string, len(registry.Fields))
@@ -292,16 +332,6 @@ func loadSemanticRegistry(input Input, fields map[string]structuralProjectionFie
 		}
 	}
 
-	priorIDs := make(map[string]struct{}, len(registry.PriorIDs))
-	for _, id := range registry.PriorIDs {
-		if id == "" {
-			return nil, nil, nil, fmt.Errorf("prior semantic ID cannot be empty")
-		}
-		if _, duplicate := priorIDs[id]; duplicate {
-			return nil, nil, nil, fmt.Errorf("duplicate prior semantic ID %q", id)
-		}
-		priorIDs[id] = struct{}{}
-	}
 	tombstoned := make(map[string]struct{}, len(registry.Tombstones))
 	tombstones := make([]string, 0, len(registry.Tombstones))
 	for _, tombstone := range registry.Tombstones {
@@ -355,9 +385,42 @@ func loadSemanticRegistry(input Input, fields map[string]structuralProjectionFie
 		if _, moved := migrated[id]; moved {
 			continue
 		}
-		return nil, nil, nil, fmt.Errorf("semantic registry strands prior semantic ID %q", id)
+		return nil, nil, nil, fmt.Errorf("semantic registry strands predecessor semantic ID %q", id)
 	}
 	return semanticIDs, tombstones, migrations, nil
+}
+
+func loadSemanticPredecessor(input Input) (map[string]struct{}, error) {
+	var predecessor semanticPredecessorRegistry
+	if err := decodeStrictSingleJSON(input.SemanticPredecessor, &predecessor); err != nil {
+		return nil, fmt.Errorf("decode semantic predecessor: %w", err)
+	}
+	if predecessor.FormatVersion != 1 || predecessor.Resource != "dns_record" || len(predecessor.Fields) == 0 {
+		return nil, fmt.Errorf("unsupported DNS semantic predecessor registry")
+	}
+	documentDigest, err := canonicalDocumentDigest(input.SemanticPredecessor)
+	if err != nil {
+		return nil, fmt.Errorf("canonicalize semantic predecessor: %w", err)
+	}
+	if documentDigest != input.LockedSources.SemanticPredecessorSHA256 {
+		return nil, fmt.Errorf("semantic predecessor digest does not match capture lock")
+	}
+	ids := make(map[string]struct{}, len(predecessor.Fields))
+	wires := make(map[string]struct{}, len(predecessor.Fields))
+	for _, field := range predecessor.Fields {
+		if field.WireName == "" || !strings.HasPrefix(field.ID, "unifi.network.dns_record.") {
+			return nil, fmt.Errorf("invalid predecessor semantic ID for field %q", field.WireName)
+		}
+		if _, duplicate := wires[field.WireName]; duplicate {
+			return nil, fmt.Errorf("duplicate predecessor semantic field %q", field.WireName)
+		}
+		if _, duplicate := ids[field.ID]; duplicate {
+			return nil, fmt.Errorf("duplicate predecessor semantic ID %q", field.ID)
+		}
+		wires[field.WireName] = struct{}{}
+		ids[field.ID] = struct{}{}
+	}
+	return ids, nil
 }
 
 func observedObjects(document []byte) ([]map[string]json.RawMessage, error) {
@@ -454,6 +517,78 @@ func unsafeFieldName(name string) bool {
 func digest(document []byte) string {
 	sum := sha256.Sum256(document)
 	return hex.EncodeToString(sum[:])
+}
+
+func canonicalDocumentDigest(document []byte) (string, error) {
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return "", err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return "", err
+	}
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return "", err
+	}
+	return digest(bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'})), nil
+}
+
+// ProvisionerReceiptFingerprint derives the runtime identity used by the
+// target profile. No caller-supplied fingerprint is accepted in the receipt.
+func ProvisionerReceiptFingerprint(receipt ProvisionerTargetReceipt) (string, error) {
+	if receipt.FormatVersion != 1 {
+		return "", fmt.Errorf("measured target receipt format_version must be 1")
+	}
+	for name, value := range map[string]string{
+		"profile_name": receipt.ProfileName,
+		"product":      receipt.Product,
+		"version":      receipt.Version,
+		"architecture": receipt.Architecture,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return "", fmt.Errorf("measured target receipt %s is required", name)
+		}
+	}
+	for name, value := range map[string]string{
+		"image_index_sha256":       receipt.ImageIndexSHA256,
+		"image_manifest_sha256":    receipt.ImageManifestSHA256,
+		"instance_identity_sha256": receipt.InstanceIdentitySHA256,
+	} {
+		if !validPrefixedSHA256(value) {
+			return "", fmt.Errorf("measured target receipt %s must be sha256:<64 lowercase hex>", name)
+		}
+	}
+	document, err := json.Marshal(receipt)
+	if err != nil {
+		return "", err
+	}
+	canonicalDigest, err := canonicalDocumentDigest(document)
+	if err != nil {
+		return "", err
+	}
+	return "sha256:" + canonicalDigest, nil
+}
+
+func targetReceiptMatchesProfile(receipt ProvisionerTargetReceipt, target TargetProfile) error {
+	if receipt.ProfileName != target.Name || receipt.Product != target.Product || receipt.Version != target.Version ||
+		receipt.Architecture != target.Architecture || receipt.ImageIndexSHA256 != target.ImageIndexSHA256 ||
+		receipt.ImageManifestSHA256 != target.ImageManifestSHA256 {
+		return fmt.Errorf("measured target receipt does not match target profile")
+	}
+	return nil
+}
+
+func validPrefixedSHA256(value string) bool {
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+sha256.Size*2 {
+		return false
+	}
+	decoded, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
+	return err == nil && len(decoded) == sha256.Size && strings.ToLower(value) == value
 }
 
 func encodeCanonical(value any) ([]byte, error) {

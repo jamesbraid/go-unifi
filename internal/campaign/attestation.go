@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -57,6 +56,7 @@ type catalogSources struct {
 	CaptureLockSHA256          string `json:"capture_lock_sha256"`
 	SpecificationSHA256        string `json:"specification_sha256,omitempty"`
 	StructuralProjectionSHA256 string `json:"structural_projection_sha256,omitempty"`
+	SemanticPredecessorSHA256  string `json:"semantic_predecessor_sha256,omitempty"`
 	SemanticIDsSHA256          string `json:"semantic_ids_sha256,omitempty"`
 }
 
@@ -108,25 +108,23 @@ type requestShape struct {
 }
 
 type scenarioReceipt struct {
-	FormatVersion              int           `json:"format_version"`
-	ScenarioID                 string        `json:"scenario_id"`
-	ScenarioPath               string        `json:"scenario_path,omitempty"`
-	ScenarioMode               string        `json:"scenario_mode,omitempty"`
-	RequestShape               requestShape  `json:"request_shape,omitempty"`
-	ExecutionMode              string        `json:"execution_mode,omitempty"`
-	MeasuredTargetFingerprint  string        `json:"measured_target_fingerprint,omitempty"`
-	ResponseSHA256             string        `json:"response_sha256,omitempty"`
-	Normalization              string        `json:"normalization,omitempty"`
-	Redaction                  string        `json:"redaction,omitempty"`
-	Cleanup                    string        `json:"cleanup,omitempty"`
-	Target                     targetProfile `json:"target,omitempty"`
-	Mode                       string        `json:"mode,omitempty"`
-	OperationDigest            string        `json:"operation_digest"`
-	ObservedRecordCount        int           `json:"observed_record_count"`
-	RedactedFieldCount         int           `json:"redacted_field_count"`
-	CanonicalObservationSHA256 string        `json:"canonical_observation_sha256"`
-	Result                     string        `json:"result,omitempty"`
-	Verdict                    string        `json:"verdict,omitempty"`
+	FormatVersion              int          `json:"format_version"`
+	ScenarioID                 string       `json:"scenario_id"`
+	ScenarioPath               string       `json:"scenario_path,omitempty"`
+	ScenarioMode               string       `json:"scenario_mode,omitempty"`
+	RequestShape               requestShape `json:"request_shape,omitempty"`
+	ExecutionMode              string       `json:"execution_mode,omitempty"`
+	MeasuredTargetFingerprint  string       `json:"measured_target_fingerprint,omitempty"`
+	ControllerVersion          string       `json:"controller_version,omitempty"`
+	ResponseSHA256             string       `json:"response_sha256,omitempty"`
+	Normalization              string       `json:"normalization,omitempty"`
+	Redaction                  string       `json:"redaction,omitempty"`
+	Cleanup                    string       `json:"cleanup,omitempty"`
+	OperationDigest            string       `json:"operation_digest"`
+	ObservedRecordCount        int          `json:"observed_record_count"`
+	RedactedFieldCount         int          `json:"redacted_field_count"`
+	CanonicalObservationSHA256 string       `json:"canonical_observation_sha256"`
+	Verdict                    string       `json:"verdict,omitempty"`
 }
 
 type attestation struct {
@@ -194,34 +192,29 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if err := validateCatalog(candidate); err != nil {
 		return nil, fmt.Errorf("candidate catalog: %w", err)
 	}
-	mode := receipt.ScenarioMode
-	if mode == "" {
-		mode = receipt.Mode
-	}
-	verdict := receipt.Verdict
-	if verdict == "" {
-		verdict = receipt.Result
-	}
-	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || mode == "" {
+	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || receipt.ScenarioMode == "" {
 		return nil, fmt.Errorf("scenario receipt identity is incomplete")
 	}
+	if receipt.ScenarioPath == "" || receipt.RequestShape.Method == "" ||
+		receipt.RequestShape.Path == "" || receipt.RequestShape.Query == "" || receipt.RequestShape.Body == "" ||
+		receipt.ResponseSHA256 == "" || receipt.Normalization == "" || receipt.Redaction == "" ||
+		receipt.Cleanup == "" || receipt.CanonicalObservationSHA256 == "" || receipt.Verdict == "" {
+		return nil, fmt.Errorf("scenario receipt bindings are incomplete")
+	}
+	if receipt.RequestShape.Path != receipt.ScenarioPath {
+		return nil, fmt.Errorf("scenario receipt request path does not match scenario path")
+	}
 	switch receipt.ExecutionMode {
-	case "":
-		if !reflect.DeepEqual(receipt.Target, candidate.Target) {
-			return nil, fmt.Errorf("scenario receipt target does not match candidate catalog")
-		}
 	case "fixture":
-		if receipt.Target != (targetProfile{}) || receipt.MeasuredTargetFingerprint != "" {
+		if receipt.MeasuredTargetFingerprint != "" || receipt.ControllerVersion != "" {
 			return nil, fmt.Errorf("fixture receipt target claim is not permitted")
-		}
-		if receipt.ScenarioPath == "" || receipt.RequestShape.Method == "" ||
-			receipt.RequestShape.Path == "" || receipt.ResponseSHA256 == "" ||
-			receipt.Normalization == "" || receipt.Redaction == "" || receipt.Cleanup == "" {
-			return nil, fmt.Errorf("fixture scenario receipt bindings are incomplete")
 		}
 	case "live":
 		if receipt.MeasuredTargetFingerprint == "" || receipt.MeasuredTargetFingerprint != candidate.Target.ControllerFingerprint {
 			return nil, fmt.Errorf("live scenario receipt target fingerprint does not match candidate catalog")
+		}
+		if receipt.ControllerVersion == "" || receipt.ControllerVersion != candidate.Target.Version {
+			return nil, fmt.Errorf("live scenario receipt controller version does not match candidate catalog")
 		}
 	default:
 		return nil, fmt.Errorf("unsupported scenario receipt execution mode %q", receipt.ExecutionMode)
@@ -229,7 +222,7 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if receipt.OperationDigest != candidate.Admission.OperationDigest {
 		return nil, fmt.Errorf("scenario receipt operation does not match candidate catalog")
 	}
-	if verdict != candidate.Admission.State {
+	if receipt.Verdict != candidate.Admission.State {
 		return nil, fmt.Errorf("scenario receipt result does not match candidate admission")
 	}
 
@@ -298,7 +291,8 @@ func BuildAttestation(input Input) ([]byte, error) {
 
 func validateCatalog(document catalogDocument) error {
 	hasLegacyStructure := document.Sources.SpecificationSHA256 != ""
-	hasProjectedStructure := document.Sources.StructuralProjectionSHA256 != "" && document.Sources.SemanticIDsSHA256 != ""
+	hasProjectedStructure := document.Sources.StructuralProjectionSHA256 != "" &&
+		document.Sources.SemanticPredecessorSHA256 != "" && document.Sources.SemanticIDsSHA256 != ""
 	if document.FormatVersion != 1 || document.CatalogID == "" || document.Target.Name == "" ||
 		document.Target.ImageIndexSHA256 == "" || document.Target.ImageManifestSHA256 == "" ||
 		document.Sources.CaptureLockSHA256 == "" || (!hasLegacyStructure && !hasProjectedStructure) ||

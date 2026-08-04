@@ -10,13 +10,13 @@ digests, and provenance.
 ## Layout
 
 ```
-capture.lock.json  sole structural-source lock (tracked)
+capture.lock.json  controller and reviewed scout evidence lock (tracked)
 VERSION            Network version projection of capture.lock.json (tracked)
 SOURCE             product/build projection of capture.lock.json (tracked)
 ARTIFACT           source-location projection of capture.lock.json (tracked)
 GENERATED_SHA256   complete generated-output digest (tracked)
 structural/        policy-free controller projections for scouting (tracked)
-semantic-ids/      reviewed stable scout identities and lineage (tracked)
+semantic-ids/      reviewed candidate IDs plus pinned predecessor lineage (tracked)
 fields/            extracted structural snapshot plus overlays (gitignored)
 metadata/          extracted sensitivity input (gitignored)
 ```
@@ -41,6 +41,12 @@ go generate ./...
 Network version, structural snapshot, and sensitivity snapshot before it
 replaces the local cache. A missing object, corrupt lock, changed generator, or
 snapshot mismatch stops the run.
+
+The lock also pins canonical digests for the exact DNS structural projection
+and its immutable semantic predecessor registry. Scout checks those bytes
+before it observes a response. Candidate semantic IDs may retain an old ID or
+replace it with a reasoned tombstone or reviewed migration. They cannot
+rewrite their own history.
 
 To propose a lock for a new artifact:
 
