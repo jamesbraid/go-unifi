@@ -130,9 +130,9 @@ docker buildx build --builder "$second_builder_name" --platform linux/amd64 \
     --output "type=docker,rewrite-timestamp=true" \
     --file "$repository_root/build/m0/Dockerfile" \
     --tag "$image_name" "$repository_root"
-loaded_config=$(docker image inspect --format '{{.Id}}' "$image_name")
-if [ "$loaded_config" != "$expected_config" ]; then
-    echo "loaded builder config is $loaded_config, lock requires $expected_config" >&2
+loaded_manifest=$(docker image inspect --format '{{.Id}}' "$image_name")
+if [ "$loaded_manifest" != "$expected_manifest" ]; then
+    echo "loaded builder manifest is $loaded_manifest, lock requires $expected_manifest" >&2
     exit 1
 fi
 
