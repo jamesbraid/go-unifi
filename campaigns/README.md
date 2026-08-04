@@ -1,0 +1,17 @@
+# Compatibility campaigns
+
+Compatibility campaigns compare candidate scout evidence with the last
+admitted catalog. They emit redacted, canonical attestations for review. A
+campaign cannot admit an operation, change provider behavior, or publish a
+support claim.
+
+Run the deterministic offline campaign with:
+
+```sh
+go generate ./scout ./campaigns
+```
+
+The profile matrix records fresh seeded evidence and keeps the persisted
+single-hop and long-lived multi-hop classes explicitly uncovered until their
+digest-pinned fixtures exist. The mutation attestation proves that an
+unreviewed controller field produces a blocked candidate.
