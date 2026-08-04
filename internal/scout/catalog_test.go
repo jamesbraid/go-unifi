@@ -217,7 +217,7 @@ func TestBuildDNSCatalogBindsFixtureReceiptWithoutLiveTargetClaim(t *testing.T) 
 	}
 	assertReceiptString(t, receipt, "scenario_path", input.Scenario.Path)
 	assertReceiptString(t, receipt, "execution_mode", "fixture")
-	assertReceiptString(t, receipt, "operation_digest", "fcae2fd0f6a3ed9793541c61fc9f9ed5ae00187f8084fb95c042b5be2ca4aa6e")
+	assertReceiptString(t, receipt, "operation_digest", "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8")
 	assertReceiptString(t, receipt, "response_sha256", digest(input.ObservedResponse))
 	assertReceiptString(t, receipt, "normalization", "field_presence_and_json_type_v1")
 	assertReceiptString(t, receipt, "redaction", "drop_all_observed_values_v1")

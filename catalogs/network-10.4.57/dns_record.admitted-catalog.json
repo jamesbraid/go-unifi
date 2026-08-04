@@ -168,7 +168,7 @@
     }
   ],
   "admission": {
-    "state": "candidate",
+    "state": "admitted",
     "operation_digest": "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8"
   },
   "tombstones": [],

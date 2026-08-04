@@ -9,9 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/ubiquiti-community/go-unifi/control/dnsrecord"
 )
 
 // Input binds one candidate scout run to its baseline and immutable builder.
@@ -19,13 +22,31 @@ type Input struct {
 	CampaignID                     string
 	ProfileClass                   string
 	BuilderImageDigest             string
+	BaselinePath                   string
+	CandidatePath                  string
 	BaselineCatalog                []byte
 	CandidateCatalog               []byte
 	ScenarioReceipt                []byte
+	Attempts                       []Attempt
 	Elapsed                        time.Duration
 	HumanDecisions                 []string
 	ManualGeneratedFileEdits       bool
 	AutomaticallyReconfirmedClaims []string
+}
+
+// Attempt records the provenance and outcome of every campaign try. Fixture
+// scope is explicit and cannot be mistaken for a live runner or provisioner
+// measurement.
+type Attempt struct {
+	ID                    string `json:"id"`
+	Outcome               string `json:"outcome"`
+	ExecutionMode         string `json:"execution_mode"`
+	BuilderImageDigest    string `json:"builder_image_digest"`
+	BuilderProvenance     string `json:"builder_provenance"`
+	ControllerFingerprint string `json:"controller_fingerprint"`
+	ControllerProvenance  string `json:"controller_provenance"`
+	RuntimeIdentitySHA256 string `json:"runtime_identity_sha256,omitempty"`
+	RuntimeProvenance     string `json:"runtime_provenance"`
 }
 
 type targetProfile struct {
@@ -135,8 +156,11 @@ type attestation struct {
 	Classification                 string            `json:"classification"`
 	Promotion                      string            `json:"promotion"`
 	CandidateOnly                  bool              `json:"candidate_only"`
+	NormalizedOperation            string            `json:"normalized_operation"`
+	CatalogIdentity                string            `json:"catalog_identity"`
 	Target                         targetProfile     `json:"target"`
 	BuilderImageDigest             string            `json:"builder_image_digest"`
+	Attempts                       []Attempt         `json:"attempts"`
 	Inputs                         attestationInputs `json:"inputs"`
 	StructuralDiff                 []string          `json:"structural_diff"`
 	ObservationDiff                []string          `json:"observation_diff"`
@@ -169,6 +193,20 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if !pinnedImageDigest(input.BuilderImageDigest) {
 		return nil, fmt.Errorf("builder image digest must end in @sha256:<64 lowercase hex>")
 	}
+	if strings.TrimSpace(input.BaselinePath) == "" || strings.TrimSpace(input.CandidatePath) == "" {
+		return nil, fmt.Errorf("baseline and candidate catalog paths are required")
+	}
+	baselinePath, err := filepath.Abs(filepath.Clean(input.BaselinePath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve baseline catalog path: %w", err)
+	}
+	candidatePath, err := filepath.Abs(filepath.Clean(input.CandidatePath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve candidate catalog path: %w", err)
+	}
+	if baselinePath == candidatePath {
+		return nil, fmt.Errorf("baseline and candidate catalog paths must differ")
+	}
 	if input.Elapsed < 0 {
 		return nil, fmt.Errorf("elapsed duration cannot be negative")
 	}
@@ -192,6 +230,32 @@ func BuildAttestation(input Input) ([]byte, error) {
 	}
 	if err := validateCatalog(candidate); err != nil {
 		return nil, fmt.Errorf("candidate catalog: %w", err)
+	}
+	if baseline.Admission.State != "admitted" {
+		return nil, fmt.Errorf("baseline catalog must be admitted, got %q", baseline.Admission.State)
+	}
+	if !catalogRecordsConsistent(baseline) {
+		return nil, fmt.Errorf("admitted baseline catalog records are inconsistent")
+	}
+	if candidate.Admission.State != "candidate" && candidate.Admission.State != "blocked" {
+		return nil, fmt.Errorf("candidate catalog must be candidate or blocked, got %q", candidate.Admission.State)
+	}
+	if bytes.Equal(baselineCanonical, candidateCanonical) {
+		return nil, fmt.Errorf("baseline and candidate catalog hashes must differ")
+	}
+	if baseline.CatalogID != candidate.CatalogID {
+		return nil, fmt.Errorf("baseline and candidate catalog identities do not match")
+	}
+	catalogIdentity, _, ok := strings.Cut(candidate.CatalogID, "@")
+	operation := dnsrecord.NormalizedOperation()
+	if !ok || catalogIdentity != operation.CatalogIdentity {
+		return nil, fmt.Errorf("catalog identity %q does not match normalized operation", candidate.CatalogID)
+	}
+	if baseline.Admission.OperationDigest != candidate.Admission.OperationDigest {
+		return nil, fmt.Errorf("baseline and candidate operation identities do not match")
+	}
+	if candidate.Admission.OperationDigest != dnsrecord.OperationDigest() {
+		return nil, fmt.Errorf("catalog operation identity does not match normalized operation")
 	}
 	if receipt.FormatVersion != 1 || receipt.ScenarioID == "" || receipt.ScenarioMode == "" {
 		return nil, fmt.Errorf("scenario receipt identity is incomplete")
@@ -229,21 +293,32 @@ func BuildAttestation(input Input) ([]byte, error) {
 	if receipt.Verdict != candidate.Admission.State {
 		return nil, fmt.Errorf("scenario receipt result does not match candidate admission")
 	}
+	if err := validateAttempts(input, candidate, receipt); err != nil {
+		return nil, err
+	}
 
-	structuralDiff := recordDiff(baseline.StructuralRecords, candidate.StructuralRecords, func(record structuralRecord) string { return record.ID })
-	observationDiff := recordDiff(baseline.ObservedRecords, candidate.ObservedRecords, func(record observedRecord) string { return record.ID })
-	classification := "equivalent"
+	structural := compareRecords(baseline.StructuralRecords, candidate.StructuralRecords, func(record structuralRecord) string { return record.ID })
+	observations := compareRecords(baseline.ObservedRecords, candidate.ObservedRecords, func(record observedRecord) string { return record.ID })
+	classification := "unchanged"
 	providerImpact := "none"
-	if len(structuralDiff) > 0 || len(observationDiff) > 0 {
-		classification = "candidate_change"
+	if len(structural.Added) > 0 || len(observations.Added) > 0 {
+		classification = "additive_candidate"
+		providerImpact = "review_required"
+	}
+	if len(structural.Destructive) > 0 || len(observations.Destructive) > 0 {
+		classification = "breaking_suspect"
 		providerImpact = "review_required"
 	}
 	if candidate.Admission.State == "blocked" || len(candidate.Conflicts) > 0 {
-		classification = "blocked"
+		classification = "capture_invalid"
+		providerImpact = "review_required"
+	}
+	if input.ManualGeneratedFileEdits || !catalogRecordsConsistent(candidate) {
+		classification = "generator_defect"
 		providerImpact = "review_required"
 	}
 	affectedOperations := []string{}
-	if classification != "equivalent" {
+	if classification != "unchanged" {
 		affectedOperations = append(affectedOperations, candidate.Admission.OperationDigest)
 	}
 
@@ -266,22 +341,25 @@ func BuildAttestation(input Input) ([]byte, error) {
 	})
 
 	return encodeCanonical(attestation{
-		FormatVersion:      1,
-		CampaignID:         input.CampaignID,
-		ProfileClass:       input.ProfileClass,
-		Classification:     classification,
-		Promotion:          "review_required",
-		CandidateOnly:      true,
-		Target:             candidate.Target,
-		BuilderImageDigest: input.BuilderImageDigest,
+		FormatVersion:       1,
+		CampaignID:          input.CampaignID,
+		ProfileClass:        input.ProfileClass,
+		Classification:      classification,
+		Promotion:           "review_required",
+		CandidateOnly:       true,
+		NormalizedOperation: operation.Identity,
+		CatalogIdentity:     operation.CatalogIdentity,
+		Target:              candidate.Target,
+		BuilderImageDigest:  input.BuilderImageDigest,
+		Attempts:            append([]Attempt(nil), input.Attempts...),
 		Inputs: attestationInputs{
 			BaselineCatalogSHA256:  digest(baselineCanonical),
 			CandidateCatalogSHA256: digest(candidateCanonical),
 			ScenarioReceiptSHA256:  digest(receiptCanonical),
 			CaptureLockSHA256:      candidate.Sources.CaptureLockSHA256,
 		},
-		StructuralDiff:                 structuralDiff,
-		ObservationDiff:                observationDiff,
+		StructuralDiff:                 structural.All,
+		ObservationDiff:                observations.All,
 		Conflicts:                      conflicts,
 		ClaimCoverage:                  coverage,
 		AffectedAdmittedOperations:     affectedOperations,
@@ -291,6 +369,41 @@ func BuildAttestation(input Input) ([]byte, error) {
 		ManualGeneratedFileEdits:       input.ManualGeneratedFileEdits,
 		AutomaticallyReconfirmedClaims: reconfirmed,
 	})
+}
+
+func catalogRecordsConsistent(document catalogDocument) bool {
+	structuralFields := make(map[string]string, len(document.StructuralRecords))
+	for _, record := range document.StructuralRecords {
+		if record.ID == "" || record.Field == "" {
+			return false
+		}
+		if _, exists := structuralFields[record.ID]; exists {
+			return false
+		}
+		structuralFields[record.ID] = record.Field
+	}
+	observedIDs := make(map[string]struct{}, len(document.ObservedRecords))
+	for _, record := range document.ObservedRecords {
+		field, exists := structuralFields[record.ID]
+		if !exists || field != record.Field {
+			return false
+		}
+		if _, duplicate := observedIDs[record.ID]; duplicate {
+			return false
+		}
+		observedIDs[record.ID] = struct{}{}
+	}
+	coverageIDs := make(map[string]struct{}, len(document.Coverage))
+	for _, record := range document.Coverage {
+		if _, exists := structuralFields[record.ID]; !exists {
+			return false
+		}
+		if _, duplicate := coverageIDs[record.ID]; duplicate {
+			return false
+		}
+		coverageIDs[record.ID] = struct{}{}
+	}
+	return len(structuralFields) == len(observedIDs) && len(structuralFields) == len(coverageIDs)
 }
 
 func validateCatalog(document catalogDocument) error {
@@ -303,8 +416,54 @@ func validateCatalog(document catalogDocument) error {
 		document.Admission.OperationDigest == "" {
 		return fmt.Errorf("catalog identity and immutable inputs are required")
 	}
-	if document.Admission.State != "candidate" && document.Admission.State != "blocked" {
+	if document.Admission.State != "admitted" && document.Admission.State != "candidate" && document.Admission.State != "blocked" {
 		return fmt.Errorf("unsupported admission state %q", document.Admission.State)
+	}
+	return nil
+}
+
+func validateAttempts(input Input, candidate catalogDocument, receipt scenarioReceipt) error {
+	if len(input.Attempts) == 0 {
+		return fmt.Errorf("at least one campaign attempt is required")
+	}
+	seen := make(map[string]struct{}, len(input.Attempts))
+	for index, attempt := range input.Attempts {
+		if strings.TrimSpace(attempt.ID) == "" {
+			return fmt.Errorf("campaign attempt %d identity is required", index+1)
+		}
+		if _, exists := seen[attempt.ID]; exists {
+			return fmt.Errorf("duplicate campaign attempt %q", attempt.ID)
+		}
+		seen[attempt.ID] = struct{}{}
+		if attempt.Outcome != "failed" && attempt.Outcome != "completed" {
+			return fmt.Errorf("campaign attempt %q has unsupported outcome %q", attempt.ID, attempt.Outcome)
+		}
+		if attempt.ExecutionMode != receipt.ExecutionMode {
+			return fmt.Errorf("campaign attempt %q execution mode does not match receipt", attempt.ID)
+		}
+		if attempt.BuilderImageDigest != input.BuilderImageDigest || !pinnedImageDigest(attempt.BuilderImageDigest) {
+			return fmt.Errorf("campaign attempt %q builder image does not match measured campaign builder", attempt.ID)
+		}
+		if attempt.BuilderProvenance != "runner" && attempt.BuilderProvenance != "fixture" {
+			return fmt.Errorf("campaign attempt %q builder provenance must be runner or fixture", attempt.ID)
+		}
+		if attempt.ControllerFingerprint != candidate.Target.ControllerFingerprint {
+			return fmt.Errorf("campaign attempt %q controller fingerprint does not match candidate", attempt.ID)
+		}
+		switch receipt.ExecutionMode {
+		case "fixture":
+			if attempt.ControllerProvenance != "fixture" || attempt.RuntimeProvenance != "fixture" || attempt.RuntimeIdentitySHA256 != "" {
+				return fmt.Errorf("campaign attempt %q controller and runtime provenance must be fixture-scoped", attempt.ID)
+			}
+		case "live":
+			if attempt.BuilderProvenance != "runner" || attempt.ControllerProvenance != "provisioner" ||
+				attempt.RuntimeProvenance != "provisioner" || attempt.RuntimeIdentitySHA256 != receipt.ObservedInstanceIdentitySHA256 {
+				return fmt.Errorf("campaign attempt %q live provenance must be measured by the runner and provisioner", attempt.ID)
+			}
+		}
+	}
+	if input.Attempts[len(input.Attempts)-1].Outcome != "completed" {
+		return fmt.Errorf("final campaign attempt must be completed")
 	}
 	return nil
 }
@@ -336,7 +495,13 @@ func coveredClaim(coverage []coverageRecord, claim string) bool {
 	return false
 }
 
-func recordDiff[T any](baseline, candidate []T, id func(T) string) []string {
+type recordComparison struct {
+	Added       []string
+	Destructive []string
+	All         []string
+}
+
+func compareRecords[T any](baseline, candidate []T, id func(T) string) recordComparison {
 	baselineRecords := make(map[string][]byte, len(baseline))
 	candidateRecords := make(map[string][]byte, len(candidate))
 	for _, record := range baseline {
@@ -345,22 +510,34 @@ func recordDiff[T any](baseline, candidate []T, id func(T) string) []string {
 	for _, record := range candidate {
 		candidateRecords[id(record)], _ = json.Marshal(record)
 	}
-	changed := make(map[string]struct{})
+	added := make(map[string]struct{})
+	destructive := make(map[string]struct{})
 	for recordID, baselineRecord := range baselineRecords {
 		if candidateRecord, ok := candidateRecords[recordID]; !ok || !bytes.Equal(baselineRecord, candidateRecord) {
-			changed[recordID] = struct{}{}
+			destructive[recordID] = struct{}{}
 		}
 	}
-	for recordID, candidateRecord := range candidateRecords {
-		if baselineRecord, ok := baselineRecords[recordID]; !ok || !bytes.Equal(baselineRecord, candidateRecord) {
-			changed[recordID] = struct{}{}
+	for recordID := range candidateRecords {
+		if _, ok := baselineRecords[recordID]; !ok {
+			added[recordID] = struct{}{}
 		}
 	}
-	result := make([]string, 0, len(changed))
-	for recordID := range changed {
-		result = append(result, recordID)
+	result := recordComparison{
+		Added:       make([]string, 0, len(added)),
+		Destructive: make([]string, 0, len(destructive)),
+		All:         make([]string, 0, len(added)+len(destructive)),
 	}
-	sort.Strings(result)
+	for recordID := range added {
+		result.Added = append(result.Added, recordID)
+		result.All = append(result.All, recordID)
+	}
+	for recordID := range destructive {
+		result.Destructive = append(result.Destructive, recordID)
+		result.All = append(result.All, recordID)
+	}
+	sort.Strings(result.Added)
+	sort.Strings(result.Destructive)
+	sort.Strings(result.All)
 	return result
 }
 

@@ -2,9 +2,11 @@
   "format_version": 1,
   "campaign_id": "network-10.4.57-dns-record",
   "profile_class": "fresh_seeded",
-  "classification": "equivalent",
+  "classification": "unchanged",
   "promotion": "review_required",
   "candidate_only": true,
+  "normalized_operation": "unifi.network.dns_record.operation.patch.v1",
+  "catalog_identity": "unifi.network.dns_record",
   "target": {
     "name": "network-10.4.57-seeded",
     "product": "unifi-network",
@@ -14,11 +16,23 @@
     "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
     "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
   },
-  "builder_image_digest": "local/go-unifi-schema-builder@sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",
+  "builder_image_digest": "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+  "attempts": [
+    {
+      "id": "fixture-attempt-1",
+      "outcome": "completed",
+      "execution_mode": "fixture",
+      "builder_image_digest": "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",
+      "builder_provenance": "fixture",
+      "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a",
+      "controller_provenance": "fixture",
+      "runtime_provenance": "fixture"
+    }
+  ],
   "inputs": {
-    "baseline_catalog_sha256": "eb138f1e17b7726ad0cc2d1b04162127fd1ab16be0eb3d16580e57edd234681c",
-    "candidate_catalog_sha256": "eb138f1e17b7726ad0cc2d1b04162127fd1ab16be0eb3d16580e57edd234681c",
-    "scenario_receipt_sha256": "39c215c371714e946e35b8d85c7faf9cf0009926cb34b6166b182af7ee147fc0",
+    "baseline_catalog_sha256": "3a21390b6e97f0725a2d8a04c152f54b1e169ac46597bee385a46a8414e4d581",
+    "candidate_catalog_sha256": "6498c733d7ab053ae2abf497199f6cbd440315de96ab43c39f8eede14673dfee",
+    "scenario_receipt_sha256": "d600ad61e1d9c936d65b3d23065c54387653ab674542b0fbbabcd6e86237128d",
     "capture_lock_sha256": "45cdd9e52b5a6a5c73605fdff5f6cba085231234226f64d01cb3e1b17ceeaeba"
   },
   "structural_diff": [],

@@ -10,7 +10,7 @@
     "body": "none"
   },
   "execution_mode": "fixture",
-  "operation_digest": "fcae2fd0f6a3ed9793541c61fc9f9ed5ae00187f8084fb95c042b5be2ca4aa6e",
+  "operation_digest": "199c002d9a1229aa7e43a94b12da6f33c7ce612ecb471eebcd6896d985b161f8",
   "response_sha256": "ec876c02c16e6e9a9ae7072b7c7288fc807373f04f5108f7b93105d33759acb4",
   "normalization": "field_presence_and_json_type_v1",
   "redaction": "drop_all_observed_values_v1",
