@@ -24,10 +24,14 @@ go run ./cmd/scout \
 Omit `-response` to execute the declared read-only DNS list against a
 disposable target. Live runs also require `-target-receipt` with the
 provisioner's measured product, version, architecture, image digests, and a
-SHA-256 digest of the runtime instance identity. Scout computes the receipt's
-fingerprint and requires it to match the target profile. It independently
-reads the Network version learned by the API client and requires that version
-to match both the profile and capture lock.
+SHA-256 digest of the runtime instance identity. That identity digest is
+`sha256:` followed by the SHA-256 of the exact UTF-8 controller UUID reported
+by the status endpoint. Scout computes the receipt's fingerprint and requires
+it to match the target profile. It independently reads the Network version and
+controller UUID learned by the API client. The version must match both the
+profile and capture lock, and the UUID digest must match the provisioner
+receipt. A controller that supplies a version through the sysinfo fallback but
+no status UUID cannot produce live evidence.
 
 Supply `UNIFI_API`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD`. `UNIFI_SITE`
 defaults to `default` and `UNIFI_INSECURE` defaults to `false`. The live request

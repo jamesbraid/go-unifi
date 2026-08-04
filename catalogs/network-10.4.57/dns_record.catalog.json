@@ -11,7 +11,7 @@
     "controller_fingerprint": "sha256:5a9624d7671e1cead43755f3f2bdb37d852460fe58e75b184af85eb67635751a"
   },
   "sources": {
-    "capture_lock_sha256": "1e2cbad602be759d9fd135bd6b339fa841400f17d693a4f76259d66b1aafeae0",
+    "capture_lock_sha256": "45cdd9e52b5a6a5c73605fdff5f6cba085231234226f64d01cb3e1b17ceeaeba",
     "structural_projection_sha256": "5a733c9c1a642175fe85e48f4c4b1ee70d7ceb10d41629873535208ab4a804b5",
     "semantic_predecessor_sha256": "224cf5e5f2cfb519bab61af2782a95c03981b95b6b10336ecd62d572dc13fd85",
     "semantic_ids_sha256": "addd6d3117626201b9b33c50bf1ef6824327eed088f06079357b676be8c5e2a0"

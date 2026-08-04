@@ -435,6 +435,7 @@ func makeLiveInput(t *testing.T, input *Input) {
 	input.Target.ControllerFingerprint = fingerprint
 	input.TargetReceipt = &receipt
 	input.ControllerVersion = input.Target.Version
+	input.ObservedInstanceIdentitySHA256 = receipt.InstanceIdentitySHA256
 	input.ExecutionMode = "live"
 }
 

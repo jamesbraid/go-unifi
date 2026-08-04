@@ -170,7 +170,8 @@ type ApiClient struct {
 	tokenExpiry time.Time
 	loginErr    error // cached login error to prevent retry storms
 
-	version string
+	version        string
+	controllerUUID string
 
 	// Cloud Connector support
 	cloudConsoleID string // Console ID for Cloud Connector API proxy
@@ -178,6 +179,12 @@ type ApiClient struct {
 
 func (c *ApiClient) Version() string {
 	return c.version
+}
+
+// ControllerUUID returns the controller identity reported by the status
+// endpoint. It is empty when the endpoint did not provide one.
+func (c *ApiClient) ControllerUUID() string {
+	return c.controllerUUID
 }
 
 // isNewStyle returns true if the client is configured for UniFi OS authentication
@@ -518,6 +525,7 @@ func (c *ApiClient) setServerVersion(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	c.controllerUUID = status.Meta.UUID
 
 	if version := status.Meta.ServerVersion; version != "" {
 		c.version = status.Meta.ServerVersion

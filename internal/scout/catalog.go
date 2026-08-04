@@ -54,8 +54,8 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	measuredTargetFingerprint := ""
 	switch input.ExecutionMode {
 	case "fixture":
-		if input.TargetReceipt != nil || input.ControllerVersion != "" {
-			return Result{}, fmt.Errorf("fixture execution cannot claim a measured target receipt or controller version")
+		if input.TargetReceipt != nil || input.ControllerVersion != "" || input.ObservedInstanceIdentitySHA256 != "" {
+			return Result{}, fmt.Errorf("fixture execution cannot claim a measured target receipt or observed controller identity")
 		}
 	case "live":
 		if input.TargetReceipt == nil {
@@ -64,11 +64,17 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		if input.ControllerVersion == "" {
 			return Result{}, fmt.Errorf("live execution requires the observed controller version")
 		}
+		if !validPrefixedSHA256(input.ObservedInstanceIdentitySHA256) {
+			return Result{}, fmt.Errorf("live execution requires an observed instance identity SHA-256")
+		}
 		if input.ControllerVersion != input.Target.Version || input.ControllerVersion != input.LockedSources.ControllerNetworkVersion {
 			return Result{}, fmt.Errorf("observed controller version %q does not match target profile and capture lock", input.ControllerVersion)
 		}
 		if err := targetReceiptMatchesProfile(*input.TargetReceipt, input.Target); err != nil {
 			return Result{}, err
+		}
+		if input.ObservedInstanceIdentitySHA256 != input.TargetReceipt.InstanceIdentitySHA256 {
+			return Result{}, fmt.Errorf("observed controller instance identity does not match measured target receipt")
 		}
 		var err error
 		measuredTargetFingerprint, err = ProvisionerReceiptFingerprint(*input.TargetReceipt)
@@ -228,23 +234,24 @@ func BuildDNSCatalog(input Input) (Result, error) {
 		return Result{}, fmt.Errorf("encode catalog: %w", err)
 	}
 	receiptBytes, err := encodeCanonical(scenarioReceipt{
-		FormatVersion:              1,
-		ScenarioID:                 input.Scenario.ID,
-		ScenarioPath:               input.Scenario.Path,
-		ScenarioMode:               input.Scenario.Mode,
-		RequestShape:               requestShape{Method: input.Scenario.Method, Path: input.Scenario.Path, Query: "none", Body: "none"},
-		ExecutionMode:              input.ExecutionMode,
-		MeasuredTargetFingerprint:  measuredTargetFingerprint,
-		ControllerVersion:          input.ControllerVersion,
-		OperationDigest:            operationDigest,
-		ResponseSHA256:             digest(input.ObservedResponse),
-		Normalization:              normalizationPolicy,
-		Redaction:                  redactionPolicy,
-		Cleanup:                    cleanupPolicy,
-		ObservedRecordCount:        len(records),
-		RedactedFieldCount:         redactedFields,
-		CanonicalObservationSHA256: digest(observationBytes),
-		Verdict:                    admissionState,
+		FormatVersion:                  1,
+		ScenarioID:                     input.Scenario.ID,
+		ScenarioPath:                   input.Scenario.Path,
+		ScenarioMode:                   input.Scenario.Mode,
+		RequestShape:                   requestShape{Method: input.Scenario.Method, Path: input.Scenario.Path, Query: "none", Body: "none"},
+		ExecutionMode:                  input.ExecutionMode,
+		MeasuredTargetFingerprint:      measuredTargetFingerprint,
+		ControllerVersion:              input.ControllerVersion,
+		ObservedInstanceIdentitySHA256: input.ObservedInstanceIdentitySHA256,
+		OperationDigest:                operationDigest,
+		ResponseSHA256:                 digest(input.ObservedResponse),
+		Normalization:                  normalizationPolicy,
+		Redaction:                      redactionPolicy,
+		Cleanup:                        cleanupPolicy,
+		ObservedRecordCount:            len(records),
+		RedactedFieldCount:             redactedFields,
+		CanonicalObservationSHA256:     digest(observationBytes),
+		Verdict:                        admissionState,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("encode scenario receipt: %w", err)
@@ -572,6 +579,16 @@ func ProvisionerReceiptFingerprint(receipt ProvisionerTargetReceipt) (string, er
 		return "", err
 	}
 	return "sha256:" + canonicalDigest, nil
+}
+
+// InstanceIdentitySHA256 hashes the exact UTF-8 controller UUID reported by
+// the status endpoint. Provisioners use the same function for target receipts.
+func InstanceIdentitySHA256(controllerUUID string) (string, error) {
+	if controllerUUID == "" {
+		return "", fmt.Errorf("controller UUID is required")
+	}
+	sum := sha256.Sum256([]byte(controllerUUID))
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func targetReceiptMatchesProfile(receipt ProvisionerTargetReceipt, target TargetProfile) error {

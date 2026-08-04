@@ -75,6 +75,9 @@ func TestBuildAttestationRejectsUnboundEvidence(t *testing.T) {
 		"receipt result mismatch": {func(input *Input) {
 			input.ScenarioReceipt = bytes.Replace(input.ScenarioReceipt, []byte(`"verdict": "candidate"`), []byte(`"verdict": "blocked"`), 1)
 		}, "scenario receipt result"},
+		"live receipt missing observed instance": {func(input *Input) {
+			input.ScenarioReceipt = bytes.Replace(input.ScenarioReceipt, []byte(`"execution_mode": "fixture"`), []byte(`"execution_mode": "live", "measured_target_fingerprint": "sha256:fingerprint", "controller_version": "10.4.57"`), 1)
+		}, "observed instance identity"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -102,7 +105,7 @@ func TestBuildAttestationRequiresCompleteBindingsForFixtureAndLive(t *testing.T)
 			t.Run(executionMode+"/"+name, func(t *testing.T) {
 				receipt := testReceipt("candidate")
 				if executionMode == "live" {
-					receipt = bytes.Replace(receipt, []byte(`"execution_mode": "fixture"`), []byte(`"execution_mode": "live", "measured_target_fingerprint": "sha256:fingerprint", "controller_version": "10.4.57"`), 1)
+					receipt = bytes.Replace(receipt, []byte(`"execution_mode": "fixture"`), []byte(`"execution_mode": "live", "measured_target_fingerprint": "sha256:fingerprint", "controller_version": "10.4.57", "observed_instance_identity_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444"`), 1)
 				}
 				mutated := bytes.Replace(receipt, []byte(binding), nil, 1)
 				if bytes.Equal(mutated, receipt) {

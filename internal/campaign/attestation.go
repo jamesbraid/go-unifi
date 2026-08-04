@@ -108,23 +108,24 @@ type requestShape struct {
 }
 
 type scenarioReceipt struct {
-	FormatVersion              int          `json:"format_version"`
-	ScenarioID                 string       `json:"scenario_id"`
-	ScenarioPath               string       `json:"scenario_path,omitempty"`
-	ScenarioMode               string       `json:"scenario_mode,omitempty"`
-	RequestShape               requestShape `json:"request_shape,omitempty"`
-	ExecutionMode              string       `json:"execution_mode,omitempty"`
-	MeasuredTargetFingerprint  string       `json:"measured_target_fingerprint,omitempty"`
-	ControllerVersion          string       `json:"controller_version,omitempty"`
-	ResponseSHA256             string       `json:"response_sha256,omitempty"`
-	Normalization              string       `json:"normalization,omitempty"`
-	Redaction                  string       `json:"redaction,omitempty"`
-	Cleanup                    string       `json:"cleanup,omitempty"`
-	OperationDigest            string       `json:"operation_digest"`
-	ObservedRecordCount        int          `json:"observed_record_count"`
-	RedactedFieldCount         int          `json:"redacted_field_count"`
-	CanonicalObservationSHA256 string       `json:"canonical_observation_sha256"`
-	Verdict                    string       `json:"verdict,omitempty"`
+	FormatVersion                  int          `json:"format_version"`
+	ScenarioID                     string       `json:"scenario_id"`
+	ScenarioPath                   string       `json:"scenario_path,omitempty"`
+	ScenarioMode                   string       `json:"scenario_mode,omitempty"`
+	RequestShape                   requestShape `json:"request_shape,omitempty"`
+	ExecutionMode                  string       `json:"execution_mode,omitempty"`
+	MeasuredTargetFingerprint      string       `json:"measured_target_fingerprint,omitempty"`
+	ControllerVersion              string       `json:"controller_version,omitempty"`
+	ObservedInstanceIdentitySHA256 string       `json:"observed_instance_identity_sha256,omitempty"`
+	ResponseSHA256                 string       `json:"response_sha256,omitempty"`
+	Normalization                  string       `json:"normalization,omitempty"`
+	Redaction                      string       `json:"redaction,omitempty"`
+	Cleanup                        string       `json:"cleanup,omitempty"`
+	OperationDigest                string       `json:"operation_digest"`
+	ObservedRecordCount            int          `json:"observed_record_count"`
+	RedactedFieldCount             int          `json:"redacted_field_count"`
+	CanonicalObservationSHA256     string       `json:"canonical_observation_sha256"`
+	Verdict                        string       `json:"verdict,omitempty"`
 }
 
 type attestation struct {
@@ -206,7 +207,7 @@ func BuildAttestation(input Input) ([]byte, error) {
 	}
 	switch receipt.ExecutionMode {
 	case "fixture":
-		if receipt.MeasuredTargetFingerprint != "" || receipt.ControllerVersion != "" {
+		if receipt.MeasuredTargetFingerprint != "" || receipt.ControllerVersion != "" || receipt.ObservedInstanceIdentitySHA256 != "" {
 			return nil, fmt.Errorf("fixture receipt target claim is not permitted")
 		}
 	case "live":
@@ -215,6 +216,9 @@ func BuildAttestation(input Input) ([]byte, error) {
 		}
 		if receipt.ControllerVersion == "" || receipt.ControllerVersion != candidate.Target.Version {
 			return nil, fmt.Errorf("live scenario receipt controller version does not match candidate catalog")
+		}
+		if receipt.ObservedInstanceIdentitySHA256 == "" {
+			return nil, fmt.Errorf("live scenario receipt observed instance identity is required")
 		}
 	default:
 		return nil, fmt.Errorf("unsupported scenario receipt execution mode %q", receipt.ExecutionMode)

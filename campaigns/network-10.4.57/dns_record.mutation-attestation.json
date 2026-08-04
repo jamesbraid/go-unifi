@@ -16,10 +16,10 @@
   },
   "builder_image_digest": "local/go-unifi-schema-builder@sha256:0c4025799ff17a705b56690634e7c159f48ec500f4dedfd2d1bae9e8a016ba21",
   "inputs": {
-    "baseline_catalog_sha256": "bdc38756c59bcd2823bd1acdf341f208de77a2aa785e0801349f15c83a628bc3",
-    "candidate_catalog_sha256": "36c257f0fbe533284ccc35763a221a41408fb32ed79daaef60e483b8589aabc6",
+    "baseline_catalog_sha256": "eb138f1e17b7726ad0cc2d1b04162127fd1ab16be0eb3d16580e57edd234681c",
+    "candidate_catalog_sha256": "8dcabca923e1d9ee3efd9afda81cf14329ade7acce727f481c0fd979f46bf0a6",
     "scenario_receipt_sha256": "a14756bbff3d0bfe1a426a02db959d70ec7a3754b4cb53dfea0e15c82ede1975",
-    "capture_lock_sha256": "1e2cbad602be759d9fd135bd6b339fa841400f17d693a4f76259d66b1aafeae0"
+    "capture_lock_sha256": "45cdd9e52b5a6a5c73605fdff5f6cba085231234226f64d01cb3e1b17ceeaeba"
   },
   "structural_diff": [],
   "observation_diff": [],
