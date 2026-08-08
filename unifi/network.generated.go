@@ -83,7 +83,7 @@ type Network struct {
 	DHCPRelayServers              []string                     `json:"dhcp_relay_servers,omitempty"` // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$
 	DHCPguardEnabled              bool                         `json:"dhcpguard_enabled"`
 	DPIEnabled                    bool                         `json:"dpi_enabled"`
-	DPIgroupID                    string                       `json:"dpigroup_id"` // [\d\w]+|^$
+	DPIgroupID                    string                       `json:"dpigroup_id"` // [\d\w-]+|^$
 	DhKey                         *string                      `json:"x_dh_key,omitempty"`
 	DomainName                    *string                      `json:"domain_name,omitempty"` // (?=^.{3,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)|^$|[a-zA-Z0-9-]{1,63}
 	Enabled                       bool                         `json:"enabled"`
@@ -150,11 +150,15 @@ type Network struct {
 	InterfaceMtuEnabled           bool                         `json:"interface_mtu_enabled"`
 	InternetAccessEnabled         bool                         `json:"internet_access_enabled"`
 	IsNAT                         bool                         `json:"is_nat"`
+	IsWifiTethering               bool                         `json:"is_wifi_tethering"`
 	L2TpAllowWeakCiphers          bool                         `json:"l2tp_allow_weak_ciphers"`
-	L2TpInterface                 *string                      `json:"l2tp_interface,omitempty"`    // wan[2-9]?
-	L2TpLocalWANIP                *string                      `json:"l2tp_local_wan_ip,omitempty"` // ^any$|^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
-	L3InterfaceType               *string                      `json:"l3_interface_type,omitempty"` // vlan|port|lag
-	LocalPort                     *int64                       `json:"local_port,omitempty"`        // ^([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])$
+	L2TpInterface                 *string                      `json:"l2tp_interface,omitempty"`            // wan[2-9]?
+	L2TpLocalWANIP                *string                      `json:"l2tp_local_wan_ip,omitempty"`         // ^any$|^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+	L3InterfaceType               *string                      `json:"l3_interface_type,omitempty"`         // vlan|port|lag
+	LocalPort                     *int64                       `json:"local_port,omitempty"`                // ^([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])$
+	LocalVPNNetworkIDs            []string                     `json:"local_vpn_networkconf_ids,omitempty"` // [\d\w-]+|^$
+	LocalVPNSubnets               []string                     `json:"local_vpn_subnets,omitempty"`         // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\/([1-9]|[1-2][0-9]|3[0-2])$|^$
+	LocalVPNSubnetsMode           *string                      `json:"local_vpn_subnets_mode,omitempty"`    // all|selected_networks|custom
 	LteLanEnabled                 bool                         `json:"lte_lan_enabled"`
 	MACOverride                   string                       `json:"mac_override"` // (^$|^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$)
 	MACOverrideEnabled            bool                         `json:"mac_override_enabled"`
@@ -200,6 +204,7 @@ type Network struct {
 	RoutedLagIDX                                  *int64                          `json:"routed_lag_idx,omitempty"`  // ([0-9]|[1-9][0-9])
 	RoutedPortIDX                                 *int64                          `json:"routed_port_idx,omitempty"` // ([0-9]|[1-9][0-9])
 	SdwanRemoteSiteID                             *string                         `json:"sdwan_remote_site_id,omitempty"`
+	SdwanUnderlay                                 bool                            `json:"sdwan_underlay"`
 	ServerCrt                                     *string                         `json:"x_server_crt,omitempty"`
 	ServerKey                                     *string                         `json:"x_server_key,omitempty"`
 	SettingPreference                             *string                         `json:"setting_preference,omitempty"` // auto|manual
@@ -223,6 +228,11 @@ type Network struct {
 	UidVPNSyncPublicIP                            bool                            `json:"uid_vpn_sync_public_ip"`
 	UidVPNType                                    *string                         `json:"uid_vpn_type,omitempty"` // openvpn|wireguard
 	UidWorkspaceUrl                               *string                         `json:"uid_workspace_url,omitempty"`
+	UplinkBand                                    *string                         `json:"uplink_band,omitempty"`       // ng|na|6e
+	UplinkIDentity                                *string                         `json:"uplink_identity,omitempty"`   // ^.{0,128}$
+	UplinkPassword                                *string                         `json:"x_uplink_password,omitempty"` // ^.{0,256}$
+	UplinkSSID                                    *string                         `json:"uplink_ssid,omitempty"`       // ^.{0,32}$
+	UplinkSecurity                                *string                         `json:"uplink_security,omitempty"`   // Open|WEP|WPA2-Personal|WPA3-Personal|WPA2-Enterprise|WPA3-Enterprise
 	UserGroupID                                   *string                         `json:"usergroup_id,omitempty"`
 	VLAN                                          *int64                          `json:"vlan,omitempty"` // [2-9]|[1-9][0-9]{1,2}|[1-3][0-9]{3}|400[0-9]|401[0-8]|^$
 	VLANEnabled                                   bool                            `json:"vlan_enabled"`
@@ -266,6 +276,7 @@ type Network struct {
 	WANNetworkGroup                               *string                         `json:"wan_networkgroup,omitempty"`        // WAN[2-9]?|WAN_LTE_FAILOVER
 	WANPassword                                   string                          `json:"x_wan_password"`                    // [^"' ]+|^$
 	WANPppoePasswordEnabled                       bool                            `json:"wan_pppoe_password_enabled"`
+	WANPppoeRfc4638Enabled                        bool                            `json:"wan_pppoe_rfc4638_enabled"`
 	WANPppoeUsernameEnabled                       bool                            `json:"wan_pppoe_username_enabled"`
 	WANPrefixlen                                  *int64                          `json:"wan_prefixlen,omitempty"` // ^([1-9]|[1-8][0-9]|9[0-9]|1[01][0-9]|12[0-8])$|^$
 	WANProviderCapabilities                       *NetworkWANProviderCapabilities `json:"wan_provider_capabilities,omitempty"`
