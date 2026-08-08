@@ -78,7 +78,7 @@ type PortProfile struct {
 	StormctrlUcastLevel          *int64                 `json:"stormctrl_ucast_level,omitempty"` // [0-9]|[1-9][0-9]|100
 	StormctrlUcastRate           *int64                 `json:"stormctrl_ucast_rate,omitempty"`  // [0-9]|[1-9][0-9]{1,6}|1[0-3][0-9]{6}|14[0-7][0-9]{5}|148[0-7][0-9]{4}|14880000
 	StpBpduGuardEnabled          bool                   `json:"stp_bpdu_guard_enabled"`
-	StpEdgeState                 string                 `json:"stp_edge_state,omitempty"` // auto|enabled|disabled
+	StpEdgeState                 string                 `json:"stp_edge_state,omitempty"` // enabled|disabled
 	StpPortMode                  bool                   `json:"stp_port_mode"`
 	StpUplink                    bool                   `json:"stp_uplink"`
 	TaggedVLANMgmt               string                 `json:"tagged_vlan_mgmt,omitempty"` // auto|block_all|custom

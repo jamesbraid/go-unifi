@@ -48,7 +48,7 @@ type Device struct {
 	ConfigNetwork          *DeviceConfigNetwork      `json:"config_network,omitempty"`
 	DPIEnabled             bool                      `json:"dpi_enabled,omitempty"`
 	Disabled               bool                      `json:"disabled,omitempty"`
-	Dot1XFallbackNetworkID string                    `json:"dot1x_fallback_networkconf_id,omitempty"` // [\d\w]+|
+	Dot1XFallbackNetworkID string                    `json:"dot1x_fallback_networkconf_id,omitempty"` // [\d\w-]+|
 	Dot1XPortctrlEnabled   bool                      `json:"dot1x_portctrl_enabled,omitempty"`
 	EavBridgeRole          string                    `json:"eav_bridge_role,omitempty"` // host|client
 	EtherLighting          *DeviceEtherLighting      `json:"ether_lighting,omitempty"`
@@ -95,48 +95,50 @@ type Device struct {
 	LteSoftLimit                *int64  `json:"lte_soft_limit,omitempty"`
 	LteUsername                 string  `json:"lte_username,omitempty"`
 	// Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility.
-	MapID                               string                             `json:"map_id,omitempty"`
-	MbbOverrides                        *DeviceMbbOverrides                `json:"mbb_overrides,omitempty"`
-	MeshMloEnabled                      bool                               `json:"mesh_mlo_enabled,omitempty"`
-	MeshStaVapEnabled                   bool                               `json:"mesh_sta_vap_enabled,omitempty"`
-	MgmtNetworkID                       string                             `json:"mgmt_network_id,omitempty"` // [\d\w]+
-	Model                               string                             `json:"model,omitempty"`
-	Name                                string                             `json:"name,omitempty"` // .{0,128}
-	NutServer                           *DeviceNutServer                   `json:"nut_server,omitempty"`
-	OobPortConfig                       *DeviceOobPortConfig               `json:"oob_port_config,omitempty"`
-	OutdoorModeOverride                 string                             `json:"outdoor_mode_override,omitempty"` // default|on|off
-	OutletEnabled                       bool                               `json:"outlet_enabled,omitempty"`
-	OutletOverrides                     []DeviceOutletOverrides            `json:"outlet_overrides,omitempty"`
-	OutletPowerCycleEnabled             bool                               `json:"outlet_power_cycle_enabled,omitempty"`
-	OutletPowerCycleOnAcRecoveryEnabled bool                               `json:"outlet_power_cycle_on_ac_recovery_enabled,omitempty"`
-	OutletPowerCycleOnAcRecoverySeconds *int64                             `json:"outlet_power_cycle_on_ac_recovery_seconds,omitempty"` // [6-9][0-9]|[1-5][0-9]{2}|600
-	PeerToPeerMode                      string                             `json:"peer_to_peer_mode,omitempty"`                         // ap|sta
-	PoeMode                             string                             `json:"poe_mode,omitempty"`                                  // auto|pasv24|passthrough|off
-	PortOverrides                       []DevicePortOverrides              `json:"port_overrides"`
-	PortTable                           []DevicePortTable                  `json:"port_table,omitempty"`
-	PowerSourceCtrl                     string                             `json:"power_source_ctrl,omitempty"`        // auto|8023af|8023at|8023bt-type3|8023bt-type4|pasv24|poe-injector|ac|adapter|dc|rps
-	PowerSourceCtrlBudget               *int64                             `json:"power_source_ctrl_budget,omitempty"` // [0-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9][0-9]
-	PowerSourceCtrlEnabled              bool                               `json:"power_source_ctrl_enabled,omitempty"`
-	PrecisionTimeProtocolConfig         *DevicePrecisionTimeProtocolConfig `json:"precision_time_protocol_config,omitempty"`
-	PtmpApMAC                           string                             `json:"ptmp_ap_mac,omitempty"` // ^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$
-	PtpApMAC                            string                             `json:"ptp_ap_mac,omitempty"`  // ^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$
-	RADIUSProfileID                     string                             `json:"radiusprofile_id,omitempty"`
-	RadioTable                          []DeviceRadioTable                 `json:"radio_table,omitempty"`
-	ResetbtnEnabled                     string                             `json:"resetbtn_enabled,omitempty"` // on|off
-	RpsOverride                         *DeviceRpsOverride                 `json:"rps_override,omitempty"`
-	SmaPortConfig                       *DeviceSmaPortConfig               `json:"sma_port_config,omitempty"`
-	SnmpContact                         string                             `json:"snmp_contact,omitempty"`  // .{0,255}
-	SnmpLocation                        string                             `json:"snmp_location,omitempty"` // .{0,255}
-	State                               DeviceState                        `json:"state"`
-	StationMode                         string                             `json:"station_mode,omitempty"` // ptp|ptmp|wifi
-	StpPriority                         *int64                             `json:"stp_priority,omitempty"` // 0|4096|8192|12288|16384|20480|24576|28672|32768|36864|40960|45056|49152|53248|57344|61440
-	StpVersion                          string                             `json:"stp_version,omitempty"`  // stp|rstp|disabled
-	SwitchVLANEnabled                   bool                               `json:"switch_vlan_enabled,omitempty"`
-	Type                                string                             `json:"type,omitempty"`
-	UbbPairName                         string                             `json:"ubb_pair_name,omitempty"`                  // .{1,128}
-	UpsShutdownRemainingMinutes         *int64                             `json:"ups_shutdown_remaining_minutes,omitempty"` // [1-9]|1[0-5]
-	VideoInfo                           *DeviceVideoInfo                   `json:"video_info,omitempty"`
-	Volume                              *int64                             `json:"volume,omitempty"` // [0-9]|[1-9][0-9]|100
+	MapID                                 string                             `json:"map_id,omitempty"`
+	MbbOverrides                          *DeviceMbbOverrides                `json:"mbb_overrides,omitempty"`
+	MeshMloEnabled                        bool                               `json:"mesh_mlo_enabled,omitempty"`
+	MeshStaVapEnabled                     bool                               `json:"mesh_sta_vap_enabled,omitempty"`
+	MgmtNetworkID                         string                             `json:"mgmt_network_id,omitempty"` // [\d\w-]+
+	Model                                 string                             `json:"model,omitempty"`
+	Name                                  string                             `json:"name,omitempty"` // .{0,128}
+	NutServer                             *DeviceNutServer                   `json:"nut_server,omitempty"`
+	OobPortConfig                         []DeviceOobPortConfig              `json:"oob_port_config,omitempty"`
+	OutdoorModeOverride                   string                             `json:"outdoor_mode_override,omitempty"` // default|on|off
+	OutletEnabled                         bool                               `json:"outlet_enabled,omitempty"`
+	OutletOverrides                       []DeviceOutletOverrides            `json:"outlet_overrides,omitempty"`
+	OutletPowerCycleEnabled               bool                               `json:"outlet_power_cycle_enabled,omitempty"`
+	OutletPowerCycleOnAcRecoveryEnabled   bool                               `json:"outlet_power_cycle_on_ac_recovery_enabled,omitempty"`
+	OutletPowerCycleOnAcRecoverySeconds   *int64                             `json:"outlet_power_cycle_on_ac_recovery_seconds,omitempty"`   // [6-9][0-9]|[1-5][0-9]{2}|600
+	OutletPowerCycleOnInternetLossSeconds *int64                             `json:"outlet_power_cycle_on_internet_loss_seconds,omitempty"` // [5-9]|[1-9][0-9]|[1-8][0-9]{2}|900
+	PeerToPeerMode                        string                             `json:"peer_to_peer_mode,omitempty"`                           // ap|sta
+	PoeMode                               string                             `json:"poe_mode,omitempty"`                                    // auto|pasv24|passthrough|off
+	PortOverrides                         []DevicePortOverrides              `json:"port_overrides"`
+	PortTable                             []DevicePortTable                  `json:"port_table,omitempty"`
+	PowerSourceCtrl                       string                             `json:"power_source_ctrl,omitempty"`        // auto|8023af|8023at|8023bt-type3|8023bt-type4|pasv24|poe-injector|ac|adapter|dc|rps
+	PowerSourceCtrlBudget                 *int64                             `json:"power_source_ctrl_budget,omitempty"` // [0-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9][0-9]
+	PowerSourceCtrlEnabled                bool                               `json:"power_source_ctrl_enabled,omitempty"`
+	PrecisionTimeProtocolConfig           *DevicePrecisionTimeProtocolConfig `json:"precision_time_protocol_config,omitempty"`
+	PtmpApMAC                             string                             `json:"ptmp_ap_mac,omitempty"` // ^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$
+	PtpApMAC                              string                             `json:"ptp_ap_mac,omitempty"`  // ^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$
+	RADIUSProfileID                       string                             `json:"radiusprofile_id,omitempty"`
+	RadioTable                            []DeviceRadioTable                 `json:"radio_table,omitempty"`
+	ResetbtnEnabled                       string                             `json:"resetbtn_enabled,omitempty"` // on|off
+	RpsOverride                           *DeviceRpsOverride                 `json:"rps_override,omitempty"`
+	SmaPortConfig                         *DeviceSmaPortConfig               `json:"sma_port_config,omitempty"`
+	SnmpContact                           string                             `json:"snmp_contact,omitempty"`  // .{0,255}
+	SnmpLocation                          string                             `json:"snmp_location,omitempty"` // .{0,255}
+	State                                 DeviceState                        `json:"state"`
+	StationMode                           string                             `json:"station_mode,omitempty"` // ptp|ptmp|wifi
+	StpPriority                           *int64                             `json:"stp_priority,omitempty"` // 0|4096|8192|12288|16384|20480|24576|28672|32768|36864|40960|45056|49152|53248|57344|61440
+	StpVersion                            string                             `json:"stp_version,omitempty"`  // stp|rstp|disabled
+	SwitchVLANEnabled                     bool                               `json:"switch_vlan_enabled,omitempty"`
+	Type                                  string                             `json:"type,omitempty"`
+	UbbPairName                           string                             `json:"ubb_pair_name,omitempty"`                  // .{1,128}
+	UpsShutdownRemainingMinutes           *int64                             `json:"ups_shutdown_remaining_minutes,omitempty"` // [1-9]|1[0-5]
+	VbmsOverride                          *DeviceVbmsOverride                `json:"vbms_override,omitempty"`
+	VideoInfo                             *DeviceVideoInfo                   `json:"video_info,omitempty"`
+	Volume                                *int64                             `json:"volume,omitempty"` // [0-9]|[1-9][0-9]|100
 	// Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility.
 	X float64 `json:"x,omitempty"`
 	// Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility.
@@ -167,19 +169,20 @@ func (src Device) MarshalJSON() ([]byte, error) {
 func (dst *Device) UnmarshalJSON(b []byte) error {
 	type Alias Device
 	aux := &struct {
-		GatewayVrrpPriority                 *types.Number `json:"gateway_vrrp_priority"`
-		LcmBrightness                       *types.Number `json:"lcm_brightness"`
-		LcmIDleTimeout                      *types.Number `json:"lcm_idle_timeout"`
-		LcmOrientationOverride              *types.Number `json:"lcm_orientation_override"`
-		LedOverrideColorBrightness          *types.Number `json:"led_override_color_brightness"`
-		LteHardLimit                        *types.Number `json:"lte_hard_limit"`
-		LteSimPin                           *types.Number `json:"lte_sim_pin"`
-		LteSoftLimit                        *types.Number `json:"lte_soft_limit"`
-		OutletPowerCycleOnAcRecoverySeconds *types.Number `json:"outlet_power_cycle_on_ac_recovery_seconds"`
-		PowerSourceCtrlBudget               *types.Number `json:"power_source_ctrl_budget"`
-		StpPriority                         *types.Number `json:"stp_priority"`
-		UpsShutdownRemainingMinutes         *types.Number `json:"ups_shutdown_remaining_minutes"`
-		Volume                              *types.Number `json:"volume"`
+		GatewayVrrpPriority                   *types.Number `json:"gateway_vrrp_priority"`
+		LcmBrightness                         *types.Number `json:"lcm_brightness"`
+		LcmIDleTimeout                        *types.Number `json:"lcm_idle_timeout"`
+		LcmOrientationOverride                *types.Number `json:"lcm_orientation_override"`
+		LedOverrideColorBrightness            *types.Number `json:"led_override_color_brightness"`
+		LteHardLimit                          *types.Number `json:"lte_hard_limit"`
+		LteSimPin                             *types.Number `json:"lte_sim_pin"`
+		LteSoftLimit                          *types.Number `json:"lte_soft_limit"`
+		OutletPowerCycleOnAcRecoverySeconds   *types.Number `json:"outlet_power_cycle_on_ac_recovery_seconds"`
+		OutletPowerCycleOnInternetLossSeconds *types.Number `json:"outlet_power_cycle_on_internet_loss_seconds"`
+		PowerSourceCtrlBudget                 *types.Number `json:"power_source_ctrl_budget"`
+		StpPriority                           *types.Number `json:"stp_priority"`
+		UpsShutdownRemainingMinutes           *types.Number `json:"ups_shutdown_remaining_minutes"`
+		Volume                                *types.Number `json:"volume"`
 
 		*Alias
 	}{
@@ -260,6 +263,14 @@ func (dst *Device) UnmarshalJSON(b []byte) error {
 		} else if string(*aux.OutletPowerCycleOnAcRecoverySeconds) == "" {
 			var zero int64
 			dst.OutletPowerCycleOnAcRecoverySeconds = &zero
+		}
+	}
+	if aux.OutletPowerCycleOnInternetLossSeconds != nil {
+		if val, err := aux.OutletPowerCycleOnInternetLossSeconds.Int64(); err == nil {
+			dst.OutletPowerCycleOnInternetLossSeconds = &val
+		} else if string(*aux.OutletPowerCycleOnInternetLossSeconds) == "" {
+			var zero int64
+			dst.OutletPowerCycleOnInternetLossSeconds = &zero
 		}
 	}
 	if aux.PowerSourceCtrlBudget != nil {
@@ -598,11 +609,14 @@ type DeviceOobPortConfig struct {
 	Enabled bool        `json:"enabled,omitempty"`
 	IPV6    *DeviceIPV6 `json:"ipv6,omitempty"`
 	IPv4    *DeviceIPv4 `json:"ipv4,omitempty"`
+	UnitID  *int64      `json:"unit_id,omitempty"` // [1-8]
 }
 
 func (dst *DeviceOobPortConfig) UnmarshalJSON(b []byte) error {
 	type Alias DeviceOobPortConfig
 	aux := &struct {
+		UnitID *types.Number `json:"unit_id"`
+
 		*Alias
 	}{
 		Alias: (*Alias)(dst),
@@ -611,6 +625,14 @@ func (dst *DeviceOobPortConfig) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	if aux.UnitID != nil {
+		if val, err := aux.UnitID.Int64(); err == nil {
+			dst.UnitID = &val
+		} else if string(*aux.UnitID) == "" {
+			var zero int64
+			dst.UnitID = &zero
+		}
 	}
 
 	return nil
@@ -676,7 +698,7 @@ type DevicePortOverrides struct {
 	PoeMode                      string            `json:"poe_mode,omitempty"` // auto|pasv24|passthrough|off
 	PortIDX                      *int64            `json:"port_idx,omitempty"` // [1-9]|[1-4][0-9]|5[0-6]
 	PortKeepaliveEnabled         bool              `json:"port_keepalive_enabled,omitempty"`
-	PortProfileID                string            `json:"portconf_id,omitempty"` // [\d\w]+
+	PortProfileID                string            `json:"portconf_id,omitempty"` // [\d\w-]+
 	PortSecurityEnabled          bool              `json:"port_security_enabled,omitempty"`
 	PortSecurityMACAddress       []string          `json:"port_security_mac_address,omitempty"` // ^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$
 	PrecisionTimeProtocolEnabled bool              `json:"precision_time_protocol_enabled,omitempty"`
@@ -686,6 +708,8 @@ type DevicePortOverrides struct {
 	PriorityQueue4Level          *int64            `json:"priority_queue4_level,omitempty"` // [0-9]|[1-9][0-9]|100
 	QOSProfile                   *DeviceQOSProfile `json:"qos_profile,omitempty"`
 	RoutedNetworkID              string            `json:"routed_networkconf_id,omitempty"`
+	SdWANUnderlayPort            bool              `json:"sd_wan_underlay_port,omitempty"`
+	SdWANUnderlayPortNetworkID   string            `json:"sd_wan_underlay_port_networkconf_id,omitempty"`
 	SettingPreference            string            `json:"setting_preference,omitempty"` // auto|manual
 	Speed                        *int64            `json:"speed,omitempty"`              // 10|100|1000|2500|5000|10000|20000|25000|40000|50000|100000
 	StablePortEnabled            bool              `json:"stable_port_enabled,omitempty"`
@@ -705,6 +729,7 @@ type DevicePortOverrides struct {
 	StpUplink                    bool              `json:"stp_uplink,omitempty"`
 	TaggedNetworkIDs             []string          `json:"tagged_networkconf_ids,omitempty"`
 	TaggedVLANMgmt               string            `json:"tagged_vlan_mgmt,omitempty"` // auto|block_all|custom
+	UnitID                       *int64            `json:"unit_id,omitempty"`          // [1-8]
 	VoiceNetworkID               string            `json:"voice_networkconf_id,omitempty"`
 }
 
@@ -728,6 +753,7 @@ func (dst *DevicePortOverrides) UnmarshalJSON(b []byte) error {
 		StormctrlMcastRate         *types.Number  `json:"stormctrl_mcast_rate"`
 		StormctrlUcastLevel        *types.Number  `json:"stormctrl_ucast_level"`
 		StormctrlUcastRate         *types.Number  `json:"stormctrl_ucast_rate"`
+		UnitID                     *types.Number  `json:"unit_id"`
 
 		*Alias
 	}{
@@ -870,6 +896,14 @@ func (dst *DevicePortOverrides) UnmarshalJSON(b []byte) error {
 		} else if string(*aux.StormctrlUcastRate) == "" {
 			var zero int64
 			dst.StormctrlUcastRate = &zero
+		}
+	}
+	if aux.UnitID != nil {
+		if val, err := aux.UnitID.Int64(); err == nil {
+			dst.UnitID = &val
+		} else if string(*aux.UnitID) == "" {
+			var zero int64
+			dst.UnitID = &zero
 		}
 	}
 
@@ -1398,6 +1432,37 @@ func (dst *DeviceSmaPortConfig) UnmarshalJSON(b []byte) error {
 	err := json.Unmarshal(b, &aux)
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+
+	return nil
+}
+
+type DeviceVbmsOverride struct {
+	EpoEnabled    bool   `json:"epo_enabled,omitempty"`
+	InputThdLevel *int64 `json:"input_thd_level,omitempty"` // [0-2]
+}
+
+func (dst *DeviceVbmsOverride) UnmarshalJSON(b []byte) error {
+	type Alias DeviceVbmsOverride
+	aux := &struct {
+		InputThdLevel *types.Number `json:"input_thd_level"`
+
+		*Alias
+	}{
+		Alias: (*Alias)(dst),
+	}
+
+	err := json.Unmarshal(b, &aux)
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal alias: %w", err)
+	}
+	if aux.InputThdLevel != nil {
+		if val, err := aux.InputThdLevel.Int64(); err == nil {
+			dst.InputThdLevel = &val
+		} else if string(*aux.InputThdLevel) == "" {
+			var zero int64
+			dst.InputThdLevel = &zero
+		}
 	}
 
 	return nil

@@ -59,46 +59,47 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"value":       ".{1,256}",
 	},
 	"Device": {
-		"bandsteering_mode":                         "off|equal|prefer_5g",
-		"baresip_auth_user":                         "^\\+?[a-zA-Z0-9_.\\-!~*'()]*",
-		"baresip_extension":                         "^\\+?[a-zA-Z0-9_.\\-!~*'()]*",
-		"dot1x_fallback_networkconf_id":             "[\\d\\w]+|",
-		"eav_bridge_role":                           "host|client",
-		"fan_mode_override":                         "default|quiet",
-		"gateway_vrrp_mode":                         "primary|secondary",
-		"gateway_vrrp_priority":                     "[1-9][0-9]|[1-9][0-9][0-9]",
-		"hostname":                                  ".{1,128}",
-		"lcm_brightness":                            "[1-9]|[1-9][0-9]|100",
-		"lcm_idle_timeout":                          "[1-9][0-9]|[1-9][0-9][0-9]|[1-2][0-9][0-9][0-9]|3[0-5][0-9][0-9]|3600",
-		"lcm_night_mode_begins":                     "(^$)|(^(0[0-9])|(1[0-9])|(2[0-3])):([0-5][0-9]$)",
-		"lcm_night_mode_ends":                       "(^$)|(^(0[0-9])|(1[0-9])|(2[0-3])):([0-5][0-9]$)",
-		"lcm_orientation_override":                  "0|90|180|270",
-		"lcm_tracker_seed":                          ".{0,50}",
-		"led_override":                              "default|on|off",
-		"led_override_color":                        "^#(?:[0-9a-fA-F]{3}){1,2}$",
-		"led_override_color_brightness":             "^[0-9][0-9]?$|^100$",
-		"lte_apn":                                   ".{1,128}",
-		"lte_auth_type":                             "PAP|CHAP|PAP-CHAP|NONE",
-		"mgmt_network_id":                           "[\\d\\w]+",
-		"name":                                      ".{0,128}",
-		"outdoor_mode_override":                     "default|on|off",
-		"outlet_power_cycle_on_ac_recovery_seconds": "[6-9][0-9]|[1-5][0-9]{2}|600",
-		"peer_to_peer_mode":                         "ap|sta",
-		"poe_mode":                                  "auto|pasv24|passthrough|off",
-		"power_source_ctrl":                         "auto|8023af|8023at|8023bt-type3|8023bt-type4|pasv24|poe-injector|ac|adapter|dc|rps",
-		"power_source_ctrl_budget":                  "[0-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9][0-9]",
-		"ptmp_ap_mac":                               "^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$",
-		"ptp_ap_mac":                                "^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$",
-		"resetbtn_enabled":                          "on|off",
-		"snmp_contact":                              ".{0,255}",
-		"snmp_location":                             ".{0,255}",
-		"station_mode":                              "ptp|ptmp|wifi",
-		"stp_priority":                              "0|4096|8192|12288|16384|20480|24576|28672|32768|36864|40960|45056|49152|53248|57344|61440",
-		"stp_version":                               "stp|rstp|disabled",
-		"ubb_pair_name":                             ".{1,128}",
-		"ups_shutdown_remaining_minutes":            "[1-9]|1[0-5]",
-		"volume":                                    "[0-9]|[1-9][0-9]|100",
-		"x_baresip_password":                        "^[a-zA-Z0-9_.\\-!~*'()]*",
+		"bandsteering_mode":                           "off|equal|prefer_5g",
+		"baresip_auth_user":                           "^\\+?[a-zA-Z0-9_.\\-!~*'()]*",
+		"baresip_extension":                           "^\\+?[a-zA-Z0-9_.\\-!~*'()]*",
+		"dot1x_fallback_networkconf_id":               "[\\d\\w-]+|",
+		"eav_bridge_role":                             "host|client",
+		"fan_mode_override":                           "default|quiet",
+		"gateway_vrrp_mode":                           "primary|secondary",
+		"gateway_vrrp_priority":                       "[1-9][0-9]|[1-9][0-9][0-9]",
+		"hostname":                                    ".{1,128}",
+		"lcm_brightness":                              "[1-9]|[1-9][0-9]|100",
+		"lcm_idle_timeout":                            "[1-9][0-9]|[1-9][0-9][0-9]|[1-2][0-9][0-9][0-9]|3[0-5][0-9][0-9]|3600",
+		"lcm_night_mode_begins":                       "(^$)|(^(0[0-9])|(1[0-9])|(2[0-3])):([0-5][0-9]$)",
+		"lcm_night_mode_ends":                         "(^$)|(^(0[0-9])|(1[0-9])|(2[0-3])):([0-5][0-9]$)",
+		"lcm_orientation_override":                    "0|90|180|270",
+		"lcm_tracker_seed":                            ".{0,50}",
+		"led_override":                                "default|on|off",
+		"led_override_color":                          "^#(?:[0-9a-fA-F]{3}){1,2}$",
+		"led_override_color_brightness":               "^[0-9][0-9]?$|^100$",
+		"lte_apn":                                     ".{1,128}",
+		"lte_auth_type":                               "PAP|CHAP|PAP-CHAP|NONE",
+		"mgmt_network_id":                             "[\\d\\w-]+",
+		"name":                                        ".{0,128}",
+		"outdoor_mode_override":                       "default|on|off",
+		"outlet_power_cycle_on_ac_recovery_seconds":   "[6-9][0-9]|[1-5][0-9]{2}|600",
+		"outlet_power_cycle_on_internet_loss_seconds": "[5-9]|[1-9][0-9]|[1-8][0-9]{2}|900",
+		"peer_to_peer_mode":                           "ap|sta",
+		"poe_mode":                                    "auto|pasv24|passthrough|off",
+		"power_source_ctrl":                           "auto|8023af|8023at|8023bt-type3|8023bt-type4|pasv24|poe-injector|ac|adapter|dc|rps",
+		"power_source_ctrl_budget":                    "[0-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9][0-9]",
+		"ptmp_ap_mac":                                 "^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$",
+		"ptp_ap_mac":                                  "^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$",
+		"resetbtn_enabled":                            "on|off",
+		"snmp_contact":                                ".{0,255}",
+		"snmp_location":                               ".{0,255}",
+		"station_mode":                                "ptp|ptmp|wifi",
+		"stp_priority":                                "0|4096|8192|12288|16384|20480|24576|28672|32768|36864|40960|45056|49152|53248|57344|61440",
+		"stp_version":                                 "stp|rstp|disabled",
+		"ubb_pair_name":                               ".{1,128}",
+		"ups_shutdown_remaining_minutes":              "[1-9]|1[0-5]",
+		"volume":                                      "[0-9]|[1-9][0-9]|100",
+		"x_baresip_password":                          "^[a-zA-Z0-9_.\\-!~*'()]*",
 	},
 	"DeviceAudioInfo": {
 		"channel": "[2-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]",
@@ -143,6 +144,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 	"DeviceMbbOverrides": {
 		"primary_slot": "1|2",
 	},
+	"DeviceOobPortConfig": {
+		"unit_id": "[1-8]",
+	},
 	"DeviceOutletOverrides": {
 		"name": ".{0,128}",
 	},
@@ -161,7 +165,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"poe_mode":                  "auto|pasv24|passthrough|off",
 		"port_idx":                  "[1-9]|[1-4][0-9]|5[0-6]",
 		"port_security_mac_address": "^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$",
-		"portconf_id":               "[\\d\\w]+",
+		"portconf_id":               "[\\d\\w-]+",
 		"priority_queue1_level":     "[0-9]|[1-9][0-9]|100",
 		"priority_queue2_level":     "[0-9]|[1-9][0-9]|100",
 		"priority_queue3_level":     "[0-9]|[1-9][0-9]|100",
@@ -177,6 +181,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"stormctrl_ucast_rate":      "[0-9]|[1-9][0-9]{1,6}|1[0-3][0-9]{6}|14[0-7][0-9]{5}|148[0-7][0-9]{4}|14880000",
 		"stp_edge_state":            "auto|enabled|disabled",
 		"tagged_vlan_mgmt":          "auto|block_all|custom",
+		"unit_id":                   "[1-8]",
 	},
 	"DevicePrecisionTimeProtocolConfig": {
 		"clock_mode":                "boundary|sma|transparent",
@@ -238,6 +243,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"clock_source": "gps|external",
 		"display":      "ns|m|ft",
 	},
+	"DeviceVbmsOverride": {
+		"input_thd_level": "[0-2]",
+	},
 	"DeviceVideoInfo": {
 		"audio_mode":      "auto|pcm",
 		"channel":         "[2-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]",
@@ -258,7 +266,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"qos_rate_max_up":   "-1|[2-9]|[1-9][0-9]{1,4}|100000|10[0-1][0-9]{3}|102[0-3][0-9]{2}|102400",
 	},
 	"DpiGroup": {
-		"dpiapp_ids": "[\\d\\w]+",
+		"dpiapp_ids": "[\\d\\w-]+",
 		"name":       ".{1,128}",
 	},
 	"DynamicDNS": {
@@ -272,8 +280,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"x_password":     "^[^\"' ]+$",
 	},
 	"FirewallGroup": {
-		"group_type": "address-group|port-group|ipv6-address-group",
+		"group_type": "address-group|port-group|ipv6-address-group|domain-group",
 		"name":       ".{1,64}",
+		"source":     "static|dynamic",
 	},
 	"FirewallPolicy": {
 		"action":                "ALLOW|BLOCK|REJECT",
@@ -300,8 +309,8 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 	"FirewallRule": {
 		"action":                "drop|reject|accept",
-		"dst_firewallgroup_ids": "[\\d\\w]+",
-		"dst_networkconf_id":    "[\\d\\w]+|^$",
+		"dst_firewallgroup_ids": "[\\d\\w-]+",
+		"dst_networkconf_id":    "[\\d\\w-]+|^$",
 		"dst_networkconf_type":  "ADDRv4|NETv4",
 		"icmp_typename":         "^$|address-mask-reply|address-mask-request|any|communication-prohibited|destination-unreachable|echo-reply|echo-request|fragmentation-needed|host-precedence-violation|host-prohibited|host-redirect|host-unknown|host-unreachable|ip-header-bad|network-prohibited|network-redirect|network-unknown|network-unreachable|parameter-problem|port-unreachable|precedence-cutoff|protocol-unreachable|redirect|required-option-missing|router-advertisement|router-solicitation|source-quench|source-route-failed|time-exceeded|timestamp-reply|timestamp-request|TOS-host-redirect|TOS-host-unreachable|TOS-network-redirect|TOS-network-unreachable|ttl-zero-during-reassembly|ttl-zero-during-transit",
 		"icmpv6_typename":       "^$|address-unreachable|bad-header|beyond-scope|communication-prohibited|destination-unreachable|echo-reply|echo-request|failed-policy|neighbor-advertisement|neighbor-solicitation|no-route|packet-too-big|parameter-problem|port-unreachable|redirect|reject-route|router-advertisement|router-solicitation|time-exceeded|ttl-zero-during-reassembly|ttl-zero-during-transit|unknown-header-type|unknown-option",
@@ -312,9 +321,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"rule_index":            "2[0-9]{3,4}|4[0-9]{3,4}",
 		"ruleset":               "WAN_IN|WAN_OUT|WAN_LOCAL|LAN_IN|LAN_OUT|LAN_LOCAL|GUEST_IN|GUEST_OUT|GUEST_LOCAL|WANv6_IN|WANv6_OUT|WANv6_LOCAL|LANv6_IN|LANv6_OUT|LANv6_LOCAL|GUESTv6_IN|GUESTv6_OUT|GUESTv6_LOCAL",
 		"setting_preference":    "auto|manual",
-		"src_firewallgroup_ids": "[\\d\\w]+",
+		"src_firewallgroup_ids": "[\\d\\w-]+",
 		"src_mac_address":       "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$|^$",
-		"src_networkconf_id":    "[\\d\\w]+|^$",
+		"src_networkconf_id":    "[\\d\\w-]+|^$",
 		"src_networkconf_type":  "ADDRv4|NETv4",
 	},
 	"Hotspot2Conf": {
@@ -419,7 +428,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"dhcpd_wins_1":                        "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$",
 		"dhcpd_wins_2":                        "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$",
 		"domain_name":                         "(?=^.{3,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\\.)+[a-zA-Z]{2,63}$)|^$|[a-zA-Z0-9-]{1,63}",
-		"dpigroup_id":                         "[\\d\\w]+|^$",
+		"dpigroup_id":                         "[\\d\\w-]+|^$",
 		"gateway_device":                      "(^$|^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$)",
 		"gateway_type":                        "default|switch",
 		"igmp_groupmembership":                "[2-9]|[1-9][0-9]{1,2}|[1-2][0-9]{3}|3[0-5][0-9]{2}|3600|^$",
@@ -458,6 +467,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"l2tp_local_wan_ip":                   "^any$|^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
 		"l3_interface_type":                   "vlan|port|lag",
 		"local_port":                          "^([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])$",
+		"local_vpn_networkconf_ids":           "[\\d\\w-]+|^$",
+		"local_vpn_subnets":                   "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\/([1-9]|[1-2][0-9]|3[0-2])$|^$",
+		"local_vpn_subnets_mode":              "all|selected_networks|custom",
 		"mac_override":                        "(^$|^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$)",
 		"mss_clamp":                           "auto|custom|disabled",
 		"mss_clamp_ipv6":                      "auto|custom|disabled",
@@ -489,6 +501,10 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"uid_vpn_custom_routing":              "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\/([1-9]|[1-2][0-9]|3[0-2])$",
 		"uid_vpn_max_connection_time_seconds": "^[1-9][0-9]*$",
 		"uid_vpn_type":                        "openvpn|wireguard",
+		"uplink_band":                         "ng|na|6e",
+		"uplink_identity":                     "^.{0,128}$",
+		"uplink_security":                     "Open|WEP|WPA2-Personal|WPA3-Personal|WPA2-Enterprise|WPA3-Enterprise",
+		"uplink_ssid":                         "^.{0,32}$",
 		"vlan":                                "[2-9]|[1-9][0-9]{1,2}|[1-3][0-9]{3}|400[0-9]|401[0-8]|^$",
 		"vpn_binding_mode":                    "static|interface|any",
 		"vpn_protocol":                        "TCP|UDP",
@@ -532,6 +548,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"x_ipsec_pre_shared_key":                      "[^\\\"\\' ]+",
 		"x_openvpn_shared_secret_key":                 "[0-9A-Fa-f]{512}",
 		"x_pptpc_password":                            "[^\\\"\\' ]+",
+		"x_uplink_password":                           "^.{0,256}$",
 		"x_wan_password":                              "[^\"' ]+|^$",
 	},
 	"NetworkIGMPQuerierSwitches": {
@@ -593,7 +610,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"stormctrl_type":            "level|rate",
 		"stormctrl_ucast_level":     "[0-9]|[1-9][0-9]|100",
 		"stormctrl_ucast_rate":      "[0-9]|[1-9][0-9]{1,6}|1[0-3][0-9]{6}|14[0-7][0-9]{5}|148[0-7][0-9]{4}|14880000",
-		"stp_edge_state":            "auto|enabled|disabled",
+		"stp_edge_state":            "enabled|disabled",
 		"tagged_vlan_mgmt":          "auto|block_all|custom",
 	},
 	"PortProfileQOSMarking": {
@@ -631,7 +648,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"gateway_type":           "default|switch",
 		"name":                   ".{1,128}",
 		"static-route_distance":  "^[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]$|^$",
-		"static-route_interface": "WAN[1-9]?|[\\d\\w]+|^$",
+		"static-route_interface": "WAN[1-9]?|[\\d\\w-]+|^$",
 		"static-route_network":   "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\/([1-9]|[1-2][0-9]|3[0-2])$|^([a-fA-F0-9:]+\\/(([1-9]|[1-8][0-9]|9[0-9]|1[01][0-9]|12[0-8])))$",
 		"static-route_nexthop":   "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^([a-fA-F0-9:]+)$|^$",
 		"static-route_type":      "nexthop-route|interface-route|blackhole",
@@ -681,7 +698,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"bc_filter_list":             "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$",
 		"dns_assistance_mode":        "off|auto|manual",
 		"dns_assistance_servers":     "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
-		"dpigroup_id":                "[\\d\\w]+|^$",
+		"dpigroup_id":                "[\\d\\w-]+|^$",
 		"dtim_6e":                    "^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$",
 		"dtim_mode":                  "default|custom",
 		"dtim_na":                    "^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$",
@@ -756,7 +773,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"name":       ".{1,128}",
 	},
 	"WLANPredefinedServices": {
-		"code": "amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba",
+		"code": "amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|shelly|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba",
 	},
 	"WLANPrivatePresharedKeys": {
 		"password": "[\\x20-\\x7E]{8,255}",
@@ -930,6 +947,12 @@ const (
 	DeviceOutletPowerCycleOnAcRecoverySecondsMax int64 = 600
 )
 
+// DeviceOutletPowerCycleOnInternetLossSecondsMin and DeviceOutletPowerCycleOnInternetLossSecondsMax are the inclusive bounds the controller accepts for Device.outlet_power_cycle_on_internet_loss_seconds.
+const (
+	DeviceOutletPowerCycleOnInternetLossSecondsMin int64 = 5
+	DeviceOutletPowerCycleOnInternetLossSecondsMax int64 = 900
+)
+
 // DevicePeerToPeerModeValues are the values the controller accepts for Device.peer_to_peer_mode.
 var DevicePeerToPeerModeValues = []string{"ap", "sta"}
 
@@ -1041,6 +1064,12 @@ var DeviceIPv4TypeValues = []string{"dhcp", "static"}
 // DeviceMbbOverridesPrimarySlotValues are the values the controller accepts for DeviceMbbOverrides.primary_slot.
 var DeviceMbbOverridesPrimarySlotValues = []int64{1, 2}
 
+// DeviceOobPortConfigUnitIDMin and DeviceOobPortConfigUnitIDMax are the inclusive bounds the controller accepts for DeviceOobPortConfig.unit_id.
+const (
+	DeviceOobPortConfigUnitIDMin int64 = 1
+	DeviceOobPortConfigUnitIDMax int64 = 8
+)
+
 // DeviceOutletOverridesNameMinLength and DeviceOutletOverridesNameMaxLength are the character-count bounds the controller accepts for DeviceOutletOverrides.name.
 const (
 	DeviceOutletOverridesNameMinLength int64 = 0
@@ -1151,6 +1180,12 @@ var DevicePortOverridesStpEdgeStateValues = []string{"auto", "enabled", "disable
 
 // DevicePortOverridesTaggedVLANMgmtValues are the values the controller accepts for DevicePortOverrides.tagged_vlan_mgmt.
 var DevicePortOverridesTaggedVLANMgmtValues = []string{"auto", "block_all", "custom"}
+
+// DevicePortOverridesUnitIDMin and DevicePortOverridesUnitIDMax are the inclusive bounds the controller accepts for DevicePortOverrides.unit_id.
+const (
+	DevicePortOverridesUnitIDMin int64 = 1
+	DevicePortOverridesUnitIDMax int64 = 8
+)
 
 // DevicePrecisionTimeProtocolConfigClockModeValues are the values the controller accepts for DevicePrecisionTimeProtocolConfig.clock_mode.
 var DevicePrecisionTimeProtocolConfigClockModeValues = []string{"boundary", "sma", "transparent"}
@@ -1341,6 +1376,12 @@ var DeviceSmaPortConfigClockSourceValues = []string{"gps", "external"}
 // DeviceSmaPortConfigDisplayValues are the values the controller accepts for DeviceSmaPortConfig.display.
 var DeviceSmaPortConfigDisplayValues = []string{"ns", "m", "ft"}
 
+// DeviceVbmsOverrideInputThdLevelMin and DeviceVbmsOverrideInputThdLevelMax are the inclusive bounds the controller accepts for DeviceVbmsOverride.input_thd_level.
+const (
+	DeviceVbmsOverrideInputThdLevelMin int64 = 0
+	DeviceVbmsOverrideInputThdLevelMax int64 = 2
+)
+
 // DeviceVideoInfoAudioModeValues are the values the controller accepts for DeviceVideoInfo.audio_mode.
 var DeviceVideoInfoAudioModeValues = []string{"auto", "pcm"}
 
@@ -1414,13 +1455,16 @@ const (
 var DynamicDNSServiceValues = []string{"afraid", "changeip", "cloudflare", "cloudxns", "ddnss", "dhis", "dnsexit", "dnsomatic", "dnspark", "dnspod", "dslreports", "dtdns", "duckdns", "duiadns", "dyn", "dyndns", "dynv6", "easydns", "freemyip", "googledomains", "loopia", "namecheap", "noip", "nsupdate", "ovh", "sitelutions", "spdyn", "strato", "tunnelbroker", "zoneedit", "custom"}
 
 // FirewallGroupGroupTypeValues are the values the controller accepts for FirewallGroup.group_type.
-var FirewallGroupGroupTypeValues = []string{"address-group", "port-group", "ipv6-address-group"}
+var FirewallGroupGroupTypeValues = []string{"address-group", "port-group", "ipv6-address-group", "domain-group"}
 
 // FirewallGroupNameMinLength and FirewallGroupNameMaxLength are the character-count bounds the controller accepts for FirewallGroup.name.
 const (
 	FirewallGroupNameMinLength int64 = 1
 	FirewallGroupNameMaxLength int64 = 64
 )
+
+// FirewallGroupSourceValues are the values the controller accepts for FirewallGroup.source.
+var FirewallGroupSourceValues = []string{"static", "dynamic"}
 
 // FirewallPolicyActionValues are the values the controller accepts for FirewallPolicy.action.
 var FirewallPolicyActionValues = []string{"ALLOW", "BLOCK", "REJECT"}
@@ -1779,6 +1823,9 @@ const (
 	NetworkLocalPortMax int64 = 65535
 )
 
+// NetworkLocalVPNSubnetsModeValues are the values the controller accepts for Network.local_vpn_subnets_mode.
+var NetworkLocalVPNSubnetsModeValues = []string{"all", "selected_networks", "custom"}
+
 // NetworkMssClampValues are the values the controller accepts for Network.mss_clamp.
 var NetworkMssClampValues = []string{"auto", "custom", "disabled"}
 
@@ -1865,6 +1912,24 @@ const (
 
 // NetworkUidVPNTypeValues are the values the controller accepts for Network.uid_vpn_type.
 var NetworkUidVPNTypeValues = []string{"openvpn", "wireguard"}
+
+// NetworkUplinkBandValues are the values the controller accepts for Network.uplink_band.
+var NetworkUplinkBandValues = []string{"ng", "na", "6e"}
+
+// NetworkUplinkIDentityMinLength and NetworkUplinkIDentityMaxLength are the character-count bounds the controller accepts for Network.uplink_identity.
+const (
+	NetworkUplinkIDentityMinLength int64 = 0
+	NetworkUplinkIDentityMaxLength int64 = 128
+)
+
+// NetworkUplinkSecurityValues are the values the controller accepts for Network.uplink_security.
+var NetworkUplinkSecurityValues = []string{"Open", "WEP", "WPA2-Personal", "WPA3-Personal", "WPA2-Enterprise", "WPA3-Enterprise"}
+
+// NetworkUplinkSSIDMinLength and NetworkUplinkSSIDMaxLength are the character-count bounds the controller accepts for Network.uplink_ssid.
+const (
+	NetworkUplinkSSIDMinLength int64 = 0
+	NetworkUplinkSSIDMaxLength int64 = 32
+)
 
 // NetworkVLANMin and NetworkVLANMax are the inclusive bounds the controller accepts for Network.vlan.
 const (
@@ -1962,6 +2027,12 @@ const (
 // NetworkWireguardInterfaceBindingModeIPVersionValues are the values the controller accepts for Network.wireguard_interface_binding_mode_ip_version.
 var NetworkWireguardInterfaceBindingModeIPVersionValues = []string{"v4", "v6"}
 
+// NetworkUplinkPasswordMinLength and NetworkUplinkPasswordMaxLength are the character-count bounds the controller accepts for Network.x_uplink_password.
+const (
+	NetworkUplinkPasswordMinLength int64 = 0
+	NetworkUplinkPasswordMaxLength int64 = 256
+)
+
 // NetworkNATOutboundIPAddressesModeValues are the values the controller accepts for NetworkNATOutboundIPAddresses.mode.
 var NetworkNATOutboundIPAddressesModeValues = []string{"all", "ip_address", "ip_address_pool"}
 
@@ -2056,7 +2127,7 @@ const (
 )
 
 // PortProfileStpEdgeStateValues are the values the controller accepts for PortProfile.stp_edge_state.
-var PortProfileStpEdgeStateValues = []string{"auto", "enabled", "disabled"}
+var PortProfileStpEdgeStateValues = []string{"enabled", "disabled"}
 
 // PortProfileTaggedVLANMgmtValues are the values the controller accepts for PortProfile.tagged_vlan_mgmt.
 var PortProfileTaggedVLANMgmtValues = []string{"auto", "block_all", "custom"}
@@ -2419,7 +2490,7 @@ const (
 )
 
 // WLANPredefinedServicesCodeValues are the values the controller accepts for WLANPredefinedServices.code.
-var WLANPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
+var WLANPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "shelly", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
 
 // WLANRoamingConsortiumListNameMinLength and WLANRoamingConsortiumListNameMaxLength are the character-count bounds the controller accepts for WLANRoamingConsortiumList.name.
 const (
