@@ -52,4 +52,10 @@ steps:
       - git checkout -B schema-update
       - git add -A
       - git commit -m "schemas:$(printf ' ')update to ${product} ${build_identity}" || echo "nothing to commit"
-      - git push --force "$${FORGEJO_BASE_URL%/}/infra/go-unifi.git" schema-update
+      # Credentials must be in the URL. The bare base URL fails with
+      # "could not read Username" (rc 128) -- measured, not assumed: the step
+      # inherits a read-scoped netrc, not a writable one. Woodpecker masks the
+      # secret in logs. Same construction auto-release.sh uses.
+      - |
+        authed="https://$${FORGEJO_USER}:$${FORGEJO_TOKEN}@$${FORGEJO_BASE_URL#https://}"
+        git push --force "$${authed%/}/infra/go-unifi.git" schema-update
