@@ -29,8 +29,16 @@ checked workflow digest, source revision, pipeline identity, configured image,
 and observed Go toolchain.
 
 Set `CAMPAIGN_LIVE=1` on the isolated Skunkworks job to run
-`campaigns/run-live.sh`. The runner must expose Docker and provide
-`UNIFI_NETWORK_IMAGE` as the locked index-digest reference. The script starts a
+`campaigns/run-live.sh`, supplying it as step environment or a secret rather
+than a pipeline substitution: Woodpecker resolves `${...}` in commands before
+the shell runs, so the guard is written `$${CAMPAIGN_LIVE:-0}` to reach the
+shell at all. Until it was escaped this instruction could not succeed, whoever
+followed it.
+
+The step must also mount the Docker socket — installing a client is not enough,
+and without a daemon the script exits 125 at its first `docker run`. The runner
+must provide `UNIFI_NETWORK_IMAGE` as the locked index-digest reference, plus
+`UNIFI_USERNAME` and `UNIFI_PASSWORD` as secrets. The script starts a
 disposable Network container, uses the in-repo provisioner to inspect its image
 and read its version and UUID, then runs live scout and a candidate-only
 campaign. It retains the provisioner receipt, runner receipt, scout outputs,

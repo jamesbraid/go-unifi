@@ -9,6 +9,11 @@ labels:
 steps:
   - name: compatibility-campaigns
     image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    # The step installs a docker client but had no daemon to talk to, so the
+    # live path died at its first `docker run` with exit 125 before reaching
+    # anything it was written to test. Mount matches the provider's M3 shape.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     commands:
       - apt-get update
       - apt-get install --yes --no-install-recommends docker.io jq
@@ -48,4 +53,4 @@ steps:
           -output /tmp/dns_record.runner-attestation.json
         jq -e '.classification == "unchanged" and .candidate_only == true and .execution_mode == "runner" and .builder_image_digest == "golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651"' /tmp/dns_record.runner-attestation.json
         jq -e -s 'length == 2 and .[0].state == "started" and .[1].state == "succeeded"' /tmp/dns_record.runner-attempts.ndjson
-      - if [ "${CAMPAIGN_LIVE:-0}" = "1" ]; then ./campaigns/run-live.sh; fi
+      - if [ "$${CAMPAIGN_LIVE:-0}" = "1" ]; then ./campaigns/run-live.sh; fi
