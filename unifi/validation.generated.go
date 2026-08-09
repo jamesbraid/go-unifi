@@ -290,7 +290,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"port_matching_type":   "ANY|SPECIFIC|LIST|OBJECT",
 	},
 	"FirewallPolicySchedule": {
-		"mode":           "ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY",
+		"mode":           "ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY|CUSTOM",
 		"repeat_on_days": "mon|tue|wed|thu|fri|sat|sun",
 	},
 	"FirewallPolicySource": {
@@ -1450,7 +1450,7 @@ var FirewallPolicyDestinationMatchingTargetTypeValues = []string{"ANY", "SPECIFI
 var FirewallPolicyDestinationPortMatchingTypeValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
 
 // FirewallPolicyScheduleModeValues are the values the controller accepts for FirewallPolicySchedule.mode.
-var FirewallPolicyScheduleModeValues = []string{"ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY"}
+var FirewallPolicyScheduleModeValues = []string{"ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY", "CUSTOM"}
 
 // FirewallPolicyScheduleRepeatOnDaysValues are the values the controller accepts for FirewallPolicySchedule.repeat_on_days.
 var FirewallPolicyScheduleRepeatOnDaysValues = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}

@@ -5115,7 +5115,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ALWAYS\", \"EVERY_DAY\", \"EVERY_WEEK\", \"ONE_TIME_ONLY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ALWAYS\", \"EVERY_DAY\", \"EVERY_WEEK\", \"ONE_TIME_ONLY\", \"CUSTOM\")"
                         }
                       }
                     ]
@@ -20024,7 +20024,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ALWAYS\", \"EVERY_DAY\", \"EVERY_WEEK\", \"ONE_TIME_ONLY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ALWAYS\", \"EVERY_DAY\", \"EVERY_WEEK\", \"ONE_TIME_ONLY\", \"CUSTOM\")"
                         }
                       }
                     ]
