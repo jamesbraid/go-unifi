@@ -27,9 +27,11 @@ if [[ ! -r ${capture_lock} ]]; then
 fi
 
 locked_version=$(jq -er '.version' "${target_profile}")
+locked_repository=$(jq -er '.image_repository' "${target_profile}")
 locked_index=$(jq -er '.image_index_sha256' "${target_profile}")
 locked_manifest=$(jq -er '.image_manifest_sha256' "${target_profile}")
-readonly locked_version locked_index locked_manifest
+readonly locked_version locked_repository locked_index locked_manifest
+readonly locked_reference="${locked_repository}@${locked_index}"
 
 # The profile says which controller is being exercised; the capture lock says
 # which controller the committed schema was extracted from. Comparing them
@@ -104,11 +106,15 @@ sync
 # The assertion is unchanged in kind: the image handed to this run must be the
 # image the target profile says to test. Only its source moved, from a literal
 # to the profile. Accepting any image would "fix" the pin by deleting the check.
-if [[ "${UNIFI_NETWORK_IMAGE}" != *@${locked_index} ]]; then
+# The whole reference, not just the digest suffix. A digest-only check passes
+# for the right digest served from the wrong registry, which is exactly what
+# happens if the image moves and the secret is updated but the profile is not.
+if [[ ${UNIFI_NETWORK_IMAGE} != "${locked_reference}" ]]; then
     echo "UNIFI_NETWORK_IMAGE is not the image this target profile locks" >&2
     echo "  profile:  ${target_profile} (${locked_version})" >&2
-    echo "  expected: *@${locked_index}" >&2
+    echo "  expected: ${locked_reference}" >&2
     echo "  got:      ${UNIFI_NETWORK_IMAGE}" >&2
+    echo "  the profile is the single source for the reference; update it, not the secret" >&2
     exit 1
 fi
 
