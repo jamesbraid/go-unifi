@@ -1,0 +1,55 @@
+# Capture -> generate -> push. Deliberately does NOT open a pull request.
+#
+# The campaign opens it, because that is what makes the gate fail closed: no
+# campaign means no PR, and a rejected classification means no PR. A status
+# check on an already-open PR fails open when the gate never runs, which is
+# what the GitHub arrangement this replaces does today.
+#
+# Manual inputs arrive through Woodpecker's template interpolation as
+# ${artifact_url} and friends. That is the same substitution which resolved
+# ${CAMPAIGN_LIVE:-0} to its default before any shell existed -- anything the
+# SHELL must evaluate has to be written $${...}. Same rule, both directions.
+#
+#   woodpecker-cli pipeline create --branch main infra/go-unifi \
+#     --var artifact_url=... --var build_identity=... --var network_version=...
+when:
+  - event: manual
+
+labels:
+  pool: skunkworks
+
+steps:
+  - name: capture-and-generate
+    image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    environment:
+      FORGEJO_BASE_URL:
+        from_secret: forgejo_base_url
+      FORGEJO_USER:
+        from_secret: forgejo_ci_user
+      FORGEJO_TOKEN:
+        from_secret: forgejo_ci_token
+    commands:
+      - apt-get update
+      - apt-get install --yes --no-install-recommends ca-certificates curl jq git
+      - export GO_UNIFI_CONTENT_STORE="$${CI_WORKSPACE}/.content-store"
+      - |
+        go run ./cmd/schema-capture \
+          -url="${artifact_url}" \
+          -media-type="${media_type}" \
+          -product="${product}" \
+          -build="${build_identity}" \
+          -network-version="${network_version}" \
+          -uos-version="${uos_version}" \
+          -captured-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      - go generate ./...
+      - go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
+      - mkdir -p /tmp/apidiff
+      - bash .woodpecker/scripts/apidiff-check.sh /tmp/apidiff
+      # The branch is pushed; the campaign fires on that push and decides
+      # whether a pull request may exist.
+      - git config user.name "$${FORGEJO_USER}"
+      - git config user.email "$${FORGEJO_USER}@users.noreply.localhost"
+      - git checkout -B schema-update
+      - git add -A
+      - git commit -m "schemas:$(printf ' ')update to ${product} ${build_identity}" || echo "nothing to commit"
+      - git push --force "$${FORGEJO_BASE_URL%/}/infra/go-unifi.git" schema-update

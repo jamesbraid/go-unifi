@@ -1,0 +1,44 @@
+# The campaign, and the gate. Fires on the branch the capture pipeline pushes.
+#
+# Runs on `push` for two independent reasons, both measured rather than assumed:
+# the write token is scoped to push and not to pull_request, and a
+# pull_request-triggered pipeline resolves its definition from the target
+# branch, so a gate could not be introduced alongside the change that needs it.
+when:
+  - event: push
+    branch: schema-update
+
+labels:
+  pool: skunkworks
+
+steps:
+  - name: campaign-and-gate
+    image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      CAMPAIGN_LIVE: '1'
+      CAMPAIGN_LIVE_OUTPUT_DIR: /tmp/campaign-evidence
+      UNIFI_NETWORK_IMAGE:
+        from_secret: unifi_network_image
+      UNIFI_USERNAME:
+        from_secret: unifi_username
+      UNIFI_PASSWORD:
+        from_secret: unifi_password
+      FORGEJO_BASE_URL:
+        from_secret: forgejo_base_url
+      FORGEJO_USER:
+        from_secret: forgejo_ci_user
+      FORGEJO_TOKEN:
+        from_secret: forgejo_ci_token
+    commands:
+      - apt-get update
+      - apt-get install --yes --no-install-recommends ca-certificates curl jq
+      - curl --fail --location --silent --show-error --output /tmp/docker-cli.tgz https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz
+      - echo '4f798b3ee1e0140eab5bf30b0edc4e84f4cdb53255a429dc3bbae9524845d640  /tmp/docker-cli.tgz' | sha256sum --check -
+      - tar -xzf /tmp/docker-cli.tgz -C /usr/local/bin --strip-components=1 docker/docker
+      - mkdir -p /tmp/apidiff /tmp/campaign-evidence
+      - bash .woodpecker/scripts/apidiff-check.sh /tmp/apidiff
+      - cp /tmp/apidiff/summary.md /tmp/campaign-evidence/apidiff-summary.md
+      - ./campaigns/run-live.sh
+      - bash .woodpecker/scripts/schema-gate.sh /tmp/campaign-evidence schema-update main
