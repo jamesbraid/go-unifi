@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -54,7 +55,7 @@ func run(args []string, stderr io.Writer) int {
 	}
 	manifestOutput, err := exec.Command("docker", "manifest", "inspect", *imageReference).Output()
 	if err != nil {
-		fmt.Fprintf(stderr, "inspect image index: %v\n", err)
+		fmt.Fprintf(stderr, "inspect image index: %v\n", dockerError(err))
 		return 1
 	}
 	manifestDigest, err := selectManifest(manifestOutput, *architecture)
@@ -98,10 +99,22 @@ func run(args []string, stderr io.Writer) int {
 	return 0
 }
 
+// dockerError surfaces what the docker CLI actually wrote. exec.Cmd.Output()
+// already captures stderr into ExitError.Stderr, so the explanation was being
+// collected and then discarded at print time -- a failure here reported only
+// "exit status 1", which is true and useless.
+func dockerError(err error) error {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+	}
+	return err
+}
+
 func inspectStartedContainer(containerID, imageReference string) (string, error) {
 	containerOutput, err := exec.Command("docker", "container", "inspect", containerID).Output()
 	if err != nil {
-		return "", err
+		return "", dockerError(err)
 	}
 	var containers []struct {
 		State struct {
@@ -119,7 +132,7 @@ func inspectStartedContainer(containerID, imageReference string) (string, error)
 	}
 	imageOutput, err := exec.Command("docker", "image", "inspect", imageReference).Output()
 	if err != nil {
-		return "", err
+		return "", dockerError(err)
 	}
 	var images []struct {
 		Architecture string `json:"Architecture"`
