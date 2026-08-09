@@ -32,7 +32,10 @@ func TestLiveScriptRecordsProvisioningFailureAndUsesStepNetwork(t *testing.T) {
 		"DOCKER_ARGS_LOG="+dockerArgs,
 		"CAMPAIGN_LIVE_OUTPUT_DIR="+directory,
 		"HOSTNAME=synthetic-step",
-		"UNIFI_NETWORK_IMAGE=registry.example.invalid/network@sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
+		// The full reference, not just the digest: run-live.sh compares against
+		// image_repository plus image_index_sha256 from the target profile, so a
+		// right-digest-wrong-registry value is now rejected before docker runs.
+		"UNIFI_NETWORK_IMAGE=ghcr.io/jamesbraid/unifi-network@sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
 		"UNIFI_USERNAME=admin",
 		"UNIFI_PASSWORD=admin",
 	)

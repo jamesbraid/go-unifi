@@ -2,10 +2,15 @@ package scout
 
 // TargetProfile identifies one immutable disposable controller target.
 type TargetProfile struct {
-	Name                  string `json:"name"`
-	Product               string `json:"product"`
-	Version               string `json:"version"`
-	Architecture          string `json:"architecture"`
+	Name         string `json:"name"`
+	Product      string `json:"product"`
+	Version      string `json:"version"`
+	Architecture string `json:"architecture"`
+	// ImageRepository is the registry and repository the digests below belong
+	// to. Without it the digests are pinned but their location is not, so the
+	// reference has to be reassembled from somewhere else -- and if the image
+	// moves registries the profile stays valid while pointing at nothing.
+	ImageRepository       string `json:"image_repository"`
 	ImageIndexSHA256      string `json:"image_index_sha256"`
 	ImageManifestSHA256   string `json:"image_manifest_sha256"`
 	ControllerFingerprint string `json:"controller_fingerprint"`

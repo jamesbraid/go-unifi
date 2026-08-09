@@ -3,6 +3,7 @@
   "product": "unifi-network",
   "version": "10.4.57",
   "architecture": "amd64",
+  "image_repository": "ghcr.io/jamesbraid/unifi-network",
   "image_index_sha256": "sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664",
   "image_manifest_sha256": "sha256:9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4",
   "controller_fingerprint": "sha256:3af14713d39e67ad63caa797434856135fefad1a13770b10ff3a51400b37ca0c"
