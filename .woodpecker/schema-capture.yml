@@ -51,7 +51,17 @@ steps:
       - git config user.email "$${FORGEJO_USER}@users.noreply.localhost"
       - git checkout -B schema-update
       - git add -A
-      - git commit -m "schemas:$(printf ' ')update to ${product} ${build_identity}" || echo "nothing to commit"
+      # No diff means no candidate. Committing nothing and pushing anyway
+      # creates schema-update at main's tip, which is a ref change, which fires
+      # a full live campaign against a tree identical to main and then fails
+      # trying to open a pull request with no changes in it. Stop here instead.
+      - |
+        if git diff --cached --quiet; then
+          echo "generation produced no diff at ${build_identity}; nothing to propose"
+          echo "no branch pushed, no campaign fired"
+          exit 0
+        fi
+      - git commit -m "schemas:$(printf ' ')update to ${product} ${build_identity}"
       # Credentials must be in the URL. The bare base URL fails with
       # "could not read Username" (rc 128) -- measured, not assumed: the step
       # inherits a read-scoped netrc, not a writable one. Woodpecker masks the
