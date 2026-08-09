@@ -33,6 +33,12 @@ func run(args []string, stderr io.Writer) int {
 	expectedManifest := flags.String("expected-image-manifest", "", "locked platform manifest digest")
 	architecture := flags.String("architecture", "amd64", "locked target architecture")
 	output := flags.String("output", "", "provisioner receipt output")
+	// Onboarding a controller needs the profile's controller_fingerprint, and
+	// that value must come from this package's own function over a real
+	// receipt. Recomputing the canonical digest anywhere else would be a second
+	// implementation of an identity, and scout hard-errors on mismatch, so a
+	// divergence would only surface later as a refusal nobody can explain.
+	fingerprintOutput := flags.String("fingerprint-output", "", "write the profile controller_fingerprint for this receipt")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -95,6 +101,17 @@ func run(args []string, stderr io.Writer) int {
 	if err := writeAtomic(*output, document); err != nil {
 		fmt.Fprintf(stderr, "write provisioner receipt: %v\n", err)
 		return 1
+	}
+	if *fingerprintOutput != "" {
+		fingerprint, err := scout.ProvisionerReceiptFingerprint(receipt)
+		if err != nil {
+			fmt.Fprintf(stderr, "derive controller fingerprint: %v\n", err)
+			return 1
+		}
+		if err := writeAtomic(*fingerprintOutput, []byte(fingerprint+"\n")); err != nil {
+			fmt.Fprintf(stderr, "write controller fingerprint: %v\n", err)
+			return 1
+		}
 	}
 	return 0
 }
