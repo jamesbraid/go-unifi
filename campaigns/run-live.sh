@@ -4,10 +4,60 @@ set -euo pipefail
 # Skunkworks-only live path. The in-repo provisioner is a separate process: it
 # inspects the started container, locked image, and controller API and emits the
 # Task 2 receipt consumed independently by scout and campaign validation.
-readonly locked_index=584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664
-readonly locked_manifest=9d19c8d03948a77d28181743fb81a515aa51a5cea0856bc0491b34d92a01bcf4
+#
+# The target is read from the scout profile rather than restated here. The
+# profile already names the version and both image digests, and scout is already
+# handed it below, so hardcoding the same three facts gave them a second home
+# that nothing compared against the first. It also pinned this script to
+# 10.4.57, which meant the one scenario the live path exists for -- a new
+# controller version -- was refused before anything ran.
 readonly builder_image=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
 readonly workflow=.woodpecker/m4-compatibility-campaigns.yml
+readonly target_profile=${CAMPAIGN_TARGET_PROFILE:-scout/profiles/network-10.4.57-seeded.json}
+readonly capture_lock=${CAMPAIGN_CAPTURE_LOCK:-schemas/capture.lock.json}
+
+if [[ ! -r ${target_profile} ]]; then
+    echo "target profile not readable: ${target_profile}" >&2
+    echo "  set CAMPAIGN_TARGET_PROFILE to a scout profile naming the controller under test" >&2
+    exit 1
+fi
+if [[ ! -r ${capture_lock} ]]; then
+    echo "capture lock not readable: ${capture_lock}" >&2
+    exit 1
+fi
+
+locked_version=$(jq -er '.version' "${target_profile}")
+locked_index=$(jq -er '.image_index_sha256' "${target_profile}")
+locked_manifest=$(jq -er '.image_manifest_sha256' "${target_profile}")
+readonly locked_version locked_index locked_manifest
+
+# The profile says which controller is being exercised; the capture lock says
+# which controller the committed schema was extracted from. Comparing them
+# catches the run that would otherwise succeed while proving nothing: a live
+# controller measured against a schema generated from a different version.
+lock_version=$(jq -er '.controller.network_version' "${capture_lock}")
+readonly lock_version
+if [[ ${locked_version} != "${lock_version}" ]]; then
+    echo "target profile and capture lock disagree about the controller version" >&2
+    echo "  profile      ${target_profile}: ${locked_version}" >&2
+    echo "  capture lock ${capture_lock}: ${lock_version}" >&2
+    echo "  regenerate against this controller, or point CAMPAIGN_TARGET_PROFILE at the matching profile" >&2
+    exit 1
+fi
+# The baseline is deliberately NOT derived from the target profile. It is the
+# previously admitted catalog, which for a new controller is the OLD version's
+# -- comparing a 10.5 candidate against a 10.5 baseline would compare a thing to
+# itself. Today 10.4.57 is the only admitted version, so this default is both
+# current and the correct predecessor. It becomes wrong the moment a second
+# version is admitted, which is why it is an override rather than a literal.
+readonly baseline_catalog=${CAMPAIGN_BASELINE_CATALOG:-catalogs/network-10.4.57/dns_record.admitted-catalog.json}
+readonly baseline_admission_receipt=${CAMPAIGN_BASELINE_ADMISSION_RECEIPT:-catalogs/network-10.4.57/dns_record.admission-receipt.json}
+if [[ ! -r ${baseline_catalog} ]]; then
+    echo "baseline catalog not readable: ${baseline_catalog}" >&2
+    echo "  set CAMPAIGN_BASELINE_CATALOG to the previously admitted catalog" >&2
+    exit 1
+fi
+
 work_root=${CAMPAIGN_LIVE_OUTPUT_DIR:-"$(pwd)/.campaign-results/${CI_PIPELINE_NUMBER:-manual}"}
 readonly work_root
 readonly container_name="go-unifi-dns-campaign-${CI_PIPELINE_NUMBER:-manual}"
@@ -51,8 +101,14 @@ sync
 : "${UNIFI_USERNAME:?UNIFI_USERNAME is required}"
 : "${UNIFI_PASSWORD:?UNIFI_PASSWORD is required}"
 
-if [[ "${UNIFI_NETWORK_IMAGE}" != *@sha256:${locked_index} ]]; then
-    echo "UNIFI_NETWORK_IMAGE does not match the locked Network index" >&2
+# The assertion is unchanged in kind: the image handed to this run must be the
+# image the target profile says to test. Only its source moved, from a literal
+# to the profile. Accepting any image would "fix" the pin by deleting the check.
+if [[ "${UNIFI_NETWORK_IMAGE}" != *@${locked_index} ]]; then
+    echo "UNIFI_NETWORK_IMAGE is not the image this target profile locks" >&2
+    echo "  profile:  ${target_profile} (${locked_version})" >&2
+    echo "  expected: *@${locked_index}" >&2
+    echo "  got:      ${UNIFI_NETWORK_IMAGE}" >&2
     exit 1
 fi
 
@@ -69,9 +125,9 @@ export UNIFI_INSECURE="${UNIFI_INSECURE:-true}"
 go run ./cmd/provisioner-receipt \
     --container-id "${container_id}" \
     --image "${UNIFI_NETWORK_IMAGE}" \
-    --expected-version 10.4.57 \
-    --expected-image-index sha256:584be3a2e45c4913e1bc373eff9c7330609c82085d4fc6f5ea365abdcdb3e664 \
-    --expected-image-manifest sha256:${locked_manifest} \
+    --expected-version "${locked_version}" \
+    --expected-image-index "${locked_index}" \
+    --expected-image-manifest "${locked_manifest}" \
     --output "${provisioner_receipt}"
 
 go run ./cmd/campaign-receipt \
@@ -80,22 +136,22 @@ go run ./cmd/campaign-receipt \
     -output "${work_root}/runner-execution-receipt.json"
 
 go run ./cmd/scout \
-    -target-profile scout/profiles/network-10.4.57-seeded.json \
+    -target-profile "${target_profile}" \
     -target-receipt "${provisioner_receipt}" \
     -scenario scout/scenarios/dns-record-list-v1.json \
     -structural schemas/structural/dns_record.json \
     -semantic-predecessor schemas/semantic-ids/dns_record.previous.json \
     -semantic-ids schemas/semantic-ids/dns_record.json \
-    -capture-lock schemas/capture.lock.json \
+    -capture-lock "${capture_lock}" \
     -catalog-output "${work_root}/candidate.catalog.json" \
     -receipt-output "${work_root}/scenario.receipt.json"
 
 go run ./cmd/campaign \
-    -campaign-id network-10.4.57-dns-record-live \
+    -campaign-id "network-${locked_version}-dns-record-live" \
     -profile-class fresh_seeded \
     -builder-image "${builder_image}" \
-    -baseline catalogs/network-10.4.57/dns_record.admitted-catalog.json \
-    -admission-receipt catalogs/network-10.4.57/dns_record.admission-receipt.json \
+    -baseline "${baseline_catalog}" \
+    -admission-receipt "${baseline_admission_receipt}" \
     -candidate "${work_root}/candidate.catalog.json" \
     -receipt "${work_root}/scenario.receipt.json" \
     -execution-receipt "${work_root}/runner-execution-receipt.json" \
