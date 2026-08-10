@@ -150,6 +150,17 @@ docker_args=(--detach --rm --name "${container_name}" --network "container:${HOS
 if [[ -n "${CAMPAIGN_NETWORK_ENV_FILE:-}" ]]; then
     docker_args+=(--env-file "${CAMPAIGN_NETWORK_ENV_FILE}")
 fi
+# Discard a leftover before starting. --rm only fires when a container exits,
+# and the EXIT trap does not run on SIGKILL, so a killed step leaves the
+# controller up indefinitely -- measured on a builder: the trap never printed
+# and the container was still running seven minutes later.
+#
+# What leaks is a JVM plus mongod. Enough of them on one builder and it runs
+# short of memory, which surfaces as an intermittent "controller is unhealthy"
+# several pipelines later, with nothing pointing at the run still holding the
+# RAM. The leak manufactures the condition that kills more runs, each leaking
+# another controller, so this is flake prevention rather than housekeeping.
+docker rm --force "${container_name}" >/dev/null 2>&1 || true
 container_id=$(docker run "${docker_args[@]}" "${UNIFI_NETWORK_IMAGE}")
 readonly container_id
 
