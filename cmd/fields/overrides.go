@@ -100,12 +100,30 @@ func resourceOverrides() map[string]resourceOverride {
 // properties overridden, while an absent field is created when add = true
 // (the compat-field case).
 func (r *ResourceInfo) applyOverrides() error {
-	override, ok := resourceOverrides()[r.StructName]
-	if !ok {
-		return nil
+	// Every type this resource declares, not only the top-level one. A table
+	// named for a nested struct addresses that struct: [FirewallPolicySchedule.
+	// field.time_all_day] reaches the schedule, which nothing could previously
+	// do. Before this, a table naming a nested type decoded happily -- the
+	// overrides map accepts any key -- and was then never looked up, so it was
+	// ignored in silence, which is the failure mode these tables exist to
+	// document.
+	//
+	// Sorted so two types claiming the same override apply in a fixed order
+	// rather than whichever way the map iterated.
+	for _, typeName := range slices.Sorted(maps.Keys(r.Types)) {
+		override, ok := resourceOverrides()[typeName]
+		if !ok {
+			continue
+		}
+		if err := r.applyOverrideToType(typeName, override); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	base := r.Types[r.StructName]
+func (r *ResourceInfo) applyOverrideToType(typeName string, override resourceOverride) error {
+	base := r.Types[typeName]
 	keysByJSON := map[string]string{}
 	for key, f := range base.Fields {
 		if f != nil {
@@ -141,7 +159,7 @@ func (r *ResourceInfo) applyOverrides() error {
 			f := base.Fields[key]
 			if fo.Name != "" && fo.Name != f.FieldName {
 				if _, taken := base.Fields[fo.Name]; taken {
-					return fmt.Errorf("%s field %q: rename target %q already exists", r.StructName, jsonName, fo.Name)
+					return fmt.Errorf("%s field %q: rename target %q already exists", typeName, jsonName, fo.Name)
 				}
 				delete(base.Fields, key)
 				f.FieldName = fo.Name
@@ -150,7 +168,7 @@ func (r *ResourceInfo) applyOverrides() error {
 			if fo.JSON != "" && fo.JSON != f.JSONName {
 				// Retag the wire name (true-v2 objects use "id", not "_id").
 				if !jsonNameRe.MatchString(fo.JSON) {
-					return fmt.Errorf("%s field %q: unsafe json retag %q", r.StructName, jsonName, fo.JSON)
+					return fmt.Errorf("%s field %q: unsafe json retag %q", typeName, jsonName, fo.JSON)
 				}
 				f.JSONName = fo.JSON
 			}
@@ -184,10 +202,10 @@ func (r *ResourceInfo) applyOverrides() error {
 			}
 		case fo.Add:
 			if fo.Name == "" || fo.Type == "" {
-				return fmt.Errorf("%s field %q: add requires name and type", r.StructName, jsonName)
+				return fmt.Errorf("%s field %q: add requires name and type", typeName, jsonName)
 			}
 			if _, taken := base.Fields[fo.Name]; taken {
-				return fmt.Errorf("%s field %q: add target %q already exists", r.StructName, jsonName, fo.Name)
+				return fmt.Errorf("%s field %q: add target %q already exists", typeName, jsonName, fo.Name)
 			}
 			f := NewFieldInfo(
 				fo.Name, jsonName, fo.Type, fo.Validation,
@@ -202,7 +220,7 @@ func (r *ResourceInfo) applyOverrides() error {
 			base.Fields[f.FieldName] = f
 			keysByJSON[jsonName] = f.FieldName
 		default:
-			fmt.Printf("warning: override %s.%s matches no schema field (set add = true to create it)\n", r.StructName, jsonName)
+			fmt.Printf("warning: override %s.%s matches no schema field (set add = true to create it)\n", typeName, jsonName)
 		}
 	}
 
@@ -216,11 +234,11 @@ func (r *ResourceInfo) applyOverrides() error {
 			continue
 		}
 		if prev, dup := seenName[f.FieldName]; dup {
-			return fmt.Errorf("%s: overrides left duplicate field name %q (wire %q and %q)", r.StructName, f.FieldName, prev, f.JSONName)
+			return fmt.Errorf("%s: overrides left duplicate field name %q (wire %q and %q)", typeName, f.FieldName, prev, f.JSONName)
 		}
 		seenName[f.FieldName] = f.JSONName
 		if prev, dup := seenJSON[f.JSONName]; dup {
-			return fmt.Errorf("%s: overrides left duplicate wire name %q (fields %q and %q)", r.StructName, f.JSONName, prev, f.FieldName)
+			return fmt.Errorf("%s: overrides left duplicate wire name %q (fields %q and %q)", typeName, f.JSONName, prev, f.FieldName)
 		}
 		seenJSON[f.JSONName] = f.FieldName
 	}
