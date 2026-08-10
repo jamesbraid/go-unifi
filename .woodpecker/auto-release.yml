@@ -1,0 +1,39 @@
+# Tag the next minor when a schema refresh lands on main. The pair to
+# schema-capture.yml and schema-campaign.yml: without it, moving pull request
+# creation to the forge means merges silently stop producing tags.
+# Tags at clone time. Woodpecker's default clone is --no-tags --depth=1, which
+# is why apidiff had no baseline and had to go back for them over an
+# authenticated fetch -- and that fetch is the third place tonight where a bare
+# remote URL met a netrc it could not use. Fetching them here removes the round
+# trip and the credential question together: the cheapest authenticated
+# operation is the one that does not happen.
+clone:
+  - name: clone
+    image: woodpeckerci/plugin-git
+    settings:
+      tags: true
+
+when:
+  - event: push
+    branch: main
+    path:
+      - schemas/VERSION
+      - schemas/SOURCE
+
+labels:
+  pool: skunkworks
+
+steps:
+  - name: auto-release
+    image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    environment:
+      FORGEJO_BASE_URL:
+        from_secret: forgejo_base_url
+      FORGEJO_USER:
+        from_secret: forgejo_ci_user
+      FORGEJO_TOKEN:
+        from_secret: forgejo_ci_token
+    commands:
+      - apt-get update
+      - apt-get install --yes --no-install-recommends ca-certificates curl git
+      - bash .woodpecker/scripts/auto-release.sh

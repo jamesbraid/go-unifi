@@ -55,6 +55,18 @@ type Inputs struct {
 type Snapshots struct {
 	StructuralSHA256  string `json:"structural_sha256"`
 	SensitivitySHA256 string `json:"sensitivity_sha256"`
+
+	// FieldDocuments digests each extracted field definition on its own,
+	// keyed by its path within the snapshot tree. StructuralSHA256 covers
+	// the whole tree, so it moves whenever any definition moves, including
+	// the eighty-one a given consumer does not care about. Anything that
+	// needs to pin one surface pins its entry here instead, and stays valid
+	// when an unrelated definition changes.
+	//
+	// Both come out of a single DigestSnapshot pass in cmd/fields, so they
+	// cannot describe different files; the entries additionally say which
+	// definition moved, which a tree digest on its own never could.
+	FieldDocuments map[string]string `json:"field_documents,omitempty"`
 }
 
 // Scout pins the reviewed evidence inputs that are outside the extracted
@@ -153,6 +165,15 @@ func (l Lock) validate(requireInspection bool) error {
 		}
 		digests["snapshots.structural_sha256"] = l.Snapshots.StructuralSHA256
 		digests["snapshots.sensitivity_sha256"] = l.Snapshots.SensitivitySHA256
+		if len(l.Snapshots.FieldDocuments) == 0 {
+			return errors.New("snapshots.field_documents is required")
+		}
+	}
+	for name, value := range l.Snapshots.FieldDocuments {
+		if err := validSnapshotMemberName(name); err != nil {
+			return fmt.Errorf("snapshots.field_documents key %q %w", name, err)
+		}
+		digests["snapshots.field_documents."+name] = value
 	}
 	if l.Scout != nil {
 		digests["scout.dns_structural_projection_sha256"] = l.Scout.DNSStructuralProjectionSHA256
@@ -181,6 +202,22 @@ func validSHA256(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
+}
+
+// validSnapshotMemberName accepts exactly the keys DigestSnapshot produces:
+// clean, relative, slash-separated paths within the snapshot tree.
+func validSnapshotMemberName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("must not be empty")
+	}
+	if strings.Contains(name, `\`) {
+		return errors.New("must be slash separated")
+	}
+	clean := path.Clean(name)
+	if clean != name || path.IsAbs(clean) || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return errors.New("must be a clean relative slash path")
+	}
+	return nil
 }
 
 func WriteFile(filename string, lock Lock) error {
@@ -232,6 +269,17 @@ func (i Inspection) Validate() error {
 	}
 	if !validSHA256(i.Snapshots.SensitivitySHA256) {
 		return errors.New("snapshots.sensitivity_sha256 must be 64 lowercase hexadecimal characters")
+	}
+	if len(i.Snapshots.FieldDocuments) == 0 {
+		return errors.New("snapshots.field_documents is required")
+	}
+	for name, value := range i.Snapshots.FieldDocuments {
+		if err := validSnapshotMemberName(name); err != nil {
+			return fmt.Errorf("snapshots.field_documents key %q %w", name, err)
+		}
+		if !validSHA256(value) {
+			return fmt.Errorf("snapshots.field_documents.%s must be 64 lowercase hexadecimal characters", name)
+		}
 	}
 	return nil
 }
@@ -300,7 +348,24 @@ func DigestFile(filename string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func DigestTree(root string) (string, error) {
+// DigestSnapshot measures root once and returns both digests the capture lock
+// records for a snapshot: the whole-tree digest, and each document's own
+// digest keyed by its tree-relative slash path.
+//
+// One traversal produces both, and DigestTree is this function with the
+// per-document map discarded, so the two values cannot come to describe
+// different files. That is the point rather than an optimisation. The lock
+// pins the tree while a structural projection pins a single document out of
+// it; if the map could omit a file the tree digest covered, a projection could
+// pin a document the lock did not actually describe, and the two checks would
+// look agreeing while measuring different things.
+//
+// Keys are tree-relative rather than bare file names because the tree digest
+// has always descended into subdirectories. Every field definition sits at the
+// top level today, so in practice the keys are file names, but a nested
+// document has to stay addressable or it would be inside the tree digest and
+// outside the map.
+func DigestSnapshot(root string) (string, map[string]string, error) {
 	var names []string
 	err := filepath.WalkDir(root, func(filename string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -320,38 +385,48 @@ func DigestTree(root string) (string, error) {
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if len(names) == 0 {
-		return "", errors.New("snapshot tree is empty")
+		return "", nil, errors.New("snapshot tree is empty")
 	}
 	sort.Strings(names)
+	documents := make(map[string]string, len(names))
 	h := sha256.New()
 	for _, name := range names {
 		if _, err := io.WriteString(h, name); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if _, err := h.Write([]byte{0}); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		filename := filepath.Join(root, filepath.FromSlash(name))
+		member := sha256.New()
 		f, err := os.Open(filename)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
-		_, copyErr := io.Copy(h, f)
+		_, copyErr := io.Copy(io.MultiWriter(h, member), f)
 		closeErr := f.Close()
 		if copyErr != nil {
-			return "", copyErr
+			return "", nil, copyErr
 		}
 		if closeErr != nil {
-			return "", closeErr
+			return "", nil, closeErr
 		}
+		documents[name] = hex.EncodeToString(member.Sum(nil))
 		if _, err := h.Write([]byte{0}); err != nil {
-			return "", err
+			return "", nil, err
 		}
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), documents, nil
+}
+
+// DigestTree returns the whole-tree digest alone, as the capture lock's
+// structural snapshot records it.
+func DigestTree(root string) (string, error) {
+	tree, _, err := DigestSnapshot(root)
+	return tree, err
 }
 
 func StoreArtifact(sourceFilename, contentStore string) (StoredArtifact, error) {

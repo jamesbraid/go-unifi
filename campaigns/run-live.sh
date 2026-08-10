@@ -13,30 +13,40 @@ set -euo pipefail
 # controller version -- was refused before anything ran.
 readonly builder_image=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
 readonly workflow=.woodpecker/m4-compatibility-campaigns.yml
-readonly target_profile=${CAMPAIGN_TARGET_PROFILE:-scout/profiles/network-10.4.57-seeded.json}
 readonly capture_lock=${CAMPAIGN_CAPTURE_LOCK:-schemas/capture.lock.json}
-
-if [[ ! -r ${target_profile} ]]; then
-    echo "target profile not readable: ${target_profile}" >&2
-    echo "  set CAMPAIGN_TARGET_PROFILE to a scout profile naming the controller under test" >&2
-    exit 1
-fi
 if [[ ! -r ${capture_lock} ]]; then
     echo "capture lock not readable: ${capture_lock}" >&2
     exit 1
 fi
+lock_version=$(jq -er '.controller.network_version' "${capture_lock}")
+readonly lock_version
+
+# The profile follows the lock instead of naming a version here. A literal
+# default meant the capture pipeline could advance the lock to a new controller
+# while the campaign still reached for the old version's profile, and the two
+# then disagreed by construction -- the cross-check below would fire on every
+# upgrade, reporting a mismatch this script had caused itself.
+readonly target_profile=${CAMPAIGN_TARGET_PROFILE:-scout/profiles/network-${lock_version}-seeded.json}
+if [[ ! -r ${target_profile} ]]; then
+    echo "target profile not readable: ${target_profile}" >&2
+    echo "  the capture lock names Network ${lock_version}, so that is the profile required" >&2
+    echo "  a controller version with no profile has not been onboarded; produce one with" >&2
+    echo "  .woodpecker/scripts/onboard-controller-profile.sh ${lock_version}" >&2
+    echo "  or set CAMPAIGN_TARGET_PROFILE to the profile naming the controller under test" >&2
+    exit 1
+fi
 
 locked_version=$(jq -er '.version' "${target_profile}")
+locked_repository=$(jq -er '.image_repository' "${target_profile}")
 locked_index=$(jq -er '.image_index_sha256' "${target_profile}")
 locked_manifest=$(jq -er '.image_manifest_sha256' "${target_profile}")
-readonly locked_version locked_index locked_manifest
+readonly locked_version locked_repository locked_index locked_manifest
+readonly locked_reference="${locked_repository}@${locked_index}"
 
 # The profile says which controller is being exercised; the capture lock says
 # which controller the committed schema was extracted from. Comparing them
 # catches the run that would otherwise succeed while proving nothing: a live
 # controller measured against a schema generated from a different version.
-lock_version=$(jq -er '.controller.network_version' "${capture_lock}")
-readonly lock_version
 if [[ ${locked_version} != "${lock_version}" ]]; then
     echo "target profile and capture lock disagree about the controller version" >&2
     echo "  profile      ${target_profile}: ${locked_version}" >&2
@@ -96,19 +106,43 @@ jq -cn \
     >>"${outer_ledger}"
 sync
 
-: "${HOSTNAME:?HOSTNAME must identify the Woodpecker step container}"
-: "${UNIFI_NETWORK_IMAGE:?UNIFI_NETWORK_IMAGE must name the locked Network image}"
-: "${UNIFI_USERNAME:?UNIFI_USERNAME is required}"
-: "${UNIFI_PASSWORD:?UNIFI_PASSWORD is required}"
+# Checked explicitly rather than with ${VAR:?message}. Measured: when the shell
+# dies from a :? expansion error, an EXIT trap observes $? as 0 and the script
+# exits 0 -- so every one of these checks reported success while doing nothing.
+# The trap form does not matter; any EXIT trap does it. Explicit exit 1 works.
+if [[ -z ${HOSTNAME:-} ]]; then
+    echo "HOSTNAME must identify the Woodpecker step container" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_USERNAME:-} ]]; then
+    echo "UNIFI_USERNAME is required" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_PASSWORD:-} ]]; then
+    echo "UNIFI_PASSWORD is required" >&2
+    exit 1
+fi
 
-# The assertion is unchanged in kind: the image handed to this run must be the
-# image the target profile says to test. Only its source moved, from a literal
-# to the profile. Accepting any image would "fix" the pin by deleting the check.
-if [[ "${UNIFI_NETWORK_IMAGE}" != *@${locked_index} ]]; then
+# The profile is the source of the reference, so an unset UNIFI_NETWORK_IMAGE
+# is not an error -- it is the ordinary case. Requiring it made a fact the
+# profile already carries live in a second place that a human has to update on
+# every controller upgrade, and the campaign refused the upgrade until they
+# did, for a reason that had nothing to do with the upgrade.
+#
+# When it IS set it is still checked, because then it is an independent claim
+# about which image the pool will run and disagreement is worth catching. The
+# whole reference, not just the digest suffix: a digest-only check passes for
+# the right digest served from the wrong registry.
+if [[ -z ${UNIFI_NETWORK_IMAGE:-} ]]; then
+    UNIFI_NETWORK_IMAGE=${locked_reference}
+    echo "image not supplied; using the one ${target_profile} locks"
+    echo "  ${UNIFI_NETWORK_IMAGE}"
+elif [[ ${UNIFI_NETWORK_IMAGE} != "${locked_reference}" ]]; then
     echo "UNIFI_NETWORK_IMAGE is not the image this target profile locks" >&2
     echo "  profile:  ${target_profile} (${locked_version})" >&2
-    echo "  expected: *@${locked_index}" >&2
+    echo "  expected: ${locked_reference}" >&2
     echo "  got:      ${UNIFI_NETWORK_IMAGE}" >&2
+    echo "  the profile is the single source for the reference; update it, not the secret" >&2
     exit 1
 fi
 
@@ -116,6 +150,17 @@ docker_args=(--detach --rm --name "${container_name}" --network "container:${HOS
 if [[ -n "${CAMPAIGN_NETWORK_ENV_FILE:-}" ]]; then
     docker_args+=(--env-file "${CAMPAIGN_NETWORK_ENV_FILE}")
 fi
+# Discard a leftover before starting. --rm only fires when a container exits,
+# and the EXIT trap does not run on SIGKILL, so a killed step leaves the
+# controller up indefinitely -- measured on a builder: the trap never printed
+# and the container was still running seven minutes later.
+#
+# What leaks is a JVM plus mongod. Enough of them on one builder and it runs
+# short of memory, which surfaces as an intermittent "controller is unhealthy"
+# several pipelines later, with nothing pointing at the run still holding the
+# RAM. The leak manufactures the condition that kills more runs, each leaking
+# another controller, so this is flake prevention rather than housekeeping.
+docker rm --force "${container_name}" >/dev/null 2>&1 || true
 container_id=$(docker run "${docker_args[@]}" "${UNIFI_NETWORK_IMAGE}")
 readonly container_id
 
@@ -134,6 +179,24 @@ go run ./cmd/campaign-receipt \
     -workflow "${workflow}" \
     -provisioner-receipt "${provisioner_receipt}" \
     -output "${work_root}/runner-execution-receipt.json"
+
+# Seed before the scout reads, and keep it a step of its own.
+#
+# The scout performs one read-only GET and a freshly provisioned controller has
+# no static DNS records, so the first live campaigns observed an empty
+# collection: all eight declared fields unexercised, admission blocked,
+# classified capture_invalid. Nothing was wrong with the capture or the
+# controller -- there was nothing on it to look at.
+#
+# The write lives here rather than in the scenario on purpose. cmd/scout refuses
+# anything but the declared GET and the catalog refuses any mode other than
+# read_only, which is what lets a catalog claim cleanupPolicy
+# "not_required_read_only". A scout that cannot mutate its target is a property
+# worth keeping: it is what makes a campaign safe to aim at a controller that
+# matters. The campaign writes; the scout reads; the line between them stays
+# visible in the log.
+echo "seeding the target so the read-only scout has something to observe"
+go run ./cmd/campaign-seed
 
 go run ./cmd/scout \
     -target-profile "${target_profile}" \

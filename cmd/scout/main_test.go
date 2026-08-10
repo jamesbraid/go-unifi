@@ -17,6 +17,12 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/scout"
 )
 
+// commandDNSDocumentSHA stands in for schemas/fields/DnsRecord.json's digest.
+// It is deliberately not the structural snapshot digest these fixtures also
+// carry: the projection pins its own source document, and the two values
+// moving independently is the property under test.
+const commandDNSDocumentSHA = "1111111111111111111111111111111111111111111111111111111111111111"
+
 func TestObserveLiveKeepsUnknownDNSMemberAndBlocksAdmission(t *testing.T) {
 	const response = `[{"_id":"record","enabled":true,"key":"fixture.example.invalid","port":53,"priority":10,"record_type":"A","ttl":300,"value":"192.0.2.40","vendor_flag":true,"weight":1}]`
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -139,7 +145,7 @@ func TestRunBindsLiveObservationToControllerInstance(t *testing.T) {
   "controller":{"product":"unifi-controller","build":"test-build","network_version":"10.4.57"},
   "source":{"location":"https://downloads.example.invalid/controller.deb","media_type":"application/vnd.debian.binary-package","byte_size":1,"sha256":"%s"},
   "inputs":{"extraction_rules_sha256":"%s","generator_inputs_sha256":"%s"},
-  "snapshots":{"structural_sha256":"%s","sensitivity_sha256":"%s"},
+  "snapshots":{"structural_sha256":"%s","sensitivity_sha256":"%s","field_documents":{"DnsRecord.json":"`+commandDNSDocumentSHA+`"}},
   "scout":{"dns_structural_projection_sha256":"%s","dns_semantic_predecessor_sha256":"%s"},
   "captured_at":"2026-08-04T00:00:00Z"
 }`,
@@ -257,7 +263,7 @@ func TestRunBuildsOfflineDNSCatalog(t *testing.T) {
   "controller":{"product":"unifi-controller","build":"test-build","network_version":"10.4.57"},
   "source":{"location":"https://downloads.example.invalid/controller.deb","media_type":"application/vnd.debian.binary-package","byte_size":1,"sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
   "inputs":{"extraction_rules_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","generator_inputs_sha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"},
-  "snapshots":{"structural_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","sensitivity_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+  "snapshots":{"structural_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","sensitivity_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","field_documents":{"DnsRecord.json":"`+commandDNSDocumentSHA+`"}},
 	"scout":{"dns_structural_projection_sha256":"%s","dns_semantic_predecessor_sha256":"%s"},
   "captured_at":"2026-08-04T00:00:00Z"
 }`, commandCanonicalDigest(t, commandStructuralProjection()), commandCanonicalDigest(t, commandSemanticPredecessor())))
@@ -355,6 +361,7 @@ func commandTestInput(t *testing.T, observed []byte) scout.Input {
 			StructuralProjectionSHA256: commandCanonicalDigest(t, structural),
 			SemanticPredecessorSHA256:  commandCanonicalDigest(t, predecessor),
 		},
+		FieldDocumentDigests: scout.FieldDocumentDigests{"DnsRecord.json": commandDNSDocumentSHA},
 		StructuralProjection: []byte(structural),
 		SemanticPredecessor:  []byte(predecessor),
 		SemanticIDs:          []byte(commandSemanticIDs()),
@@ -398,7 +405,7 @@ func commandStructuralProjection() string {
 	return `{
   "format_version":1,
   "resource":"dns_record",
-  "source":{"structural_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","sensitivity_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+  "source":{"field_document":"DnsRecord.json","field_document_sha256":"` + commandDNSDocumentSHA + `","sensitivity_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
   "fields":[
     {"wire_name":"enabled","json_type":"bool","secret_candidate":false},
     {"wire_name":"key","json_type":"string","secret_candidate":false},

@@ -373,7 +373,7 @@ func buildLockedSchemas(
 	if err := extractSchemas(defsJar, stagingFields, stagingMetadata, customDir); err != nil {
 		return nil, capturelock.Snapshots{}, err
 	}
-	structuralDigest, err := capturelock.DigestTree(stagingFields)
+	structuralDigest, fieldDocuments, err := capturelock.DigestSnapshot(stagingFields)
 	if err != nil {
 		return nil, capturelock.Snapshots{}, fmt.Errorf("digest structural snapshot: %w", err)
 	}
@@ -384,6 +384,7 @@ func buildLockedSchemas(
 	snapshots := capturelock.Snapshots{
 		StructuralSHA256:  structuralDigest,
 		SensitivitySHA256: sensitivityDigest,
+		FieldDocuments:    fieldDocuments,
 	}
 	if expectedSnapshots != nil {
 		if structuralDigest != expectedSnapshots.StructuralSHA256 {
@@ -400,6 +401,15 @@ func buildLockedSchemas(
 				expectedSnapshots.SensitivitySHA256,
 			)
 		}
+		// The tree digest just agreed, and it covers exactly these bytes,
+		// so a mismatch here means the lock's two descriptions of one
+		// snapshot disagree: a hand-edited entry, or a lock assembled from
+		// two different captures. Scout consumes the per-document entries
+		// without ever seeing the tree, so this is the only place that
+		// disagreement is visible at all.
+		if err := verifyFieldDocuments(expectedSnapshots.FieldDocuments, fieldDocuments); err != nil {
+			return nil, capturelock.Snapshots{}, err
+		}
 	}
 
 	for _, swap := range []struct{ from, to string }{
@@ -414,6 +424,44 @@ func buildLockedSchemas(
 		}
 	}
 	return networkVersion, snapshots, nil
+}
+
+// verifyFieldDocuments reports the first way the lock's per-document digests
+// differ from the snapshot just measured, naming the document rather than only
+// saying that something moved.
+//
+// Naming it is most of the value. A whole-tree digest that has changed says
+// only that one of eighty-two definitions is different, which is what made an
+// unrelated firewall-policy override look like a dns_record problem.
+func verifyFieldDocuments(want, got map[string]string) error {
+	names := make([]string, 0, len(got))
+	for name := range got {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		locked, ok := want[name]
+		if !ok {
+			return fmt.Errorf("field document %s is absent from the lock's snapshots.field_documents", name)
+		}
+		if locked != got[name] {
+			return fmt.Errorf("field document %s SHA-256 is %s, lock requires %s", name, got[name], locked)
+		}
+	}
+	missing := make([]string, 0)
+	for name := range want {
+		if _, ok := got[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return fmt.Errorf(
+			"lock pins snapshots.field_documents entries the capture does not produce: %s",
+			strings.Join(missing, ", "),
+		)
+	}
+	return nil
 }
 
 func verifyInputDigests(want, got capturelock.Inputs) error {

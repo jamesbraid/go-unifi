@@ -36,6 +36,10 @@ func validLock(data []byte) Lock {
 		Snapshots: Snapshots{
 			StructuralSHA256:  strings.Repeat("c", 64),
 			SensitivitySHA256: strings.Repeat("d", 64),
+			FieldDocuments: map[string]string{
+				"DnsRecord.json": strings.Repeat("1", 64),
+				"Network.json":   strings.Repeat("2", 64),
+			},
 		},
 		Scout: &Scout{
 			DNSStructuralProjectionSHA256: strings.Repeat("e", 64),
@@ -227,6 +231,7 @@ func TestInspectionFileIsStrictAndCanonical(t *testing.T) {
 		Snapshots: Snapshots{
 			StructuralSHA256:  strings.Repeat("c", 64),
 			SensitivitySHA256: strings.Repeat("d", 64),
+			FieldDocuments:    map[string]string{"DnsRecord.json": strings.Repeat("e", 64)},
 		},
 	}
 	path := filepath.Join(t.TempDir(), "inspection.json")
@@ -238,7 +243,7 @@ func TestInspectionFileIsStrictAndCanonical(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != inspection {
+	if !reflect.DeepEqual(got, inspection) {
 		t.Fatalf("LoadInspectionFile() = %#v, want %#v", got, inspection)
 	}
 
@@ -307,6 +312,81 @@ func TestDigestTreeIsStableAndDetectsContentChanges(t *testing.T) {
 	}
 	if changed == first {
 		t.Fatal("DigestTree() ignored a content change")
+	}
+}
+
+// TestDigestSnapshotCoversEveryFileTheTreeDigestDoes is what lets a structural
+// projection pin one document and still be talking about the snapshot the lock
+// pins as a whole.
+//
+// If the per-document map could omit a file the tree digest folded in, a
+// projection could name a document the lock did not describe, and scout --
+// which only ever sees the map -- would accept it.
+func TestDigestSnapshotCoversEveryFileTheTreeDigestDoes(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	contents := map[string]string{
+		"b.json":         "two",
+		"nested/a.json":  "one",
+		"DnsRecord.json": "dns",
+	}
+	for name, body := range contents {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tree, documents, err := DigestSnapshot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantTree, err := DigestTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree != wantTree {
+		t.Fatalf("DigestSnapshot() tree = %q, DigestTree() = %q", tree, wantTree)
+	}
+	if len(documents) != len(contents) {
+		t.Fatalf("DigestSnapshot() returned %d documents, tree contains %d", len(documents), len(contents))
+	}
+	for name := range contents {
+		got, ok := documents[name]
+		if !ok {
+			t.Fatalf("DigestSnapshot() omitted %s, which the tree digest covers", name)
+		}
+		want, err := DigestFile(filepath.Join(root, filepath.FromSlash(name)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("DigestSnapshot()[%s] = %q, DigestFile() = %q", name, got, want)
+		}
+	}
+
+	// A change to one document has to move that document's entry and the
+	// tree digest, and leave every other entry alone. That is the whole
+	// property: the tree is shared, the entries are not.
+	if err := os.WriteFile(filepath.Join(root, "nested", "a.json"), []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	movedTree, moved, err := DigestSnapshot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if movedTree == tree {
+		t.Fatal("DigestSnapshot() tree ignored a content change")
+	}
+	if moved["nested/a.json"] == documents["nested/a.json"] {
+		t.Fatal("DigestSnapshot() entry ignored its own document changing")
+	}
+	for _, name := range []string{"b.json", "DnsRecord.json"} {
+		if moved[name] != documents[name] {
+			t.Fatalf("DigestSnapshot()[%s] moved when an unrelated document changed", name)
+		}
 	}
 }
 

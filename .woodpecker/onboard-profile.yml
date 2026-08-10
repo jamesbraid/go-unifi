@@ -1,0 +1,77 @@
+# Onboard a controller version: measure it, and write the scout profile that
+# lets the rest of the loop run against it.
+#
+# This exists because the loop has a cycle. The scout profile gates the
+# campaign, and internal/scout/catalog.go asserts the profile's
+# controller_fingerprint against one derived from a live provisioner receipt --
+# so a version cannot be onboarded without running it, and cannot be run
+# without being onboarded. That was invisible while 10.4.57 was the only
+# version anyone had, and it recurs for every version after this one.
+#
+# The guard is inside the step rather than in `when`. Every `event: manual`
+# pipeline in this repository fires on every manual trigger, and the documented
+# way to scope that -- workflow-level `when: evaluate` -- cannot be used on this
+# server: it fails to compile, and a workflow that fails to compile errors the
+# WHOLE pipeline rather than skipping itself. Measured on a throwaway branch,
+# where an unguarded control step alongside it did not run either.
+#
+# Template substitution does work, so the filter uses that instead.
+#
+#   woodpecker-cli pipeline create --branch <branch> infra/go-unifi \
+#     --var onboard_version=10.5.67
+when:
+  - event: manual
+
+labels:
+  pool: skunkworks
+
+steps:
+  - name: onboard-controller-profile
+    image: golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      UNIFI_USERNAME:
+        from_secret: unifi_username
+      UNIFI_PASSWORD:
+        from_secret: unifi_password
+      FORGEJO_BASE_URL:
+        from_secret: forgejo_base_url
+      FORGEJO_USER:
+        from_secret: forgejo_ci_user
+      FORGEJO_TOKEN:
+        from_secret: forgejo_ci_token
+    commands:
+      - |
+        if [ -z "${onboard_version}" ]; then
+          echo "no onboard_version in this trigger; nothing to onboard"
+          exit 0
+        fi
+      - apt-get update
+      - apt-get install --yes --no-install-recommends ca-certificates curl jq git
+      # The controller has to be started to be measured, so the docker CLI is
+      # required even though digest resolution no longer needs it. Pinned and
+      # checksummed, same as the campaign: the distribution's docker 20.10
+      # cannot read an OCI image index, which is what this registry serves.
+      - curl --fail --location --silent --show-error --output /tmp/docker-cli.tgz https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz
+      - echo '4f798b3ee1e0140eab5bf30b0edc4e84f4cdb53255a429dc3bbae9524845d640  /tmp/docker-cli.tgz' | sha256sum --check -
+      - tar -xzf /tmp/docker-cli.tgz -C /usr/local/bin --strip-components=1 docker/docker
+      - bash .woodpecker/scripts/onboard-controller-profile.sh "${onboard_version}"
+      # Pushed to its own branch rather than to the branch this ran on. The
+      # profile is the input that decides which controller everything else
+      # trusts, so it arrives as a change someone merges, not as CI writing to
+      # a working branch behind the author's back.
+      - git config user.name "$${FORGEJO_USER}"
+      - git config user.email "$${FORGEJO_USER}@users.noreply.localhost"
+      - git checkout -B "onboard/network-${onboard_version}"
+      - git add scout/profiles
+      - |
+        if git diff --cached --quiet; then
+          echo "profile for ${onboard_version} is already committed and identical; nothing to push"
+          exit 0
+        fi
+      - git commit -m "scout:$(printf ' ')onboard Network ${onboard_version}"
+      - |
+        authed="https://$${FORGEJO_USER}:$${FORGEJO_TOKEN}@$${FORGEJO_BASE_URL#https://}"
+        git push --force "$${authed%/}/infra/go-unifi.git" "onboard/network-${onboard_version}"
+      - echo "profile pushed on onboard/network-${onboard_version}"

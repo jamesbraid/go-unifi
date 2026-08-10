@@ -585,3 +585,11 @@ type = "bool"
 unmarshal_type = "json.RawMessage"
 unmarshal_func = "querierAddressesFromRaw"
 
+
+# v1.103.0 ships time_all_day as *bool and the provider never sets it, so nil
+# versus false is exactly what the pointer carries and a plain bool cannot.
+# Upstream's generator inferred the pointer; this one does not, so it is
+# declared. Reaching a nested struct at all is new -- see applyOverrides.
+[FirewallPolicySchedule.field.time_all_day]
+omitempty = true
+pointer = true

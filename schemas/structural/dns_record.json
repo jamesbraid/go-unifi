@@ -2,7 +2,8 @@
   "format_version": 1,
   "resource": "dns_record",
   "source": {
-    "structural_sha256": "f70b3d8f5501cf64c2d96a5e3767ce2eef46ddf04b11e3a19e27237c02360f97",
+    "field_document": "DnsRecord.json",
+    "field_document_sha256": "73bb3357d9754711bc6acdeb30cc70abec968abbbcc0cb6e04e5cd64244ad04f",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c"
   },
   "fields": [
