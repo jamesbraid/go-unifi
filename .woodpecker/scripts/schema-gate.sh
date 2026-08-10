@@ -47,6 +47,29 @@ readonly head_sha classification
 # line earlier. A fact worth logging is logged where nothing can pre-empt it.
 echo "gate: classification=${classification}"
 
+# And why. The verdict alone cannot be acted on: capture_invalid on a known-good
+# version is either the loop reporting a real gap in the capture or the harness
+# producing an artefact of its own, and those imply opposite work. The reason
+# lives in the attestation, which is uploaded rather than printed -- so when the
+# upload failed, the run stated a verdict nobody could check.
+#
+# conflicts come from internal/scout/catalog.go: unknown_observed_field, where
+# the live controller returned a field the structural projection does not
+# declare, and type_mismatch, with both types named. A blocked admission with no
+# conflicts means the coverage was incomplete instead.
+conflict_count="$(jq -r '(.conflicts // []) | length' "${attestation}")"
+if [[ ${conflict_count} -gt 0 ]]; then
+    echo "gate: ${conflict_count} conflict(s) behind that verdict:"
+    jq -r '(.conflicts // [])[]
+        | "  - \(.kind): \(.field)"
+        + (if .expected != null and .expected != "" then " (declared \(.expected), observed \(.observed))" else "" end)' \
+        "${attestation}"
+else
+    echo "gate: no conflicts recorded; any blocking verdict is from coverage, not an observed field"
+fi
+promotion="$(jq -r '.promotion // "unstated"' "${attestation}")"
+echo "gate: promotion=${promotion} candidate_only=$(jq -r '.candidate_only // "unstated"' "${attestation}")"
+
 # The join receipt. Positional association is not association.
 readonly receipt="${evidence_dir}/join-receipt.json"
 jq -n \
