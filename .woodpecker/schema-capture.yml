@@ -12,13 +12,8 @@
 #
 #   woodpecker-cli pipeline create --branch main infra/go-unifi \
 #     --var artifact_url=... --var build_identity=... --var network_version=...
-# The evaluate guard is the complement of onboard-profile.yml's. Every
-# `event: manual` pipeline in this repository fires on every manual trigger, so
-# onboarding a controller also started a capture and a campaign. Substitution
-# happens before parsing, so an unset variable is the empty string here.
 when:
   - event: manual
-    evaluate: '"${onboard_version}" == ""'
 
 labels:
   pool: skunkworks
@@ -34,6 +29,20 @@ steps:
       FORGEJO_TOKEN:
         from_secret: forgejo_ci_token
     commands:
+      # Every `event: manual` pipeline in this repository fires on every manual
+      # trigger, so an onboarding run also started a capture with no artifact
+      # URL and failed. Workflow-level `when: evaluate` is the documented way to
+      # scope that and it cannot be used here: this server fails to compile it,
+      # and a workflow that fails to compile errors the WHOLE pipeline, taking
+      # every other workflow with it. Measured on a throwaway branch -- with the
+      # guard present not even an unguarded control step ran.
+      #
+      # So filter inside the step, using the substitution that does work.
+      - |
+        if [ -n "${onboard_version}" ]; then
+          echo "this trigger is onboarding Network ${onboard_version}, not a capture"
+          exit 0
+        fi
       - apt-get update
       - apt-get install --yes --no-install-recommends ca-certificates curl jq git
       - export GO_UNIFI_CONTENT_STORE="$${CI_WORKSPACE}/.content-store"
