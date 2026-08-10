@@ -21,7 +21,11 @@ set -euo pipefail
 : "${FORGEJO_BASE_URL:?FORGEJO_BASE_URL is required}"
 : "${FORGEJO_USER:?FORGEJO_USER is required}"
 : "${FORGEJO_TOKEN:?FORGEJO_TOKEN is required}"
-readonly remote="${FORGEJO_BASE_URL%/}/infra/go-unifi.git"
+# Credentials in the URL. A bare remote fails with "could not read Username ...
+# No such device or address" -- the step's netrc does not cover it and git
+# cannot prompt -- which is the same wall the branch push and the apidiff tag
+# fetch both hit. Same repository, same defect, third location.
+readonly remote="${FORGEJO_BASE_URL/#https:\/\//https://${FORGEJO_USER}:${FORGEJO_TOKEN}@}/infra/go-unifi.git"
 readonly authed="${FORGEJO_BASE_URL/#https:\/\//https://${FORGEJO_USER}:${FORGEJO_TOKEN}@}/infra/go-unifi.git"
 
 if [[ -n "$(git tag --points-at HEAD)" ]]; then
