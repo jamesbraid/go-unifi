@@ -10,10 +10,37 @@ type TargetProfile struct {
 	// to. Without it the digests are pinned but their location is not, so the
 	// reference has to be reassembled from somewhere else -- and if the image
 	// moves registries the profile stays valid while pointing at nothing.
+	// ImageRepository is deliberately absent from CatalogTarget below: it says
+	// where to fetch the image, not what was observed, and the controller
+	// fingerprint does not hash it. Emitting it into catalogs would change
+	// every committed catalog digest, which is pinned across repositories.
 	ImageRepository       string `json:"image_repository"`
 	ImageIndexSHA256      string `json:"image_index_sha256"`
 	ImageManifestSHA256   string `json:"image_manifest_sha256"`
 	ControllerFingerprint string `json:"controller_fingerprint"`
+}
+
+// CatalogTarget is the observed identity a catalog records. It is the target
+// profile minus the fields that say where the image came from rather than what
+// it was, so adding a lookup field to the profile cannot move a catalog digest.
+type CatalogTarget struct {
+	Name                  string `json:"name"`
+	Product               string `json:"product"`
+	Version               string `json:"version"`
+	Architecture          string `json:"architecture"`
+	ImageIndexSHA256      string `json:"image_index_sha256"`
+	ImageManifestSHA256   string `json:"image_manifest_sha256"`
+	ControllerFingerprint string `json:"controller_fingerprint"`
+}
+
+// CatalogTargetOf reduces a profile to what a catalog records.
+func CatalogTargetOf(p TargetProfile) CatalogTarget {
+	return CatalogTarget{
+		Name: p.Name, Product: p.Product, Version: p.Version,
+		Architecture: p.Architecture, ImageIndexSHA256: p.ImageIndexSHA256,
+		ImageManifestSHA256:   p.ImageManifestSHA256,
+		ControllerFingerprint: p.ControllerFingerprint,
+	}
 }
 
 // ProvisionerTargetReceipt is the independently measured runtime identity for
@@ -121,7 +148,7 @@ type semanticTombstone struct {
 type catalog struct {
 	FormatVersion     int                `json:"format_version"`
 	CatalogID         string             `json:"catalog_id"`
-	Target            TargetProfile      `json:"target"`
+	Target            CatalogTarget      `json:"target"`
 	Sources           catalogSources     `json:"sources"`
 	StructuralRecords []structuralRecord `json:"structural_records"`
 	ObservedRecords   []observedRecord   `json:"observed_records"`

@@ -210,7 +210,7 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	catalogBytes, err := encodeCanonical(catalog{
 		FormatVersion: 1,
 		CatalogID:     fmt.Sprintf("unifi.network.dns_record@%s", input.Target.Version),
-		Target:        input.Target,
+		Target:        CatalogTargetOf(input.Target),
 		Sources: catalogSources{
 			CaptureLockSHA256:          input.LockedSources.CaptureLockSHA256,
 			StructuralProjectionSHA256: input.LockedSources.StructuralProjectionSHA256,
