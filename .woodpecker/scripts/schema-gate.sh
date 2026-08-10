@@ -131,6 +131,16 @@ esac
 body="$(mktemp)"
 trap 'rm -f "${body}"' EXIT
 {
+    # A break leads. The classification is a statement about the controller
+    # schema and says nothing about the Go API, so "Classification unchanged"
+    # sitting above a breaking-changes block reads as an all-clear with a
+    # footnote. A reviewer should have to look away from this deliberately.
+    if [[ -r ${evidence_dir}/apidiff-breaking && $(cat "${evidence_dir}/apidiff-breaking") == true ]]; then
+        printf '> **This candidate breaks the public Go API.** See the apidiff\n'
+        printf '> block below before merging. The classification underneath describes\n'
+        printf '> the controller schema and says nothing about the Go API -- the two\n'
+        printf '> can disagree, and here they do.\n\n'
+    fi
     printf 'Schema refresh for `%s`.\n\n' "$(jq -r '.controller.build' "${capture_lock}")"
     printf 'Classification **%s**, from a campaign against a live controller.\n\n' "${classification}"
     printf '| | |\n|---|---|\n'
