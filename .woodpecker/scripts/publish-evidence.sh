@@ -41,7 +41,12 @@ for path in "${evidence_dir}"/*; do
     name="$(basename "${path}")"
     source_hash="$(sha256sum "${path}" | cut -d' ' -f1)"
 
-    status="$(curl --fail-with-body --silent --show-error --output /dev/null \
+    # The body, not just the code. This discarded the response to /dev/null and
+    # reported "HTTP 403" with no reason, which is the same mistake as a bare
+    # status check anywhere else: the server explained itself and we threw it
+    # away, leaving the next person to guess at permissions, quotas or names.
+    body="${work}/.upload-response"
+    status="$(curl --fail-with-body --silent --show-error --output "${body}" \
         --write-out '%{http_code}' --user "${FORGEJO_USER}:${FORGEJO_TOKEN}" \
         --upload-file "${path}" "${base}/${name}" || true)"
 
@@ -52,6 +57,14 @@ for path in "${evidence_dir}"/*; do
         201|409) ;;
         *)
             echo "upload ${name}: HTTP ${status}" >&2
+            echo "  url: ${base}/${name}" >&2
+            echo "  size: $(wc -c <"${path}") bytes" >&2
+            if [[ -s ${body} ]]; then
+                echo "  the registry said:" >&2
+                sed 's/^/    /' "${body}" >&2
+            else
+                echo "  the registry returned no body" >&2
+            fi
             exit 1
             ;;
     esac

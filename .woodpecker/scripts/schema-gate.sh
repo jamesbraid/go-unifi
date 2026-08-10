@@ -59,8 +59,16 @@ echo "gate: join receipt binds attestation to ${head_sha}"
 # where someone most needs to read why.
 "${script_dir}/publish-evidence.sh" "${evidence_dir}" "${head_sha}"
 
+# Said out loud on both paths. Only the rejection branch announced the
+# classification, so an allowed run never recorded the verdict it acted on --
+# and when a later step failed, the one fact everybody wanted was missing from
+# the log despite having been read at the top of this script.
+echo "gate: classification=${classification}"
+
 case "${classification}" in
-    unchanged|additive_candidate) ;;
+    unchanged|additive_candidate)
+        echo "gate: permitted for a pull request"
+        ;;
     *)
         echo
         echo "gate: NO PULL REQUEST. classification=${classification}"
