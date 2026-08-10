@@ -27,8 +27,14 @@ set -euo pipefail
 readonly version=${1:?controller version is required, e.g. 10.5.67}
 readonly repository=${2:-ghcr.io/jamesbraid/unifi-network}
 readonly architecture=${ONBOARD_ARCHITECTURE:-amd64}
-readonly profile_name="network-${version}-seeded"
-readonly out=${ONBOARD_OUTPUT:-scout/profiles/${profile_name}.json}
+# profile_name is NOT set here. It carries the image variant, the variant is a
+# property of the image, and the image has not been resolved yet -- so naming it
+# now could only mean guessing. The previous version guessed "seeded" and was
+# wrong for every profile it would ever write, including the one it did write.
+#
+# This matters more than an ordinary label because profile_name is inside the
+# canonical fingerprint digest, so a wrong name is not a wrong filename: it is
+# attested, and correcting it costs another controller run rather than an edit.
 # The -sim variant. The registry carries three per version and only this one
 # accepts the campaign credentials: the bare image is a fresh controller with
 # no administrator, and -seeded seeds admin/unifi-containers-seeded, which is
@@ -49,7 +55,7 @@ for tool in docker jq go curl sha256sum; do
     command -v "${tool}" >/dev/null || { echo "onboard: ${tool} is required" >&2; exit 1; }
 done
 
-echo "onboarding ${profile_name}"
+echo "onboarding Network ${version} from ${repository}"
 
 # ---- RESOLVED ------------------------------------------------------------
 # Ask the registry directly rather than going through a docker CLI plugin.
@@ -144,8 +150,18 @@ if [[ -n ${config_digest} ]]; then
         echo "  the others come up healthy and then refuse the login" >&2
         exit 1
     fi
-    echo "  VERIFIED variant            ${probe:-unknown} (from the image, not the tag name)"
+    echo "  VERIFIED variant            ${probe} (from the image, not the tag name)"
 fi
+
+# The name is derived from what the image says it is, not from the tag that
+# found it and not from a literal here. READYZ_PROBE is the image describing
+# itself, so it cannot disagree with the bytes the way a tag or a hand-written
+# suffix can -- which is exactly how network-10.4.57-seeded came to name the sim
+# image and how this tool reproduced that for 10.5.67 on its first real run.
+readonly variant=${probe#network-}
+readonly profile_name="network-${version}-${variant}"
+readonly out=${ONBOARD_OUTPUT:-scout/profiles/${profile_name}.json}
+echo "  DERIVED  profile name       ${profile_name}"
 
 readonly index manifest
 echo "  RESOLVED repository         ${repository}"
