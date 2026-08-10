@@ -158,3 +158,50 @@ func TestDownloadArtifactStreamsSuccessfulResponseAndRejectsHTTPFailure(t *testi
 		t.Fatalf("downloadArtifact() error = %v, want HTTP failure", err)
 	}
 }
+
+// A capture rewrites the whole lock file, so anything it does not carry across
+// is deleted. The scout evidence digests were: schema-capture cannot compute
+// them and never reads the documents they pin, but both generators refuse a
+// lock without them, so a correct capture produced a lock nothing would accept.
+func TestCaptureArtifactCarriesScoutEvidence(t *testing.T) {
+	store := t.TempDir()
+	artifact := filepath.Join(t.TempDir(), "unifi.deb")
+	if err := os.WriteFile(artifact, []byte("controller artifact"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	reviewed := &capturelock.Scout{
+		DNSStructuralProjectionSHA256: strings.Repeat("e", 64),
+		DNSSemanticPredecessorSHA256:  strings.Repeat("f", 64),
+	}
+
+	lock, err := captureArtifact(captureConfig{
+		Scout:          reviewed,
+		ArtifactPath:   artifact,
+		ContentStore:   store,
+		SourceLocation: "https://downloads.example.invalid/unifi.deb",
+		MediaType:      "application/vnd.debian.binary-package",
+		Product:        "unifi-controller",
+		Build:          "v10.4.57+build record-id",
+	}, capturelock.Inputs{
+		ExtractionRulesSHA256: strings.Repeat("a", 64),
+		GeneratorInputsSHA256: strings.Repeat("b", 64),
+	}, time.Date(2026, time.August, 3, 12, 34, 56, 0, time.UTC),
+		func(draft capturelock.Lock, _ string) (inspection, error) {
+			return inspection{
+				NetworkVersion: "10.4.57",
+				Snapshots: capturelock.Snapshots{
+					StructuralSHA256:  strings.Repeat("c", 64),
+					SensitivitySHA256: strings.Repeat("d", 64),
+				},
+			}, nil
+		})
+	if err != nil {
+		t.Fatalf("captureArtifact() error = %v", err)
+	}
+	if lock.Scout == nil {
+		t.Fatal("captureArtifact() dropped the scout evidence digests; both generators reject a lock without them")
+	}
+	if *lock.Scout != *reviewed {
+		t.Fatalf("scout evidence = %#v, want %#v", *lock.Scout, *reviewed)
+	}
+}

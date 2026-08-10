@@ -55,7 +55,23 @@ steps:
           -network-version="${network_version}" \
           -uos-version="${uos_version}" \
           -captured-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      - go generate ./...
+      # Not a bare `go generate ./...`. It keeps going after a package's
+      # generator fails, so a failed step ends with several hundred lines of a
+      # LATER package succeeding -- pipeline 44 died at line 121 of 604 and its
+      # last three lines read "Generated specification: ...". `tail` is the
+      # first thing anyone runs on a red step, and it was showing work that
+      # happened after the thing that killed the run. Repeat the errors last so
+      # the end of the log is the reason it stopped.
+      - |
+        if ! go generate ./... >/tmp/generate.log 2>&1; then
+          cat /tmp/generate.log
+          echo
+          echo "=== go generate FAILED. The errors, repeated so they are the last thing here: ==="
+          grep -nE 'exit status|does not pin|does not match|refus|cannot|error|panic' /tmp/generate.log |
+            grep -v '^[0-9]*:normalize ' | tail -20
+          exit 1
+        fi
+        cat /tmp/generate.log
       - go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
       - mkdir -p /tmp/apidiff
       - bash .woodpecker/scripts/apidiff-check.sh /tmp/apidiff
