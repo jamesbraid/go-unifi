@@ -114,10 +114,6 @@ if [[ -z ${HOSTNAME:-} ]]; then
     echo "HOSTNAME must identify the Woodpecker step container" >&2
     exit 1
 fi
-if [[ -z ${UNIFI_NETWORK_IMAGE:-} ]]; then
-    echo "UNIFI_NETWORK_IMAGE must name the locked Network image" >&2
-    exit 1
-fi
 if [[ -z ${UNIFI_USERNAME:-} ]]; then
     echo "UNIFI_USERNAME is required" >&2
     exit 1
@@ -127,13 +123,21 @@ if [[ -z ${UNIFI_PASSWORD:-} ]]; then
     exit 1
 fi
 
-# The assertion is unchanged in kind: the image handed to this run must be the
-# image the target profile says to test. Only its source moved, from a literal
-# to the profile. Accepting any image would "fix" the pin by deleting the check.
-# The whole reference, not just the digest suffix. A digest-only check passes
-# for the right digest served from the wrong registry, which is exactly what
-# happens if the image moves and the secret is updated but the profile is not.
-if [[ ${UNIFI_NETWORK_IMAGE} != "${locked_reference}" ]]; then
+# The profile is the source of the reference, so an unset UNIFI_NETWORK_IMAGE
+# is not an error -- it is the ordinary case. Requiring it made a fact the
+# profile already carries live in a second place that a human has to update on
+# every controller upgrade, and the campaign refused the upgrade until they
+# did, for a reason that had nothing to do with the upgrade.
+#
+# When it IS set it is still checked, because then it is an independent claim
+# about which image the pool will run and disagreement is worth catching. The
+# whole reference, not just the digest suffix: a digest-only check passes for
+# the right digest served from the wrong registry.
+if [[ -z ${UNIFI_NETWORK_IMAGE:-} ]]; then
+    UNIFI_NETWORK_IMAGE=${locked_reference}
+    echo "image not supplied; using the one ${target_profile} locks"
+    echo "  ${UNIFI_NETWORK_IMAGE}"
+elif [[ ${UNIFI_NETWORK_IMAGE} != "${locked_reference}" ]]; then
     echo "UNIFI_NETWORK_IMAGE is not the image this target profile locks" >&2
     echo "  profile:  ${target_profile} (${locked_version})" >&2
     echo "  expected: ${locked_reference}" >&2

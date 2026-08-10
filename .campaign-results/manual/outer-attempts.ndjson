@@ -4,3 +4,9 @@
 {"format_version":1,"attempt_id":"live-attempt-manual","state":"failed","stage":"live_campaign","exit_code":1,"finished_at":"2026-08-10T00:12:49Z"}
 {"format_version":1,"attempt_id":"live-attempt-manual","state":"started","stage":"provisioning","pipeline_identity":"local#manual","started_at":"2026-08-10T00:13:27Z"}
 {"format_version":1,"attempt_id":"live-attempt-manual","state":"failed","stage":"live_campaign","exit_code":1,"finished_at":"2026-08-10T00:13:27Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"started","stage":"provisioning","pipeline_identity":"local#manual","started_at":"2026-08-10T00:26:15Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"failed","stage":"live_campaign","exit_code":125,"finished_at":"2026-08-10T00:26:15Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"started","stage":"provisioning","pipeline_identity":"local#manual","started_at":"2026-08-10T00:26:25Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"failed","stage":"live_campaign","exit_code":1,"finished_at":"2026-08-10T00:26:25Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"started","stage":"provisioning","pipeline_identity":"local#manual","started_at":"2026-08-10T00:26:26Z"}
+{"format_version":1,"attempt_id":"live-attempt-manual","state":"failed","stage":"live_campaign","exit_code":1,"finished_at":"2026-08-10T00:26:26Z"}
