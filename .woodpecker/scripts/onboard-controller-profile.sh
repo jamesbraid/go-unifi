@@ -29,12 +29,21 @@ readonly repository=${2:-ghcr.io/jamesbraid/unifi-network}
 readonly architecture=${ONBOARD_ARCHITECTURE:-amd64}
 readonly profile_name="network-${version}-seeded"
 readonly out=${ONBOARD_OUTPUT:-scout/profiles/${profile_name}.json}
-# The seeded variant, not the bare version. The bare image is a fresh
-# controller with no administrator, so the campaign credentials cannot log in
-# to it and the measurement fails with a 400 from /api/login after the
-# controller has come up perfectly -- which reads like a timeout and is not
-# one. The profile name has said "seeded" all along; the tag now agrees.
-readonly tag=${ONBOARD_IMAGE_TAG:-${version}-seeded}
+# The -sim variant. The registry carries three per version and only this one
+# accepts the campaign credentials: the bare image is a fresh controller with
+# no administrator, and -seeded seeds admin/unifi-containers-seeded, which is
+# not what the pipeline holds. Both wrong choices fail identically and
+# misleadingly -- a 400 from /api/login, retried until the readiness budget
+# expires and reported as "controller did not become ready", when the
+# controller was ready in seconds and simply refused the login.
+#
+# Confirmed rather than reasoned: resolving 10.4.57-sim reproduces both digests
+# the committed profile pins, exactly. "sim" is the image variant; "seeded" in
+# the profile name is the profile CLASS the campaign asks for (m4 passes
+# -profile-class fresh_seeded). They are different words for different things
+# and the collision is the whole trap.
+readonly tag=${ONBOARD_IMAGE_TAG:-${version}-sim}
+readonly expected_probe=${ONBOARD_EXPECTED_PROBE:-network-sim}
 
 for tool in docker jq go curl sha256sum; do
     command -v "${tool}" >/dev/null || { echo "onboard: ${tool} is required" >&2; exit 1; }
@@ -56,10 +65,12 @@ echo "onboarding ${profile_name}"
 # Docker-Content-Digest to agree. A registry that reported a digest which did
 # not describe what it just served would otherwise be believed.
 #
-# Note the tag is only a starting point. Tags move -- ghcr's 10.4.57 has been
-# republished since that profile was authored, and the profile still names the
-# bytes that were actually measured because it pins the digest. That is the
-# whole reason a profile pins one.
+# An earlier version of this comment claimed ghcr's 10.4.57 had been
+# republished since the profile was authored. That was wrong, and wrong in an
+# avoidable way: it compared the bare tag against a profile that pins the -sim
+# one. 10.4.57-sim resolves to the committed digests exactly and always has.
+# Pinning a digest is still right -- a tag is a moving reference and this
+# profile is a claim about specific bytes -- but no tag actually moved here.
 readonly registry=${repository%%/*}
 readonly repo_path=${repository#*/}
 
@@ -106,6 +117,36 @@ if [[ -z ${manifest} ]]; then
     echo "  mediaType ${media}; a single-platform image cannot serve an ${architecture} profile" >&2
     exit 1
 fi
+# Verify the variant before starting anything. Picking the wrong one costs a
+# full readiness budget and then lies about why: the controller comes up, the
+# login is refused, and the tool reports "did not become ready". The image says
+# which variant it is in READYZ_PROBE, so ask, and fail in a second with the
+# real reason instead of in five minutes with a wrong one.
+config_digest=$(curl --fail --silent --show-error --location \
+    --header "Authorization: Bearer ${token}" \
+    --header 'Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json' \
+    "https://${registry}/v2/${repo_path}/manifests/${manifest}" | jq -r '.config.digest // empty')
+if [[ -n ${config_digest} ]]; then
+    probe=$(curl --fail --silent --show-error --location \
+        --header "Authorization: Bearer ${token}" \
+        "https://${registry}/v2/${repo_path}/blobs/${config_digest}" |
+        jq -r '(.config.Env // [])[] | select(startswith("READYZ_PROBE=")) | sub("^READYZ_PROBE=";"")')
+    if [[ -z ${probe} ]]; then
+        echo "onboard: could not read READYZ_PROBE from ${repository}:${tag}" >&2
+        echo "  refusing rather than continuing: this check exists because the wrong" >&2
+        echo "  variant fails five minutes later with a misleading message" >&2
+        exit 1
+    fi
+    if [[ ${probe} != "${expected_probe}" ]]; then
+        echo "onboard: ${repository}:${tag} is the wrong image variant" >&2
+        echo "  READYZ_PROBE reports ${probe}, and this profile needs ${expected_probe}" >&2
+        echo "  the campaign credentials only exist in the ${expected_probe#network-} image;" >&2
+        echo "  the others come up healthy and then refuse the login" >&2
+        exit 1
+    fi
+    echo "  VERIFIED variant            ${probe:-unknown} (from the image, not the tag name)"
+fi
+
 readonly index manifest
 echo "  RESOLVED repository         ${repository}"
 echo "  RESOLVED image_index        ${index}  (digest verified against the bytes served)"
