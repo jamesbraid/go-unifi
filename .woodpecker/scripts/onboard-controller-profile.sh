@@ -29,7 +29,12 @@ readonly repository=${2:-ghcr.io/jamesbraid/unifi-network}
 readonly architecture=${ONBOARD_ARCHITECTURE:-amd64}
 readonly profile_name="network-${version}-seeded"
 readonly out=${ONBOARD_OUTPUT:-scout/profiles/${profile_name}.json}
-readonly tag=${ONBOARD_IMAGE_TAG:-${version}}
+# The seeded variant, not the bare version. The bare image is a fresh
+# controller with no administrator, so the campaign credentials cannot log in
+# to it and the measurement fails with a 400 from /api/login after the
+# controller has come up perfectly -- which reads like a timeout and is not
+# one. The profile name has said "seeded" all along; the tag now agrees.
+readonly tag=${ONBOARD_IMAGE_TAG:-${version}-seeded}
 
 for tool in docker jq go curl sha256sum; do
     command -v "${tool}" >/dev/null || { echo "onboard: ${tool} is required" >&2; exit 1; }
