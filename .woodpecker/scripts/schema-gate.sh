@@ -41,6 +41,12 @@ head_sha=${CI_COMMIT_SHA:?CI_COMMIT_SHA is required}
 classification="$(jq -er '.classification' "${attestation}")"
 readonly head_sha classification
 
+# Announced here, before anything that can fail. Saying it next to the decision
+# read better and was useless: publishing sits in between, and when publishing
+# failed the run ended without ever stating the verdict it had already read one
+# line earlier. A fact worth logging is logged where nothing can pre-empt it.
+echo "gate: classification=${classification}"
+
 # The join receipt. Positional association is not association.
 readonly receipt="${evidence_dir}/join-receipt.json"
 jq -n \
@@ -58,12 +64,6 @@ echo "gate: join receipt binds attestation to ${head_sha}"
 # Evidence is published whatever the verdict. A rejected candidate is the case
 # where someone most needs to read why.
 "${script_dir}/publish-evidence.sh" "${evidence_dir}" "${head_sha}"
-
-# Said out loud on both paths. Only the rejection branch announced the
-# classification, so an allowed run never recorded the verdict it acted on --
-# and when a later step failed, the one fact everybody wanted was missing from
-# the log despite having been read at the top of this script.
-echo "gate: classification=${classification}"
 
 case "${classification}" in
     unchanged|additive_candidate)
