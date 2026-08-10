@@ -44,11 +44,21 @@ if [[ -z ${base} ]]; then
     # and swallowed the status, so when it failed in CI the run reported "no
     # release tag" without a word about the fetch that was supposed to supply
     # one -- the same discarded-explanation fault this check exists to punish.
+    # Credentials in the URL, not the remote. Fetching from `origin` fails with
+    # "could not read Username ... No such device or address": the step inherits
+    # a netrc that does not cover this, and git cannot prompt in CI. Measured,
+    # not assumed -- it is the same wall the branch push hit, and the same
+    # construction gets past it.
+    fetch_remote=origin
+    if [[ -n ${FORGEJO_BASE_URL:-} && -n ${FORGEJO_USER:-} && -n ${FORGEJO_TOKEN:-} ]]; then
+        authed="https://${FORGEJO_USER}:${FORGEJO_TOKEN}@${FORGEJO_BASE_URL#https://}"
+        fetch_remote="${authed%/}/${FORGEJO_REPO:-infra/go-unifi}.git"
+    fi
     fetch_log="$(mktemp)"
-    if git fetch --tags --force origin >"${fetch_log}" 2>&1; then
+    if git fetch --tags --force "${fetch_remote}" >"${fetch_log}" 2>&1; then
         echo "apidiff: fetched tags to establish a baseline" >&2
     else
-        echo "apidiff: could not fetch tags from origin:" >&2
+        echo "apidiff: could not fetch tags:" >&2
         sed 's/^/    /' "${fetch_log}" >&2
     fi
     rm -f "${fetch_log}"
