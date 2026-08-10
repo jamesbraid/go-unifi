@@ -19,8 +19,6 @@ steps:
     environment:
       CAMPAIGN_LIVE: '1'
       CAMPAIGN_LIVE_OUTPUT_DIR: /tmp/campaign-evidence
-      UNIFI_NETWORK_IMAGE:
-        from_secret: unifi_network_image
       UNIFI_USERNAME:
         from_secret: unifi_username
       UNIFI_PASSWORD:
