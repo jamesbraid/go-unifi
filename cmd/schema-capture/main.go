@@ -17,6 +17,7 @@ import (
 )
 
 type captureConfig struct {
+	Scout                  *capturelock.Scout
 	ArtifactPath           string
 	ContentStore           string
 	SourceLocation         string
@@ -70,6 +71,18 @@ func captureArtifact(
 	}
 	lock := capturelock.Lock{
 		FormatVersion: capturelock.FormatVersion,
+		// Carried from the lock being replaced. The scout block pins the
+		// reviewed structural projection and semantic predecessor, which are
+		// committed documents this command never reads and cannot compute --
+		// so dropping them is not "writing a fresh lock", it is discarding a
+		// neighbouring tool's evidence. Both generators then refuse the lock,
+		// which is how a correct capture produced an unusable one.
+		//
+		// Carrying a stale value cannot go unnoticed: internal/scout/catalog.go
+		// recomputes each document's canonical digest and hard-errors on a
+		// mismatch, so if the evidence really did change, the review gate fires
+		// there and names which document moved.
+		Scout: config.Scout,
 		Controller: capturelock.Controller{
 			Product:    config.Product,
 			Build:      config.Build,
@@ -292,6 +305,17 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	// Read the lock being replaced, for the parts of it this command does not
+	// own. A capture rewrites the whole file, so anything not carried across is
+	// silently deleted -- and the scout evidence digests were exactly that.
+	var carriedScout *capturelock.Scout
+	if previous, prevErr := capturelock.LoadFile(*output); prevErr == nil && previous.Scout != nil {
+		carriedScout = previous.Scout
+		fmt.Printf("carrying scout evidence digests forward from %s\n", *output)
+	} else if prevErr == nil {
+		fmt.Printf("note: %s pins no scout evidence digests; generation will refuse the new lock until they are reviewed and added\n", *output)
+	}
+
 	lock, err := captureArtifact(captureConfig{
 		ArtifactPath:           artifactPath,
 		ContentStore:           *contentStore,
@@ -301,6 +325,7 @@ func main() {
 		Build:                  *build,
 		ExpectedNetworkVersion: *expectedNetwork,
 		UOSVersion:             *uosVersion,
+		Scout:                  carriedScout,
 	}, inputs, capturedAt, inspectWithFields(moduleRoot))
 	if err != nil {
 		fail(err)
