@@ -2,6 +2,28 @@ package scout
 
 // TargetProfile identifies one immutable disposable controller target.
 type TargetProfile struct {
+	Name         string `json:"name"`
+	Product      string `json:"product"`
+	Version      string `json:"version"`
+	Architecture string `json:"architecture"`
+	// ImageRepository is the registry and repository the digests below belong
+	// to. Without it the digests are pinned but their location is not, so the
+	// reference has to be reassembled from somewhere else -- and if the image
+	// moves registries the profile stays valid while pointing at nothing.
+	// ImageRepository is deliberately absent from CatalogTarget below: it says
+	// where to fetch the image, not what was observed, and the controller
+	// fingerprint does not hash it. Emitting it into catalogs would change
+	// every committed catalog digest, which is pinned across repositories.
+	ImageRepository       string `json:"image_repository"`
+	ImageIndexSHA256      string `json:"image_index_sha256"`
+	ImageManifestSHA256   string `json:"image_manifest_sha256"`
+	ControllerFingerprint string `json:"controller_fingerprint"`
+}
+
+// CatalogTarget is the observed identity a catalog records. It is the target
+// profile minus the fields that say where the image came from rather than what
+// it was, so adding a lookup field to the profile cannot move a catalog digest.
+type CatalogTarget struct {
 	Name                  string `json:"name"`
 	Product               string `json:"product"`
 	Version               string `json:"version"`
@@ -9,6 +31,16 @@ type TargetProfile struct {
 	ImageIndexSHA256      string `json:"image_index_sha256"`
 	ImageManifestSHA256   string `json:"image_manifest_sha256"`
 	ControllerFingerprint string `json:"controller_fingerprint"`
+}
+
+// CatalogTargetOf reduces a profile to what a catalog records.
+func CatalogTargetOf(p TargetProfile) CatalogTarget {
+	return CatalogTarget{
+		Name: p.Name, Product: p.Product, Version: p.Version,
+		Architecture: p.Architecture, ImageIndexSHA256: p.ImageIndexSHA256,
+		ImageManifestSHA256:   p.ImageManifestSHA256,
+		ControllerFingerprint: p.ControllerFingerprint,
+	}
 }
 
 // ProvisionerTargetReceipt is the independently measured runtime identity for
@@ -46,6 +78,15 @@ type LockedSources struct {
 	SemanticPredecessorSHA256  string
 }
 
+// FieldDocumentDigests maps each locked field-definition file name to its
+// SHA-256, as recorded by the capture in the lock.
+//
+// The definitions themselves are extracted from Ubiquiti's software and are
+// never committed, so scout cannot read them. The lock is what travels, which
+// is why the per-document digests have to live there for a projection to be
+// able to pin one.
+type FieldDocumentDigests map[string]string
+
 // Input contains the immutable structural and raw observed evidence for one
 // DNS run. ExecutionMode is either fixture or live; only a live run may carry
 // a provisioner receipt, controller version, and hashed controller identity
@@ -58,6 +99,7 @@ type Input struct {
 	Scenario                       Scenario
 	ExecutionMode                  string
 	LockedSources                  LockedSources
+	FieldDocumentDigests           FieldDocumentDigests
 	StructuralProjection           []byte
 	SemanticPredecessor            []byte
 	SemanticIDs                    []byte
@@ -77,9 +119,18 @@ type structuralProjection struct {
 	Fields        []structuralProjectionField `json:"fields"`
 }
 
+// structuralSource names the one locked field-definition document this
+// projection was taken from, and pins that document alone.
+//
+// It deliberately does not pin the whole structural snapshot. That digest
+// covers every field definition in the capture, so any override anywhere moves
+// it, and a projection pinned to it goes stale for surfaces the change never
+// touched -- which forces a re-pin that is indistinguishable, at the lock, from
+// a reviewed change to this document's own contents.
 type structuralSource struct {
-	StructuralSHA256  string `json:"structural_sha256"`
-	SensitivitySHA256 string `json:"sensitivity_sha256"`
+	FieldDocument       string `json:"field_document"`
+	FieldDocumentSHA256 string `json:"field_document_sha256"`
+	SensitivitySHA256   string `json:"sensitivity_sha256"`
 }
 
 type structuralProjectionField struct {
@@ -116,7 +167,7 @@ type semanticTombstone struct {
 type catalog struct {
 	FormatVersion     int                `json:"format_version"`
 	CatalogID         string             `json:"catalog_id"`
-	Target            TargetProfile      `json:"target"`
+	Target            CatalogTarget      `json:"target"`
 	Sources           catalogSources     `json:"sources"`
 	StructuralRecords []structuralRecord `json:"structural_records"`
 	ObservedRecords   []observedRecord   `json:"observed_records"`

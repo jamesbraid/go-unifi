@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 	wantSnapshots := capturelock.Snapshots{
 		StructuralSHA256:  strings.Repeat("c", 64),
 		SensitivitySHA256: strings.Repeat("d", 64),
+		FieldDocuments:    map[string]string{"DnsRecord.json": strings.Repeat("e", 64)},
 	}
 	capturedAt := time.Date(2026, time.August, 3, 12, 34, 56, 0, time.UTC)
 
@@ -48,7 +50,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 		if gotStore != store {
 			t.Fatalf("inspector store = %q, want %q", gotStore, store)
 		}
-		if draft.Controller.NetworkVersion != "" || draft.Snapshots != (capturelock.Snapshots{}) {
+		if draft.Controller.NetworkVersion != "" || !reflect.DeepEqual(draft.Snapshots, capturelock.Snapshots{}) {
 			t.Fatalf("inspector received completed draft: %#v", draft)
 		}
 		if _, err := capturelock.ResolveArtifact(store, func() capturelock.Lock {
@@ -70,7 +72,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 	if lock.Controller.NetworkVersion != "10.4.57" || lock.Controller.UOSVersion != "5.1.21" {
 		t.Fatalf("controller identity = %#v", lock.Controller)
 	}
-	if lock.Inputs != inputs || lock.Snapshots != wantSnapshots {
+	if lock.Inputs != inputs || !reflect.DeepEqual(lock.Snapshots, wantSnapshots) {
 		t.Fatalf("lock inputs/snapshots = %#v / %#v", lock.Inputs, lock.Snapshots)
 	}
 	if lock.CapturedAt != "2026-08-03T12:34:56Z" {
@@ -156,5 +158,53 @@ func TestDownloadArtifactStreamsSuccessfulResponseAndRejectsHTTPFailure(t *testi
 	)
 	if err == nil || !strings.Contains(err.Error(), "404 Not Found") {
 		t.Fatalf("downloadArtifact() error = %v, want HTTP failure", err)
+	}
+}
+
+// A capture rewrites the whole lock file, so anything it does not carry across
+// is deleted. The scout evidence digests were: schema-capture cannot compute
+// them and never reads the documents they pin, but both generators refuse a
+// lock without them, so a correct capture produced a lock nothing would accept.
+func TestCaptureArtifactCarriesScoutEvidence(t *testing.T) {
+	store := t.TempDir()
+	artifact := filepath.Join(t.TempDir(), "unifi.deb")
+	if err := os.WriteFile(artifact, []byte("controller artifact"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	reviewed := &capturelock.Scout{
+		DNSStructuralProjectionSHA256: strings.Repeat("e", 64),
+		DNSSemanticPredecessorSHA256:  strings.Repeat("f", 64),
+	}
+
+	lock, err := captureArtifact(captureConfig{
+		Scout:          reviewed,
+		ArtifactPath:   artifact,
+		ContentStore:   store,
+		SourceLocation: "https://downloads.example.invalid/unifi.deb",
+		MediaType:      "application/vnd.debian.binary-package",
+		Product:        "unifi-controller",
+		Build:          "v10.4.57+build record-id",
+	}, capturelock.Inputs{
+		ExtractionRulesSHA256: strings.Repeat("a", 64),
+		GeneratorInputsSHA256: strings.Repeat("b", 64),
+	}, time.Date(2026, time.August, 3, 12, 34, 56, 0, time.UTC),
+		func(draft capturelock.Lock, _ string) (inspection, error) {
+			return inspection{
+				NetworkVersion: "10.4.57",
+				Snapshots: capturelock.Snapshots{
+					StructuralSHA256:  strings.Repeat("c", 64),
+					SensitivitySHA256: strings.Repeat("d", 64),
+					FieldDocuments:    map[string]string{"DnsRecord.json": strings.Repeat("e", 64)},
+				},
+			}, nil
+		})
+	if err != nil {
+		t.Fatalf("captureArtifact() error = %v", err)
+	}
+	if lock.Scout == nil {
+		t.Fatal("captureArtifact() dropped the scout evidence digests; both generators reject a lock without them")
+	}
+	if *lock.Scout != *reviewed {
+		t.Fatalf("scout evidence = %#v, want %#v", *lock.Scout, *reviewed)
 	}
 }

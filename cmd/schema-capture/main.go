@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,6 +19,7 @@ import (
 )
 
 type captureConfig struct {
+	Scout                  *capturelock.Scout
 	ArtifactPath           string
 	ContentStore           string
 	SourceLocation         string
@@ -37,17 +40,28 @@ func captureArtifact(
 	capturedAt time.Time,
 	inspect inspectorFunc,
 ) (capturelock.Lock, error) {
-	for name, value := range map[string]string{
-		"artifact path":   config.ArtifactPath,
-		"content store":   config.ContentStore,
-		"source location": config.SourceLocation,
-		"media type":      config.MediaType,
-		"product":         config.Product,
-		"build":           config.Build,
+	// Named by flag, all at once, in a fixed order. This used to range over a
+	// map and return on the first empty value, so with two inputs missing it
+	// reported an arbitrary one of them -- Go randomises map iteration, so
+	// which one was not even stable between runs. An operator fixed that one,
+	// re-ran, and was told about the next. It also said "media type", which is
+	// not something you can pass; -media-type is.
+	var missing []string
+	for _, required := range []struct {
+		flag  string
+		value string
+	}{
+		{"-file or -url", config.ArtifactPath},
+		{"-content-store (or GO_UNIFI_CONTENT_STORE)", config.ContentStore},
+		{"-source-location", config.SourceLocation},
 	} {
-		if strings.TrimSpace(value) == "" {
-			return capturelock.Lock{}, fmt.Errorf("%s is required", name)
+		if strings.TrimSpace(required.value) == "" {
+			missing = append(missing, required.flag)
 		}
+	}
+	missing = append(missing, requiredFlagInputs(config.MediaType, config.Product, config.Build)...)
+	if len(missing) > 0 {
+		return capturelock.Lock{}, fmt.Errorf("missing required input: %s", strings.Join(missing, ", "))
 	}
 	if inspect == nil {
 		return capturelock.Lock{}, errors.New("artifact inspector is required")
@@ -59,6 +73,18 @@ func captureArtifact(
 	}
 	lock := capturelock.Lock{
 		FormatVersion: capturelock.FormatVersion,
+		// Carried from the lock being replaced. The scout block pins the
+		// reviewed structural projection and semantic predecessor, which are
+		// committed documents this command never reads and cannot compute --
+		// so dropping them is not "writing a fresh lock", it is discarding a
+		// neighbouring tool's evidence. Both generators then refuse the lock,
+		// which is how a correct capture produced an unusable one.
+		//
+		// Carrying a stale value cannot go unnoticed: internal/scout/catalog.go
+		// recomputes each document's canonical digest and hard-errors on a
+		// mismatch, so if the evidence really did change, the review gate fires
+		// there and names which document moved.
+		Scout: config.Scout,
 		Controller: capturelock.Controller{
 			Product:    config.Product,
 			Build:      config.Build,
@@ -177,6 +203,45 @@ func findModuleRoot(dir string) string {
 	}
 }
 
+// fail reports an operator-facing error and exits. Every one of these was
+// panic(err), which printed a Go stack trace rooted in main.go for conditions
+// like "you did not pass -media-type". The trace names the tool's internals
+// when the thing that went wrong belongs to the caller, and it buries the one
+// line that says what to do under twenty that do not.
+// requiredFlagInputs names the inputs that come only from flags, in a fixed
+// order. Kept in one place because it is checked twice: once before the
+// artifact is fetched, so a missing flag costs nothing, and once inside
+// captureArtifact, which has callers other than main.
+func requiredFlagInputs(mediaType, product, build string) []string {
+	var missing []string
+	for _, required := range []struct {
+		flag  string
+		value string
+	}{
+		{"-media-type", mediaType},
+		{"-product", product},
+		{"-build", build},
+	} {
+		if strings.TrimSpace(required.value) == "" {
+			missing = append(missing, required.flag)
+		}
+	}
+	return missing
+}
+
+// sameLock compares two locks by their serialized form, so a field added later
+// is included automatically rather than silently escaping the comparison.
+func sameLock(a, b capturelock.Lock) bool {
+	left, leftErr := json.Marshal(a)
+	right, rightErr := json.Marshal(b)
+	return leftErr == nil && rightErr == nil && bytes.Equal(left, right)
+}
+
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "schema-capture: %v\n", err)
+	os.Exit(1)
+}
+
 func main() {
 	artifactFile := flag.String("file", "", "Local controller artifact to capture")
 	artifactURL := flag.String("url", "", "Controller artifact URL to download and capture")
@@ -191,16 +256,22 @@ func main() {
 	capturedAtFlag := flag.String("captured-at", "", "Capture time in RFC3339 (default: current UTC time)")
 	flag.Parse()
 
+	// Before the artifact is fetched. This used to be checked only inside
+	// captureArtifact, which runs after the download, so a forgotten flag cost
+	// a 130 MB transfer and then reported itself as a panic.
+	if missing := requiredFlagInputs(*mediaType, *product, *build); len(missing) > 0 {
+		fail(fmt.Errorf("missing required input: %s", strings.Join(missing, ", ")))
+	}
 	if (*artifactFile == "") == (*artifactURL == "") {
-		panic("exactly one of -file or -url is required")
+		fail(errors.New("exactly one of -file or -url is required"))
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
 	moduleRoot := findModuleRoot(wd)
 	if moduleRoot == "" {
-		panic("unable to locate module root")
+		fail(errors.New("unable to locate module root: run this from inside the repository"))
 	}
 	if *output == "" {
 		*output = filepath.Join(moduleRoot, "schemas", "capture.lock.json")
@@ -209,25 +280,25 @@ func main() {
 		*sourceLocation = *artifactURL
 	}
 	if *contentStore == "" {
-		panic("-content-store or GO_UNIFI_CONTENT_STORE is required")
+		fail(errors.New("-content-store or GO_UNIFI_CONTENT_STORE is required"))
 	}
 
 	capturedAt := time.Now().UTC()
 	if *capturedAtFlag != "" {
 		capturedAt, err = time.Parse(time.RFC3339, *capturedAtFlag)
 		if err != nil {
-			panic(fmt.Errorf("parse captured-at: %w", err))
+			fail(fmt.Errorf("parse -captured-at: %w", err))
 		}
 	}
 	artifactPath := *artifactFile
 	var downloadDir string
 	if *artifactURL != "" {
 		if err := os.MkdirAll(*contentStore, 0o700); err != nil {
-			panic(err)
+			fail(err)
 		}
 		downloadDir, err = os.MkdirTemp(*contentStore, ".capture-download-*")
 		if err != nil {
-			panic(err)
+			fail(err)
 		}
 		defer os.RemoveAll(downloadDir)
 		artifactPath, err = downloadArtifact(
@@ -237,13 +308,37 @@ func main() {
 			downloadDir,
 		)
 		if err != nil {
-			panic(err)
+			fail(err)
 		}
 	}
 	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
+	// Read the lock being replaced, for the parts of it this command does not
+	// own. A capture rewrites the whole file, so anything not carried across is
+	// silently deleted -- and the scout evidence digests were exactly that.
+	//
+	// Read as a draft. The lock being replaced only has to be legible enough
+	// to yield its scout block; holding it to the completeness the new lock
+	// must meet would drop that block on exactly the captures that add a
+	// newly required field, which is the silent deletion this read exists to
+	// prevent. Any other read failure is reported rather than carrying
+	// nothing quietly.
+	var carriedScout *capturelock.Scout
+	previous, prevErr := capturelock.LoadDraftFile(*output)
+	switch {
+	case prevErr != nil && errors.Is(prevErr, os.ErrNotExist):
+		fmt.Printf("note: %s does not exist yet; the new lock will pin no scout evidence digests\n", *output)
+	case prevErr != nil:
+		fail(fmt.Errorf("read the capture lock being replaced (%s): %w", *output, prevErr))
+	case previous.Scout != nil:
+		carriedScout = previous.Scout
+		fmt.Printf("carrying scout evidence digests forward from %s\n", *output)
+	default:
+		fmt.Printf("note: %s pins no scout evidence digests; generation will refuse the new lock until they are reviewed and added\n", *output)
+	}
+
 	lock, err := captureArtifact(captureConfig{
 		ArtifactPath:           artifactPath,
 		ContentStore:           *contentStore,
@@ -253,12 +348,33 @@ func main() {
 		Build:                  *build,
 		ExpectedNetworkVersion: *expectedNetwork,
 		UOSVersion:             *uosVersion,
+		Scout:                  carriedScout,
 	}, inputs, capturedAt, inspectWithFields(moduleRoot))
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
+	// Keep the previous timestamp when nothing else moved. captured_at is the
+	// only field that changes on a re-capture of identical bytes, and letting
+	// it change is not cosmetic churn: the catalog pins the lock's own sha256,
+	// and the provider pins the catalog's, so a new timestamp on an otherwise
+	// identical capture would walk a digest that two repositories agree on --
+	// for no observation that differed.
+	//
+	// It also makes the no-diff outcome reachable at all. With the timestamp
+	// always moving, a capture of the locked version produced a one-line diff,
+	// which is a commit, a branch push, a live campaign and a pull request
+	// proposing nothing.
+	if previousLock, prevErr := capturelock.LoadFile(*output); prevErr == nil {
+		comparable := lock
+		comparable.CapturedAt = previousLock.CapturedAt
+		if sameLock(comparable, previousLock) {
+			lock.CapturedAt = previousLock.CapturedAt
+			fmt.Println("capture is identical to the committed lock; keeping its captured_at")
+		}
+	}
+
 	if err := capturelock.WriteFile(*output, lock); err != nil {
-		panic(err)
+		fail(err)
 	}
 	fmt.Printf("proposed capture lock %s for sha256:%s\n", *output, lock.Source.SHA256)
 }

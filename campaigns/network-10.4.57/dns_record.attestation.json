@@ -21,10 +21,10 @@
   "inputs": {
     "baseline_catalog_sha256": "f2f50e2d9cc79cd26263ac91e0770038c43344fcec7c7120c4b009a650d21fa4",
     "admission_receipt_sha256": "8cbc07eff15ffe9baf824164f278488616d367a67db5f5b0e56eb88d11cae3a1",
-    "candidate_catalog_sha256": "45a92dc1a75de66bb1ef3704412eb9fbe36f23fe91535654f5e8c16073d80669",
+    "candidate_catalog_sha256": "2f6d222af7a5085be7928e34ac9be0ecfd87f7afb3d99ee69f69f2aab28bfd79",
     "scenario_receipt_sha256": "d600ad61e1d9c936d65b3d23065c54387653ab674542b0fbbabcd6e86237128d",
     "execution_receipt_sha256": "a9303cb1ce18e690acfaccf2d1f4614066ba4ead33dbf131330602561df84b41",
-    "capture_lock_sha256": "45cdd9e52b5a6a5c73605fdff5f6cba085231234226f64d01cb3e1b17ceeaeba"
+    "capture_lock_sha256": "2ad1c9309b6b61ba24242e6877a21be884cf46a9164a7c6ae18fa98477738271"
   },
   "structural_diff": [],
   "observation_diff": [],

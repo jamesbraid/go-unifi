@@ -12,6 +12,9 @@ const (
 	testExtractionSHA  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	testStructuralSHA  = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	testSensitivitySHA = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	testDNSDocument    = "DnsRecord.json"
+	testDNSDocumentSHA = "1111111111111111111111111111111111111111111111111111111111111111"
+	testOtherDocument  = "FirewallPolicy.json"
 )
 
 func TestBuildDNSCatalogIsCanonicalAndValueFree(t *testing.T) {
@@ -308,9 +311,21 @@ func TestBuildDNSCatalogFailsClosed(t *testing.T) {
 			mutate: func(input *Input) { input.Scenario.Mode = "production" },
 			want:   "unsupported scenario mode",
 		},
-		"structural lock mismatch": {
-			mutate: func(input *Input) { input.LockedSources.StructuralSHA256 = strings.Repeat("d", 64) },
-			want:   "structural snapshot digest",
+		"source document moved": {
+			mutate: func(input *Input) {
+				input.FieldDocumentDigests[testDNSDocument] = strings.Repeat("d", 64)
+			},
+			want: "field document " + testDNSDocument + " digest is",
+		},
+		"source document absent from the lock": {
+			mutate: func(input *Input) {
+				delete(input.FieldDocumentDigests, testDNSDocument)
+			},
+			want: "is absent from the locked structural snapshot",
+		},
+		"lock records no per-document digests": {
+			mutate: func(input *Input) { input.FieldDocumentDigests = nil },
+			want:   "capture lock does not record per-document field digests",
 		},
 		"sensitivity lock mismatch": {
 			mutate: func(input *Input) { input.LockedSources.SensitivitySHA256 = strings.Repeat("d", 64) },
@@ -333,6 +348,27 @@ func TestBuildDNSCatalogFailsClosed(t *testing.T) {
 	}
 }
 
+// TestBuildDNSCatalogSurvivesAnUnrelatedSurfaceMoving is the regression this
+// per-document pin exists for.
+//
+// The projection used to pin snapshots.structural_sha256, which digests the
+// whole schemas/fields tree after the overrides are written. Commit 7d15987
+// added two fields to overrides/resources/FirewallPolicy.json, that digest
+// moved, and dns_record's projection went stale over a change to a surface it
+// does not describe -- with no way to re-pin it that a reviewer could tell
+// apart from a real dns_record change.
+func TestBuildDNSCatalogSurvivesAnUnrelatedSurfaceMoving(t *testing.T) {
+	input := testInput(t, `[]`)
+	// Exactly what an override to another resource does: the tree digest
+	// moves, that resource's own entry moves, dns_record's does not.
+	input.LockedSources.StructuralSHA256 = strings.Repeat("d", 64)
+	input.FieldDocumentDigests[testOtherDocument] = strings.Repeat("e", 64)
+
+	if _, err := BuildDNSCatalog(input); err != nil {
+		t.Fatalf("BuildDNSCatalog() rejected a projection whose own source document did not move: %v", err)
+	}
+}
+
 func assertReceiptString(t *testing.T, receipt map[string]json.RawMessage, field, want string) {
 	t.Helper()
 	var got string
@@ -349,7 +385,7 @@ func testInput(t *testing.T, observation string) Input {
 	structural := []byte(`{
   "format_version":1,
   "resource":"dns_record",
-  "source":{"structural_sha256":"` + testStructuralSHA + `","sensitivity_sha256":"` + testSensitivitySHA + `"},
+  "source":{"field_document":"` + testDNSDocument + `","field_document_sha256":"` + testDNSDocumentSHA + `","sensitivity_sha256":"` + testSensitivitySHA + `"},
   "fields":[
     {"wire_name":"enabled","json_type":"bool","secret_candidate":false},
     {"wire_name":"key","json_type":"string","secret_candidate":false},
@@ -418,6 +454,10 @@ func testInput(t *testing.T, observation string) Input {
 			SensitivitySHA256:          testSensitivitySHA,
 			StructuralProjectionSHA256: mustCanonicalDigest(t, structural),
 			SemanticPredecessorSHA256:  mustCanonicalDigest(t, semanticPredecessor),
+		},
+		FieldDocumentDigests: FieldDocumentDigests{
+			testDNSDocument:   testDNSDocumentSHA,
+			testOtherDocument: strings.Repeat("9", 64),
 		},
 		StructuralProjection: structural,
 		SemanticPredecessor:  semanticPredecessor,
