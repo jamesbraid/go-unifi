@@ -87,6 +87,13 @@ func run(args []string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "capture lock does not pin scout evidence digests")
 		return 1
 	}
+	// The lock is scout's only account of the field definitions, and has to
+	// be: schemas/fields/ is extracted from the controller artifact and is
+	// gitignored, so in a fresh checkout there is nothing on disk to measure
+	// and no artifact to re-extract it from. What keeps these entries honest
+	// is cmd/fields, which re-measures the tree it just extracted and refuses
+	// to generate against a lock whose per-document digests disagree with it.
+	fieldDigests := scout.FieldDocumentDigests(lock.Snapshots.FieldDocuments)
 
 	var observed []byte
 	var targetReceipt *scout.ProvisionerTargetReceipt
@@ -142,6 +149,7 @@ func run(args []string, stderr io.Writer) int {
 			StructuralProjectionSHA256: lock.Scout.DNSStructuralProjectionSHA256,
 			SemanticPredecessorSHA256:  lock.Scout.DNSSemanticPredecessorSHA256,
 		},
+		FieldDocumentDigests: fieldDigests,
 		StructuralProjection: structural,
 		SemanticPredecessor:  semanticPredecessor,
 		SemanticIDs:          semanticIDs,

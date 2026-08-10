@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 	wantSnapshots := capturelock.Snapshots{
 		StructuralSHA256:  strings.Repeat("c", 64),
 		SensitivitySHA256: strings.Repeat("d", 64),
+		FieldDocuments:    map[string]string{"DnsRecord.json": strings.Repeat("e", 64)},
 	}
 	capturedAt := time.Date(2026, time.August, 3, 12, 34, 56, 0, time.UTC)
 
@@ -48,7 +50,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 		if gotStore != store {
 			t.Fatalf("inspector store = %q, want %q", gotStore, store)
 		}
-		if draft.Controller.NetworkVersion != "" || draft.Snapshots != (capturelock.Snapshots{}) {
+		if draft.Controller.NetworkVersion != "" || !reflect.DeepEqual(draft.Snapshots, capturelock.Snapshots{}) {
 			t.Fatalf("inspector received completed draft: %#v", draft)
 		}
 		if _, err := capturelock.ResolveArtifact(store, func() capturelock.Lock {
@@ -70,7 +72,7 @@ func TestCaptureArtifactBuildsCompleteLock(t *testing.T) {
 	if lock.Controller.NetworkVersion != "10.4.57" || lock.Controller.UOSVersion != "5.1.21" {
 		t.Fatalf("controller identity = %#v", lock.Controller)
 	}
-	if lock.Inputs != inputs || lock.Snapshots != wantSnapshots {
+	if lock.Inputs != inputs || !reflect.DeepEqual(lock.Snapshots, wantSnapshots) {
 		t.Fatalf("lock inputs/snapshots = %#v / %#v", lock.Inputs, lock.Snapshots)
 	}
 	if lock.CapturedAt != "2026-08-03T12:34:56Z" {
@@ -192,6 +194,7 @@ func TestCaptureArtifactCarriesScoutEvidence(t *testing.T) {
 				Snapshots: capturelock.Snapshots{
 					StructuralSHA256:  strings.Repeat("c", 64),
 					SensitivitySHA256: strings.Repeat("d", 64),
+					FieldDocuments:    map[string]string{"DnsRecord.json": strings.Repeat("e", 64)},
 				},
 			}, nil
 		})

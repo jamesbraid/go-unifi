@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path"
 	"sort"
 	"strings"
 
@@ -52,6 +53,9 @@ func BuildDNSCatalog(input Input) (Result, error) {
 	}
 	if input.Target.Version != input.LockedSources.ControllerNetworkVersion {
 		return Result{}, fmt.Errorf("target version does not match capture lock Network version")
+	}
+	if len(input.FieldDocumentDigests) == 0 {
+		return Result{}, fmt.Errorf("capture lock does not record per-document field digests")
 	}
 	measuredTargetFingerprint := ""
 	switch input.ExecutionMode {
@@ -265,18 +269,26 @@ func loadStructuralProjection(input Input) (map[string]structuralProjectionField
 	if projection.FormatVersion != 1 || projection.Resource != "dns_record" {
 		return nil, fmt.Errorf("unsupported DNS structural projection")
 	}
-	if projection.Source.StructuralSHA256 != input.LockedSources.StructuralSHA256 {
-		return nil, fmt.Errorf("structural snapshot digest does not match capture lock")
+	if err := verifyFieldDocument(projection.Source, input.FieldDocumentDigests); err != nil {
+		return nil, err
 	}
 	if projection.Source.SensitivitySHA256 != input.LockedSources.SensitivitySHA256 {
-		return nil, fmt.Errorf("sensitivity snapshot digest does not match capture lock")
+		return nil, fmt.Errorf(
+			"sensitivity snapshot digest is %s, capture lock requires %s",
+			projection.Source.SensitivitySHA256,
+			input.LockedSources.SensitivitySHA256,
+		)
 	}
 	projectionDigest, err := canonicalDocumentDigest(input.StructuralProjection)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize structural projection: %w", err)
 	}
 	if projectionDigest != input.LockedSources.StructuralProjectionSHA256 {
-		return nil, fmt.Errorf("structural projection digest does not match capture lock")
+		return nil, fmt.Errorf(
+			"structural projection digest is %s, capture lock requires %s",
+			projectionDigest,
+			input.LockedSources.StructuralProjectionSHA256,
+		)
 	}
 	if len(projection.Fields) == 0 {
 		return nil, fmt.Errorf("DNS structural projection has no fields")
@@ -292,6 +304,40 @@ func loadStructuralProjection(input Input) (map[string]structuralProjectionField
 		fields[field.WireName] = field
 	}
 	return fields, nil
+}
+
+// verifyFieldDocument binds the projection to the single locked field
+// definition it was taken from, using the per-document digests the capture
+// recorded in the lock.
+//
+// Scoping the pin this way is the point. A projection of dns_record now goes
+// stale only when dns_record's own definition moves -- which is exactly when it
+// wants re-reviewing -- and stays valid when an override to some unrelated
+// surface moves the whole-tree snapshot.
+func verifyFieldDocument(source structuralSource, digests FieldDocumentDigests) error {
+	name := source.FieldDocument
+	if name == "" {
+		return fmt.Errorf("structural projection must name its source field document")
+	}
+	if name != path.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, `\/`) {
+		return fmt.Errorf("structural projection source field document %q must be a bare file name", name)
+	}
+	if !validSHA256(source.FieldDocumentSHA256) {
+		return fmt.Errorf("structural projection source field document digest must be 64 lowercase hexadecimal characters")
+	}
+	locked, known := digests[name]
+	if !known {
+		return fmt.Errorf("field document %q is absent from the locked structural snapshot", name)
+	}
+	if locked != source.FieldDocumentSHA256 {
+		return fmt.Errorf(
+			"field document %s digest is %s, structural projection pins %s",
+			name,
+			locked,
+			source.FieldDocumentSHA256,
+		)
+	}
+	return nil
 }
 
 func loadSemanticRegistry(input Input, fields map[string]structuralProjectionField) (map[string]string, []string, []catalogMigration, error) {
@@ -524,6 +570,15 @@ func digest(document []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// CanonicalDocumentDigest is the digest every reviewed evidence document is
+// pinned by in the capture lock's scout block. It is exported so the value can
+// be computed with a shipped tool -- see cmd/evidence-digest. A gate whose
+// expected value nobody outside this package can produce is a gate operators
+// have to satisfy by guessing.
+func CanonicalDocumentDigest(document []byte) (string, error) {
+	return canonicalDocumentDigest(document)
+}
+
 func canonicalDocumentDigest(document []byte) (string, error) {
 	decoder := json.NewDecoder(bytes.NewReader(document))
 	decoder.UseNumber()
@@ -611,6 +666,14 @@ func targetReceiptMatchesProfile(receipt ProvisionerTargetReceipt, target Target
 		return fmt.Errorf("measured target receipt does not match target profile")
 	}
 	return nil
+}
+
+func validSHA256(value string) bool {
+	if len(value) != sha256.Size*2 || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func validPrefixedSHA256(value string) bool {

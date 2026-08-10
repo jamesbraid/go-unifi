@@ -318,11 +318,24 @@ func main() {
 	// Read the lock being replaced, for the parts of it this command does not
 	// own. A capture rewrites the whole file, so anything not carried across is
 	// silently deleted -- and the scout evidence digests were exactly that.
+	//
+	// Read as a draft. The lock being replaced only has to be legible enough
+	// to yield its scout block; holding it to the completeness the new lock
+	// must meet would drop that block on exactly the captures that add a
+	// newly required field, which is the silent deletion this read exists to
+	// prevent. Any other read failure is reported rather than carrying
+	// nothing quietly.
 	var carriedScout *capturelock.Scout
-	if previous, prevErr := capturelock.LoadFile(*output); prevErr == nil && previous.Scout != nil {
+	previous, prevErr := capturelock.LoadDraftFile(*output)
+	switch {
+	case prevErr != nil && errors.Is(prevErr, os.ErrNotExist):
+		fmt.Printf("note: %s does not exist yet; the new lock will pin no scout evidence digests\n", *output)
+	case prevErr != nil:
+		fail(fmt.Errorf("read the capture lock being replaced (%s): %w", *output, prevErr))
+	case previous.Scout != nil:
 		carriedScout = previous.Scout
 		fmt.Printf("carrying scout evidence digests forward from %s\n", *output)
-	} else if prevErr == nil {
+	default:
 		fmt.Printf("note: %s pins no scout evidence digests; generation will refuse the new lock until they are reviewed and added\n", *output)
 	}
 
