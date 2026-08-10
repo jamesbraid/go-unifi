@@ -65,7 +65,21 @@ if [[ ${conflict_count} -gt 0 ]]; then
         + (if .expected != null and .expected != "" then " (declared \(.expected), observed \(.observed))" else "" end)' \
         "${attestation}"
 else
-    echo "gate: no conflicts recorded; any blocking verdict is from coverage, not an observed field"
+    # No conflicts is the interesting case, not the empty one. Admission also
+    # blocks when a field the structural projection DECLARES was never returned
+    # -- the mirror of an undeclared field appearing, and it produces exactly
+    # this shape: blocked, zero conflicts. Demonstrated by removing one field
+    # from the fixture: admission_state=blocked, conflicts=0, and the field
+    # named in coverage. So name them, or the reader is told there is no reason.
+    unobserved="$(jq -r '[(.claim_coverage // [])[] | select(.state != "observed") | .id] | join(", ")' "${attestation}")"
+    if [[ -n ${unobserved} ]]; then
+        echo "gate: no conflicts, but the capture did not exercise every declared field:"
+        echo "  not observed: ${unobserved}"
+        echo "  a declared field the controller never returned blocks admission, so a"
+        echo "  live target holding no data for it cannot produce an admitted capture"
+    else
+        echo "gate: no conflicts and full coverage recorded; any blocking verdict came from neither"
+    fi
 fi
 promotion="$(jq -r '.promotion // "unstated"' "${attestation}")"
 echo "gate: promotion=${promotion} candidate_only=$(jq -r '.candidate_only // "unstated"' "${attestation}")"
