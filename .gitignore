@@ -68,3 +68,7 @@ website/vendor
 
 /scripts
 .claude/settings.local.json
+
+# Content-addressed cache of downloaded controller artifacts. Hundreds of
+# megabytes, and never repository content -- it was committed once already.
+.content-store/

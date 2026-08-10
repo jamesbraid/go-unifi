@@ -45,7 +45,10 @@ steps:
         fi
       - apt-get update
       - apt-get install --yes --no-install-recommends ca-certificates curl jq git
-      - export GO_UNIFI_CONTENT_STORE="$${CI_WORKSPACE}/.content-store"
+      # NOT inside the workspace. The store is a content-addressed cache of the
+      # downloaded artifact, and with it under CI_WORKSPACE the `git add -A`
+      # below swept a 130 MB .deb into the candidate commit and pushed it.
+      - export GO_UNIFI_CONTENT_STORE=/tmp/go-unifi-content-store
       - |
         go run ./cmd/schema-capture \
           -url="${artifact_url}" \
