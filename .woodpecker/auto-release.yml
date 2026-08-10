@@ -36,5 +36,4 @@ steps:
     commands:
       - apt-get update
       - apt-get install --yes --no-install-recommends ca-certificates curl git
-      - git fetch --tags --unshallow || git fetch --tags
       - bash .woodpecker/scripts/auto-release.sh
