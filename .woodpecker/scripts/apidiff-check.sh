@@ -40,7 +40,18 @@ base="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
 # fail, which is worse than no check, because it was being read as evidence of
 # API stability. Fetch the tags, then insist on having one.
 if [[ -z ${base} ]]; then
-    git fetch --tags --quiet origin 2>/dev/null || true
+    # Not silenced. The first version of this recovery sent stderr to /dev/null
+    # and swallowed the status, so when it failed in CI the run reported "no
+    # release tag" without a word about the fetch that was supposed to supply
+    # one -- the same discarded-explanation fault this check exists to punish.
+    fetch_log="$(mktemp)"
+    if git fetch --tags --force origin >"${fetch_log}" 2>&1; then
+        echo "apidiff: fetched tags to establish a baseline" >&2
+    else
+        echo "apidiff: could not fetch tags from origin:" >&2
+        sed 's/^/    /' "${fetch_log}" >&2
+    fi
+    rm -f "${fetch_log}"
     base="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
 fi
 if [[ -z ${base} ]]; then
@@ -48,7 +59,7 @@ if [[ -z ${base} ]]; then
     echo "  the repository has no v* tag reachable here, so there is no baseline" >&2
     echo "  and no comparison was performed. This is NOT a clean apidiff result;" >&2
     echo "  reporting one would state API stability that nothing established." >&2
-    echo "  If the clone is shallow and tagless, fetch tags before this runs." >&2
+    echo "  The recovery fetch above says why it could not supply one." >&2
     exit 1
 fi
 printf '%s' "${base}" >"${output_dir}/base"
