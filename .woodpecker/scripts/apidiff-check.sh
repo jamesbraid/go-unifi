@@ -33,21 +33,35 @@ fi
 mkdir -p "${output_dir}"
 
 base="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+
+# Woodpecker clones with --no-tags --depth=1, so there were never any tags to
+# find here and this check has never compared anything. It reported "no
+# breaking changes against <no release tags>" and passed -- a pass that cannot
+# fail, which is worse than no check, because it was being read as evidence of
+# API stability. Fetch the tags, then insist on having one.
+if [[ -z ${base} ]]; then
+    git fetch --tags --quiet origin 2>/dev/null || true
+    base="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+fi
+if [[ -z ${base} ]]; then
+    echo "apidiff: no release tag to compare against" >&2
+    echo "  the repository has no v* tag reachable here, so there is no baseline" >&2
+    echo "  and no comparison was performed. This is NOT a clean apidiff result;" >&2
+    echo "  reporting one would state API stability that nothing established." >&2
+    echo "  If the clone is shallow and tagless, fetch tags before this runs." >&2
+    exit 1
+fi
 printf '%s' "${base}" >"${output_dir}/base"
 
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 breaking_file="${work}/breaking.txt"
 
-if [[ -n ${base} ]]; then
-    mkdir "${work}/base"
-    git archive "${base}" | tar -x -C "${work}/base"
-    (cd "${work}/base" && go run "${apidiff_module}" -m -w "${work}/base.export" "${module}")
-    go run "${apidiff_module}" -m -incompatible "${work}/base.export" "${module}" >"${work}/incompatible.txt"
-    grep -v '^- \./cmd/' "${work}/incompatible.txt" >"${breaking_file}" || true
-else
-    : >"${breaking_file}"
-fi
+mkdir "${work}/base"
+git archive "${base}" | tar -x -C "${work}/base"
+(cd "${work}/base" && go run "${apidiff_module}" -m -w "${work}/base.export" "${module}")
+go run "${apidiff_module}" -m -incompatible "${work}/base.export" "${module}" >"${work}/incompatible.txt"
+grep -v '^- \./cmd/' "${work}/incompatible.txt" >"${breaking_file}" || true
 
 {
     if [[ -s ${breaking_file} ]]; then
@@ -62,7 +76,7 @@ fi
         printf 'A maintainer must review. The auto-release job refuses to tag a\n'
         printf 'break, so tag by hand: an accepted minor, or a /v2 major.\n'
     else
-        printf 'No breaking API changes against `%s`.\n' "${base:-any release tag}"
+        printf 'No breaking API changes against `%s`.\n' "${base}"
     fi
 } >"${output_dir}/summary.md"
 
@@ -72,5 +86,5 @@ if [[ -s ${breaking_file} ]]; then
     cat "${breaking_file}" >&2
 else
     printf 'false' >"${output_dir}/breaking"
-    echo "apidiff: no breaking changes against ${base:-<no release tags>}" >&2
+    echo "apidiff: no breaking changes against ${base}" >&2
 fi
