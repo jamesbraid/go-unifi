@@ -37,17 +37,28 @@ func captureArtifact(
 	capturedAt time.Time,
 	inspect inspectorFunc,
 ) (capturelock.Lock, error) {
-	for name, value := range map[string]string{
-		"artifact path":   config.ArtifactPath,
-		"content store":   config.ContentStore,
-		"source location": config.SourceLocation,
-		"media type":      config.MediaType,
-		"product":         config.Product,
-		"build":           config.Build,
+	// Named by flag, all at once, in a fixed order. This used to range over a
+	// map and return on the first empty value, so with two inputs missing it
+	// reported an arbitrary one of them -- Go randomises map iteration, so
+	// which one was not even stable between runs. An operator fixed that one,
+	// re-ran, and was told about the next. It also said "media type", which is
+	// not something you can pass; -media-type is.
+	var missing []string
+	for _, required := range []struct {
+		flag  string
+		value string
+	}{
+		{"-file or -url", config.ArtifactPath},
+		{"-content-store (or GO_UNIFI_CONTENT_STORE)", config.ContentStore},
+		{"-source-location", config.SourceLocation},
 	} {
-		if strings.TrimSpace(value) == "" {
-			return capturelock.Lock{}, fmt.Errorf("%s is required", name)
+		if strings.TrimSpace(required.value) == "" {
+			missing = append(missing, required.flag)
 		}
+	}
+	missing = append(missing, requiredFlagInputs(config.MediaType, config.Product, config.Build)...)
+	if len(missing) > 0 {
+		return capturelock.Lock{}, fmt.Errorf("missing required input: %s", strings.Join(missing, ", "))
 	}
 	if inspect == nil {
 		return capturelock.Lock{}, errors.New("artifact inspector is required")
@@ -177,6 +188,37 @@ func findModuleRoot(dir string) string {
 	}
 }
 
+// fail reports an operator-facing error and exits. Every one of these was
+// panic(err), which printed a Go stack trace rooted in main.go for conditions
+// like "you did not pass -media-type". The trace names the tool's internals
+// when the thing that went wrong belongs to the caller, and it buries the one
+// line that says what to do under twenty that do not.
+// requiredFlagInputs names the inputs that come only from flags, in a fixed
+// order. Kept in one place because it is checked twice: once before the
+// artifact is fetched, so a missing flag costs nothing, and once inside
+// captureArtifact, which has callers other than main.
+func requiredFlagInputs(mediaType, product, build string) []string {
+	var missing []string
+	for _, required := range []struct {
+		flag  string
+		value string
+	}{
+		{"-media-type", mediaType},
+		{"-product", product},
+		{"-build", build},
+	} {
+		if strings.TrimSpace(required.value) == "" {
+			missing = append(missing, required.flag)
+		}
+	}
+	return missing
+}
+
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "schema-capture: %v\n", err)
+	os.Exit(1)
+}
+
 func main() {
 	artifactFile := flag.String("file", "", "Local controller artifact to capture")
 	artifactURL := flag.String("url", "", "Controller artifact URL to download and capture")
@@ -191,16 +233,22 @@ func main() {
 	capturedAtFlag := flag.String("captured-at", "", "Capture time in RFC3339 (default: current UTC time)")
 	flag.Parse()
 
+	// Before the artifact is fetched. This used to be checked only inside
+	// captureArtifact, which runs after the download, so a forgotten flag cost
+	// a 130 MB transfer and then reported itself as a panic.
+	if missing := requiredFlagInputs(*mediaType, *product, *build); len(missing) > 0 {
+		fail(fmt.Errorf("missing required input: %s", strings.Join(missing, ", ")))
+	}
 	if (*artifactFile == "") == (*artifactURL == "") {
-		panic("exactly one of -file or -url is required")
+		fail(errors.New("exactly one of -file or -url is required"))
 	}
 	wd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
 	moduleRoot := findModuleRoot(wd)
 	if moduleRoot == "" {
-		panic("unable to locate module root")
+		fail(errors.New("unable to locate module root: run this from inside the repository"))
 	}
 	if *output == "" {
 		*output = filepath.Join(moduleRoot, "schemas", "capture.lock.json")
@@ -209,25 +257,25 @@ func main() {
 		*sourceLocation = *artifactURL
 	}
 	if *contentStore == "" {
-		panic("-content-store or GO_UNIFI_CONTENT_STORE is required")
+		fail(errors.New("-content-store or GO_UNIFI_CONTENT_STORE is required"))
 	}
 
 	capturedAt := time.Now().UTC()
 	if *capturedAtFlag != "" {
 		capturedAt, err = time.Parse(time.RFC3339, *capturedAtFlag)
 		if err != nil {
-			panic(fmt.Errorf("parse captured-at: %w", err))
+			fail(fmt.Errorf("parse -captured-at: %w", err))
 		}
 	}
 	artifactPath := *artifactFile
 	var downloadDir string
 	if *artifactURL != "" {
 		if err := os.MkdirAll(*contentStore, 0o700); err != nil {
-			panic(err)
+			fail(err)
 		}
 		downloadDir, err = os.MkdirTemp(*contentStore, ".capture-download-*")
 		if err != nil {
-			panic(err)
+			fail(err)
 		}
 		defer os.RemoveAll(downloadDir)
 		artifactPath, err = downloadArtifact(
@@ -237,12 +285,12 @@ func main() {
 			downloadDir,
 		)
 		if err != nil {
-			panic(err)
+			fail(err)
 		}
 	}
 	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
 	lock, err := captureArtifact(captureConfig{
 		ArtifactPath:           artifactPath,
@@ -255,10 +303,10 @@ func main() {
 		UOSVersion:             *uosVersion,
 	}, inputs, capturedAt, inspectWithFields(moduleRoot))
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
 	if err := capturelock.WriteFile(*output, lock); err != nil {
-		panic(err)
+		fail(err)
 	}
 	fmt.Printf("proposed capture lock %s for sha256:%s\n", *output, lock.Source.SHA256)
 }
