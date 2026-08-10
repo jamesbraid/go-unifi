@@ -50,5 +50,9 @@ steps:
       - mkdir -p /tmp/apidiff /tmp/campaign-evidence
       - bash .woodpecker/scripts/apidiff-check.sh /tmp/apidiff
       - cp /tmp/apidiff/summary.md /tmp/campaign-evidence/apidiff-summary.md
+      # The verdict as a boolean, not only as prose. The gate has to decide how
+      # prominently to report a break, and deciding that by grepping a Markdown
+      # summary for its own heading would make the wording load-bearing.
+      - cp /tmp/apidiff/breaking /tmp/campaign-evidence/apidiff-breaking
       - ./campaigns/run-live.sh
       - bash .woodpecker/scripts/schema-gate.sh /tmp/campaign-evidence schema-update main
