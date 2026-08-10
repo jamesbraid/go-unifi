@@ -78,6 +78,15 @@ type LockedSources struct {
 	SemanticPredecessorSHA256  string
 }
 
+// FieldDocumentDigests maps each locked field-definition file name to its
+// SHA-256, as recorded by the capture in the lock.
+//
+// The definitions themselves are extracted from Ubiquiti's software and are
+// never committed, so scout cannot read them. The lock is what travels, which
+// is why the per-document digests have to live there for a projection to be
+// able to pin one.
+type FieldDocumentDigests map[string]string
+
 // Input contains the immutable structural and raw observed evidence for one
 // DNS run. ExecutionMode is either fixture or live; only a live run may carry
 // a provisioner receipt, controller version, and hashed controller identity
@@ -90,6 +99,7 @@ type Input struct {
 	Scenario                       Scenario
 	ExecutionMode                  string
 	LockedSources                  LockedSources
+	FieldDocumentDigests           FieldDocumentDigests
 	StructuralProjection           []byte
 	SemanticPredecessor            []byte
 	SemanticIDs                    []byte
@@ -109,9 +119,18 @@ type structuralProjection struct {
 	Fields        []structuralProjectionField `json:"fields"`
 }
 
+// structuralSource names the one locked field-definition document this
+// projection was taken from, and pins that document alone.
+//
+// It deliberately does not pin the whole structural snapshot. That digest
+// covers every field definition in the capture, so any override anywhere moves
+// it, and a projection pinned to it goes stale for surfaces the change never
+// touched -- which forces a re-pin that is indistinguishable, at the lock, from
+// a reviewed change to this document's own contents.
 type structuralSource struct {
-	StructuralSHA256  string `json:"structural_sha256"`
-	SensitivitySHA256 string `json:"sensitivity_sha256"`
+	FieldDocument       string `json:"field_document"`
+	FieldDocumentSHA256 string `json:"field_document_sha256"`
+	SensitivitySHA256   string `json:"sensitivity_sha256"`
 }
 
 type structuralProjectionField struct {
