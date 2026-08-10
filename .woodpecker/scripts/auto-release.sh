@@ -45,7 +45,19 @@ fi
 for attempt in 1 2 3; do
     git fetch --tags --quiet "${remote}" || true
     latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
-    latest="${latest:-v1.0.0}"
+    # No default. An empty tag list used to become v1.0.0, and the next lines
+    # turn that into a real pushed tag -- so a clone that simply could not see
+    # the tags (the fetch above is best-effort, and Woodpecker clones with
+    # --no-tags) would have published v1.1.0 while v1.103.0 already existed,
+    # walking the version backwards by 102 minors with --force behind it.
+    #
+    # There is no safe default for "the latest release". Absent is a refusal.
+    if [[ -z ${latest} ]]; then
+        echo "auto-release: no v* tag found, so the next version cannot be derived" >&2
+        echo "  refusing rather than assuming a baseline: the previous default of" >&2
+        echo "  v1.0.0 would tag v1.1.0 over a repository already past v1.100." >&2
+        exit 1
+    fi
     major="$(echo "${latest#v}" | cut -d. -f1)"
     minor="$(echo "${latest#v}" | cut -d. -f2)"
     tag="v${major}.$((minor + 1)).0"
