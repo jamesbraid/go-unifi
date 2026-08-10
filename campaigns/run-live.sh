@@ -13,16 +13,26 @@ set -euo pipefail
 # controller version -- was refused before anything ran.
 readonly builder_image=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
 readonly workflow=.woodpecker/m4-compatibility-campaigns.yml
-readonly target_profile=${CAMPAIGN_TARGET_PROFILE:-scout/profiles/network-10.4.57-seeded.json}
 readonly capture_lock=${CAMPAIGN_CAPTURE_LOCK:-schemas/capture.lock.json}
-
-if [[ ! -r ${target_profile} ]]; then
-    echo "target profile not readable: ${target_profile}" >&2
-    echo "  set CAMPAIGN_TARGET_PROFILE to a scout profile naming the controller under test" >&2
-    exit 1
-fi
 if [[ ! -r ${capture_lock} ]]; then
     echo "capture lock not readable: ${capture_lock}" >&2
+    exit 1
+fi
+lock_version=$(jq -er '.controller.network_version' "${capture_lock}")
+readonly lock_version
+
+# The profile follows the lock instead of naming a version here. A literal
+# default meant the capture pipeline could advance the lock to a new controller
+# while the campaign still reached for the old version's profile, and the two
+# then disagreed by construction -- the cross-check below would fire on every
+# upgrade, reporting a mismatch this script had caused itself.
+readonly target_profile=${CAMPAIGN_TARGET_PROFILE:-scout/profiles/network-${lock_version}-seeded.json}
+if [[ ! -r ${target_profile} ]]; then
+    echo "target profile not readable: ${target_profile}" >&2
+    echo "  the capture lock names Network ${lock_version}, so that is the profile required" >&2
+    echo "  a controller version with no profile has not been onboarded; produce one with" >&2
+    echo "  .woodpecker/scripts/onboard-controller-profile.sh ${lock_version}" >&2
+    echo "  or set CAMPAIGN_TARGET_PROFILE to the profile naming the controller under test" >&2
     exit 1
 fi
 
@@ -37,8 +47,6 @@ readonly locked_reference="${locked_repository}@${locked_index}"
 # which controller the committed schema was extracted from. Comparing them
 # catches the run that would otherwise succeed while proving nothing: a live
 # controller measured against a schema generated from a different version.
-lock_version=$(jq -er '.controller.network_version' "${capture_lock}")
-readonly lock_version
 if [[ ${locked_version} != "${lock_version}" ]]; then
     echo "target profile and capture lock disagree about the controller version" >&2
     echo "  profile      ${target_profile}: ${locked_version}" >&2
