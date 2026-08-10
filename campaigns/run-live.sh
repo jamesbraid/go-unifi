@@ -180,6 +180,24 @@ go run ./cmd/campaign-receipt \
     -provisioner-receipt "${provisioner_receipt}" \
     -output "${work_root}/runner-execution-receipt.json"
 
+# Seed before the scout reads, and keep it a step of its own.
+#
+# The scout performs one read-only GET and a freshly provisioned controller has
+# no static DNS records, so the first live campaigns observed an empty
+# collection: all eight declared fields unexercised, admission blocked,
+# classified capture_invalid. Nothing was wrong with the capture or the
+# controller -- there was nothing on it to look at.
+#
+# The write lives here rather than in the scenario on purpose. cmd/scout refuses
+# anything but the declared GET and the catalog refuses any mode other than
+# read_only, which is what lets a catalog claim cleanupPolicy
+# "not_required_read_only". A scout that cannot mutate its target is a property
+# worth keeping: it is what makes a campaign safe to aim at a controller that
+# matters. The campaign writes; the scout reads; the line between them stays
+# visible in the log.
+echo "seeding the target so the read-only scout has something to observe"
+go run ./cmd/campaign-seed
+
 go run ./cmd/scout \
     -target-profile "${target_profile}" \
     -target-receipt "${provisioner_receipt}" \
