@@ -14,8 +14,23 @@
 # these dirs (incl. the downloaded ace.jar).
 /cmd/fields/v*.*.*/
 
-# go build ./cmd/fields/ drops its binary here
+# `go build ./cmd/<name>` drops its binary at the repository root under the
+# command's own name, so every command needs an entry here. Only /fields had
+# one, which is how campaign-seed and schema-capture were committed as 8 MB
+# Mach-O executables.
+#
+# cmd/scout is deliberately absent: scout/ is a tracked directory, so the
+# pattern would shadow it -- and that same collision already makes the
+# mistake impossible, since go build refuses with "build output scout
+# already exists and is a directory".
+/campaign
+/campaign-receipt
+/campaign-seed
+/evidence-digest
 /fields
+/provisioner-receipt
+/rebuild-manifest
+/schema-capture
 
 # Local working docs (plans, handoffs, reviews); never committed
 /docs/superpowers/
