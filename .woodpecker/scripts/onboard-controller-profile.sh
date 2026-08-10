@@ -43,6 +43,10 @@ echo "onboarding ${profile_name}"
 # exactly, while `manifest inspect --verbose` returns a per-platform descriptor
 # that looks like an index digest and is not one.
 index=$(docker buildx imagetools inspect "${repository}:${tag}" --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+# Checked explicitly rather than with ${VAR:?message}. Measured: when the shell
+# dies from a :? expansion error, an EXIT trap observes $? as 0 and the script
+# exits 0 -- so every one of these checks reported success while doing nothing.
+# The trap form does not matter; any EXIT trap does it. Explicit exit 1 works.
 if [[ -z ${index} ]]; then
     echo "onboard: could not resolve the image index digest for ${repository}:${tag}" >&2
     echo "  the profile pins a digest, so a tag alone is not enough" >&2
@@ -64,13 +68,21 @@ echo "  RESOLVED image_manifest     ${manifest}  (${architecture})"
 work=$(mktemp -d)
 container=""
 cleanup() {
+    local status=$?
     [[ -n ${container} ]] && docker rm -f "${container}" >/dev/null 2>&1
     rm -rf "${work}"
+    exit "${status}"
 }
 trap cleanup EXIT
 
-: "${UNIFI_USERNAME:?UNIFI_USERNAME is required to measure the controller}"
-: "${UNIFI_PASSWORD:?UNIFI_PASSWORD is required to measure the controller}"
+if [[ -z ${UNIFI_USERNAME:-} ]]; then
+    echo "UNIFI_USERNAME is required to measure the controller" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_PASSWORD:-} ]]; then
+    echo "UNIFI_PASSWORD is required to measure the controller" >&2
+    exit 1
+fi
 # Two topologies. In Woodpecker the controller joins the step's network
 # namespace, which is the arrangement run-live.sh proved works on this pool.
 # Locally there is no step container to join, so publish the port instead.

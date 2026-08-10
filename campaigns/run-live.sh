@@ -98,10 +98,26 @@ jq -cn \
     >>"${outer_ledger}"
 sync
 
-: "${HOSTNAME:?HOSTNAME must identify the Woodpecker step container}"
-: "${UNIFI_NETWORK_IMAGE:?UNIFI_NETWORK_IMAGE must name the locked Network image}"
-: "${UNIFI_USERNAME:?UNIFI_USERNAME is required}"
-: "${UNIFI_PASSWORD:?UNIFI_PASSWORD is required}"
+# Checked explicitly rather than with ${VAR:?message}. Measured: when the shell
+# dies from a :? expansion error, an EXIT trap observes $? as 0 and the script
+# exits 0 -- so every one of these checks reported success while doing nothing.
+# The trap form does not matter; any EXIT trap does it. Explicit exit 1 works.
+if [[ -z ${HOSTNAME:-} ]]; then
+    echo "HOSTNAME must identify the Woodpecker step container" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_NETWORK_IMAGE:-} ]]; then
+    echo "UNIFI_NETWORK_IMAGE must name the locked Network image" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_USERNAME:-} ]]; then
+    echo "UNIFI_USERNAME is required" >&2
+    exit 1
+fi
+if [[ -z ${UNIFI_PASSWORD:-} ]]; then
+    echo "UNIFI_PASSWORD is required" >&2
+    exit 1
+fi
 
 # The assertion is unchanged in kind: the image handed to this run must be the
 # image the target profile says to test. Only its source moved, from a literal
