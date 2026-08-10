@@ -57,6 +57,17 @@ echo "gate: classification=${classification}"
 # the live controller returned a field the structural projection does not
 # declare, and type_mismatch, with both types named. A blocked admission with no
 # conflicts means the coverage was incomplete instead.
+# admission.state is NOT in the attestation -- it lives in the candidate catalog
+# the campaign leaves beside it. Both halves of the condition that produced the
+# verdict have to be visible, or a reader can only see one of the two things
+# that could have caused it.
+readonly candidate_catalog="${evidence_dir}/candidate.catalog.json"
+if [[ -r ${candidate_catalog} ]]; then
+    echo "gate: admission.state=$(jq -r '.admission.state // "absent"' "${candidate_catalog}")"
+else
+    echo "gate: admission.state unavailable (${candidate_catalog} not readable)"
+fi
+
 conflict_count="$(jq -r '(.conflicts // []) | length' "${attestation}")"
 if [[ ${conflict_count} -gt 0 ]]; then
     echo "gate: ${conflict_count} conflict(s) behind that verdict:"
