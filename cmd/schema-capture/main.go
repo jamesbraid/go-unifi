@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -227,6 +229,14 @@ func requiredFlagInputs(mediaType, product, build string) []string {
 	return missing
 }
 
+// sameLock compares two locks by their serialized form, so a field added later
+// is included automatically rather than silently escaping the comparison.
+func sameLock(a, b capturelock.Lock) bool {
+	left, leftErr := json.Marshal(a)
+	right, rightErr := json.Marshal(b)
+	return leftErr == nil && rightErr == nil && bytes.Equal(left, right)
+}
+
 func fail(err error) {
 	fmt.Fprintf(os.Stderr, "schema-capture: %v\n", err)
 	os.Exit(1)
@@ -330,6 +340,26 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	// Keep the previous timestamp when nothing else moved. captured_at is the
+	// only field that changes on a re-capture of identical bytes, and letting
+	// it change is not cosmetic churn: the catalog pins the lock's own sha256,
+	// and the provider pins the catalog's, so a new timestamp on an otherwise
+	// identical capture would walk a digest that two repositories agree on --
+	// for no observation that differed.
+	//
+	// It also makes the no-diff outcome reachable at all. With the timestamp
+	// always moving, a capture of the locked version produced a one-line diff,
+	// which is a commit, a branch push, a live campaign and a pull request
+	// proposing nothing.
+	if previousLock, prevErr := capturelock.LoadFile(*output); prevErr == nil {
+		comparable := lock
+		comparable.CapturedAt = previousLock.CapturedAt
+		if sameLock(comparable, previousLock) {
+			lock.CapturedAt = previousLock.CapturedAt
+			fmt.Println("capture is identical to the committed lock; keeping its captured_at")
+		}
+	}
+
 	if err := capturelock.WriteFile(*output, lock); err != nil {
 		fail(err)
 	}
