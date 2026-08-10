@@ -12,8 +12,13 @@
 #
 #   woodpecker-cli pipeline create --branch main infra/go-unifi \
 #     --var artifact_url=... --var build_identity=... --var network_version=...
+# The evaluate guard is the complement of onboard-profile.yml's. Every
+# `event: manual` pipeline in this repository fires on every manual trigger, so
+# onboarding a controller also started a capture and a campaign. Substitution
+# happens before parsing, so an unset variable is the empty string here.
 when:
   - event: manual
+    evaluate: '"${onboard_version}" == ""'
 
 labels:
   pool: skunkworks
