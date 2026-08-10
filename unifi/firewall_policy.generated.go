@@ -119,7 +119,9 @@ func (dst *FirewallPolicyDestination) UnmarshalJSON(b []byte) error {
 
 type FirewallPolicySchedule struct {
 	Date           string   `json:"date,omitempty"`
-	Mode           string   `json:"mode,omitempty"`           // ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY
+	DateEnd        string   `json:"date_end,omitempty"`
+	DateStart      string   `json:"date_start,omitempty"`
+	Mode           string   `json:"mode,omitempty"`           // ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY|CUSTOM
 	RepeatOnDays   []string `json:"repeat_on_days,omitempty"` // mon|tue|wed|thu|fri|sat|sun
 	TimeAllDay     bool     `json:"time_all_day"`
 	TimeRangeEnd   string   `json:"time_range_end,omitempty"`
