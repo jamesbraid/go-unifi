@@ -1,0 +1,118 @@
+---
+name: Auto Release
+
+# Tag and release automatically when a schema update lands on main. Keyed on
+# the tracked cache markers rather than the generated version file so that
+# same-version refreshes (e.g. a UniFi OS Server repackage changing SOURCE
+# but not VERSION) still release; generator-only changes stay manually
+# tagged. If the pushed commit breaks the public Go API vs the latest tag,
+# no tag is created: a human must either accept the break and tag the next
+# minor by hand, or do the /v2 module-path major.
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'schemas/VERSION'
+      - 'schemas/SOURCE'
+      - 'schemas/ARTIFACT'
+
+permissions:
+  contents: write
+
+# Serialize runs: two quick merges must not race the same next-tag
+# computation and leave the loser's commit permanently untagged.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    # Releases are cut at the public publish point (a deployment whose only
+    # forge is elsewhere changes this guard), and never off a
+    # branch-creation push: publishing an existing history must not mint a
+    # release on arrival.
+    if: github.server_url == 'https://github.com' && github.event.created == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      created: ${{ steps.tag.outputs.created }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      # Refuse to auto-tag a minor release when the pushed commit breaks
+      # the public Go API vs the latest tag. Same apidiff check as in
+      # capture.yaml (a merge can land without going through it, e.g. a
+      # manual push or an edited PR), with the baseline extracted from
+      # the local tag via git archive rather than the module proxy.
+      # cmd/ holds main packages, not importable API, so it is ignored.
+      # A major bump requires a /v2 module-path change — a manual
+      # decision — so on breakage no tag is pushed and a human decides.
+      - name: Check API compatibility
+        id: compat
+        run: |
+          if [ -n "$(git tag --points-at HEAD)" ]; then
+            echo "breaking=false" >> "$GITHUB_OUTPUT"
+            echo "HEAD is already tagged; skipping the API check"
+            exit 0
+          fi
+          go run ./cmd/apidiff
+
+      - name: Report breaking changes
+        if: steps.compat.outputs.breaking == 'true'
+        env:
+          SUMMARY: ${{ steps.compat.outputs.summary }}
+          BASE: ${{ steps.compat.outputs.base }}
+        run: |
+          echo "::warning::Breaking API changes vs ${BASE}; not tagging. Review and push a tag manually (accepted minor, or /v2 major)."
+          printf '%s\n' "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create next minor tag
+        if: steps.compat.outputs.breaking != 'true'
+        id: tag
+        run: |
+          if [ -n "$(git tag --points-at HEAD)" ]; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "HEAD is already tagged; nothing to do"
+            exit 0
+          fi
+          # Retry against races with manually pushed tags: refetch,
+          # recompute, try again.
+          for attempt in 1 2 3; do
+            git fetch --tags --quiet origin
+            latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+            latest="${latest:-v1.0.0}"
+            major="$(echo "${latest#v}" | cut -d. -f1)"
+            minor="$(echo "${latest#v}" | cut -d. -f2)"
+            tag="v${major}.$((minor + 1)).0"
+            git tag --force "${tag}"
+            if git push origin "${tag}"; then
+              echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+              echo "created=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git tag --delete "${tag}"
+            echo "tag push rejected (attempt ${attempt}); refetching tags"
+          done
+          echo "unable to push a release tag after 3 attempts" >&2
+          exit 1
+
+  # Tags pushed with the workflow token do not trigger the tag-push release
+  # workflow, so invoke it directly.
+  release:
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yaml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}

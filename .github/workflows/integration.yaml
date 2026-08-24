@@ -1,0 +1,138 @@
+---
+name: Integration
+
+# One integration suite, run against two harnesses as a matrix, aggregated
+# into a single required check.
+#
+#   UniFi Network     the suite against the standalone -sim image on amd64
+#   UniFi OS Server   the suite against the full UOS -sim on arm64
+#                     (UNIFI_TEST_HARNESS=uos) plus the UOS-only gateway probe.
+#                     UOS boots the full stack that hosts the gateway features
+#                     (BGP, firewall zones, route-based IPsec) the standalone
+#                     rejects; ubuntu-24.04-arm is the native runner
+#                     unifi-containers health-gates UOS on.
+#   Integration       the aggregate parent -- require THIS in branch
+#                     protection, not the per-leg checks (see the job below).
+#
+# Each leg reports its own check via name: ${{ matrix.name }} (GitHub uses the
+# resolved job name as the check context). Both always trigger and decide
+# internally whether to boot: a path-filtered required check never reports on
+# non-matching PRs and hangs forever on "Expected", so each config reports on
+# every PR and only boots when an integration-relevant path changed.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: 30 1 * * *
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: UniFi Network
+            runner: ubuntu-latest
+            harness: network
+          - name: UniFi OS Server
+            runner: ubuntu-24.04-arm
+            harness: uos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # On a PR, boot only when an integration-relevant path changed; on
+      # schedule and dispatch there is no diff, so always boot. The filter
+      # reads the PR file list from the API, so no deep clone is needed.
+      - name: Detect integration-relevant changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            integration:
+              - 'schemas/**'
+              - 'overrides/**'
+              - 'unifi/**'
+              - 'cmd/fields/**'
+              - 'internal/controllertest/**'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/**'
+
+      - name: Setup Go
+        if: github.event_name != 'pull_request' || steps.filter.outputs.integration == 'true'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      # Emulated devices are containers started by unifi-emu-herder, which the
+      # suite consumes as a process rather than as a Go dependency: its API is
+      # internal to unifi-emu and its supported surface is the stdout protocol.
+      # unifi-emu owns the install recipe as an action, so this is one pinned
+      # `uses` rather than a download and checksum check copied into here.
+      #
+      # The digest is the whole version pin: the action reads the release to
+      # install from a VERSION file beside itself, and a release binary
+      # compiles in the synthetic image built from the same tag. So this names
+      # a version once, and nothing passes --synthetic-image or builds an image.
+      - name: Install unifi-emu-herder
+        id: herder
+        if: github.event_name != 'pull_request' || steps.filter.outputs.integration == 'true'
+        uses: jamesbraid/unifi-emu/.github/actions/install-herder@0e4fc0e83dc418f3196ec5ecb580cc6085354cb1 # v0.5.1
+
+      # The suite is identical; only the harness env differs. Standalone pins
+      # the -sim tag from schemas/VERSION -- a missing tag fails the pull
+      # inside the harness, a red check, the honest outcome. UOS routes
+      # StartForHarness at StartUOS and un-gates the UOS-only gateway probe;
+      # each test boots its own container, so the ~2GB pull (once, then cached)
+      # plus several systemd boots is why UOS wants the arm64 runner and a wide
+      # timeout. UNIFI_TEST_REQUIRE makes a missing daemon fail rather than
+      # skip: a required gate must never be satisfiable by a skip.
+      - name: Run integration suite (${{ matrix.harness }})
+        if: github.event_name != 'pull_request' || steps.filter.outputs.integration == 'true'
+        env:
+          HARNESS: ${{ matrix.harness }}
+          UNIFI_TEST_HERDER_BIN: ${{ steps.herder.outputs.path }}
+        run: |
+          set -euo pipefail
+          if [ "$HARNESS" = uos ]; then
+            export UNIFI_TEST_HARNESS=uos UNIFI_UOS_TEST=1
+          else
+            version="$(cat schemas/VERSION)"
+            export UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim"
+            export UNIFI_TEST_EXPECT_VERSION="$version"
+          fi
+          UNIFI_TEST_REQUIRE=1 \
+            go test -tags integration -p 1 -timeout 40m -v \
+            ./internal/controllertest/ ./cmd/fields/ ./unifi/ -run 'TestIntegration'
+
+  # Aggregate the matrix into one required check. GitHub creates a check per
+  # matrix leg (UniFi Network, UniFi OS Server) but no parent, so branch
+  # protection would otherwise have to require each leg by name and be edited
+  # whenever a harness is added. Require this "Integration" check instead: it
+  # runs always() so it reports on every PR, and passes only when the whole
+  # suite matrix succeeded (needs.suite.result aggregates every leg).
+  integration:
+    name: Integration
+    needs: suite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every harness leg to pass
+        run: |
+          result='${{ needs.suite.result }}'
+          echo "integration suite matrix result: ${result}"
+          [ "${result}" = success ] || exit 1
