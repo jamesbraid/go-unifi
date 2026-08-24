@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -33,26 +34,52 @@ func main() {
 }
 
 func run(stdout, stderr io.Writer) int {
-	base, err := latestTag()
-	if err != nil {
-		fmt.Fprintf(stderr, "resolve baseline tag: %v\n", err)
-		return 1
+	flags := flag.NewFlagSet("go-unifi apidiff", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	baseFlag := flags.String("base", "", "baseline tag (default: latest v* tag)")
+	markdown := flags.Bool("markdown", false, "print the markdown summary to stdout")
+	if err := flags.Parse(os.Args[1:]); err != nil {
+		return 2
 	}
-	var breaking []string
+	base := *baseFlag
+	if base == "" {
+		var err error
+		base, err = latestTag()
+		if err != nil {
+			fmt.Fprintf(stderr, "resolve baseline tag: %v\n", err)
+			return 1
+		}
+	}
+	var breaking, wireAdded, wireRemoved []string
 	if base != "" {
-		breaking, err = incompatibilities(base)
+		baseTree, cleanup, err := extractBase(base)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		defer cleanup()
+		breaking, err = incompatibilities(baseTree)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		wireAdded, wireRemoved, err = wireSurfaceDelta(baseTree)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
 	}
-	for _, line := range breaking {
-		fmt.Fprintln(stdout, line)
+	if *markdown {
+		fmt.Fprintln(stdout, summaryMarkdown(base, breaking, wireAdded, wireRemoved))
+	} else {
+		for _, line := range breaking {
+			fmt.Fprintln(stdout, line)
+		}
 	}
 	if len(breaking) == 0 {
 		fmt.Fprintf(stderr, "no breaking API changes against %s\n", orNone(base))
 	}
-	if err := writeGitHubOutput(base, breaking); err != nil {
+	if err := writeGitHubOutput(base, breaking, wireAdded, wireRemoved); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -60,6 +87,43 @@ func run(stdout, stderr io.Writer) int {
 	// callers proceed (capture still opens the PR, auto-release still
 	// summarizes) and branch on the `breaking` output.
 	return 0
+}
+
+// extractBase materializes the baseline tag into a scratch tree via git
+// archive, so both the API and wire-surface comparisons read the same
+// bytes.
+func extractBase(base string) (string, func(), error) {
+	scratch, err := os.MkdirTemp("", "go-unifi-apidiff")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { os.RemoveAll(scratch) }
+	baseTree := filepath.Join(scratch, "base")
+	if err := os.Mkdir(baseTree, 0o755); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	archive := exec.Command("git", "archive", base)
+	untar := exec.Command("tar", "-x", "-C", baseTree)
+	untar.Stdin, err = archive.StdoutPipe()
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	untar.Stderr = os.Stderr
+	if err := untar.Start(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := archive.Run(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("git archive %s: %w", base, err)
+	}
+	if err := untar.Wait(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("extract %s: %w", base, err)
+	}
+	return baseTree, cleanup, nil
 }
 
 func latestTag() (string, error) {
@@ -74,38 +138,10 @@ func latestTag() (string, error) {
 	return tags[0], nil
 }
 
-// incompatibilities extracts the baseline tag into a scratch tree, builds
-// its export data, and returns the incompatible changes that gate a
-// release.
-func incompatibilities(base string) ([]string, error) {
-	scratch, err := os.MkdirTemp("", "go-unifi-apidiff")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(scratch)
-
-	baseTree := filepath.Join(scratch, "base")
-	if err := os.Mkdir(baseTree, 0o755); err != nil {
-		return nil, err
-	}
-	archive := exec.Command("git", "archive", base)
-	untar := exec.Command("tar", "-x", "-C", baseTree)
-	untar.Stdin, err = archive.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	untar.Stderr = os.Stderr
-	if err := untar.Start(); err != nil {
-		return nil, err
-	}
-	if err := archive.Run(); err != nil {
-		return nil, fmt.Errorf("git archive %s: %w", base, err)
-	}
-	if err := untar.Wait(); err != nil {
-		return nil, fmt.Errorf("extract %s: %w", base, err)
-	}
-
-	export := filepath.Join(scratch, "base.export")
+// incompatibilities builds the baseline tree's export data and returns the
+// incompatible changes that gate a release.
+func incompatibilities(baseTree string) ([]string, error) {
+	export := filepath.Join(filepath.Dir(baseTree), "base.export")
 	build := exec.Command("go", "run", apidiffModule, "-m", "-w", export, modulePath)
 	build.Dir = baseTree
 	build.Stderr = os.Stderr
@@ -134,21 +170,87 @@ func filterIncompatibilities(lines []string) []string {
 	return kept
 }
 
-func writeGitHubOutput(base string, breaking []string) error {
-	path := os.Getenv("GITHUB_OUTPUT")
-	if path == "" {
-		return nil
-	}
-	output, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer output.Close()
+// wireBaselinePath records every field the generated marshalers send
+// unconditionally; a diff of it between releases is the wire-surface
+// change apidiff's compile-time view cannot see (struct tags are not API
+// to the type checker, but omitempty is a wire contract).
+const wireBaselinePath = "unifi/testdata/always_serialized_fields.txt"
 
-	isBreaking := "false"
-	if len(breaking) > 0 {
-		isBreaking = "true"
+func wireSurfaceDelta(baseTree string) (added, removed []string, err error) {
+	baseLines, err := baselineLines(filepath.Join(baseTree, wireBaselinePath))
+	if err != nil {
+		return nil, nil, err
 	}
+	currentLines, err := baselineLines(wireBaselinePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	added, removed = wireDelta(baseLines, currentLines)
+	return added, removed, nil
+}
+
+// baselineLines tolerates a missing file: a baseline that predates the
+// write-shape guard compares as empty rather than failing the run.
+func baselineLines(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var lines []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines, nil
+}
+
+func wireDelta(base, current []string) (added, removed []string) {
+	inBase := make(map[string]bool, len(base))
+	for _, line := range base {
+		inBase[line] = true
+	}
+	inCurrent := make(map[string]bool, len(current))
+	for _, line := range current {
+		inCurrent[line] = true
+		if !inBase[line] {
+			added = append(added, line)
+		}
+	}
+	for _, line := range base {
+		if !inCurrent[line] {
+			removed = append(removed, line)
+		}
+	}
+	return added, removed
+}
+
+func wireSection(base string, added, removed []string) string {
+	if len(added) == 0 && len(removed) == 0 {
+		return fmt.Sprintf("No wire-surface changes against `%s`: the always-serialized field set is unchanged.", orNone(base))
+	}
+	var section strings.Builder
+	fmt.Fprintf(&section, "**Wire surface** vs `%s` (fields the marshalers always send; invisible to apidiff):\n\n```\n", base)
+	for _, line := range added {
+		fmt.Fprintf(&section, "+ %s\n", line)
+	}
+	for _, line := range removed {
+		fmt.Fprintf(&section, "- %s\n", line)
+	}
+	section.WriteString("```\n")
+	if len(added) > 0 {
+		section.WriteString("+ now always sent (a zero value reaches the controller and is stored)\n")
+	}
+	if len(removed) > 0 {
+		section.WriteString("- no longer always sent (an unset value stays off the wire)\n")
+	}
+	return strings.TrimRight(section.String(), "\n")
+}
+
+func summaryMarkdown(base string, breaking, wireAdded, wireRemoved []string) string {
 	var summary strings.Builder
 	if len(breaking) > 0 {
 		fmt.Fprintf(&summary, "**Breaking API changes** against `%s` (apidiff):\n\n```\n", base)
@@ -165,7 +267,32 @@ func writeGitHubOutput(base string, breaking []string) error {
 		fmt.Fprintf(&summary, "No breaking API changes against `%s`.\n", orNone(base))
 		summary.WriteString("A maintainer must still review the lock and generated diff.")
 	}
-	_, err = fmt.Fprintf(output, "base=%s\nbreaking=%s\nsummary<<APIDIFF_SUMMARY\n%s\nAPIDIFF_SUMMARY\n", base, isBreaking, summary.String())
+	summary.WriteString("\n\n")
+	summary.WriteString(wireSection(base, wireAdded, wireRemoved))
+	return summary.String()
+}
+
+func writeGitHubOutput(base string, breaking, wireAdded, wireRemoved []string) error {
+	path := os.Getenv("GITHUB_OUTPUT")
+	if path == "" {
+		return nil
+	}
+	output, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	isBreaking := "false"
+	if len(breaking) > 0 {
+		isBreaking = "true"
+	}
+	wireChanged := "false"
+	if len(wireAdded)+len(wireRemoved) > 0 {
+		wireChanged = "true"
+	}
+	_, err = fmt.Fprintf(output, "base=%s\nbreaking=%s\nwire_changed=%s\nsummary<<APIDIFF_SUMMARY\n%s\nAPIDIFF_SUMMARY\n",
+		base, isBreaking, wireChanged, summaryMarkdown(base, breaking, wireAdded, wireRemoved))
 	return err
 }
 
