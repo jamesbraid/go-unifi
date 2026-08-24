@@ -1,0 +1,8 @@
+{
+    "cloud_template": "",
+    "default_zone": "true|false",
+    "external_id": "",
+    "name": "",
+    "network_ids": [""],
+    "zone_key": ""
+}

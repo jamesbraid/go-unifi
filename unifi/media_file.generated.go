@@ -1,4 +1,4 @@
-// Code generated from ace.jar fields *.json files
+// Code generated from the controller schema in the capture lock
 // DO NOT EDIT.
 
 package unifi
@@ -148,6 +148,50 @@ func (c *ApiClient) createMediaFile(
 
 	res := respBody.Data[0]
 
+	return &res, nil
+}
+
+// UpdateMediaFileFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateMediaFileFields(ctx context.Context, site string, d *MediaFile, fields ...string) (*MediaFile, error) {
+	return c.updateMediaFileFields(ctx, site, d, fields)
+}
+
+// updateMediaFileFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateMediaFileFields(
+	ctx context.Context,
+	site string,
+	d *MediaFile,
+	fields []string,
+) (*MediaFile, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta        `json:"meta"`
+		Data []MediaFile `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/mediafile/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getMediaFile(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
 	return &res, nil
 }
 

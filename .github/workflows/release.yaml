@@ -5,21 +5,42 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing tag to release
+        required: true
+        type: string
+
 jobs:
   goreleaser:
+    # Releases are cut at the public publish point. A deployment whose only
+    # forge is elsewhere changes this guard.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-      
+
       - name: Setup Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
+
+      # Branch protection gates merges to main, but nothing re-checks a tag,
+      # so gate the release itself: a tag on an untested or off-main commit
+      # fails here instead of publishing. Unit and schema tests only — the
+      # docker-backed integration gate ran when the code merged.
+      - name: Run tests
+        run: go test ./...
+
+      - name: Read the controller train
+        run: echo "CONTROLLER_VERSION=$(cat schemas/VERSION)" >> "$GITHUB_ENV"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3

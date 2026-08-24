@@ -11,7 +11,7 @@
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/fields",
       "cwd": "${workspaceFolder}",
-      "args": ["-version-base-dir", "./cmd/fields/",  "-output-dir", "./unifi/", "-latest"]
+      "args": ["-output-dir", "./unifi/", "-verify-lock-only"]
     }
   ]
 }

@@ -1,0 +1,171 @@
+---
+name: capture
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_url:
+        description: Exact controller artifact URL
+        required: true
+        type: string
+      product:
+        description: Controller product identity
+        required: true
+        default: unifi-controller
+        type: string
+      build_identity:
+        description: Full controller build identity
+        required: true
+        type: string
+      network_version:
+        description: Expected UniFi Network version
+        required: true
+        type: string
+      uos_version:
+        description: UniFi OS version, when applicable
+        required: false
+        type: string
+      media_type:
+        description: Controller artifact media type
+        required: true
+        default: application/vnd.debian.binary-package
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  fields:
+    runs-on: ubuntu-latest
+    # Bounds the damage of a malformed artifact: the download and nested
+    # decompression are otherwise unbounded work.
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history so the release tags are available as the API
+          # compatibility baseline.
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Prepare ephemeral content store
+        run: echo "GO_UNIFI_CONTENT_STORE=$RUNNER_TEMP/go-unifi-content-store" >> "$GITHUB_ENV"
+
+      # Capture is explicit. The job never queries "latest," and its ephemeral
+      # store is not promotion evidence. A maintainer must retain the exact
+      # digest in the restricted store before merging the proposed lock.
+      - name: Capture selected controller artifact
+        id: capture
+        env:
+          ARTIFACT_URL: ${{ inputs.artifact_url }}
+          PRODUCT: ${{ inputs.product }}
+          BUILD_IDENTITY: ${{ inputs.build_identity }}
+          NETWORK_VERSION: ${{ inputs.network_version }}
+          UOS_VERSION: ${{ inputs.uos_version }}
+          MEDIA_TYPE: ${{ inputs.media_type }}
+        run: |
+          set -euo pipefail
+          captured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          go run ./cmd/schema-capture \
+            -url="$ARTIFACT_URL" \
+            -media-type="$MEDIA_TYPE" \
+            -product="$PRODUCT" \
+            -build="$BUILD_IDENTITY" \
+            -network-version="$NETWORK_VERSION" \
+            -uos-version="$UOS_VERSION" \
+            -captured-at="$captured_at"
+          echo "identity=${PRODUCT} ${BUILD_IDENTITY}" >> "$GITHUB_OUTPUT"
+
+      # The regeneration diff is the discovered surface: whatever the new
+      # capture changes shows up as the working-tree diff on this PR.
+      - name: Generate
+        run: go generate ./...
+
+      - name: Record generated output digest
+        run: go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
+
+      # Controller schema drift can break the public Go API (removed
+      # fields, type changes such as []string -> []struct). Compare the
+      # regenerated working tree against the latest release tag with
+      # apidiff. The baseline is extracted from the local tag via git
+      # archive rather than fetched through the module proxy: gorelease
+      # cannot do that, and the proxy may not yet serve (or may have
+      # cached a 404 for) a tag that auto-release pushed recently.
+      # cmd/ holds main packages, which are not importable API, so
+      # incompatibilities there are ignored.
+      - name: Check API compatibility
+        id: compat
+        run: go run ./cmd/apidiff
+
+      # A PR created with the workflow token fires no workflows: the schema
+      # PR would sit ungated (or hang on required checks) with nothing
+      # reporting. Refuse to open one without a real credential.
+      - name: Require a PR credential
+        env:
+          HAS_UPDATE_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN }}
+          HAS_BOT_APP: ${{ vars.SCHEMA_BOT_APP_ID }}
+        run: |
+          if [ -z "$HAS_BOT_APP" ] && [ -z "$HAS_UPDATE_TOKEN" ]; then
+            echo "::error::configure the schema-bot app (SCHEMA_BOT_APP_ID + SCHEMA_BOT_PRIVATE_KEY) or SCHEMA_UPDATE_TOKEN; a github.token PR triggers no CI"
+            exit 1
+          fi
+
+      # Prefer a short-lived schema-bot token; SCHEMA_UPDATE_TOKEN is the
+      # fallback when the app is not configured.
+      - name: Mint bot token
+        if: vars.SCHEMA_BOT_APP_ID != ''
+        id: bot
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SCHEMA_BOT_APP_ID }}
+          private-key: ${{ secrets.SCHEMA_BOT_PRIVATE_KEY }}
+
+      - name: Create pull request
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN }}
+          branch: schema-update
+          delete-branch: true
+          title: Update to ${{ steps.capture.outputs.identity }}
+          commit-message: |
+            schemas: update to ${{ steps.capture.outputs.identity }}
+
+            Regenerate from the operator-selected controller artifact and
+            record its immutable capture lock.
+          body: |
+            Schema refresh for `${{ steps.capture.outputs.identity }}`.
+
+            Before merge, retain the captured digest in the restricted store
+            and review the lock, generated API diff, and integration evidence.
+
+            ${{ steps.compat.outputs.summary }}
+
+      # Breaking drift still gets a PR, but a human decides the merge and
+      # the version bump. The label makes the state visible at a glance;
+      # the apidiff output is already in the PR body (updated in place on
+      # every rerun, unlike comments, which would pile up).
+      - name: Flag breaking change
+        if: >-
+          steps.pr.outputs.pull-request-number != '' &&
+          steps.compat.outputs.breaking == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+        run: |
+          gh label create breaking-schema-change \
+            --repo "${{ github.repository }}" \
+            --color B60205 \
+            --description "Schema drift breaks the public Go API" \
+            --force
+          gh pr edit "${{ steps.pr.outputs.pull-request-number }}" \
+            --repo "${{ github.repository }}" \
+            --add-label breaking-schema-change

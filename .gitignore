@@ -1,30 +1,36 @@
-# Cache
-/fields/v*.*.*/
+# Extracted schema cache. Deliberately not committed: the definitions are
+# extracted from Ubiquiti's software at build time and not redistributed.
+# Only the VERSION/SOURCE markers and README are tracked.
+/schemas/fields/
+/schemas/metadata/
+
+# Workspace scratch for the generator (downloads, jar extraction, staging).
+# Same filesystem as schemas/ so the cache swap is an atomic rename; the Go
+# toolchain ignores dot-directories. No auto-sweep: a hard-killed run can
+# leave debris here - delete freely.
+/.tmp/
+
+# Legacy schema cache from an older layout; old checkouts may still have
+# these dirs (incl. the downloaded ace.jar).
 /cmd/fields/v*.*.*/
+
+# `go build ./cmd/<name>` drops its binary at the repository root under the
+# command's own name, so every command needs an entry here.
+/apidiff
+/fields
+/rebuild-manifest
+/schema-capture
+
+# Local Go workspace; per-machine, never committed.
+/go.work
+/go.work.sum
 
 # goreleaser
 /dist/
-provider
 .DS_Store
-
 *.dll
 *.exe
-.DS_Store
-example.tf
-terraform.tfplan
-terraform.tfstate
 bin/
-dist/
-modules-dev/
-/pkg/
-website/.vagrant
-website/.bundle
-website/build
-website/node_modules
-.vagrant/
-*.backup
-./*.tfstate
-.terraform/
 *.log
 *.bak
 *~
@@ -32,15 +38,7 @@ website/node_modules
 .idea
 *.iml
 *.test
-*.iml
 
-website/vendor
-
-# Test exclusions
-!command/test-fixtures/**/*.tfstate
-!command/test-fixtures/**/.terraform/
-
-# Keep windows files with windows line endings
-*.winfile eol=crlf
-
-/scripts
+# Content-addressed cache of downloaded controller artifacts. Hundreds of
+# megabytes, and never repository content -- it was committed once already.
+.content-store/

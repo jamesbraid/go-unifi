@@ -1,0 +1,49 @@
+---
+name: rebuild
+
+# Prove the committed tree re-derives from the public artifact on a stock
+# runner: fetch the locked artifact from its public URL, regenerate from
+# scratch, and diff the result against the committed output digest and the
+# working tree. Replaces a heavier hermetic double-build.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: ['**']
+    paths:
+      - 'schemas/**'
+      - 'overrides/**'
+      - 'cmd/fields/**'
+      - 'unifi/**'
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+      - name: fetch the locked artifact
+        run: |
+          set -eu
+          url=$(jq -er '.source.location' schemas/capture.lock.json)
+          sha=$(jq -er '.source.sha256' schemas/capture.lock.json)
+          store="$RUNNER_TEMP/content-store"
+          mkdir -p "$store/sha256"
+          curl --fail --location --silent --show-error --output "$store/sha256/$sha" "$url"
+          echo "$sha  $store/sha256/$sha" | sha256sum --check -
+          echo "GO_UNIFI_CONTENT_STORE=$store" >> "$GITHUB_ENV"
+      - name: regenerate from scratch and compare
+        run: |
+          set -eu
+          go generate ./...
+          go run ./cmd/rebuild-manifest -root=. > /tmp/manifest
+          diff /tmp/manifest schemas/GENERATED_SHA256
+          git diff --exit-code

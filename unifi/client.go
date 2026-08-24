@@ -6,11 +6,18 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+
+	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
 
 // GetClientByMAC returns slightly different information than GetClient, as they
 // use separate endpoints for their lookups. Specifically IP is only returned
 // by this method.
+//
+// The lookup compares MAC addresses by value, not by formatting: the
+// caller's argument and the controller's are both normalised first, so
+// passing AA:BB:CC:DD:EE:FF or aa-bb-cc-dd-ee-ff finds the same client
+// instead of silently missing.
 func (c *ApiClient) GetClientByMAC(ctx context.Context, site, mac string) (*Client, error) {
 	resp, err := c.ListClient(ctx, site)
 	if err != nil {
@@ -19,7 +26,10 @@ func (c *ApiClient) GetClientByMAC(ctx context.Context, site, mac string) (*Clie
 	if len(resp) == 0 {
 		return nil, &NotFoundError{}
 	}
-	if i := slices.IndexFunc(resp, func(d Client) bool { return d.MAC == mac }); i >= 0 {
+	mac = types.NormalizeMAC(mac)
+	if i := slices.IndexFunc(resp, func(d Client) bool {
+		return types.NormalizeMAC(d.MAC) == mac
+	}); i >= 0 {
 		d := resp[i]
 		return &d, nil
 	} else {
@@ -53,7 +63,7 @@ func (c *ApiClient) stamgr(
 
 func (c *ApiClient) BlockClientByMAC(ctx context.Context, site, mac string) error {
 	users, err := c.stamgr(ctx, site, "block-sta", map[string]any{
-		"mac": mac,
+		"mac": types.NormalizeMAC(mac),
 	})
 	if err != nil {
 		return err
@@ -66,7 +76,7 @@ func (c *ApiClient) BlockClientByMAC(ctx context.Context, site, mac string) erro
 
 func (c *ApiClient) UnblockClientByMAC(ctx context.Context, site, mac string) error {
 	users, err := c.stamgr(ctx, site, "unblock-sta", map[string]any{
-		"mac": mac,
+		"mac": types.NormalizeMAC(mac),
 	})
 	if err != nil {
 		return err
@@ -79,7 +89,7 @@ func (c *ApiClient) UnblockClientByMAC(ctx context.Context, site, mac string) er
 
 func (c *ApiClient) DeleteClientByMAC(ctx context.Context, site, mac string) error {
 	users, err := c.stamgr(ctx, site, "forget-sta", map[string]any{
-		"macs": []string{mac},
+		"macs": []string{types.NormalizeMAC(mac)},
 	})
 	if err != nil {
 		return err
@@ -92,7 +102,7 @@ func (c *ApiClient) DeleteClientByMAC(ctx context.Context, site, mac string) err
 
 func (c *ApiClient) KickClientByMAC(ctx context.Context, site, mac string) error {
 	users, err := c.stamgr(ctx, site, "kick-sta", map[string]any{
-		"mac": mac,
+		"mac": types.NormalizeMAC(mac),
 	})
 	if err != nil {
 		return err
@@ -108,6 +118,7 @@ func (c *ApiClient) OverrideClientFingerprint(
 	site, mac string,
 	devIdOveride int64,
 ) error {
+	mac = types.NormalizeMAC(mac)
 	reqBody := map[string]any{
 		"mac":             mac,
 		"dev_id_override": devIdOveride,

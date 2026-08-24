@@ -1,0 +1,608 @@
+# Declarative resource and field overrides, applied on top of the extracted
+# schema. Four kinds of entry:
+#
+#   [Resource]                REST path when it differs from the lowercased
+#                             schema file name
+#   [Resource.field.<wire>]   shape pins for a schema-defined field (matched
+#                             by wire/JSON name on the top-level struct)
+#   [Resource.field.<wire>]   with add = true: compat or manual fields the
+#                             schema does not (or no longer does) define;
+#                             ignored when the schema defines the field, so
+#                             the schema's validation wins when it exists
+#   [Resource.preference.<wire>]
+#                             what an auto|manual mode field owns: the wire
+#                             names the controller overwrites with its own
+#                             values while the mode is "auto". Measured, not
+#                             declared -- run TestIntegrationPreferenceOwnership
+#                             and paste what it prints. Every name is checked
+#                             against the generated struct, so a typo fails
+#                             generation instead of quietly owning nothing.
+#
+# A mode nested in a sub-object takes a dotted path, and the key MUST be
+# quoted:
+#
+#   [Device.preference."port_overrides.setting_preference"]
+#
+# TOML accepts an unquoted dotted key: it reads the key as nested tables and
+# decodes to a different entry, one that owns nothing. Names in owns stay
+# relative to the object holding the mode, because a mode governs its own
+# object; an array container carries one mode per element, so no sibling path
+# exists to write.
+#
+# Field entries are applied AFTER the resource's FieldProcessor, so they
+# always win. Anything conditional on the schema-derived type, pattern-based
+# renames, or nested fields stays in the FieldProcessor cases in main.go —
+# see the "Override layers" section of schemas/README.md.
+#
+# When maintaining the v2 definitions in resources/, Ubiquiti's official
+# Integration API spec (https://developer.ui.com/network/<ver>/openapi.json)
+# is a useful *semantic* reference for the firewall zone/policy domains — but
+# it describes a different API (/proxy/network/integration, camelCase wire
+# names), so shapes cannot be copied from it verbatim.
+
+[DNSRecord]
+path = "static-dns"
+
+# Definition imported from ubiquiti-community/unifi-api (see the README in
+# this directory). cleanName would render device_macs as DeviceMACs; pin the
+# name the hand-written type established so consumers don't break. Both
+# fields always serialize (an empty device list must reach the wire as []).
+[APGroup.field.device_macs]
+name = "DeviceMacs"
+omitempty = false
+nil_as_empty = true
+
+[APGroup.field.name]
+omitempty = false
+
+# The site's default AP group carries both of these, and the write DTO
+# rejects them: measured on 10.4.57, a PUT of the default group back verbatim
+# answers HTTP 400 with "hiddenId: must be null" and "nonDeletable: must be
+# false". Reading the default group and writing it back is the ordinary way
+# to edit its membership, so without this that is impossible. readonly keeps
+# them unmarshalling and drops them from the write, exactly as on
+# FirewallZone.
+[APGroup.field.attr_hidden_id]
+readonly = true
+
+[APGroup.field.attr_no_delete]
+readonly = true
+
+# True-v2 object: the wire uses "id" (not "_id") and carries no site_id or
+# attr_* envelope. Definition imported from ubiquiti-community/unifi-api
+# (see resources/../README.md).
+# The collection is asymmetric, measured on 10.4.57: create, read-one, update
+# and delete are served by the singular path, and only the list is served by
+# the plural one. The client used the plural path throughout, so every verb
+# except the list was broken -- create answered 405 and the rest 404.
+[NetworkMembersGroup]
+path = "network-members-group"
+list_path = "network-members-groups"
+
+[NetworkMembersGroup.field._id]
+json = "id"
+
+[NetworkMembersGroup.field.site_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden]
+remove = true
+
+[NetworkMembersGroup.field.attr_hidden_id]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_delete]
+remove = true
+
+[NetworkMembersGroup.field.attr_no_edit]
+remove = true
+
+# Always serialize, matching the previous hand-written wire behavior.
+[NetworkMembersGroup.field.name]
+omitempty = false
+
+[NetworkMembersGroup.field.members]
+omitempty = false
+nil_as_empty = true
+
+[NetworkMembersGroup.field.type]
+omitempty = false
+
+# The controller treats an explicit "" as "set the native network to None",
+# but omitempty drops the empty string from the body and clearing the native
+# VLAN silently no-ops (terraform-provider-unifi #383, upstream #65). Device
+# port_overrides is a nested type with its own serialization and is
+# unaffected.
+[PortProfile.field.native_networkconf_id]
+omitempty = false
+
+[FirewallPolicy]
+path = "firewall-policies"
+
+[OSPFRouter]
+path = "ospf/router"
+
+[TrafficRoute]
+path = "trafficroutes"
+
+[BGPConfig]
+path = "bgp/config"
+
+# Published in v1.33.43+ from a hand-written schema; the controller does not
+# describe this resource in its field spec.
+[ContentFiltering]
+path = "content-filtering"
+
+# The zone's read and write shapes differ, which is why several fields below
+# are read-only. Measured against 10.4.57 on 2026-07-25 by posting each field
+# in turn and reading the rejection: the write DTO
+# (com.ubnt.g.b.t.AcrQJeJCScLn, shared by POST and PUT) accepts exactly _id,
+# name and network_ids, and answers HTTP 400 "Unrecognized field <x>" for
+# every other key -- including cloud_template, default_zone, external_id and
+# zone_key, all of which the GET emits. Model new fields from the read shape
+# and expect them to be unwritable.
+[FirewallZone]
+path = "firewall/zone"
+
+# Everything the controller reports but refuses on a write. readonly keeps
+# them unmarshalling while dropping them from the generated MarshalJSON, so a
+# zone read from the controller can be edited and written straight back.
+#
+# omitempty alone cannot do this. default_zone is a *bool, so any read leaves
+# it non-nil and it serializes anyway (terraform-provider-unifi#310 saw the
+# create half of this); external_id is always populated on a read. The rest
+# are empty today and would break the same way the day the controller starts
+# filling them in.
+[FirewallZone.field.default_zone]
+omitempty = true
+pointer = true
+readonly = true
+
+[FirewallZone.field.external_id]
+readonly = true
+
+[FirewallZone.field.cloud_template]
+readonly = true
+
+[FirewallZone.field.zone_key]
+readonly = true
+
+[FirewallZone.field.site_id]
+readonly = true
+
+[FirewallZone.field.attr_hidden]
+readonly = true
+
+[FirewallZone.field.attr_hidden_id]
+readonly = true
+
+[FirewallZone.field.attr_no_delete]
+readonly = true
+
+[FirewallZone.field.attr_no_edit]
+readonly = true
+
+# network_ids must always be present in the create body: the v2
+# firewall/zone POST returns HTTP 500 when the field is omitted, and an
+# empty list must serialize as "network_ids":[].
+[FirewallZone.field.network_ids]
+omitempty = false
+nil_as_empty = true
+
+# Fields the 10.x schema does not define but the controller still accepts
+# (or older controllers require).
+[Network.field.wan_egress_qos_enabled]
+add = true
+name = "WANEgressQOSEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_enabled]
+add = true
+name = "UPnPEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_wan_interface]
+add = true
+name = "UPnPWANInterface"
+type = "string"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_nat_pmp_enabled]
+add = true
+name = "UPnPNatPMPEnabled"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.upnp_secure_mode]
+add = true
+name = "UPnPSecureMode"
+type = "bool"
+omitempty = true
+pointer = true
+
+[Network.field.ip_aliases]
+add = true
+name = "IPAliases"
+type = "string"
+omitempty = true
+array = true
+
+[Network.field.dhcp_relay_servers]
+add = true
+name = "DHCPRelayServers"
+type = "string"
+omitempty = true
+array = true
+
+# The schema defines this since 10.x (in which case only the rename applies
+# and the schema's validation is kept); the add covers older controllers.
+# The rename undoes cleanName's IPVersion->Version rewrite, which is meant
+# for the firewall policy source/destination and mangles this field into a
+# duplicate JSON tag otherwise.
+[Network.field.wireguard_interface_binding_mode_ip_version]
+add = true
+name = "WireguardInterfaceBindingModeIPVersion"
+type = "string"
+validation = "v4|v6"
+omitempty = true
+pointer = true
+
+# Removed from the 10.x schema (mDNS moved to the site-level "mdns"
+# setting); retained for backwards compatibility.
+[Network.field.mdns_enabled]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "MdnsEnabled"
+type = "bool"
+
+# Serialized unconditionally, so a Device the caller never gave overrides
+# marshals null here, and the controller rejects that -- measured, and it
+# meant such a Device could not be written at all. Send [] instead, which
+# means what nil means: this device has no port overrides.
+[Device.field.port_overrides]
+nil_as_empty = true
+
+# Ownership of the auto|manual mode fields, measured by
+# TestIntegrationPreferenceOwnership. On "auto" the controller manages the
+# listed fields itself and stores its own values over the payload's, with no
+# error and no warning -- so a caller who configures one of these under auto
+# gets it accepted, discarded, and never told.
+#
+# The sets come from writing the same payload twice, once under each mode,
+# and comparing each write against what it asked for. Do not hand-edit them:
+# re-run the sweep, which prints the entry to paste.
+
+# Twice what the encoder's own history recorded. The earlier count of six came
+# from comparing the *_enabled toggles the encoder sends, so the four
+# non-toggle fields here -- the lease time (replaced with the controller's
+# 86400), the search domain, and the tftp and controller addresses (blanked)
+# -- were never in view. Note dhcpd_dns_1 and dhcpd_wins_1 survive while the
+# toggles that switch them on do not: the addresses are stored and never
+# handed out, which is why this fails so quietly.
+[Network.preference.setting_preference]
+owns = [
+  "dhcpd_dns_enabled",
+  "dhcpd_gateway_enabled",
+  "dhcpd_leasetime",
+  "dhcpd_ntp_enabled",
+  "dhcpd_tftp_server",
+  "dhcpd_time_offset_enabled",
+  "dhcpd_unifi_controller",
+  "dhcpd_wins_enabled",
+  "dhcpguard_enabled",
+  "domain_name",
+  "igmp_snooping",
+  "upnp_lan_enabled",
+]
+measured = "10.4.57"
+
+# Measured with ipv6_interface_type "none": "static" needs a deployable
+# prefix, which a gateway-less harness cannot supply (the controller answers
+# api.err.NotDeployableIPv6Subnet), so a static-prefix network may own more
+# than this.
+[Network.preference.ipv6_setting_preference]
+owns = [
+  "dhcpdv6_dns_auto",
+  "dhcpdv6_leasetime",
+  "ipv6_ra_preferred_lifetime",
+]
+measured = "10.4.57"
+
+# Only the first two slots. wan_dns3 and wan_dns4 were set in the same payload
+# and survived under auto, so the controller takes over the resolvers it hands
+# out and leaves the extras alone.
+[Network.preference.wan_dns_preference]
+owns = [
+  "wan_dns1",
+  "wan_dns2",
+]
+measured = "10.4.57"
+
+# Owns nothing: wan_ipv6_dns1 and wan_ipv6_dns2 were stored as asked under
+# both modes. Measured on a harness with no gateway and no real WAN, so the
+# auto path may have had nothing to fill in; an empty set here is weaker
+# evidence than a populated one.
+[Network.preference.wan_ipv6_dns_preference]
+owns = []
+measured = "10.4.57"
+
+# The WLAN advanced block. dtim_na is not owned while dtim_ng is, and both
+# were set in the same payload, so the split is the controller's and not an
+# artefact of what was measured.
+[WLAN.preference.setting_preference]
+owns = [
+  "bc_filter_enabled",
+  "bss_transition",
+  "dtim_mode",
+  "dtim_ng",
+  "fast_roaming_enabled",
+  "group_rekey",
+  "l2_isolation",
+  "mcastenhance_enabled",
+  "proxy_arp",
+  "uapsd_enabled",
+]
+measured = "10.4.57"
+
+# A second mode on the same object, governing minimum data rates
+# independently of the WLAN's general one. The advertising-rate flags and
+# minrate_ng_enabled survived auto; the rest did not.
+[WLAN.preference.minrate_setting_preference]
+owns = [
+  "minrate_na_data_rate_kbps",
+  "minrate_na_enabled",
+  "minrate_ng_data_rate_kbps",
+]
+measured = "10.4.57"
+
+# The switch-port advanced block. Note autoneg, lldpmed_enabled and
+# stp_port_mode are forced back ON here rather than off: auto restores the
+# controller's defaults in whichever direction they point, so "owned" is not
+# a synonym for "disabled".
+[PortProfile.preference.setting_preference]
+owns = [
+  "autoneg",
+  "egress_rate_limit_kbps_enabled",
+  "isolation",
+  "lldpmed_enabled",
+  "lldpmed_notify_enabled",
+  "port_keepalive_enabled",
+  "stormctrl_bcast_enabled",
+  "stormctrl_mcast_enabled",
+  "stormctrl_ucast_enabled",
+  "stp_port_mode",
+]
+measured = "10.4.57"
+
+[FirewallRule.preference.setting_preference]
+owns = [
+  "state_established",
+  "state_related",
+]
+measured = "10.4.57"
+
+# Owns nothing. Every field in the probe payload survived auto, including the
+# ones the controller echoes back in a different representation (the filter
+# objects gain their invert_* defaults, rule_index comes back numeric), so
+# this is a mode that carries the enum without acting on it.
+[Nat.preference.setting_preference]
+owns = []
+measured = "10.4.57"
+
+# Under auto the site's NTP servers revert to the ubnt pool, so a caller who
+# points a site at internal time servers under auto is silently ignored.
+[SettingNtp.preference.setting_preference]
+owns = [
+  "ntp_server_1",
+  "ntp_server_2",
+  "ntp_server_3",
+  "ntp_server_4",
+]
+measured = "10.4.57"
+
+# Every connection-tracking timeout except other_timeout, which stored what
+# was asked under both modes.
+[SettingUsg.preference.timeout_setting_preference]
+owns = [
+  "icmp_timeout",
+  "tcp_close_timeout",
+  "tcp_close_wait_timeout",
+  "tcp_established_timeout",
+  "tcp_fin_wait_timeout",
+  "tcp_last_ack_timeout",
+  "tcp_syn_recv_timeout",
+  "tcp_syn_sent_timeout",
+  "tcp_time_wait_timeout",
+  "udp_other_timeout",
+  "udp_stream_timeout",
+]
+measured = "10.4.57"
+
+# Nested in the gateway's DNS verification block, and quoted because an
+# unquoted dotted key decodes as nested tables into an entry that owns
+# nothing. Under auto the controller substitutes its own verification
+# servers -- ui.com against 1.1.1.1 and 8.8.8.8 -- so a site pointed at
+# internal resolvers for this check is silently ignored.
+[SettingUsg.preference."dns_verification.setting_preference"]
+owns = [
+  "domain",
+  "primary_dns_server",
+  "secondary_dns_server",
+]
+measured = "10.4.57"
+
+# Three of the five retention windows. The daily and monthly scales kept
+# what they were given under auto.
+# Inside UniFi OS the console owns the two short-scale windows outright:
+# 5minutes is pinned to 24 and hourly to 168 under BOTH modes, so the mode
+# owns neither there. Measured on the UOS 5.1.21 harness, which bundles this
+# exact Network build and reports it -- asking for 1 hour stores 24, so it is
+# a fixed value rather than a ceiling. Retention is console-wide storage
+# policy on UOS, which is why the Network app does not get to set it.
+[SettingSuperMgmt.preference.data_retention_setting_preference]
+owns = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
+  "data_retention_time_in_hours_for_others",
+]
+uos_excludes = [
+  "data_retention_time_in_hours_for_5minutes_scale",
+  "data_retention_time_in_hours_for_hourly_scale",
+]
+measured = "10.4.57"
+
+# Only the schedule. The channel and radio lists are rewritten by the
+# controller under both modes, so they are not this mode's doing.
+[SettingRadioAi.preference.setting_preference]
+owns = [
+  "cron_expr",
+]
+measured = "10.4.57"
+
+# layout_preference is a real mode, not a UI-only choice: under auto the
+# submitted widget list is dropped entirely. Worth stating because the name
+# suggests otherwise, and guessing would have got it wrong.
+[SettingDashboard.preference.layout_preference]
+owns = [
+  "widgets",
+]
+measured = "10.4.57"
+
+# Nested in each port override, and quoted for the same reason as the gateway's
+# DNS verification block. Owns nothing: every field of an override survived
+# auto, so the mode carries the enum without acting on it. Measured against an
+# adopted UXGENT -- a switch with more port shapes may differ.
+[Device.preference."port_overrides.setting_preference"]
+owns = []
+measured = "10.4.57"
+
+# Deprecated: removed from the 10.x schema along with the maps feature, but
+# they are plain device-object properties; retained so existing consumers
+# keep compiling. Review for sunset next controller train.
+[Device.field.x]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "X"
+type = "float64"
+omitempty = true
+
+[Device.field.y]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "Y"
+type = "float64"
+omitempty = true
+
+[Device.field.map_id]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "MapID"
+type = "string"
+omitempty = true
+
+[Device.field.heightInMeters]
+add = true
+doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+name = "HeightInMeters"
+type = "float64"
+omitempty = true
+
+# Device state and identity fields the ace.jar schema does not describe.
+[Device.field.port_table]
+add = true
+name = "PortTable"
+type = "[]DevicePortTable"
+omitempty = true
+
+[Device.field.adopted]
+add = true
+name = "Adopted"
+type = "bool"
+
+[Device.field.model]
+add = true
+name = "Model"
+type = "string"
+omitempty = true
+
+[Device.field.state]
+add = true
+name = "State"
+type = "DeviceState"
+
+[Device.field.type]
+add = true
+name = "Type"
+type = "string"
+omitempty = true
+
+[Device.field.inform_ip]
+add = true
+name = "InformIP"
+type = "string"
+omitempty = true
+
+[Device.field.ip]
+add = true
+name = "IP"
+type = "string"
+omitempty = true
+
+# The controller reports the client's most recent IP on /rest/user but
+# ace.jar has no schema for it; surface it as a read-only field.
+[Client.field.last_ip]
+add = true
+name = "LastIP"
+type = "string"
+validation = "non-generated field"
+omitempty = true
+
+# Removed in v6, retained for backwards compatibility.
+[WLAN.field.wlangroup_id]
+add = true
+doc = "Deprecated: removed in UniFi Network 6; retained for backwards compatibility."
+name = "WLANGroupID"
+type = "string"
+omitempty = true
+
+# A slice serialized unconditionally marshals as null when the caller has not
+# set it, and the controller answers api.err.InvalidPayload for a null here.
+# The controller does not return the key either, so a WLAN read back through
+# the client always carried a null it never came with, and every
+# read-modify-write of a WLAN was rejected outright -- measured on 10.4.57 by
+# bisecting the round-trip payload one key at a time.
+#
+# omitempty drops it when empty. That also makes an explicitly empty schedule
+# inexpressible, which is a smaller loss than every write failing.
+[WLAN.field.schedule_with_duration]
+omitempty = true
+
+# Removed in v7, retained for backwards compatibility.
+[SettingUsg.field.mdns_enabled]
+add = true
+doc = "Deprecated: removed in UniFi Network 7; retained for backwards compatibility."
+name = "MdnsEnabled"
+type = "bool"
+
+# querier_addresses changed wire shape in 10.x: pre-10.x controllers (and
+# databases upgraded from them) carry an array of address strings, 10.x an
+# array of {mac, network_id, querier_address} objects. Decode elements
+# tolerantly via a hand-written helper in the settings package.
+[SettingIgmpSnooping.field.querier_addresses]
+unmarshal_type = "json.RawMessage"
+unmarshal_func = "querierAddressesFromRaw"
+
+
+# v1.103.0 ships time_all_day as *bool and the provider never sets it, so nil
+# versus false is exactly what the pointer carries and a plain bool cannot.
+# Upstream's generator inferred the pointer; this one does not, so it is
+# declared. Reaching a nested struct at all is new -- see applyOverrides.
+[FirewallPolicySchedule.field.time_all_day]
+omitempty = true
+pointer = true

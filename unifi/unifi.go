@@ -23,7 +23,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -latest
+//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json
 
 const (
 	loginPath    = "/api/login"
@@ -194,7 +194,8 @@ type ApiClient struct {
 	tokenExpiry time.Time
 	loginErr    error // cached login error to prevent retry storms
 
-	version string
+	version        string
+	controllerUUID string
 
 	// Cloud Connector support
 	cloudConsoleID string // Console ID for Cloud Connector API proxy
@@ -202,6 +203,12 @@ type ApiClient struct {
 
 func (c *ApiClient) Version() string {
 	return c.version
+}
+
+// ControllerUUID returns the controller identity reported by the status
+// endpoint. It is empty when the endpoint did not provide one.
+func (c *ApiClient) ControllerUUID() string {
+	return c.controllerUUID
 }
 
 // isNewStyle returns true if the client is configured for UniFi OS authentication
@@ -542,6 +549,7 @@ func (c *ApiClient) setServerVersion(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	c.controllerUUID = status.Meta.UUID
 
 	if version := status.Meta.ServerVersion; version != "" {
 		c.version = status.Meta.ServerVersion
@@ -709,16 +717,36 @@ func (c *ApiClient) doRequest(
 		errBody := struct {
 			Meta meta `json:"meta"`
 			Data []struct {
-				Meta meta `json:"meta"`
+				// Measured on 10.4.57: the per-failure detail sits
+				// directly on the data element, not under data[].meta.
+				// Both are decoded because only the former is confirmed.
+				RC         string           `json:"rc"`
+				Message    string           `json:"msg"`
+				Validation *ValidationError `json:"validationError"`
+				Meta       meta             `json:"meta"`
 			} `json:"data"`
+			// Some responses carry the validation detail beside the
+			// envelope rather than inside meta; take it from either.
+			Validation *ValidationError `json:"validationError"`
 		}{}
 		if err = json.Unmarshal(errBytes, &errBody); err != nil {
 			return err
 		}
+		// data[] carries the specific failure -- which field, and what it
+		// had to match -- while meta carries only a generic code. On a bad
+		// enum value meta says api.err.InvalidPayload and data says
+		// api.err.InvalidValue plus the field name and pattern, so prefer
+		// data whenever it reports anything.
 		var apiErr error
-		if len(errBody.Data) > 0 && errBody.Data[0].Meta.RC == "error" {
-			// check first error in data, should we look for more than one?
-			apiErr = errBody.Data[0].Meta.error()
+		for _, d := range errBody.Data {
+			detail := meta{RC: d.RC, Message: d.Message, Validation: d.Validation}
+			if detail.RC != "error" {
+				detail = d.Meta
+			}
+			if detail.RC == "error" {
+				apiErr = detail.error()
+				break
+			}
 		}
 		if apiErr == nil {
 			apiErr = errBody.Meta.error()
@@ -727,7 +755,8 @@ func (c *ApiClient) doRequest(
 		// ({"code","message","errorCode"}) that the v1 meta decoder above leaves
 		// empty. Fall back to it so callers get the controller's actual message
 		// (e.g. api.err.PurePoeRequiresUplinkException) instead of a bare HTTP 400.
-		if ae, ok := apiErr.(*APIError); !ok || ae == nil || ae.Message == "" {
+		var ae *APIError
+		if !errors.As(apiErr, &ae) || ae == nil || ae.Message == "" {
 			v2 := struct {
 				Code    string `json:"code"`
 				Message string `json:"message"`
@@ -741,6 +770,13 @@ func (c *ApiClient) doRequest(
 					msg = v2.Code + ": " + msg
 				}
 				apiErr = &APIError{RC: v2.Code, Message: msg}
+			}
+		}
+		// Whichever decoder produced the error, give it the controller's
+		// field-level detail if that arrived outside meta.
+		if errBody.Validation != nil {
+			if errors.As(apiErr, &ae) && ae != nil && ae.Validation == nil {
+				ae.Validation = errBody.Validation
 			}
 		}
 		return fmt.Errorf(
@@ -770,13 +806,17 @@ func (c *ApiClient) doRequest(
 type meta struct {
 	RC      string `json:"rc"`
 	Message string `json:"msg"`
+	// Validation is the controller's field-level rejection detail. It rides
+	// in the same object as rc and msg when the controller has one.
+	Validation *ValidationError `json:"validationError"`
 }
 
 func (m *meta) error() error {
 	if m.RC != "ok" {
 		return &APIError{
-			RC:      m.RC,
-			Message: m.Message,
+			RC:         m.RC,
+			Message:    m.Message,
+			Validation: m.Validation,
 		}
 	}
 

@@ -1,4 +1,4 @@
-// Code generated from ace.jar fields *.json files
+// Code generated from the controller schema in the capture lock
 // DO NOT EDIT.
 
 package unifi
@@ -727,6 +727,50 @@ func (c *ApiClient) createHotspot2Conf(
 
 	res := respBody.Data[0]
 
+	return &res, nil
+}
+
+// UpdateHotspot2ConfFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateHotspot2ConfFields(ctx context.Context, site string, d *Hotspot2Conf, fields ...string) (*Hotspot2Conf, error) {
+	return c.updateHotspot2ConfFields(ctx, site, d, fields)
+}
+
+// updateHotspot2ConfFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateHotspot2ConfFields(
+	ctx context.Context,
+	site string,
+	d *Hotspot2Conf,
+	fields []string,
+) (*Hotspot2Conf, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta           `json:"meta"`
+		Data []Hotspot2Conf `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/hotspot2conf/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getHotspot2Conf(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
 	return &res, nil
 }
 
