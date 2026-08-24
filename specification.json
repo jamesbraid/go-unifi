@@ -26574,7 +26574,7 @@
           {
             "name": "native_networkconf_id",
             "string": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "computed_optional"
             }
           },
           {
