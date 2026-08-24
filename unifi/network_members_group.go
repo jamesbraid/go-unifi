@@ -6,14 +6,11 @@ import (
 	"net/http"
 )
 
-// This is a v2 API object, manually coded.
-
-type NetworkMembersGroup struct {
-	ID      string   `json:"id,omitempty"`
-	Name    string   `json:"name"`
-	Members []string `json:"members"`
-	Type    string   `json:"type"`
-}
+// The NetworkMembersGroup type is generated from
+// overrides/resources/NetworkMembersGroup.json (a true-v2 object: wire "id",
+// no envelope fields — see overrides/fields.toml). The client methods stay
+// hand-written: the endpoint uses a plural path for List and a singular one
+// for the per-id operations, which the generated client cannot express.
 
 func (c *ApiClient) ListNetworkMembersGroups(ctx context.Context, site string) ([]NetworkMembersGroup, error) {
 	var respBody []NetworkMembersGroup

@@ -20,6 +20,13 @@ linters:
     - govet
   disable:
     - errcheck
+  settings:
+    misspell:
+      # UniFi's own wire field is spelled igmp_supression; the hand-written
+      # encoder must emit it verbatim to match the controller (the generated
+      # struct carries the same spelling). Not our typo to fix.
+      ignore-rules:
+        - supression
   exclusions:
     generated: lax
 formatters:

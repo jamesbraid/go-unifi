@@ -75,7 +75,9 @@ func natTestServer(t *testing.T, site, listJSON string) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			_, _ = w.Write([]byte("<html><body>405 Not Allowed</body></html>"))
 		default:
-			w.WriteHeader(http.StatusOK)
+			// Unmatched method/path pairs fail loudly: a DELETE aimed at the
+			// wrong path must not pass by decoding an empty 200.
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	t.Cleanup(srv.Close)

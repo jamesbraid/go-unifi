@@ -5,7 +5,7 @@ package settings
 // internet connection, used by the controller for utilization displays and
 // Smart Queues sizing.
 //
-// Hand-maintained: the ace.jar field spec (9.5.21) does not define this
+// Hand-maintained: the locked field spec does not define this
 // setting, but controllers expose it at
 // /api/s/<site>/{get,set}/setting/provider_capabilities.
 //

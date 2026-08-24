@@ -1,4 +1,4 @@
-// Code generated from ace.jar fields *.json files
+// Code generated from the controller schema in the capture lock
 // DO NOT EDIT.
 
 package unifi
@@ -37,6 +37,7 @@ type OSPFRouter struct {
 	Areas                                 []OSPFRouterAreas      `json:"areas,omitempty"`
 	Enabled                               bool                   `json:"enabled"`
 	Interfaces                            []OSPFRouterInterfaces `json:"interfaces,omitempty"`
+	RedistributeBgpRoutes                 bool                   `json:"redistribute_bgp_routes"`
 	RedistributeConnectedRoutes           bool                   `json:"redistribute_connected_routes"`
 	RedistributeConnectedRoutesMetricType string                 `json:"redistribute_connected_routes_metric_type,omitempty"`
 	RedistributeStaticRoutes              bool                   `json:"redistribute_static_routes"`
@@ -186,6 +187,40 @@ func (c *ApiClient) createOSPFRouter(
 		&respBody,
 	)
 	if err != nil {
+		return nil, err
+	}
+
+	return &respBody, nil
+}
+
+// UpdateOSPFRouterFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateOSPFRouterFields(ctx context.Context, site string, d *OSPFRouter, fields ...string) (*OSPFRouter, error) {
+	return c.updateOSPFRouterFields(ctx, site, d, fields)
+}
+
+// updateOSPFRouterFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateOSPFRouterFields(
+	ctx context.Context,
+	site string,
+	d *OSPFRouter,
+	fields []string,
+) (*OSPFRouter, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody OSPFRouter
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
 		return nil, err
 	}
 

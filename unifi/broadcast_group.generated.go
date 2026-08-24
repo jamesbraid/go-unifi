@@ -1,4 +1,4 @@
-// Code generated from ace.jar fields *.json files
+// Code generated from the controller schema in the capture lock
 // DO NOT EDIT.
 
 package unifi
@@ -149,6 +149,50 @@ func (c *ApiClient) createBroadcastGroup(
 
 	res := respBody.Data[0]
 
+	return &res, nil
+}
+
+// UpdateBroadcastGroupFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateBroadcastGroupFields(ctx context.Context, site string, d *BroadcastGroup, fields ...string) (*BroadcastGroup, error) {
+	return c.updateBroadcastGroupFields(ctx, site, d, fields)
+}
+
+// updateBroadcastGroupFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateBroadcastGroupFields(
+	ctx context.Context,
+	site string,
+	d *BroadcastGroup,
+	fields []string,
+) (*BroadcastGroup, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta             `json:"meta"`
+		Data []BroadcastGroup `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/broadcastgroup/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getBroadcastGroup(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
 	return &res, nil
 }
 

@@ -2,7 +2,7 @@ package settings
 
 // Ipsec is the site-level IPsec setting (key "ipsec").
 //
-// Hand-maintained: the ace.jar field spec (9.5.21) does not define this
+// Hand-maintained: the locked field spec does not define this
 // setting, but newer controllers expose it at
 // /api/s/<site>/{get,set}/setting/ipsec. It carries the IKEv2
 // re-authentication behavior for site-to-site VPNs.

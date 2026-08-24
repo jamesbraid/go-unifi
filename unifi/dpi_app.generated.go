@@ -1,4 +1,4 @@
-// Code generated from ace.jar fields *.json files
+// Code generated from the controller schema in the capture lock
 // DO NOT EDIT.
 
 package unifi
@@ -188,6 +188,50 @@ func (c *ApiClient) createDpiApp(
 
 	res := respBody.Data[0]
 
+	return &res, nil
+}
+
+// UpdateDpiAppFields writes only the named wire fields and leaves
+// the rest of the stored object untouched. Use it when the caller models some
+// of the object rather than all of it: an unnamed field keeps its stored
+// value, where a full write would assert this struct's zero value for it.
+func (c *ApiClient) UpdateDpiAppFields(ctx context.Context, site string, d *DpiApp, fields ...string) (*DpiApp, error) {
+	return c.updateDpiAppFields(ctx, site, d, fields)
+}
+
+// updateDpiAppFields writes only the named wire fields, leaving
+// every other field on the stored object alone. See maskedBody.
+func (c *ApiClient) updateDpiAppFields(
+	ctx context.Context,
+	site string,
+	d *DpiApp,
+	fields []string,
+) (*DpiApp, error) {
+	body, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+	var respBody struct {
+		Meta meta     `json:"meta"`
+		Data []DpiApp `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, d.ID),
+		body,
+		&respBody,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(respBody.Data) == 0 {
+		return c.getDpiApp(ctx, site, d.ID)
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &NotFoundError{}
+	}
+	res := respBody.Data[0]
 	return &res, nil
 }
 
