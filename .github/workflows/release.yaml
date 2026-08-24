@@ -42,6 +42,23 @@ jobs:
       - name: Read the controller train
         run: echo "CONTROLLER_VERSION=$(cat schemas/VERSION)" >> "$GITHUB_ENV"
 
+      # The release notes carry both diff surfaces: apidiff for the Go API
+      # and the always-serialized baseline for the wire. A previous tag may
+      # not exist in a fresh history; say so instead of failing.
+      - name: Summarize API and wire changes
+        run: |
+          set -eu
+          previous="$(git tag --list 'v*' --sort=-v:refname | grep -vx "${GITHUB_REF_NAME}" | head -n1 || true)"
+          {
+            echo 'RELEASE_DIFF_SUMMARY<<DIFF_EOF'
+            if [ -z "$previous" ]; then
+              echo "No previous release tag in this history to diff against."
+            else
+              go run ./cmd/apidiff -base "$previous" -markdown
+            fi
+            echo 'DIFF_EOF'
+          } >> "$GITHUB_ENV"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:

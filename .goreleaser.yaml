@@ -54,6 +54,8 @@ release:
     ## UniFi Go Client {{ .Tag }} ({{ .Date }})
 
     Generated and tested against UniFi Network {{ .Env.CONTROLLER_VERSION }}.
+
+    {{ .Env.RELEASE_DIFF_SUMMARY }}
   footer: |
     ## Installation
 
