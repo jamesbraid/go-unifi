@@ -108,13 +108,14 @@ nil_as_empty = true
 [NetworkMembersGroup.field.type]
 omitempty = false
 
-# The controller treats an explicit "" as "set the native network to None",
-# but omitempty drops the empty string from the body and clearing the native
-# VLAN silently no-ops (terraform-provider-unifi #383, upstream #65). Device
-# port_overrides is a nested type with its own serialization and is
-# unaffected.
-[PortProfile.field.native_networkconf_id]
-omitempty = false
+# native_networkconf_id keeps omitempty, and both directions of that choice
+# are measured. An explicit "" on create suppresses the controller's
+# native-network auto-assignment (provider acceptance, v1.105.0 regression),
+# so unconditional serialization is wrong. Omitting "" on a plain update
+# cannot clear the native VLAN (terraform-provider-unifi #383, upstream
+# #65) -- that direction goes through the masked update, which force-sends
+# the zero value for selected fields. Do not pin omitempty = false here
+# again without re-measuring create.
 
 [FirewallPolicy]
 path = "firewall-policies"
