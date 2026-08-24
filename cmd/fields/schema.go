@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,15 +31,85 @@ const (
 type SpecificationGenerator struct {
 	ProviderName string
 	Resources    []*ResourceInfo
+	Sensitive    sensitiveIndex
 }
 
 // NewSpecificationGenerator creates a new specification generator.
-func NewSpecificationGenerator(providerName string) *SpecificationGenerator {
+func NewSpecificationGenerator(providerName string, sensitive sensitiveIndex) *SpecificationGenerator {
 	return &SpecificationGenerator{
 		ProviderName: providerName,
 		Resources:    make([]*ResourceInfo, 0),
+		Sensitive:    sensitive,
 	}
 }
+
+// sensitiveIndex maps a controller collection name (lowercased schema file
+// base name, e.g. "wlanconf") to the set of wire field leaf names UniFi
+// lists in sensitive_metadata.json.
+type sensitiveIndex map[string]map[string]bool
+
+// loadSensitiveMetadata builds a sensitiveIndex from the controller's
+// sensitive_metadata.json. A missing file yields a nil index (only the x_
+// prefix rule applies then).
+func loadSensitiveMetadata(path string) (sensitiveIndex, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Values are usually lists of field names, but single-field entries ship
+	// as a bare string (e.g. "rogue": "essid" in the distinct section).
+	var meta struct {
+		ByCollection         map[string]any `json:"sensitive_db_fields_by_collection"`
+		DistinctByCollection map[string]any `json:"sensitive_distinct_db_fields_by_collection"`
+	}
+	if err := json.Unmarshal(b, &meta); err != nil {
+		return nil, fmt.Errorf("unable to parse sensitive metadata: %w", err)
+	}
+
+	index := make(sensitiveIndex)
+	addLeaf := func(collection string, field string) {
+		leaves := index[collection]
+		if leaves == nil {
+			leaves = make(map[string]bool)
+			index[collection] = leaves
+		}
+		// Nested entries are dotted paths (auth_servers.x_secret);
+		// FieldInfo carries leaf wire names, so index the leaf.
+		parts := strings.Split(field, ".")
+		leaves[parts[len(parts)-1]] = true
+	}
+
+	for _, byCollection := range []map[string]any{meta.ByCollection, meta.DistinctByCollection} {
+		for collection, value := range byCollection {
+			switch entry := value.(type) {
+			case string:
+				addLeaf(collection, entry)
+			case []any:
+				for _, field := range entry {
+					name, ok := field.(string)
+					if !ok {
+						return nil, fmt.Errorf("unexpected sensitive metadata entry %v for %s", field, collection)
+					}
+					addLeaf(collection, name)
+				}
+			default:
+				return nil, fmt.Errorf("unexpected sensitive metadata shape %T for %s", value, collection)
+			}
+		}
+	}
+
+	return index, nil
+}
+
+// secretNameRe separates secret material from the anonymization-only entries
+// in sensitive_metadata.json (name, hostname, serial, usernames,
+// certificates, ...). ipsec_key_exchange is a protocol setting, which is why
+// the key match is suffix-anchored.
+var secretNameRe = regexp.MustCompile(`(?i)passw|passphrase|secret|token|psk|sim_pin|private_key|auth_?key|_key$`)
 
 // AddResource adds a resource to the specification generator.
 func (g *SpecificationGenerator) AddResource(r *ResourceInfo) {
@@ -134,6 +205,27 @@ func (g *SpecificationGenerator) generateProviderAttributes() []provider.Attribu
 	}
 }
 
+// sensitivePtr marks secret-bearing attributes. Two rules, union:
+//
+//  1. UniFi's own convention: an x_ prefix on secret wire fields
+//     (x_passphrase, x_auth_key, ...).
+//  2. Fields the controller's sensitive_metadata.json lists for this
+//     resource's collection, filtered to secret-looking names — the metadata
+//     is a support-file anonymization list, so it also names fields (name,
+//     hostname, wan_username, certificates) that must stay visible in
+//     Terraform plans. The intersection currently adds lte_password,
+//     lte_sim_pin, and secret_verifier_encoded, and catches future secrets
+//     that ship without the x_ prefix.
+func (g *SpecificationGenerator) sensitivePtr(r *ResourceInfo, field *FieldInfo) *bool {
+	if strings.HasPrefix(field.JSONName, "x_") {
+		return ptr(true)
+	}
+	if r != nil && g.Sensitive[r.Collection][field.JSONName] && secretNameRe.MatchString(field.JSONName) {
+		return ptr(true)
+	}
+	return nil
+}
+
 // generateDataSource generates a data source specification from a resource.
 func (g *SpecificationGenerator) generateDataSource(r *ResourceInfo) datasource.DataSource {
 	name := toTerraformName(r.StructName)
@@ -185,8 +277,12 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		return nil
 	}
 
-	// Use JSONName directly as it's already in the correct Terraform format
-	name := toTerraformName(field.FieldName)
+	// The wire name is already snake_case and is what the API actually
+	// calls the field. Deriving the attribute name from the Go field name
+	// instead produced names no API user would recognise --
+	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
+	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
+	name := field.JSONName
 	_ = g.buildAssociatedExternalType(r, field)
 	var externalType *schema.AssociatedExternalType = nil
 
@@ -212,6 +308,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 				ComputedOptionalRequired: "computed",
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 		return attr
@@ -234,29 +331,33 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		attr.Bool = &datasource.BoolAttribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "int64":
 		intAttr := &datasource.Int64Attribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
-		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
-		// 	intAttr.Validators = validators
-		// }
+		if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
+			intAttr.Validators = validators
+		}
 		attr.Int64 = intAttr
 	case "float64":
 		attr.Float64 = &datasource.Float64Attribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &datasource.StringAttribute{
 			ComputedOptionalRequired: "computed",
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
-		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
-		// 	strAttr.Validators = validators
-		// }
+		if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
+			strAttr.Validators = validators
+		}
 		attr.String = strAttr
 	default:
 		// Check if it's a custom type defined in Types
@@ -272,6 +373,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			attr.String = &datasource.StringAttribute{
 				ComputedOptionalRequired: "computed",
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 	}
@@ -353,7 +455,7 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 			continue
 		}
 
-		attr := g.fieldToResourceAttribute(r, field)
+		attr := g.fieldToResourceAttribute(r, "", field)
 		if attr != nil {
 			attrs = append(attrs, *attr)
 		}
@@ -363,13 +465,23 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 }
 
 // fieldToResourceAttribute converts a FieldInfo to a ResourceAttribute.
-func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field *FieldInfo) *resource.Attribute {
+func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, container string, field *FieldInfo) *resource.Attribute {
+	attr := g.buildResourceAttribute(r, container, field)
+	describePreference(r, container, field, attr)
+	return attr
+}
+
+func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, container string, field *FieldInfo) *resource.Attribute {
 	if field == nil {
 		return nil
 	}
 
-	// Use JSONName directly as it's already in the correct Terraform format
-	name := toTerraformName(field.FieldName)
+	// The wire name is already snake_case and is what the API actually
+	// calls the field. Deriving the attribute name from the Go field name
+	// instead produced names no API user would recognise --
+	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
+	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
+	name := field.JSONName
 	_ = g.buildAssociatedExternalType(r, field)
 	var externalType *schema.AssociatedExternalType = nil
 	computedOptionalRequired := g.determineComputedOptionalRequired(field)
@@ -382,7 +494,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 	if field.IsArray {
 		if field.Fields != nil {
 			// Nested object array - use list_nested
-			nestedAttrs := g.generateNestedResourceAttributes(r, field)
+			nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 			attr.ListNested = &resource.ListNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				NestedObject: resource.NestedAttributeObject{
@@ -396,6 +508,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 				ComputedOptionalRequired: computedOptionalRequired,
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 		return attr
@@ -403,7 +516,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 
 	// Handle nested object types
 	if field.Fields != nil {
-		nestedAttrs := g.generateNestedResourceAttributes(r, field)
+		nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 		attr.SingleNested = &resource.SingleNestedAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			Attributes:               nestedAttrs,
@@ -418,34 +531,38 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 		attr.Bool = &resource.BoolAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case fields.Int:
 		intAttr := &resource.Int64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
-		// if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
-		// 	intAttr.Validators = validators
-		// }
+		if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
+			intAttr.Validators = validators
+		}
 		attr.Int64 = intAttr
 	case "float64":
 		attr.Float64 = &resource.Float64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &resource.StringAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			AssociatedExternalType:   externalType,
+			Sensitive:                g.sensitivePtr(r, field),
 		}
-		// if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
-		// 	strAttr.Validators = validators
-		// }
+		if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
+			strAttr.Validators = validators
+		}
 		attr.String = strAttr
 	default:
 		// Check if it's a custom type defined in Types
 		if _, ok := r.Types[field.FieldType]; ok {
-			nestedAttrs := g.generateNestedResourceAttributesFromType(r, field.FieldType)
+			nestedAttrs := g.generateNestedResourceAttributesFromType(r, joinContainer(container, field.JSONName), field.FieldType)
 			attr.SingleNested = &resource.SingleNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				Attributes:               nestedAttrs,
@@ -456,6 +573,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 			attr.String = &resource.StringAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				AssociatedExternalType:   externalType,
+				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
 	}
@@ -464,7 +582,7 @@ func (g *SpecificationGenerator) fieldToResourceAttribute(r *ResourceInfo, field
 }
 
 // generateNestedResourceAttributes generates nested attributes for resources.
-func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInfo, field *FieldInfo) []resource.Attribute {
+func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInfo, container string, field *FieldInfo) []resource.Attribute {
 	if field.Fields == nil {
 		return nil
 	}
@@ -482,7 +600,7 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 			continue
 		}
 
-		attr := g.fieldToResourceAttribute(r, childField)
+		attr := g.fieldToResourceAttribute(r, container, childField)
 		if attr != nil {
 			attrs = append(attrs, *attr)
 		}
@@ -492,13 +610,13 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 }
 
 // generateNestedResourceAttributesFromType generates nested attributes from a type name.
-func (g *SpecificationGenerator) generateNestedResourceAttributesFromType(r *ResourceInfo, typeName string) []resource.Attribute {
+func (g *SpecificationGenerator) generateNestedResourceAttributesFromType(r *ResourceInfo, container string, typeName string) []resource.Attribute {
 	typeInfo, ok := r.Types[typeName]
 	if !ok || typeInfo.Fields == nil {
 		return nil
 	}
 
-	return g.generateNestedResourceAttributes(r, typeInfo)
+	return g.generateNestedResourceAttributes(r, container, typeInfo)
 }
 
 // buildAssociatedExternalType creates an AssociatedExternalType for a field.
@@ -567,241 +685,113 @@ func (g *SpecificationGenerator) determineComputedOptionalRequired(field *FieldI
 }
 
 // buildValidators creates validators from a FieldValidation string.
-func (g *SpecificationGenerator) buildValidators(fieldType string, fieldValidation string) any { //nolint:unused
-	if fieldValidation == "" {
-		return nil
-	}
+// Validators for the Terraform code specification, derived from the same
+// controller patterns the SDK exports. Nothing here transcribes a rule by
+// hand: enums.go and ranges.go decide what a pattern means, and refuse
+// anything they cannot read confidently, so a field either gets a validator
+// that matches its schema or gets none.
 
-	// Parse validation string
-	switch fieldType {
-	case "string":
-		return g.buildStringValidators(fieldValidation)
-	case fields.Int:
-		return g.buildInt64Validators(fieldValidation)
-	case "float64":
-		return g.buildFloat64Validators(fieldValidation)
-	case "bool":
-		// Bool validators are less common
-		return nil
-	default:
-		return nil
-	}
-}
-
-// buildStringValidators creates string validators from validation string.
+// buildStringValidators turns a string field's validator into the code-spec
+// form: an enumeration becomes OneOf, a bare length rule becomes
+// LengthBetween, and anything else is handed through as the regex it is.
 func (g *SpecificationGenerator) buildStringValidators(validation string) []schema.StringValidator {
-	if validation == "" {
+	if strings.TrimSpace(validation) == "" {
 		return nil
 	}
 
-	validators := make([]schema.StringValidator, 0)
-
-	// Check if it's a pipe-separated list of values (enum)
-	if strings.Contains(validation, "|") && !strings.HasPrefix(validation, "^") {
-		// Extract values between pipes, handle regex-like patterns
-		// Simple pattern: value1|value2|value3
-		values := strings.Split(validation, "|")
-		if len(values) > 1 {
-			// Build OneOf validator
-			quotedValues := make([]string, len(values))
-			for i, v := range values {
-				v = strings.TrimSpace(v)
-				// Remove regex anchors and special chars if present
-				v = strings.TrimPrefix(v, "^")
-				v = strings.TrimSuffix(v, "$")
-				v = strings.Trim(v, "()")
-				quotedValues[i] = fmt.Sprintf(`"%s"`, v)
-			}
-			schemaDefinition := fmt.Sprintf("stringvalidator.OneOf(%s)", strings.Join(quotedValues, ", "))
-			validators = append(validators, schema.StringValidator{
-				Custom: &schema.CustomValidator{
-					Imports: []code.Import{
-						{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"},
-					},
-					SchemaDefinition: schemaDefinition,
-				},
-			})
+	if values := enumValues(validation); values != nil {
+		quoted := make([]string, len(values))
+		for i, v := range values {
+			quoted[i] = strconv.Quote(v)
 		}
-	} else if validation != "" {
-		// It's a regex pattern - translate to appropriate validator
-		translatedValidators := g.translateRegexToValidators(validation)
-		validators = append(validators, translatedValidators...)
+		return []schema.StringValidator{customStringValidator(
+			fmt.Sprintf("stringvalidator.OneOf(%s)", strings.Join(quoted, ", ")),
+			stringValidatorImport,
+		)}
 	}
 
-	return validators
+	if low, high, ok := lengthBounds(validation); ok {
+		return []schema.StringValidator{customStringValidator(
+			fmt.Sprintf("stringvalidator.LengthBetween(%d, %d)", low, high),
+			stringValidatorImport,
+		)}
+	}
+
+	// Not something with a shorter name: keep the controller's own rule.
+	// It has to compile under RE2, which a few lookahead patterns do not.
+	if _, err := compileAnchored(validation); err != nil {
+		return nil
+	}
+	return []schema.StringValidator{customStringValidator(
+		fmt.Sprintf("stringvalidator.RegexMatches(regexp.MustCompile(%s), %s)",
+			strconv.Quote(anchoredPattern(validation)),
+			strconv.Quote("must match the controller's validator: "+validation)),
+		stringValidatorImport, regexpImport,
+	)}
 }
 
-// translateRegexToValidators converts a regex pattern to appropriate Terraform validators.
-func (g *SpecificationGenerator) translateRegexToValidators(pattern string) []schema.StringValidator {
-	validators := make([]schema.StringValidator, 0)
-
-	// Try to translate to specific validators
-	if validator := g.tryLengthValidator(pattern); validator != nil {
-		validators = append(validators, *validator)
-		return validators
-	}
-
-	if validator := g.tryHexValidator(pattern); validator != nil {
-		validators = append(validators, *validator)
-		return validators
-	}
-
-	if validator := g.tryColorHexValidator(pattern); validator != nil {
-		validators = append(validators, *validator)
-		return validators
-	}
-
-	// For complex patterns, use RegexMatches but with proper escaping
-	// Replace problematic characters to avoid escape sequence issues
-	safePattern := strings.ReplaceAll(pattern, `"`, `'`)
-	schemaDefinition := fmt.Sprintf("stringvalidator.RegexMatches(regexp.MustCompile(`%s`), \"\")", safePattern)
-	validators = append(validators, schema.StringValidator{
-		Custom: &schema.CustomValidator{
-			Imports: []code.Import{
-				{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"},
-				{Path: "regexp"},
-			},
-			SchemaDefinition: schemaDefinition,
-		},
-	})
-
-	return validators
-}
-
-// tryLengthValidator attempts to create a length-based validator from a regex pattern.
-func (g *SpecificationGenerator) tryLengthValidator(pattern string) *schema.StringValidator {
-	// Pattern: .{min,max} or .{exact} or .{min,}
-	lengthPattern := regexp.MustCompile(`^\.\{(\d+)(?:,(\d*))?\}$`)
-	matches := lengthPattern.FindStringSubmatch(pattern)
-
-	if len(matches) > 0 {
-		min := matches[1] //nolint:predeclared
-		max := matches[2] //nolint:predeclared
-		hasComma := strings.Contains(pattern, ",")
-
-		var schemaDefinition string
-
-		if !hasComma {
-			// Exact length: .{n} (no comma in pattern)
-			schemaDefinition = fmt.Sprintf("stringvalidator.LengthBetween(%s, %s)", min, min)
-		} else if max == "" {
-			// Minimum length: .{min,} (comma but no max)
-			minInt, _ := strconv.Atoi(min)
-			schemaDefinition = fmt.Sprintf("stringvalidator.LengthAtLeast(%d)", minInt)
-		} else {
-			// Range: .{min,max}
-			minInt, _ := strconv.Atoi(min)
-			maxInt, _ := strconv.Atoi(max)
-			schemaDefinition = fmt.Sprintf("stringvalidator.LengthBetween(%d, %d)", minInt, maxInt)
-		}
-
-		return &schema.StringValidator{
-			Custom: &schema.CustomValidator{
-				Imports: []code.Import{
-					{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"},
-				},
-				SchemaDefinition: schemaDefinition,
-			},
-		}
-	}
-
-	return nil
-}
-
-// tryHexValidator attempts to create a validator for hexadecimal patterns.
-func (g *SpecificationGenerator) tryHexValidator(pattern string) *schema.StringValidator {
-	// Pattern: [0-9A-Fa-f]{n} or [0-9a-fA-F]{n}
-	hexPattern := regexp.MustCompile(`^\[0-9A-Fa-f\]\{(\d+)\}$|^\[0-9a-fA-F\]\{(\d+)\}$`)
-	matches := hexPattern.FindStringSubmatch(pattern)
-
-	if len(matches) > 0 {
-		length := matches[1]
-		if length == "" {
-			length = matches[2]
-		}
-
-		lengthInt, _ := strconv.Atoi(length)
-
-		// Use length validator combined with regex for hex characters
-		schemaDefinition := fmt.Sprintf("stringvalidator.LengthBetween(%d, %d)", lengthInt, lengthInt)
-
-		return &schema.StringValidator{
-			Custom: &schema.CustomValidator{
-				Imports: []code.Import{
-					{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"},
-				},
-				SchemaDefinition: schemaDefinition,
-			},
-		}
-	}
-
-	return nil
-}
-
-// tryColorHexValidator attempts to create a validator for color hex codes.
-func (g *SpecificationGenerator) tryColorHexValidator(pattern string) *schema.StringValidator {
-	// Pattern: ^#(?:[0-9a-fA-F]{3}){1,2}$
-	if strings.Contains(pattern, "#") && strings.Contains(pattern, "[0-9a-fA-F]{3}") {
-		// This is a color hex pattern - use LengthBetween for #RGB or #RRGGBB
-		schemaDefinition := "stringvalidator.LengthBetween(4, 7)" // #RGB (4) to #RRGGBB (7)
-
-		return &schema.StringValidator{
-			Custom: &schema.CustomValidator{
-				Imports: []code.Import{
-					{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"},
-				},
-				SchemaDefinition: schemaDefinition,
-			},
-		}
-	}
-
-	return nil
-}
-
-// buildInt64Validators creates int64 validators from validation string.
+// buildInt64Validators turns a numeric field's validator into OneOf for a set
+// of values or Between for a contiguous range. A pattern that is neither
+// yields nothing rather than a guess.
 func (g *SpecificationGenerator) buildInt64Validators(validation string) []schema.Int64Validator {
-	if validation == "" {
+	if strings.TrimSpace(validation) == "" {
 		return nil
 	}
 
-	validators := make([]schema.Int64Validator, 0)
-
-	// Check if it's a pipe-separated list of values
-	if strings.Contains(validation, "|") {
-		values := strings.Split(validation, "|")
-		if len(values) > 1 {
-			// Try to parse as integers
-			intValues := make([]string, 0)
-			for _, v := range values {
-				v = strings.TrimSpace(v)
-				if _, err := strconv.ParseInt(v, 10, 64); err == nil {
-					intValues = append(intValues, v)
-				}
-			}
-			if len(intValues) > 0 {
-				schemaDefinition := fmt.Sprintf("int64validator.OneOf(%s)", strings.Join(intValues, ", "))
-				validators = append(validators, schema.Int64Validator{
-					Custom: &schema.CustomValidator{
-						Imports: []code.Import{
-							{Path: "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"},
-						},
-						SchemaDefinition: schemaDefinition,
-					},
-				})
-			}
+	if values := enumInt64Values(validation); values != nil {
+		parts := make([]string, len(values))
+		for i, v := range values {
+			parts[i] = strconv.FormatInt(v, 10)
 		}
+		return []schema.Int64Validator{{
+			Custom: &schema.CustomValidator{
+				Imports:          []code.Import{int64ValidatorImport},
+				SchemaDefinition: fmt.Sprintf("int64validator.OneOf(%s)", strings.Join(parts, ", ")),
+			},
+		}}
 	}
 
-	return validators
-}
+	if low, high, ok := numericRange(validation); ok {
+		return []schema.Int64Validator{{
+			Custom: &schema.CustomValidator{
+				Imports:          []code.Import{int64ValidatorImport},
+				SchemaDefinition: fmt.Sprintf("int64validator.Between(%d, %d)", low, high),
+			},
+		}}
+	}
 
-// buildFloat64Validators creates float64 validators from validation string.
-func (g *SpecificationGenerator) buildFloat64Validators(_ string) []schema.Float64Validator { //nolint:unused
-	// For now, float64 validators are less common, return nil
 	return nil
 }
 
-// fieldTypeToElementType converts a Go type to an ElementType.
+// There is deliberately no buildFloat64Validators. Every float64 field the
+// schema constrains is a map coordinate (x, y, z) whose pattern --
+// (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$) -- says "an optionally signed
+// integer or decimal", which is what a float64 already is. A validator built
+// from it would be a tautology. TestNoConstrainableFloat64Fields fails if a
+// schema refresh ever introduces one worth expressing.
+
+var (
+	stringValidatorImport = code.Import{Path: "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"}
+	int64ValidatorImport  = code.Import{Path: "github.com/hashicorp/terraform-plugin-framework-validators/int64validator"}
+	regexpImport          = code.Import{Path: "regexp"}
+)
+
+func customStringValidator(definition string, imports ...code.Import) schema.StringValidator {
+	return schema.StringValidator{
+		Custom: &schema.CustomValidator{
+			Imports:          imports,
+			SchemaDefinition: definition,
+		},
+	}
+}
+
+// anchoredPattern makes a validator match the whole value. Several are
+// written unanchored, and RegexMatches on an unanchored pattern accepts
+// anything that merely contains a match.
+func anchoredPattern(validation string) string {
+	return `\A(?:` + validation + `)\z`
+}
+
 func (g *SpecificationGenerator) fieldTypeToElementType(fieldType string) schema.ElementType {
 	switch fieldType {
 	case "bool":

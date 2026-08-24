@@ -22,6 +22,7 @@
             "priority": ""
         }
     ],
+    "redistribute_bgp_routes": "true|false",
     "redistribute_connected_routes": "true|false",
     "redistribute_connected_routes_metric_type": "",
     "redistribute_static_routes": "true|false",
