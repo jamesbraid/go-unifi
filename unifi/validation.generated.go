@@ -35,9 +35,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"width":         "20|40|80|160",
 	},
 	"Client": {
-		"display_name": "non-generated field",
 		"fixed_ap_mac": "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$",
-		"last_ip":      "non-generated field",
 		"mac":          "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$",
 	},
 	"ClientGroup": {
@@ -2584,9 +2582,7 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		"width":         {Pattern: "20|40|80|160", Int64Values: []int64{20, 40, 80, 160}},
 	},
 	"Client": {
-		"display_name": {Pattern: "non-generated field"},
 		"fixed_ap_mac": {Pattern: "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"},
-		"last_ip":      {Pattern: "non-generated field"},
 		"mac":          {Pattern: "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"},
 	},
 	"ClientGroup": {

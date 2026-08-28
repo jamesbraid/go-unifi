@@ -262,7 +262,12 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		// stays here rather than overrides/fields.toml for that reason.
 		baseType.Fields[" MAC"] = NewFieldInfo("MAC", "mac", fields.String, "", true, false, false, "")
 	case resource.StructName == "Client":
-		baseType.Fields[" DisplayName"] = NewFieldInfo("DisplayName", "display_name", fields.String, "non-generated field", true, false, false, "")
+		// No validation: the controller has no schema for this field, and
+		// the validation slot is for what the controller's own validator
+		// says. A note there would be published as a rule -- as a pattern in
+		// FieldValidationPatterns, and as a RegexMatches in the generated
+		// specification that accepts only the note's own text.
+		baseType.Fields[" DisplayName"] = NewFieldInfo("DisplayName", "display_name", fields.String, "", true, false, false, "")
 	}
 
 	// REST paths that differ from the schema name come from
@@ -289,6 +294,13 @@ var jsonNameRe = regexp.MustCompile(`^[A-Za-z0-9_.:+-]+$`)
 // comment.
 var newlineRe = regexp.MustCompile(`[\r\n\x60]+`)
 
+// nonValidatorNotes are strings that have been used to explain a field
+// rather than to validate it. They are refused where a validator is
+// expected, because everything downstream treats that slot as a regex.
+var nonValidatorNotes = map[string]struct{}{
+	"non-generated field": {},
+}
+
 func NewFieldInfo(
 	fieldName string,
 	jsonName string,
@@ -301,6 +313,15 @@ func NewFieldInfo(
 ) *FieldInfo {
 	if !jsonNameRe.MatchString(jsonName) {
 		panic(fmt.Sprintf("refusing to generate code for unsafe schema field name %q", jsonName))
+	}
+	// A field the controller does not describe has no validation, and saying
+	// so in prose puts the prose where a validator belongs: it reaches
+	// FieldValidationPatterns as a pattern and the generated specification as
+	// a validator matching only that sentence. Leave it empty instead.
+	if _, prose := nonValidatorNotes[fieldValidation]; prose {
+		panic(fmt.Sprintf(
+			"field %q carries the note %q where its validator belongs; leave the validation "+
+				"empty and put the note in the field's doc", jsonName, fieldValidation))
 	}
 
 	return &FieldInfo{
