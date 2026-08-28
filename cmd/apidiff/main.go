@@ -176,28 +176,51 @@ func filterIncompatibilities(lines []string) []string {
 // to the type checker, but omitempty is a wire contract).
 const wireBaselinePath = "unifi/testdata/always_serialized_fields.txt"
 
+// purposeBaselinePath records what each Network purpose encoder sends for an
+// object the caller left alone.
+//
+// The generated marshalers are covered by wireBaselinePath, which is read
+// from struct tags. Network's encoders are hand-written and re-declare their
+// own tags, so a change there is invisible to that baseline: dropping
+// omitempty from remote_vpn_subnets put the key on every site-to-site write
+// and this tool reported no wire-surface change at all. Both files are
+// compared so that neither half of the encoder can move quietly.
+const purposeBaselinePath = "unifi/testdata/purpose_wire_shape.txt"
+
 func wireSurfaceDelta(baseTree string) (added, removed []string, err error) {
-	baseLines, err := baselineLines(filepath.Join(baseTree, wireBaselinePath))
-	if err != nil {
-		return nil, nil, err
+	for _, path := range []string{wireBaselinePath, purposeBaselinePath} {
+		baseLines, recorded, err := baselineLines(filepath.Join(baseTree, path))
+		if err != nil {
+			return nil, nil, err
+		}
+		// A baseline the release being compared against never had says
+		// nothing about what moved since. Reporting its whole contents as
+		// additions would bury the real ones the first time a baseline is
+		// introduced.
+		if !recorded {
+			continue
+		}
+		currentLines, _, err := baselineLines(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		fileAdded, fileRemoved := wireDelta(baseLines, currentLines)
+		added = append(added, fileAdded...)
+		removed = append(removed, fileRemoved...)
 	}
-	currentLines, err := baselineLines(wireBaselinePath)
-	if err != nil {
-		return nil, nil, err
-	}
-	added, removed = wireDelta(baseLines, currentLines)
 	return added, removed, nil
 }
 
-// baselineLines tolerates a missing file: a baseline that predates the
-// write-shape guard compares as empty rather than failing the run.
-func baselineLines(path string) ([]string, error) {
+// baselineLines reads a wire baseline, reporting whether the file was there
+// at all: a release that predates a baseline has no record to compare
+// against, which is different from a record that is empty.
+func baselineLines(path string) ([]string, bool, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var lines []string
 	for _, line := range strings.Split(string(data), "\n") {
@@ -205,7 +228,7 @@ func baselineLines(path string) ([]string, error) {
 			lines = append(lines, line)
 		}
 	}
-	return lines, nil
+	return lines, true, nil
 }
 
 func wireDelta(base, current []string) (added, removed []string) {
