@@ -2,6 +2,7 @@ package unifi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -154,6 +155,74 @@ func (c *ApiClient) UpdatePowerSupervisor(
 	}
 
 	return &respBody, nil
+}
+
+// UpdatePowerSupervisorFields writes only the named wire fields of a
+// supervisor and leaves the rest of the stored object untouched.
+//
+// Whether this endpoint merges a partial PUT is unmeasured: the disposable
+// controller has no PoE source to supervise, so its POST refuses every
+// probe. The mask is therefore applied to the object as stored and the
+// whole object written back, which is right either way; see overlayMasked.
+func (c *ApiClient) UpdatePowerSupervisorFields(
+	ctx context.Context,
+	site string,
+	d *PowerSupervisor,
+	fields ...string,
+) (*PowerSupervisor, error) {
+	masked, err := maskedBody(d, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	stored, err := c.rawPowerSupervisor(ctx, site, d.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	merged, err := overlayMasked(stored, masked)
+	if err != nil {
+		return nil, err
+	}
+
+	var respBody PowerSupervisor
+	err = c.do(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf("%s/%s", c.powerSupervisorsPath(site), d.ID),
+		merged,
+		&respBody,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if respBody.ID == "" {
+		return c.GetPowerSupervisor(ctx, site, d.ID)
+	}
+
+	return &respBody, nil
+}
+
+// rawPowerSupervisor reads one supervisor exactly as the controller stores
+// it, listing and picking the way GetPowerSupervisor does.
+func (c *ApiClient) rawPowerSupervisor(ctx context.Context, site, id string) (json.RawMessage, error) {
+	var respBody []json.RawMessage
+	err := c.do(ctx, http.MethodGet, c.powerSupervisorsPath(site), nil, &respBody)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, raw := range respBody {
+		var supervisor struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(raw, &supervisor) == nil && supervisor.ID == id {
+			return raw, nil
+		}
+	}
+
+	return nil, &NotFoundError{Type: "power_supervisor", Attr: "id", Value: id}
 }
 
 func (c *ApiClient) DeletePowerSupervisor(
