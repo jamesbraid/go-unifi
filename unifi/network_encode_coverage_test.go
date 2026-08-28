@@ -73,6 +73,31 @@ var networkEncoderPresenceAllowlistTODOs = []string{
 	"ipsec_tunnel_ip",
 	"ipsec_tunnel_ip_enabled",
 	"remote_vpn_dynamic_subnets_enabled",
+
+	// probe 2026-08 (10.6.101 sim controller): STRIPPED, all twelve. Added
+	// by that release's regeneration and measured the same day: the
+	// controller accepts a create carrying each one and the field is absent
+	// from the stored document, so emitting them would write keys nothing
+	// reads back.
+	//
+	// Every one belongs to a gateway feature -- a WiFi-uplink WAN, PPPoE,
+	// SD-WAN underlay, the local subnets a site-to-site tunnel exposes,
+	// OpenVPN compression -- which puts them in the same class as
+	// igmp_proxy_downstream_networkconf_ids above: measured on a controller
+	// with no gateway to configure. Real hardware may persist them, and
+	// re-probing is how that would be found, not reasoning about it.
+	"is_wifi_tethering",
+	"local_vpn_networkconf_ids",
+	"local_vpn_subnets",
+	"local_vpn_subnets_mode",
+	"openvpn_compression_disabled",
+	"sdwan_underlay",
+	"uplink_band",
+	"uplink_identity",
+	"uplink_security",
+	"uplink_ssid",
+	"wan_pppoe_rfc4638_enabled",
+	"x_uplink_password",
 }
 
 // networkEncoderAllowlist contains generated wire names that are intentionally
