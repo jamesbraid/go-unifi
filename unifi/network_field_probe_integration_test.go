@@ -58,6 +58,7 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 	placeholders := map[string]string{
 		"@zone":               firstZoneID(ctx, t, s, c.Site),
 		"@radiusprofile":      firstRadiusProfileID(ctx, t, s, c.Site),
+		"@defaultnetwork":     firstObjectID(ctx, t, s, c.Site, "networkconf"),
 		placeholderWANLocalIP: wan.IP,
 		placeholderWANIf:      wan.Interface,
 	}
@@ -70,11 +71,24 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 	if _, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/set/setting/radius", map[string]any{"key": "radius", "enabled": true}); err != nil || status != 200 {
 		t.Logf("failed to enable site radius setting (status %d, %v); RADIUS-gated candidates may be REJECTED", status, err)
 	}
-	resolve := func(v any) any {
-		if str, ok := v.(string); ok {
-			if resolved, ok := placeholders[str]; ok {
+	// A placeholder can appear on its own or inside a list: a field naming
+	// one object takes a string, one naming several takes a slice of them.
+	// Resolving only the scalar case would send the literal "@..." to the
+	// controller and measure its rejection of a malformed id rather than
+	// the field.
+	var resolve func(v any) any
+	resolve = func(v any) any {
+		switch value := v.(type) {
+		case string:
+			if resolved, ok := placeholders[value]; ok {
 				return resolved
 			}
+		case []string:
+			out := make([]string, len(value))
+			for i, item := range value {
+				out[i], _ = resolve(item).(string)
+			}
+			return out
 		}
 		return v
 	}
