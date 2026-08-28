@@ -678,6 +678,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 	"WLAN": {
 		"ap_group_mode":              "all|groups|devices",
+		"bandsteering_mode":          "off|equal|prefer_5g",
 		"bc_filter_list":             "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$",
 		"dns_assistance_mode":        "off|auto|manual",
 		"dns_assistance_servers":     "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
@@ -2216,6 +2217,9 @@ var TrafficRouteTargetDevicesTypeValues = []string{"ALL_CLIENTS", "CLIENT", "NET
 
 // WLANApGroupModeValues are the values the controller accepts for WLAN.ap_group_mode.
 var WLANApGroupModeValues = []string{"all", "groups", "devices"}
+
+// WLANBandsteeringModeValues are the values the controller accepts for WLAN.bandsteering_mode.
+var WLANBandsteeringModeValues = []string{"off", "equal", "prefer_5g"}
 
 // WLANDNSAssistanceModeValues are the values the controller accepts for WLAN.dns_assistance_mode.
 var WLANDNSAssistanceModeValues = []string{"off", "auto", "manual"}

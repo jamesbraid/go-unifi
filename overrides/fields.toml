@@ -584,6 +584,22 @@ omitempty = true
 [WLAN.field.schedule_with_duration]
 omitempty = true
 
+# Per-SSID band steering. The 10.4.57 schema does not define it, and that
+# release stores nothing for it either -- measured: a wlanconf write carrying
+# bandsteering_mode, whatever the value, answers ok and the key never comes
+# back on a read, so a consumer must not expect an echo
+# (TestIntegrationWLANBandsteeringModeNotStored). Newer controllers store it;
+# ubiquiti-community/go-unifi#72 added the same field by hand for the WiFi 6/7
+# access points where per-SSID steering replaced the device-level control.
+# The schema defines it once the lock moves to such a release, and this entry
+# then yields to the schema's own validation.
+[WLAN.field.bandsteering_mode]
+add = true
+name = "BandsteeringMode"
+type = "string"
+validation = "off|equal|prefer_5g"
+omitempty = true
+
 # Removed in v7, retained for backwards compatibility.
 [SettingUsg.field.mdns_enabled]
 add = true

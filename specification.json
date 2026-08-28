@@ -13101,6 +13101,24 @@
             }
           },
           {
+            "name": "bandsteering_mode",
+            "string": {
+              "computed_optional_required": "computed",
+              "validators": [
+                {
+                  "custom": {
+                    "imports": [
+                      {
+                        "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+                      }
+                    ],
+                    "schema_definition": "stringvalidator.OneOf(\"off\", \"equal\", \"prefer_5g\")"
+                  }
+                }
+              ]
+            }
+          },
+          {
             "name": "bc_filter_enabled",
             "bool": {
               "computed_optional_required": "computed"
@@ -28166,6 +28184,24 @@
             "name": "b_supported",
             "bool": {
               "computed_optional_required": "optional"
+            }
+          },
+          {
+            "name": "bandsteering_mode",
+            "string": {
+              "computed_optional_required": "computed_optional",
+              "validators": [
+                {
+                  "custom": {
+                    "imports": [
+                      {
+                        "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+                      }
+                    ],
+                    "schema_definition": "stringvalidator.OneOf(\"off\", \"equal\", \"prefer_5g\")"
+                  }
+                }
+              ]
             }
           },
           {
