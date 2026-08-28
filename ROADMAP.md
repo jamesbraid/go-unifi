@@ -35,7 +35,7 @@ an automated path exists.
   and is where tags are minted (`auto-release`, which runs only on GitHub)
   and releases published (`release`, goreleaser). `upstream`
   (ubiquiti-community) is never touched.
-- unifi-containers publishes `ghcr.io/jamesbraid/unifi-network:<ver>-N-sim`
+- unifi-containers publishes `ghcr.io/jamesbraid/unifi-network:<ver>-sim`
   from a pinned package URL. Its updater (Woodpecker `update.yml`, cron or
   manual) selects the next stable from the Ubiquiti apt stable dist, opens a
   bump PR, and on merge `tag.yml` mints `v<ver>-1`, `sync-tag.yml` syncs the
@@ -84,9 +84,15 @@ Steps, each through its tool:
    channel). It opens `network: bump to <ver>`, regenerates
    `docs/sim-keys/<ver>.txt`, and checks run (`updater-tests`,
    `verify-pins`). Review, merge. `tag.yml` mints `v<ver>-1`, the mirror
-   syncs, GitHub builds and publishes `<ver>-1-sim` and moves `sim`.
-   Gate: `docker pull ghcr.io/jamesbraid/unifi-network:<ver>-1-sim` and the
-   image's own healthcheck (a real JSON login) passes.
+   syncs, GitHub builds and publishes `<ver>-sim` and moves `sim`.
+   Gate: `docker pull ghcr.io/jamesbraid/unifi-network:<ver>-sim` and the
+   image's own healthcheck passes. That healthcheck now clears three
+   stages, not a login alone: a login, then the v2 firewall-policies
+   surface answering while zone-based-firewall defaults materialize, then
+   the full seeded device fleet. A consumer can read the same verdict from
+   `GET :9099/readyz` where Docker health is not visible. Nothing should
+   poll the login endpoint itself; the controller rate-limits it globally
+   with a Retry-After of up to an hour.
 2. go-unifi: dispatch the capture workflow on Forgejo with the artifact URL
    unifi-containers pinned (`network/Dockerfile` `PKGURL`), so the SDK and
    the test image are built from the same bytes. It proposes the lock,
@@ -96,6 +102,9 @@ Steps, each through its tool:
    lint, tests) and `integration` (pulls `<ver>-sim` from `schemas/VERSION`,
    runs the suite and the v2 drift probe). Drift findings are measured
    definitions and go to `overrides/resources/` with the build recorded;
+   fields the regeneration adds to `Network` are classified by the field
+   probe against the same controller, and only a field measured as
+   persisted is wired into an encoder;
    ownership pins are re-measured where the controller changed. Review the
    lock, the API diff, and the integration evidence. Merge.
 4. Mirror sync carries `main` to the fork. `auto-release` runs `apidiff`
@@ -122,7 +131,7 @@ Run `development/new-controller.md` verbatim from the v1.106.0 tag: bump
 the `replace`, `go generate` (bootstraps regenerate from the new SDK
 commit), adjust policy only where a bootstrap changed shape, regenerate,
 update descriptors and the schema snapshot, run the conformance suites and
-the acceptance suite against `<ver>-1-sim`. Review and merge on Forgejo;
+the acceptance suite against `<ver>-sim`. Review and merge on Forgejo;
 tag and release on the fork.
 
 The provider can dry-run the playbook against the schema PR's branch before
@@ -153,13 +162,18 @@ Gate: the PR's own tests (unit, and the integration tests that pin the
 measured merge and refusal semantics) green on Forgejo; `apidiff` additive
 against v1.106.0; tag by `auto-release`.
 
-### R2' — terraform-provider-unifi v0.107.0: the provider's cumulative release
+### R2' — the provider's own train
 
-Owned by the provider: upstream triage, validators derived from the SDK's
-exported enum facts, defect fixes, the seven hand-written surfaces onto the
-kit, `unifi_nat` and content filtering, `unifi_setting` as a composite of
-per-section specs. Consumes v1.107.0. Nothing in it gates on go-unifi
-beyond R2.
+The provider ships three releases after its bump, and only the middle one
+consumes R2:
+
+- v0.107.0: upstream triage, validators derived from the SDK's exported
+  enum facts, defect fixes, test infrastructure. Consumes v1.106.0.
+- v0.108.0: the seven hand-written surfaces onto the kit, `unifi_setting`
+  as a composite of per-section specs, and the settings sections. This is
+  the release that needs R2's masked updates.
+- v0.109.0: `unifi_nat` and content filtering. Consumes v1.106.0; the SDK
+  already carries their full CRUD.
 
 ### R3 — go-unifi v1.108.0: facts the provider now derives by convention
 
