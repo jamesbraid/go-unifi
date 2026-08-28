@@ -467,22 +467,7 @@
           {
             "name": "last_ip",
             "string": {
-              "computed_optional_required": "computed",
-              "validators": [
-                {
-                  "custom": {
-                    "imports": [
-                      {
-                        "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-                      },
-                      {
-                        "path": "regexp"
-                      }
-                    ],
-                    "schema_definition": "stringvalidator.RegexMatches(regexp.MustCompile(\"\\\\A(?:non-generated field)\\\\z\"), \"must match the controller's validator: non-generated field\")"
-                  }
-                }
-              ]
+              "computed_optional_required": "computed"
             }
           },
           {
@@ -15845,22 +15830,7 @@
           {
             "name": "last_ip",
             "string": {
-              "computed_optional_required": "computed_optional",
-              "validators": [
-                {
-                  "custom": {
-                    "imports": [
-                      {
-                        "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-                      },
-                      {
-                        "path": "regexp"
-                      }
-                    ],
-                    "schema_definition": "stringvalidator.RegexMatches(regexp.MustCompile(\"\\\\A(?:non-generated field)\\\\z\"), \"must match the controller's validator: non-generated field\")"
-                  }
-                }
-              ]
+              "computed_optional_required": "computed_optional"
             }
           },
           {

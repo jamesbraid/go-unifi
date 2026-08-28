@@ -33,14 +33,15 @@ type Client struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	DisplayName string `json:"display_name,omitempty"` // non-generated field
+	DisplayName string `json:"display_name,omitempty"`
 
-	Blocked                       *bool    `json:"blocked,omitempty"`
-	FixedApEnabled                bool     `json:"fixed_ap_enabled"`
-	FixedApMAC                    string   `json:"fixed_ap_mac,omitempty"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
-	FixedIP                       string   `json:"fixed_ip,omitempty"`
-	Hostname                      string   `json:"hostname,omitempty"`
-	LastIP                        string   `json:"last_ip,omitempty"` // non-generated field
+	Blocked        *bool  `json:"blocked,omitempty"`
+	FixedApEnabled bool   `json:"fixed_ap_enabled"`
+	FixedApMAC     string `json:"fixed_ap_mac,omitempty"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
+	FixedIP        string `json:"fixed_ip,omitempty"`
+	Hostname       string `json:"hostname,omitempty"`
+	// The client's most recent IP, reported by the controller on /rest/user. Read-only: the controller publishes no schema for it, so it carries no validation.
+	LastIP                        string   `json:"last_ip,omitempty"`
 	LastSeen                      *int64   `json:"last_seen,omitempty"`
 	LocalDNSRecord                string   `json:"local_dns_record,omitempty"`
 	LocalDNSRecordEnabled         bool     `json:"local_dns_record_enabled"`
