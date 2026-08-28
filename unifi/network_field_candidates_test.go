@@ -125,6 +125,69 @@ var networkFieldCandidates = []fieldCandidate{
 		Value:   true,
 		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.13", "ipsec_tunnel_ip_enabled": true, "ipsec_tunnel_ip": probeTunnelIP}),
 	},
+
+	// Added by the 10.6.101 regeneration. Purposes below are where each
+	// field's neighbours already live, which is a starting point for the
+	// probe, not a claim: the verdict the probe measures is what decides
+	// whether the encoder emits it.
+
+	// WiFi uplink ("WiFi tethering") WAN: a WAN whose upstream is a wireless
+	// network rather than a wired port. The six fields describe that radio
+	// link, so they are probed together on one WAN and gated by the flag
+	// that turns the mode on.
+	{Wire: "is_wifi_tethering", Purpose: PurposeWAN, Value: true, Prereq: wifiUplinkWANPrereq(nil)},
+	{Wire: "uplink_ssid", Purpose: PurposeWAN, Value: "probe-uplink", Prereq: wifiUplinkWANPrereq(nil)},
+	{Wire: "uplink_band", Purpose: PurposeWAN, Value: "ng", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"})},
+	{Wire: "uplink_security", Purpose: PurposeWAN, Value: "WPA2-Personal", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"})},
+	{Wire: "x_uplink_password", Purpose: PurposeWAN, Value: "probe-uplink-pass", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Personal"})},
+	{Wire: "uplink_identity", Purpose: PurposeWAN, Value: "probe-identity", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Enterprise"})},
+
+	// RFC 4638 is the PPPoE jumbo-MTU option, so it is probed on a PPPoE
+	// WAN rather than the DHCP one the other WAN candidates use.
+	{Wire: "wan_pppoe_rfc4638_enabled", Purpose: PurposeWAN, Value: true, Prereq: mergePrereq(probeWANBase, map[string]any{
+		"wan_type": "pppoe", "wan_username": "probe-user", "x_wan_password": "probe-pass",
+		"wan_pppoe_username_enabled": true, "wan_pppoe_password_enabled": true,
+	})},
+
+	// SD-WAN marks a WAN as an underlay for the overlay fabric.
+	{Wire: "sdwan_underlay", Purpose: PurposeWAN, Value: true, Prereq: probeWANBase},
+
+	// Which local subnets a site-to-site tunnel exposes to the peer. The
+	// mode selects between all networks, named networks, and literal
+	// subnets, so each of the three is probed under the mode that uses it.
+	{Wire: "local_vpn_subnets_mode", Purpose: PurposeSiteVPN, Value: "custom", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.21"})},
+	{Wire: "local_vpn_subnets", Purpose: PurposeSiteVPN, Value: []string{"10.98.0.0/24"}, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.22", "local_vpn_subnets_mode": "custom"})},
+	{Wire: "local_vpn_networkconf_ids", Purpose: PurposeSiteVPN, Value: []string{"@defaultnetwork"}, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.23", "local_vpn_subnets_mode": "selected_networks"})},
+
+	// OpenVPN compression is a property of the OpenVPN remote-user server,
+	// so it is probed on the same shape the round trip already establishes
+	// the controller accepts for that purpose.
+	{Wire: "openvpn_compression_disabled", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{
+		"vpn_type": "openvpn-server", "openvpn_mode": "server",
+		"openvpn_encryption_cipher": "AES_256_CBC",
+		"ip_subnet":                 "10.197.0.1/24", "local_port": 1196,
+		"radiusprofile_id": "@radiusprofile",
+	}},
+}
+
+// probeWANBase is a WAN the controller accepts: a DHCP upstream in a slot
+// the probe's own seeded static WAN does not hold. Each candidate network is
+// deleted when its subtest ends, so one slot serves them all.
+var probeWANBase = map[string]any{
+	"wan_networkgroup":      "WAN4",
+	"wan_type":              "dhcp",
+	"wan_type_v6":           "disabled",
+	"wan_load_balance_type": "failover-only",
+	"report_wan_event":      false,
+}
+
+// wifiUplinkWANPrereq is probeWANBase with WiFi tethering turned on, plus
+// whichever sibling fields the candidate under test needs to be meaningful.
+// is_wifi_tethering is itself a candidate, so it appears here as a prereq
+// for the others and as the value under test for itself -- the probe
+// overwrites the key it is measuring.
+func wifiUplinkWANPrereq(extra map[string]any) map[string]any {
+	return mergePrereq(mergePrereq(probeWANBase, map[string]any{"is_wifi_tethering": true}), extra)
 }
 
 // TestFieldCandidatesCoverAllTODOs keeps networkFieldCandidates and

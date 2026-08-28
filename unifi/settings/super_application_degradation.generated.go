@@ -21,17 +21,14 @@ var (
 	_ strconv.NumError
 )
 
-type AutoSpeedtest struct {
+type SuperApplicationDegradation struct {
 	BaseSetting
 
-	CronExpr      string   `json:"cron_expr,omitempty"`
-	Enabled       bool     `json:"enabled"`
-	SpeedTestMode string   `json:"speed_test_mode,omitempty"` // ALL|CUSTOM
-	WANList       []string `json:"wan_list,omitempty"`        // WAN[2-9]?
+	Enabled bool `json:"enabled"`
 }
 
-func (dst *AutoSpeedtest) UnmarshalJSON(b []byte) error {
-	type Alias AutoSpeedtest
+func (dst *SuperApplicationDegradation) UnmarshalJSON(b []byte) error {
+	type Alias SuperApplicationDegradation
 	aux := &struct {
 		*Alias
 	}{

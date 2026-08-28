@@ -24,6 +24,7 @@ var (
 type IgmpSnooping struct {
 	BaseSetting
 
+	AutoUnknownTrafficHandling         bool                                  `json:"auto_unknown_traffic_handling"`
 	Enabled                            bool                                  `json:"enabled"`
 	FailoverQuerier                    string                                `json:"failover_querier,omitempty"`
 	FastleaveForNetworkIDs             []string                              `json:"fastleave_for_network_ids,omitempty"`
