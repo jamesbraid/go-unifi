@@ -287,12 +287,12 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 	"FirewallPolicy": {
 		"action":                "ALLOW|BLOCK|REJECT",
-		"connection_state_type": "ALL|RESPOND_ONLY",
+		"connection_state_type": "ALL|RESPOND_ONLY|CUSTOM",
 		"icmp_typename":         "ANY|SPECIFIC|LIST|OBJECT",
 		"icmp_v6_typename":      "ANY|SPECIFIC|LIST|OBJECT",
 		"index":                 "[1-9][0-9]+",
 		"ip_version":            "BOTH|IPV4|IPV6",
-		"protocol":              "all|tcp|udp|tcp_udp",
+		"protocol":              "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6",
 	},
 	"FirewallPolicyDestination": {
 		"matching_target":      "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
@@ -1472,7 +1472,7 @@ var FirewallGroupSourceValues = []string{"static", "dynamic"}
 var FirewallPolicyActionValues = []string{"ALLOW", "BLOCK", "REJECT"}
 
 // FirewallPolicyConnectionStateTypeValues are the values the controller accepts for FirewallPolicy.connection_state_type.
-var FirewallPolicyConnectionStateTypeValues = []string{"ALL", "RESPOND_ONLY"}
+var FirewallPolicyConnectionStateTypeValues = []string{"ALL", "RESPOND_ONLY", "CUSTOM"}
 
 // FirewallPolicyICMPTypenameValues are the values the controller accepts for FirewallPolicy.icmp_typename.
 var FirewallPolicyICMPTypenameValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
@@ -1482,9 +1482,6 @@ var FirewallPolicyICMPV6TypenameValues = []string{"ANY", "SPECIFIC", "LIST", "OB
 
 // FirewallPolicyVersionValues are the values the controller accepts for FirewallPolicy.ip_version.
 var FirewallPolicyVersionValues = []string{"BOTH", "IPV4", "IPV6"}
-
-// FirewallPolicyProtocolValues are the values the controller accepts for FirewallPolicy.protocol.
-var FirewallPolicyProtocolValues = []string{"all", "tcp", "udp", "tcp_udp"}
 
 // FirewallPolicyDestinationMatchingTargetValues are the values the controller accepts for FirewallPolicyDestination.matching_target.
 var FirewallPolicyDestinationMatchingTargetValues = []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}
@@ -2839,12 +2836,12 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 	},
 	"FirewallPolicy": {
 		"action":                {Pattern: "ALLOW|BLOCK|REJECT", Values: []string{"ALLOW", "BLOCK", "REJECT"}},
-		"connection_state_type": {Pattern: "ALL|RESPOND_ONLY", Values: []string{"ALL", "RESPOND_ONLY"}},
+		"connection_state_type": {Pattern: "ALL|RESPOND_ONLY|CUSTOM", Values: []string{"ALL", "RESPOND_ONLY", "CUSTOM"}},
 		"icmp_typename":         {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
 		"icmp_v6_typename":      {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
 		"index":                 {Pattern: "[1-9][0-9]+"},
 		"ip_version":            {Pattern: "BOTH|IPV4|IPV6", Values: []string{"BOTH", "IPV4", "IPV6"}},
-		"protocol":              {Pattern: "all|tcp|udp|tcp_udp", Values: []string{"all", "tcp", "udp", "tcp_udp"}},
+		"protocol":              {Pattern: "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6"},
 	},
 	"FirewallPolicyDestination": {
 		"matching_target":      {Pattern: "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY", Values: []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}},
