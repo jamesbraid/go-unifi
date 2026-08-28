@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -407,7 +406,7 @@ func (c *ApiClient) AdoptDevice(ctx context.Context, site, mac string) error {
 		Meta meta `json:"meta"`
 	}
 
-	err := c.do(ctx, http.MethodPost, fmt.Sprintf("api/s/%s/cmd/devmgr", site), reqBody, &respBody)
+	err := c.siteCommand(ctx, site, "devmgr", reqBody, &respBody)
 	if err != nil {
 		return err
 	}
@@ -429,7 +428,7 @@ func (c *ApiClient) ForgetDevice(ctx context.Context, site, mac string) error {
 		Data []Device `json:"data"`
 	}
 
-	err := c.do(ctx, http.MethodPost, fmt.Sprintf("api/s/%s/cmd/sitemgr", site), reqBody, &respBody)
+	err := c.siteCommand(ctx, site, "sitemgr", reqBody, &respBody)
 	if err != nil {
 		return err
 	}

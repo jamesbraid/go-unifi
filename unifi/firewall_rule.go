@@ -2,8 +2,6 @@ package unifi
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 )
 
 type FirewallRuleIndexUpdate struct {
@@ -53,10 +51,10 @@ func (c *ApiClient) ReorderFirewallRules(
 		Ruleset: ruleset,
 		Rules:   reorder,
 	}
-	err := c.do(ctx, http.MethodPost, fmt.Sprintf("s/%s/cmd/firewall", site), reqBody, nil)
-	if err != nil {
+	var respBody commandResult
+	if err := c.siteCommand(ctx, site, "firewall", reqBody, &respBody); err != nil {
 		return err
 	}
 
-	return nil
+	return respBody.acted("reorder")
 }
