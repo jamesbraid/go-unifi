@@ -11,6 +11,10 @@ package settings
 // TypeFieldValues variables below are the subset of these patterns that is a
 // plain enumeration, already split into values.
 var FieldValidationPatterns = map[string]map[string]string{
+	"SettingAutoSpeedtest": {
+		"speed_test_mode": "ALL|CUSTOM",
+		"wan_list":        "WAN[2-9]?",
+	},
 	"SettingBroadcast": {
 		"sound_after_type":  "sample|media",
 		"sound_before_type": "sample|media",
@@ -52,8 +56,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"mode": "auto|custom|off",
 	},
 	"SettingGlobalSwitch": {
-		"dot1x_fallback_networkconf_id": "[\\d\\w]+|",
+		"dot1x_fallback_networkconf_id": "[\\d\\w-]+|",
 		"link_debounce":                 "0|[1-9]00|[1-4][0-9]00|5000",
+		"poe_staging_delay_msec":        "0|200|400|600|800|1000|1200|1400|1600|1800|2000",
 		"stp_version":                   "stp|rstp|disabled",
 		"switch_exclusions":             "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$",
 	},
@@ -94,7 +99,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 	"SettingIps": {
 		"advanced_filtering_preference": "|manual|disabled",
-		"enabled_categories":            "emerging-activex|emerging-attackresponse|botcc|emerging-chat|ciarmy|compromised|emerging-dns|emerging-dos|dshield|emerging-exploit|emerging-ftp|emerging-games|emerging-icmp|emerging-icmpinfo|emerging-imap|emerging-inappropriate|emerging-info|emerging-malware|emerging-misc|emerging-mobile|emerging-netbios|emerging-p2p|emerging-policy|emerging-pop3|emerging-rpc|emerging-scada|emerging-scan|emerging-shellcode|emerging-smtp|emerging-snmp|emerging-sql|emerging-telnet|emerging-tftp|tor|emerging-useragent|emerging-voip|emerging-webapps|emerging-webclient|emerging-webserver|emerging-worm|exploit-kit|adware-pup|botcc-portgrouped|phishing|threatview-cs-c2|3coresec|chat|coinminer|current-events|drop|hunting|icmp-info|inappropriate|info|ja3|policy|scada|dark-web-blocker-list|malicious-hosts",
+		"enabled_categories":            "emerging-activex|emerging-attackresponse|botcc|emerging-chat|ciarmy|compromised|emerging-dns|emerging-dos|dshield|emerging-exploit|emerging-ftp|emerging-games|emerging-icmp|emerging-icmpinfo|emerging-imap|emerging-inappropriate|emerging-info|emerging-malware|emerging-misc|emerging-mobile|emerging-netbios|emerging-p2p|emerging-policy|emerging-pop3|emerging-rpc|emerging-scada|emerging-scan|emerging-shellcode|emerging-smtp|emerging-snmp|emerging-sql|emerging-telnet|emerging-tftp|tor|emerging-useragent|emerging-voip|emerging-webapps|emerging-webclient|emerging-webserver|emerging-worm|exploit-kit|adware-pup|botcc-portgrouped|phishing|threatview-cs-c2|3coresec|chat|coinminer|current-events|drop|hunting|icmp-info|inappropriate|info|ja3|policy|scada|dark-web-blocker-list|malicious-hosts|dyn_dns|file_sharing|remote_access|ta_abused_services",
 		"ips_mode":                      "ids|ips|ipsInline|disabled",
 	},
 	"SettingIpsHoneypot": {
@@ -122,7 +127,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"address": "^_[a-zA-Z0-9._-]+\\._(tcp|udp)(\\.local)?$",
 	},
 	"SettingMdnsPredefinedServices": {
-		"code": "amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba",
+		"code": "amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|shelly|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba",
 	},
 	"SettingMgmt": {
 		"auto_upgrade_hour": "[0-9]|1[0-9]|2[0-3]|^$",
@@ -202,6 +207,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 	"SettingTeleport": {
 		"subnet_cidr": "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\/([8-9]|[1-2][0-9]|3[0-2])$|^$",
 	},
+	"SettingTestAndCommit": {
+		"mode": "auto|custom",
+	},
 	"SettingUsg": {
 		"arp_cache_base_reachable":   "^$|^[1-9]{1}[0-9]{0,4}$",
 		"arp_cache_timeout":          "normal|min-dhcp-lease|custom",
@@ -212,7 +220,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"echo_server":                "[^\\\"\\' ]{1,255}",
 		"mss_clamp":                  "auto|custom|disabled",
 		"mss_clamp_mss":              "[1-9][0-9]{2,3}",
-		"timeout_setting_preference": "auto|manual",
+		"timeout_setting_preference": "auto|reduced|manual",
 		"upnp_wan_interface":         "WAN[2-9]?",
 	},
 	"SettingUsgDNSVerification": {
@@ -224,6 +232,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"traffic_direction": "^(both|ingress|egress)$",
 	},
 }
+
+// SettingAutoSpeedtestSpeedTestModeValues are the values the controller accepts for SettingAutoSpeedtest.speed_test_mode.
+var SettingAutoSpeedtestSpeedTestModeValues = []string{"ALL", "CUSTOM"}
 
 // SettingBroadcastSoundAfterTypeValues are the values the controller accepts for SettingBroadcast.sound_after_type.
 var SettingBroadcastSoundAfterTypeValues = []string{"sample", "media"}
@@ -297,6 +308,9 @@ var SettingGlobalApNgTxPowerModeValues = []string{"auto", "medium", "high", "low
 // SettingGlobalNatModeValues are the values the controller accepts for SettingGlobalNat.mode.
 var SettingGlobalNatModeValues = []string{"auto", "custom", "off"}
 
+// SettingGlobalSwitchPoeStagingDelayMsecValues are the values the controller accepts for SettingGlobalSwitch.poe_staging_delay_msec.
+var SettingGlobalSwitchPoeStagingDelayMsecValues = []int64{0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000}
+
 // SettingGlobalSwitchStpVersionValues are the values the controller accepts for SettingGlobalSwitch.stp_version.
 var SettingGlobalSwitchStpVersionValues = []string{"stp", "rstp", "disabled"}
 
@@ -361,7 +375,7 @@ const (
 )
 
 // SettingIpsEnabledCategoriesValues are the values the controller accepts for SettingIps.enabled_categories.
-var SettingIpsEnabledCategoriesValues = []string{"emerging-activex", "emerging-attackresponse", "botcc", "emerging-chat", "ciarmy", "compromised", "emerging-dns", "emerging-dos", "dshield", "emerging-exploit", "emerging-ftp", "emerging-games", "emerging-icmp", "emerging-icmpinfo", "emerging-imap", "emerging-inappropriate", "emerging-info", "emerging-malware", "emerging-misc", "emerging-mobile", "emerging-netbios", "emerging-p2p", "emerging-policy", "emerging-pop3", "emerging-rpc", "emerging-scada", "emerging-scan", "emerging-shellcode", "emerging-smtp", "emerging-snmp", "emerging-sql", "emerging-telnet", "emerging-tftp", "tor", "emerging-useragent", "emerging-voip", "emerging-webapps", "emerging-webclient", "emerging-webserver", "emerging-worm", "exploit-kit", "adware-pup", "botcc-portgrouped", "phishing", "threatview-cs-c2", "3coresec", "chat", "coinminer", "current-events", "drop", "hunting", "icmp-info", "inappropriate", "info", "ja3", "policy", "scada", "dark-web-blocker-list", "malicious-hosts"}
+var SettingIpsEnabledCategoriesValues = []string{"emerging-activex", "emerging-attackresponse", "botcc", "emerging-chat", "ciarmy", "compromised", "emerging-dns", "emerging-dos", "dshield", "emerging-exploit", "emerging-ftp", "emerging-games", "emerging-icmp", "emerging-icmpinfo", "emerging-imap", "emerging-inappropriate", "emerging-info", "emerging-malware", "emerging-misc", "emerging-mobile", "emerging-netbios", "emerging-p2p", "emerging-policy", "emerging-pop3", "emerging-rpc", "emerging-scada", "emerging-scan", "emerging-shellcode", "emerging-smtp", "emerging-snmp", "emerging-sql", "emerging-telnet", "emerging-tftp", "tor", "emerging-useragent", "emerging-voip", "emerging-webapps", "emerging-webclient", "emerging-webserver", "emerging-worm", "exploit-kit", "adware-pup", "botcc-portgrouped", "phishing", "threatview-cs-c2", "3coresec", "chat", "coinminer", "current-events", "drop", "hunting", "icmp-info", "inappropriate", "info", "ja3", "policy", "scada", "dark-web-blocker-list", "malicious-hosts", "dyn_dns", "file_sharing", "remote_access", "ta_abused_services"}
 
 // SettingIpsIPsModeValues are the values the controller accepts for SettingIps.ips_mode.
 var SettingIpsIPsModeValues = []string{"ids", "ips", "ipsInline", "disabled"}
@@ -400,7 +414,7 @@ const (
 var SettingMdnsModeValues = []string{"all", "auto", "custom"}
 
 // SettingMdnsPredefinedServicesCodeValues are the values the controller accepts for SettingMdnsPredefinedServices.code.
-var SettingMdnsPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
+var SettingMdnsPredefinedServicesCodeValues = []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "shelly", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}
 
 // SettingMgmtAutoUpgradeHourMin and SettingMgmtAutoUpgradeHourMax are the inclusive bounds the controller accepts for SettingMgmt.auto_upgrade_hour.
 const (
@@ -540,6 +554,9 @@ const (
 	SettingSuperSmtpPortMax int64 = 65535
 )
 
+// SettingTestAndCommitModeValues are the values the controller accepts for SettingTestAndCommit.mode.
+var SettingTestAndCommitModeValues = []string{"auto", "custom"}
+
 // SettingUsgArpCacheBaseReachableMin and SettingUsgArpCacheBaseReachableMax are the inclusive bounds the controller accepts for SettingUsg.arp_cache_base_reachable.
 const (
 	SettingUsgArpCacheBaseReachableMin int64 = 1
@@ -577,7 +594,7 @@ const (
 )
 
 // SettingUsgTimeoutSettingPreferenceValues are the values the controller accepts for SettingUsg.timeout_setting_preference.
-var SettingUsgTimeoutSettingPreferenceValues = []string{"auto", "manual"}
+var SettingUsgTimeoutSettingPreferenceValues = []string{"auto", "reduced", "manual"}
 
 // SettingUsgDNSVerificationSettingPreferenceValues are the values the controller accepts for SettingUsgDNSVerification.setting_preference.
 var SettingUsgDNSVerificationSettingPreferenceValues = []string{"auto", "manual"}

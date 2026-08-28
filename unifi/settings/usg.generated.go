@@ -63,7 +63,7 @@ type Usg struct {
 	TCPSynSentTimeout        int64  `json:"tcp_syn_sent_timeout,omitempty"`
 	TCPTimeWaitTimeout       int64  `json:"tcp_time_wait_timeout,omitempty"`
 	TFTPModule               bool   `json:"tftp_module"`
-	TimeoutSettingPreference string `json:"timeout_setting_preference,omitempty"` // auto|manual
+	TimeoutSettingPreference string `json:"timeout_setting_preference,omitempty"` // auto|reduced|manual
 	UDPOtherTimeout          int64  `json:"udp_other_timeout,omitempty"`
 	UDPStreamTimeout         int64  `json:"udp_stream_timeout,omitempty"`
 	UPnPEnabled              bool   `json:"upnp_enabled"`

@@ -45,7 +45,7 @@ type WLAN struct {
 	DNSAssistanceMode           string                     `json:"dns_assistance_mode,omitempty"`    // off|auto|manual
 	DNSAssistanceServers        []string                   `json:"dns_assistance_servers,omitempty"` // ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$
 	DPIEnabled                  bool                       `json:"dpi_enabled"`
-	DPIgroupID                  string                     `json:"dpigroup_id"`         // [\d\w]+|^$
+	DPIgroupID                  string                     `json:"dpigroup_id"`         // [\d\w-]+|^$
 	DTIM6E                      *int64                     `json:"dtim_6e,omitempty"`   // ^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$
 	DTIMMode                    string                     `json:"dtim_mode,omitempty"` // default|custom
 	DTIMNa                      *int64                     `json:"dtim_na,omitempty"`   // ^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$
@@ -79,7 +79,8 @@ type WLAN struct {
 	MinrateSettingPreference    string                     `json:"minrate_setting_preference,omitempty"` // auto|manual
 	MloEnabled                  bool                       `json:"mlo_enabled"`
 	MulticastEnhanceEnabled     bool                       `json:"mcastenhance_enabled"`
-	Name                        string                     `json:"name,omitempty"` // .{1,32}
+	MulticastSuppressorMode     string                     `json:"multicast_suppressor_mode,omitempty"` // off|conservative|aggressive
+	Name                        string                     `json:"name,omitempty"`                      // .{1,32}
 	NameCombineEnabled          bool                       `json:"name_combine_enabled"`
 	NameCombineSuffix           string                     `json:"name_combine_suffix,omitempty"` // .{0,8}
 	NasIDentifier               string                     `json:"nas_identifier,omitempty"`      // .{0,48}
@@ -627,7 +628,7 @@ func (dst *WLANNaiRealmList) UnmarshalJSON(b []byte) error {
 }
 
 type WLANPredefinedServices struct {
-	Code string `json:"code,omitempty"` // amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba
+	Code string `json:"code,omitempty"` // amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|shelly|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba
 }
 
 func (dst *WLANPredefinedServices) UnmarshalJSON(b []byte) error {

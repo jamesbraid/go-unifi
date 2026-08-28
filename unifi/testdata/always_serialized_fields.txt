@@ -66,6 +66,7 @@ FirewallRule.state_invalid
 FirewallRule.state_new
 FirewallRule.state_related
 FirewallZone.network_ids
+GlobalSwitch.auto_stp_edge_detection_enabled
 GlobalSwitch.dhcp_snoop
 GlobalSwitch.dot1x_portctrl_enabled
 GlobalSwitch.flood_known_protocols
@@ -149,6 +150,7 @@ HotspotPackage.payment_fields_state_enabled
 HotspotPackage.payment_fields_state_required
 HotspotPackage.payment_fields_zip_enabled
 HotspotPackage.payment_fields_zip_required
+IgmpSnooping.auto_unknown_traffic_handling
 IgmpSnooping.enabled
 IgmpSnooping.flood_known_protocols
 IgmpSnooping.forward_unknown_mcast_router_ports
@@ -231,17 +233,20 @@ Network.ipv6_pd_auto_prefixid_enabled
 Network.ipv6_pd_prefixid
 Network.ipv6_ra_enabled
 Network.is_nat
+Network.is_wifi_tethering
 Network.l2tp_allow_weak_ciphers
 Network.lte_lan_enabled
 Network.mac_override
 Network.mac_override_enabled
 Network.mdns_enabled
 Network.network_isolation_enabled
+Network.openvpn_compression_disabled
 Network.pptpc_require_mppe
 Network.purpose
 Network.remote_vpn_dynamic_subnets_enabled
 Network.report_wan_event
 Network.require_mschapv2
+Network.sdwan_underlay
 Network.uid_policy_enabled
 Network.uid_traffic_rules_enabled
 Network.uid_vpn_masquerade_enabled
@@ -258,6 +263,7 @@ Network.wan_dslite_remote_host_auto
 Network.wan_gateway_v6
 Network.wan_ipv6
 Network.wan_pppoe_password_enabled
+Network.wan_pppoe_rfc4638_enabled
 Network.wan_pppoe_username_enabled
 Network.wan_smartq_enabled
 Network.wan_username
@@ -285,6 +291,7 @@ PortProfile.egress_rate_limit_kbps_enabled
 PortProfile.flow_control_enabled
 PortProfile.full_duplex
 PortProfile.isolation
+PortProfile.ld_mode
 PortProfile.link_debounce_auto
 PortProfile.lldpmed_enabled
 PortProfile.lldpmed_notify_enabled
@@ -332,9 +339,13 @@ SettingMgmtSSHKeys.key
 SettingMgmtSSHKeys.name
 SettingMgmtSSHKeys.type
 SettingRadioAiRadiosConfiguration.dfs
+SettingTestAndCommitPages.internet
+SettingTestAndCommitPages.network_settings
+SettingTestAndCommitPages.vpn
 SettingUsgGeoIPFiltering.enabled
 Snmp.enabled
 Snmp.enabledV3
+SuperApplicationDegradation.enabled
 SuperCloudaccess.enabled
 SuperFwupdate.sso_enabled
 SuperMgmt.auto_upgrade
@@ -355,6 +366,8 @@ SuperSmtp.use_sender
 SuperSmtp.use_ssl
 Teleport.enabled
 Teleport.subnet_cidr
+TestAndCommit.device_vlan_testing
+TestAndCommit.enabled
 TrafficFlow.enabled_allowed_traffic
 TrafficFlow.gateway_dns_enabled
 TrafficFlow.unifi_device_management_enabled
