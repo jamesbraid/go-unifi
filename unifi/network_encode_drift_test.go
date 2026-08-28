@@ -53,20 +53,20 @@ func TestPurposeEncodersDoNotAddOmitemptyToBools(t *testing.T) {
 //
 // A false is always a meaningful bool. An empty string may not be: several
 // controller fields reject "" and are omitted deliberately, which is why the
-// provider has an optStr helper doing the same thing on its side. Clearing a
-// DHCP DNS server is a real thing a practitioner does, so these are probably
-// defects too -- but "probably" is not a reason to change a request shape, and
-// deciding needs a controller.
+// provider has an optStr helper doing the same thing on its side.
 //
 // Listing them keeps the check useful in the meantime: a NEW string drift
 // fails here, and the day one of these is measured it comes off the list.
+//
+// The four dhcpd_dns_N slots came off it on 2026-08-28. They were the ones
+// this comment called probable defects, and measuring them on 10.6.101 said
+// so: omitting a slot leaves the stored value alone and "" is what clears
+// it, so a caller emptying a DNS list could not say so. They are *string
+// now, and an explicit empty reaches the wire -- see clearableSlots in
+// network_encode_empty_test.go.
 func TestKnownStringOmitemptyDriftIsUnchanged(t *testing.T) {
 	awaitingControllerMeasurement := map[string]bool{
 		"dhcpd_boot_server": true,
-		"dhcpd_dns_1":       true,
-		"dhcpd_dns_2":       true,
-		"dhcpd_dns_3":       true,
-		"dhcpd_dns_4":       true,
 		"mac_override":      true,
 	}
 

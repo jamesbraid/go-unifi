@@ -788,16 +788,21 @@ func main() {
 					f.FieldType = fields.Int
 					f.IsPointer = true
 				case "WANDNS1", "WANDNS2", "WANIPV6DNS1", "WANIPV6DNS2", "DHCPDStart", "DHCPDStop", "DHCPDUnifiController",
-					"DHCPDTFTPServer", "DHCPDWins1", "DHCPDWins2", "DHCPDWPAdUrl", "DomainName", "DHCPDGateway", "DHCPDNtp1", "DHCPDNtp2":
+					"DHCPDTFTPServer", "DHCPDWins1", "DHCPDWins2", "DHCPDWPAdUrl", "DomainName", "DHCPDGateway", "DHCPDNtp1", "DHCPDNtp2",
+					"DHCPDDNS1", "DHCPDDNS2", "DHCPDDNS3", "DHCPDDNS4":
+					// A pointer so the field carries three states, not two.
+					//
+					// The DHCP slots used to be plain strings, pinned that way
+					// for type stability. Measured on 10.6.101, that made them
+					// impossible to clear: sending "" is the only thing that
+					// clears a slot -- omitting the key leaves the stored value
+					// alone -- and a plain string with omitempty cannot put ""
+					// on the wire. A caller emptying a DNS list had no way to
+					// say so.
+					//
+					// nil is "leave it alone" and a pointer to "" is "clear it".
 					f.OmitEmpty = true
 					f.IsPointer = true
-				case "DHCPDDNS1", "DHCPDDNS2":
-					// The 10.x schema dropped the IPv4 validation on these two
-					// (dhcpd_dns_3/4 keep it); pin the pre-10.x plain-string
-					// shape so the field type stays stable for consumers and
-					// the hand-written network encoder.
-					f.OmitEmpty = false
-					f.IsPointer = false
 				case "Purpose":
 					f.OmitEmpty = false
 					f.IsPointer = false

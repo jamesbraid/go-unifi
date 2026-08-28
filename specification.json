@@ -23134,19 +23134,19 @@
           {
             "name": "dhcpd_dns_1",
             "string": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "computed_optional"
             }
           },
           {
             "name": "dhcpd_dns_2",
             "string": {
-              "computed_optional_required": "optional"
+              "computed_optional_required": "computed_optional"
             }
           },
           {
             "name": "dhcpd_dns_3",
             "string": {
-              "computed_optional_required": "optional",
+              "computed_optional_required": "computed_optional",
               "validators": [
                 {
                   "custom": {
@@ -23167,7 +23167,7 @@
           {
             "name": "dhcpd_dns_4",
             "string": {
-              "computed_optional_required": "optional",
+              "computed_optional_required": "computed_optional",
               "validators": [
                 {
                   "custom": {
