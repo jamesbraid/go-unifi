@@ -102,7 +102,12 @@ func mergeRouteBasedPrereq(extra map[string]any) map[string]any {
 var networkFieldCandidates = []fieldCandidate{
 	// igmp_proxy_downstream_networkconf_ids: shape of a referenced networkconf
 	// id; a real id must be substituted to test acceptance live.
-	{Wire: "igmp_proxy_downstream_networkconf_ids", Purpose: PurposeCorporate, Value: []string{"000000000000000000000000"}, Prereq: nil},
+	{
+		Wire:    "igmp_proxy_downstream_networkconf_ids",
+		Purpose: PurposeCorporate,
+		Value:   []string{"000000000000000000000000"},
+		Prereq:  nil,
+	},
 
 	// Route-based (dynamic routing) site-vpn tunnel IP. Requires vpn_type
 	// "ipsec-vpn" and ipsec_dynamic_routing true to be meaningful.
@@ -113,8 +118,22 @@ var networkFieldCandidates = []fieldCandidate{
 	// Each candidate also gets its own ipsec_peer_ip so a create that outlives
 	// its cleanup cannot collide with the next one
 	// (api.err.IpsecPeerIpOverlapped keys on peer IP + interface + local IP).
-	{Wire: "ipsec_tunnel_ip", Purpose: PurposeSiteVPN, Value: probeTunnelIP, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.11", "ipsec_tunnel_ip_enabled": true})},
-	{Wire: "ipsec_tunnel_ip_enabled", Purpose: PurposeSiteVPN, Value: true, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.12", "ipsec_tunnel_ip": probeTunnelIP})},
+	{
+		Wire:    "ipsec_tunnel_ip",
+		Purpose: PurposeSiteVPN,
+		Value:   probeTunnelIP,
+		Prereq: mergeRouteBasedPrereq(
+			map[string]any{"ipsec_peer_ip": "203.0.113.11", "ipsec_tunnel_ip_enabled": true},
+		),
+	},
+	{
+		Wire:    "ipsec_tunnel_ip_enabled",
+		Purpose: PurposeSiteVPN,
+		Value:   true,
+		Prereq: mergeRouteBasedPrereq(
+			map[string]any{"ipsec_peer_ip": "203.0.113.12", "ipsec_tunnel_ip": probeTunnelIP},
+		),
+	},
 
 	// site-vpn emits remote_vpn_subnets but not the dynamic-subnets toggle;
 	// pairs naturally with the ipsec_dynamic_routing flag the encoder already
@@ -123,7 +142,13 @@ var networkFieldCandidates = []fieldCandidate{
 		Wire:    "remote_vpn_dynamic_subnets_enabled",
 		Purpose: PurposeSiteVPN,
 		Value:   true,
-		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.13", "ipsec_tunnel_ip_enabled": true, "ipsec_tunnel_ip": probeTunnelIP}),
+		Prereq: mergeRouteBasedPrereq(
+			map[string]any{
+				"ipsec_peer_ip":           "203.0.113.13",
+				"ipsec_tunnel_ip_enabled": true,
+				"ipsec_tunnel_ip":         probeTunnelIP,
+			},
+		),
 	},
 
 	// Added by the 10.6.101 regeneration. Purposes below are where each
@@ -136,18 +161,52 @@ var networkFieldCandidates = []fieldCandidate{
 	// link, so they are probed together on one WAN and gated by the flag
 	// that turns the mode on.
 	{Wire: "is_wifi_tethering", Purpose: PurposeWAN, Value: true, Prereq: wifiUplinkWANPrereq(nil)},
-	{Wire: "uplink_ssid", Purpose: PurposeWAN, Value: "probe-uplink", Prereq: wifiUplinkWANPrereq(nil)},
-	{Wire: "uplink_band", Purpose: PurposeWAN, Value: "ng", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"})},
-	{Wire: "uplink_security", Purpose: PurposeWAN, Value: "WPA2-Personal", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"})},
-	{Wire: "x_uplink_password", Purpose: PurposeWAN, Value: "probe-uplink-pass", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Personal"})},
-	{Wire: "uplink_identity", Purpose: PurposeWAN, Value: "probe-identity", Prereq: wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Enterprise"})},
+	{
+		Wire:    "uplink_ssid",
+		Purpose: PurposeWAN,
+		Value:   "probe-uplink",
+		Prereq:  wifiUplinkWANPrereq(nil),
+	},
+	{
+		Wire:    "uplink_band",
+		Purpose: PurposeWAN,
+		Value:   "ng",
+		Prereq:  wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"}),
+	},
+	{
+		Wire:    "uplink_security",
+		Purpose: PurposeWAN,
+		Value:   "WPA2-Personal",
+		Prereq:  wifiUplinkWANPrereq(map[string]any{"uplink_ssid": "probe-uplink"}),
+	},
+	{
+		Wire:    "x_uplink_password",
+		Purpose: PurposeWAN,
+		Value:   "probe-uplink-pass",
+		Prereq: wifiUplinkWANPrereq(
+			map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Personal"},
+		),
+	},
+	{
+		Wire:    "uplink_identity",
+		Purpose: PurposeWAN,
+		Value:   "probe-identity",
+		Prereq: wifiUplinkWANPrereq(
+			map[string]any{"uplink_ssid": "probe-uplink", "uplink_security": "WPA2-Enterprise"},
+		),
+	},
 
 	// RFC 4638 is the PPPoE jumbo-MTU option, so it is probed on a PPPoE
 	// WAN rather than the DHCP one the other WAN candidates use.
-	{Wire: "wan_pppoe_rfc4638_enabled", Purpose: PurposeWAN, Value: true, Prereq: mergePrereq(probeWANBase, map[string]any{
-		"wan_type": "pppoe", "wan_username": "probe-user", "x_wan_password": "probe-pass",
-		"wan_pppoe_username_enabled": true, "wan_pppoe_password_enabled": true,
-	})},
+	{
+		Wire:    "wan_pppoe_rfc4638_enabled",
+		Purpose: PurposeWAN,
+		Value:   true,
+		Prereq: mergePrereq(probeWANBase, map[string]any{
+			"wan_type": "pppoe", "wan_username": "probe-user", "x_wan_password": "probe-pass",
+			"wan_pppoe_username_enabled": true, "wan_pppoe_password_enabled": true,
+		}),
+	},
 
 	// SD-WAN marks a WAN as an underlay for the overlay fabric.
 	{Wire: "sdwan_underlay", Purpose: PurposeWAN, Value: true, Prereq: probeWANBase},
@@ -155,19 +214,46 @@ var networkFieldCandidates = []fieldCandidate{
 	// Which local subnets a site-to-site tunnel exposes to the peer. The
 	// mode selects between all networks, named networks, and literal
 	// subnets, so each of the three is probed under the mode that uses it.
-	{Wire: "local_vpn_subnets_mode", Purpose: PurposeSiteVPN, Value: "custom", Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.21"})},
-	{Wire: "local_vpn_subnets", Purpose: PurposeSiteVPN, Value: []string{"10.98.0.0/24"}, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.22", "local_vpn_subnets_mode": "custom"})},
-	{Wire: "local_vpn_networkconf_ids", Purpose: PurposeSiteVPN, Value: []string{"@defaultnetwork"}, Prereq: mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.23", "local_vpn_subnets_mode": "selected_networks"})},
+	{
+		Wire:    "local_vpn_subnets_mode",
+		Purpose: PurposeSiteVPN,
+		Value:   "custom",
+		Prereq:  mergeRouteBasedPrereq(map[string]any{"ipsec_peer_ip": "203.0.113.21"}),
+	},
+	{
+		Wire:    "local_vpn_subnets",
+		Purpose: PurposeSiteVPN,
+		Value:   []string{"10.98.0.0/24"},
+		Prereq: mergeRouteBasedPrereq(
+			map[string]any{"ipsec_peer_ip": "203.0.113.22", "local_vpn_subnets_mode": "custom"},
+		),
+	},
+	{
+		Wire:    "local_vpn_networkconf_ids",
+		Purpose: PurposeSiteVPN,
+		Value:   []string{"@defaultnetwork"},
+		Prereq: mergeRouteBasedPrereq(
+			map[string]any{
+				"ipsec_peer_ip":          "203.0.113.23",
+				"local_vpn_subnets_mode": "selected_networks",
+			},
+		),
+	},
 
 	// OpenVPN compression is a property of the OpenVPN remote-user server,
 	// so it is probed on the same shape the round trip already establishes
 	// the controller accepts for that purpose.
-	{Wire: "openvpn_compression_disabled", Purpose: PurposeUserVPN, Value: true, Prereq: map[string]any{
-		"vpn_type": "openvpn-server", "openvpn_mode": "server",
-		"openvpn_encryption_cipher": "AES_256_CBC",
-		"ip_subnet":                 "10.197.0.1/24", "local_port": 1196,
-		"radiusprofile_id": "@radiusprofile",
-	}},
+	{
+		Wire:    "openvpn_compression_disabled",
+		Purpose: PurposeUserVPN,
+		Value:   true,
+		Prereq: map[string]any{
+			"vpn_type": "openvpn-server", "openvpn_mode": "server",
+			"openvpn_encryption_cipher": "AES_256_CBC",
+			"ip_subnet":                 "10.197.0.1/24", "local_port": 1196,
+			"radiusprofile_id": "@radiusprofile",
+		},
+	},
 }
 
 // probeWANBase is a WAN the controller accepts: a DHCP upstream in a slot
