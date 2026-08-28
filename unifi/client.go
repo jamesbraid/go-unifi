@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"net/http"
 	"slices"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
@@ -53,7 +52,7 @@ func (c *ApiClient) stamgr(
 		Data []Client `json:"data"`
 	}
 
-	err := c.do(ctx, http.MethodPost, fmt.Sprintf("api/s/%s/cmd/stamgr", site), reqBody, &respBody)
+	err := c.siteCommand(ctx, site, "stamgr", reqBody, &respBody)
 	if err != nil {
 		return nil, err
 	}
