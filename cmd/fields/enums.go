@@ -11,6 +11,14 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
+// bounds is a resolved numeric range for one validation pattern. Resolving
+// one scans a large domain, and patterns repeat across fields, so callers
+// cache by pattern.
+type bounds struct {
+	low, high int64
+	ok        bool
+}
+
 // validationEntry is one generated field's schema validation metadata,
 // captured while the resource is generated so it can be written out as
 // consumable Go instead of a comment nobody can read at compile time.
@@ -96,10 +104,6 @@ var FieldValidationPatterns = map[string]map[string]string{
 
 	// numericRange scans a large domain per pattern, and patterns repeat
 	// across fields, so resolve each one once.
-	type bounds struct {
-		low, high int64
-		ok        bool
-	}
 	rangeCache := map[string]bounds{}
 
 	for _, e := range entries {
@@ -144,7 +148,94 @@ var FieldValidationPatterns = map[string]map[string]string{
 		}
 	}
 
+	renderConstraintTable(&buf, entries, rangeCache)
+
 	return format.Source(buf.Bytes())
+}
+
+// renderConstraintTable writes the same facts as the variables above, keyed
+// by Go type and wire name instead of by a composed identifier.
+//
+// Both forms are generated from one pass over the same entries, so they
+// cannot disagree; TestFieldConstraintsMatchTheVariables checks that in the
+// generated package rather than trusting it.
+//
+// The variables read well when the field is known while the code is being
+// written. A consumer deriving something for every field -- the Terraform
+// provider builds a validator per attribute -- knows the type and the wire
+// name and has to reach the value by composing an identifier, which makes
+// the naming scheme load-bearing for code the generator never sees. A table
+// is a contract; a naming scheme is a convention.
+func renderConstraintTable(buf *bytes.Buffer, entries []validationEntry, rangeCache map[string]bounds) {
+	buf.WriteString(`
+// FieldConstraint is everything the controller's own validator says about
+// one field. The zero value means the pattern is none of the shapes below:
+// consult Pattern directly.
+type FieldConstraint struct {
+	// Pattern is the controller's raw validation regex.
+	Pattern string
+
+	// Values and Int64Values are set when the pattern is a plain
+	// enumeration, already split. Only one of them is ever set.
+	Values      []string
+	Int64Values []int64
+
+	// Min and Max are the inclusive bounds of a contiguous numeric range,
+	// present only when HasBounds. A set with holes is not a range, so it
+	// arrives as Int64Values instead.
+	Min, Max  int64
+	HasBounds bool
+
+	// MinLength and MaxLength are character-count bounds, present only when
+	// HasLength.
+	MinLength, MaxLength int64
+	HasLength            bool
+}
+
+// FieldConstraints holds every generated field that carries a validation
+// rule, keyed by Go type name and then by wire (JSON) name.
+var FieldConstraints = map[string]map[string]FieldConstraint{
+`)
+
+	var currentType string
+	for _, e := range entries {
+		if e.TypeName != currentType {
+			if currentType != "" {
+				buf.WriteString("\t},\n")
+			}
+			fmt.Fprintf(buf, "\t%q: {\n", e.TypeName)
+			currentType = e.TypeName
+		}
+
+		fmt.Fprintf(buf, "\t\t%q: {Pattern: %q", e.JSONName, e.Pattern)
+		switch e.FieldType {
+		case fields.Int:
+			if vs := enumInt64Values(e.Pattern); vs != nil {
+				parts := make([]string, len(vs))
+				for i, v := range vs {
+					parts[i] = strconv.FormatInt(v, 10)
+				}
+				fmt.Fprintf(buf, ", Int64Values: []int64{%s}", strings.Join(parts, ", "))
+			} else if b := rangeCache[e.Pattern]; b.ok {
+				fmt.Fprintf(buf, ", Min: %d, Max: %d, HasBounds: true", b.low, b.high)
+			}
+		default:
+			if vs := enumValues(e.Pattern); vs != nil {
+				parts := make([]string, len(vs))
+				for i, v := range vs {
+					parts[i] = strconv.Quote(v)
+				}
+				fmt.Fprintf(buf, ", Values: []string{%s}", strings.Join(parts, ", "))
+			} else if low, high, ok := lengthBounds(e.Pattern); ok {
+				fmt.Fprintf(buf, ", MinLength: %d, MaxLength: %d, HasLength: true", low, high)
+			}
+		}
+		buf.WriteString("},\n")
+	}
+	if currentType != "" {
+		buf.WriteString("\t},\n")
+	}
+	buf.WriteString("}\n")
 }
 
 // enumValues extracts the alternatives from a schema validation pattern that

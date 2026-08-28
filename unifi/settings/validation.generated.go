@@ -604,3 +604,252 @@ var SettingUsgGeoIPFilteringActionValues = []string{"block", "allow"}
 
 // SettingUsgGeoIPFilteringTrafficDirectionValues are the values the controller accepts for SettingUsgGeoIPFiltering.traffic_direction.
 var SettingUsgGeoIPFilteringTrafficDirectionValues = []string{"both", "ingress", "egress"}
+
+// FieldConstraint is everything the controller's own validator says about
+// one field. The zero value means the pattern is none of the shapes below:
+// consult Pattern directly.
+type FieldConstraint struct {
+	// Pattern is the controller's raw validation regex.
+	Pattern string
+
+	// Values and Int64Values are set when the pattern is a plain
+	// enumeration, already split. Only one of them is ever set.
+	Values      []string
+	Int64Values []int64
+
+	// Min and Max are the inclusive bounds of a contiguous numeric range,
+	// present only when HasBounds. A set with holes is not a range, so it
+	// arrives as Int64Values instead.
+	Min, Max  int64
+	HasBounds bool
+
+	// MinLength and MaxLength are character-count bounds, present only when
+	// HasLength.
+	MinLength, MaxLength int64
+	HasLength            bool
+}
+
+// FieldConstraints holds every generated field that carries a validation
+// rule, keyed by Go type name and then by wire (JSON) name.
+var FieldConstraints = map[string]map[string]FieldConstraint{
+	"SettingAutoSpeedtest": {
+		"speed_test_mode": {Pattern: "ALL|CUSTOM", Values: []string{"ALL", "CUSTOM"}},
+		"wan_list":        {Pattern: "WAN[2-9]?"},
+	},
+	"SettingBroadcast": {
+		"sound_after_type":  {Pattern: "sample|media", Values: []string{"sample", "media"}},
+		"sound_before_type": {Pattern: "sample|media", Values: []string{"sample", "media"}},
+	},
+	"SettingDashboard": {
+		"layout_preference": {Pattern: "auto|manual", Values: []string{"auto", "manual"}},
+	},
+	"SettingDashboardWidgets": {
+		"name": {Pattern: "critical_traffic_prioritization|cybersecure|traffic_identification|wifi_technology|wifi_channels|wifi_client_experience|wifi_tx_retries|most_active_apps_aps_clients|most_active_apps_clients|most_active_aps_clients|most_active_apps_aps|most_active_apps|v2_most_active_aps|v2_most_active_clients|wifi_connectivity|ap_radio_density|wifi_channel_preset_configuration|most_common_client_fingerprints|wan_activity", Values: []string{"critical_traffic_prioritization", "cybersecure", "traffic_identification", "wifi_technology", "wifi_channels", "wifi_client_experience", "wifi_tx_retries", "most_active_apps_aps_clients", "most_active_apps_clients", "most_active_aps_clients", "most_active_apps_aps", "most_active_apps", "v2_most_active_aps", "v2_most_active_clients", "wifi_connectivity", "ap_radio_density", "wifi_channel_preset_configuration", "most_common_client_fingerprints", "wan_activity"}},
+	},
+	"SettingDeviceSupervision": {
+		"heartbeat_interval_seconds": {Pattern: "^([6-9][0-9]|[1-2][0-9][0-9]|300)$", Min: 60, Max: 300, HasBounds: true},
+		"power_off_duration_seconds": {Pattern: "^([6-9][0-9]|[1-9][0-9]{2}|[1-8][0-9]{3}|9000)$", Min: 60, Max: 9000, HasBounds: true},
+		"silence_threshold_seconds":  {Pattern: "^(300|[3-9][0-9][0-9]|[1-8][0-9]{3}|9000)$", Min: 300, Max: 9000, HasBounds: true},
+	},
+	"SettingDoh": {
+		"state": {Pattern: "off|auto|manual|custom", Values: []string{"off", "auto", "manual", "custom"}},
+	},
+	"SettingEtherLightingNetworkOverrides": {
+		"raw_color_hex": {Pattern: "[0-9A-Fa-f]{6}"},
+	},
+	"SettingEtherLightingSpeedOverrides": {
+		"key":           {Pattern: "FE|GbE|2.5GbE|5GbE|10GbE|25GbE|40GbE|100GbE"},
+		"raw_color_hex": {Pattern: "[0-9A-Fa-f]{6}"},
+	},
+	"SettingGlobalAp": {
+		"6e_channel_size":  {Pattern: "20|40|80|160", Int64Values: []int64{20, 40, 80, 160}},
+		"6e_tx_power":      {Pattern: "[0-9]|[1-4][0-9]", Min: 0, Max: 49, HasBounds: true},
+		"6e_tx_power_mode": {Pattern: "auto|medium|high|low|custom", Values: []string{"auto", "medium", "high", "low", "custom"}},
+		"ap_exclusions":    {Pattern: "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"},
+		"na_channel_size":  {Pattern: "20|40|80|160", Int64Values: []int64{20, 40, 80, 160}},
+		"na_tx_power":      {Pattern: "[0-9]|[1-4][0-9]", Min: 0, Max: 49, HasBounds: true},
+		"na_tx_power_mode": {Pattern: "auto|medium|high|low|custom", Values: []string{"auto", "medium", "high", "low", "custom"}},
+		"ng_channel_size":  {Pattern: "20|40", Int64Values: []int64{20, 40}},
+		"ng_tx_power":      {Pattern: "[0-9]|[1-4][0-9]", Min: 0, Max: 49, HasBounds: true},
+		"ng_tx_power_mode": {Pattern: "auto|medium|high|low|custom", Values: []string{"auto", "medium", "high", "low", "custom"}},
+	},
+	"SettingGlobalNat": {
+		"mode": {Pattern: "auto|custom|off", Values: []string{"auto", "custom", "off"}},
+	},
+	"SettingGlobalSwitch": {
+		"dot1x_fallback_networkconf_id": {Pattern: "[\\d\\w-]+|"},
+		"link_debounce":                 {Pattern: "0|[1-9]00|[1-4][0-9]00|5000"},
+		"poe_staging_delay_msec":        {Pattern: "0|200|400|600|800|1000|1200|1400|1600|1800|2000", Int64Values: []int64{0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000}},
+		"stp_version":                   {Pattern: "stp|rstp|disabled", Values: []string{"stp", "rstp", "disabled"}},
+		"switch_exclusions":             {Pattern: "^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$"},
+	},
+	"SettingGuestAccess": {
+		"auth":                                    {Pattern: "none|hotspot|custom", Values: []string{"none", "hotspot", "custom"}},
+		"custom_ip":                               {Pattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$"},
+		"expire":                                  {Pattern: "[\\d]+|custom"},
+		"expire_number":                           {Pattern: "^[1-9][0-9]{0,5}|1000000$"},
+		"expire_unit":                             {Pattern: "1|60|1440", Int64Values: []int64{1, 60, 1440}},
+		"gateway":                                 {Pattern: "paypal|stripe|authorize|quickpay|merchantwarrior|ippay", Values: []string{"paypal", "stripe", "authorize", "quickpay", "merchantwarrior", "ippay"}},
+		"portal_customized_bg_color":              {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_bg_type":               {Pattern: "color|image|gallery", Values: []string{"color", "image", "gallery"}},
+		"portal_customized_box_color":             {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_box_link_color":        {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_box_opacity":           {Pattern: "^[1-9][0-9]?$|^100$|^$", Min: 1, Max: 100, HasBounds: true},
+		"portal_customized_box_radius":            {Pattern: "[0-9]|[1-4][0-9]|50", Min: 0, Max: 50, HasBounds: true},
+		"portal_customized_box_text_color":        {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_button_color":          {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_button_text_color":     {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_languages":             {Pattern: "^[a-z]{2}([_-][a-zA-Z]{2,4})*$"},
+		"portal_customized_link_color":            {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_logo_position":         {Pattern: "left|center|right", Values: []string{"left", "center", "right"}},
+		"portal_customized_logo_size":             {Pattern: "6[4-9]|[7-9][0-9]|1[0-8][0-9]|19[0-2]", Min: 64, Max: 192, HasBounds: true},
+		"portal_customized_text_color":            {Pattern: "^#[a-zA-Z0-9]{6}$|^#[a-zA-Z0-9]{3}$|^$"},
+		"portal_customized_welcome_text_position": {Pattern: "under_logo|above_boxes", Values: []string{"under_logo", "above_boxes"}},
+		"portal_hostname":                         {Pattern: "^[a-zA-Z0-9.-]+$|^$"},
+		"radius_auth_type":                        {Pattern: "chap|mschapv2", Values: []string{"chap", "mschapv2"}},
+		"radius_disconnect_port":                  {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1, Max: 65535, HasBounds: true},
+		"restricted_dns_servers":                  {Pattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^$"},
+	},
+	"SettingIgmpSnooping": {
+		"querier_mode":              {Pattern: "PRIMARY_AND_FAILOVER|CUSTOM|OFF", Values: []string{"PRIMARY_AND_FAILOVER", "CUSTOM", "OFF"}},
+		"querier_subscription_mode": {Pattern: "ALL|CUSTOM", Values: []string{"ALL", "CUSTOM"}},
+		"subscription_mode":         {Pattern: "ALL|CUSTOM", Values: []string{"ALL", "CUSTOM"}},
+	},
+	"SettingIgmpSnoopingQuerierAddresses": {
+		"query_interval": {Pattern: "[3-9][0-9]|1[0-7][0-9]|180", Min: 30, Max: 180, HasBounds: true},
+	},
+	"SettingIps": {
+		"advanced_filtering_preference": {Pattern: "|manual|disabled"},
+		"enabled_categories":            {Pattern: "emerging-activex|emerging-attackresponse|botcc|emerging-chat|ciarmy|compromised|emerging-dns|emerging-dos|dshield|emerging-exploit|emerging-ftp|emerging-games|emerging-icmp|emerging-icmpinfo|emerging-imap|emerging-inappropriate|emerging-info|emerging-malware|emerging-misc|emerging-mobile|emerging-netbios|emerging-p2p|emerging-policy|emerging-pop3|emerging-rpc|emerging-scada|emerging-scan|emerging-shellcode|emerging-smtp|emerging-snmp|emerging-sql|emerging-telnet|emerging-tftp|tor|emerging-useragent|emerging-voip|emerging-webapps|emerging-webclient|emerging-webserver|emerging-worm|exploit-kit|adware-pup|botcc-portgrouped|phishing|threatview-cs-c2|3coresec|chat|coinminer|current-events|drop|hunting|icmp-info|inappropriate|info|ja3|policy|scada|dark-web-blocker-list|malicious-hosts|dyn_dns|file_sharing|remote_access|ta_abused_services", Values: []string{"emerging-activex", "emerging-attackresponse", "botcc", "emerging-chat", "ciarmy", "compromised", "emerging-dns", "emerging-dos", "dshield", "emerging-exploit", "emerging-ftp", "emerging-games", "emerging-icmp", "emerging-icmpinfo", "emerging-imap", "emerging-inappropriate", "emerging-info", "emerging-malware", "emerging-misc", "emerging-mobile", "emerging-netbios", "emerging-p2p", "emerging-policy", "emerging-pop3", "emerging-rpc", "emerging-scada", "emerging-scan", "emerging-shellcode", "emerging-smtp", "emerging-snmp", "emerging-sql", "emerging-telnet", "emerging-tftp", "tor", "emerging-useragent", "emerging-voip", "emerging-webapps", "emerging-webclient", "emerging-webserver", "emerging-worm", "exploit-kit", "adware-pup", "botcc-portgrouped", "phishing", "threatview-cs-c2", "3coresec", "chat", "coinminer", "current-events", "drop", "hunting", "icmp-info", "inappropriate", "info", "ja3", "policy", "scada", "dark-web-blocker-list", "malicious-hosts", "dyn_dns", "file_sharing", "remote_access", "ta_abused_services"}},
+		"ips_mode":                      {Pattern: "ids|ips|ipsInline|disabled", Values: []string{"ids", "ips", "ipsInline", "disabled"}},
+	},
+	"SettingIpsHoneypot": {
+		"version": {Pattern: "v4|v6", Values: []string{"v4", "v6"}},
+	},
+	"SettingIpsSuppressionAlerts": {
+		"type": {Pattern: "all|track", Values: []string{"all", "track"}},
+	},
+	"SettingIpsSuppressionTracking": {
+		"direction": {Pattern: "both|src|dest", Values: []string{"both", "src", "dest"}},
+		"mode":      {Pattern: "ip|subnet|network", Values: []string{"ip", "subnet", "network"}},
+	},
+	"SettingIpsSuppressionWhitelist": {
+		"direction": {Pattern: "both|src|dest", Values: []string{"both", "src", "dest"}},
+		"mode":      {Pattern: "ip|subnet|network", Values: []string{"ip", "subnet", "network"}},
+	},
+	"SettingLcm": {
+		"brightness":   {Pattern: "[1-9]|[1-9][0-9]|100", Min: 1, Max: 100, HasBounds: true},
+		"idle_timeout": {Pattern: "[1-9][0-9]|[1-9][0-9][0-9]|[1-2][0-9][0-9][0-9]|3[0-5][0-9][0-9]|3600", Min: 10, Max: 3600, HasBounds: true},
+	},
+	"SettingMdns": {
+		"mode": {Pattern: "all|auto|custom", Values: []string{"all", "auto", "custom"}},
+	},
+	"SettingMdnsCustomServices": {
+		"address": {Pattern: "^_[a-zA-Z0-9._-]+\\._(tcp|udp)(\\.local)?$"},
+	},
+	"SettingMdnsPredefinedServices": {
+		"code": {Pattern: "amazon_devices|android_tv_remote|apple_airDrop|apple_airPlay|apple_file_sharing|apple_iChat|apple_iTunes|aqara|bose|dns_service_discovery|ftp_servers|google_chromecast|homeKit|matter_network|philips_hue|printers|roku|scanners|shelly|sonos|spotify_connect|ssh_servers|time_capsule|web_servers|windows_file_sharing_samba", Values: []string{"amazon_devices", "android_tv_remote", "apple_airDrop", "apple_airPlay", "apple_file_sharing", "apple_iChat", "apple_iTunes", "aqara", "bose", "dns_service_discovery", "ftp_servers", "google_chromecast", "homeKit", "matter_network", "philips_hue", "printers", "roku", "scanners", "shelly", "sonos", "spotify_connect", "ssh_servers", "time_capsule", "web_servers", "windows_file_sharing_samba"}},
+	},
+	"SettingMgmt": {
+		"auto_upgrade_hour": {Pattern: "[0-9]|1[0-9]|2[0-3]|^$", Min: 0, Max: 23, HasBounds: true},
+		"x_mgmt_key":        {Pattern: "[0-9a-f]{32}"},
+		"x_ssh_password":    {Pattern: ".{1,128}", MinLength: 1, MaxLength: 128, HasLength: true},
+		"x_ssh_username":    {Pattern: "^[_A-Za-z0-9][-_.A-Za-z0-9]{0,29}$"},
+	},
+	"SettingNetflow": {
+		"engine_id":     {Pattern: "^$|[1-9][0-9]*"},
+		"port":          {Pattern: "102[4-9]|10[3-9][0-9]|1[1-9][0-9]{2}|[2-9][0-9]{3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1024, Max: 65535, HasBounds: true},
+		"sampling_mode": {Pattern: "off|hash|random|deterministic", Values: []string{"off", "hash", "random", "deterministic"}},
+		"sampling_rate": {Pattern: "[2-9]|[1-9][0-9]{1,3}|1[0-5][0-9]{3}|16[0-2][0-9]{2}|163[0-7][0-9]|1638[0-3]|^$", Min: 2, Max: 16383, HasBounds: true},
+		"server":        {Pattern: ".{0,252}[^\\.]$"},
+		"version":       {Pattern: "5|9|10", Int64Values: []int64{5, 9, 10}},
+	},
+	"SettingNtp": {
+		"setting_preference": {Pattern: "auto|manual", Values: []string{"auto", "manual"}},
+	},
+	"SettingRadioAi": {
+		"auto_channel_presets_type": {Pattern: "maximum_speed|conservative|custom", Values: []string{"maximum_speed", "conservative", "custom"}},
+		"channels_6e":               {Pattern: "[1-9]|[1-2][0-9]|3[3-9]|[4-5][0-9]|6[0-1]|6[5-9]|[7-8][0-9]|9[0-3]|9[7-9]|1[0-1][0-9]|12[0-5]|129|1[3-4][0-9]|15[0-7]|16[1-9]|1[7-8][0-9]|19[3-9]|2[0-1][0-9]|22[0-1]|22[5-9]|233"},
+		"channels_na":               {Pattern: "34|36|38|40|42|44|46|48|52|56|60|64|100|104|108|112|116|120|124|128|132|136|140|144|149|153|157|161|165|169", Int64Values: []int64{34, 36, 38, 40, 42, 44, 46, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169}},
+		"channels_ng":               {Pattern: "1|2|3|4|5|6|7|8|9|10|11|12|13|14", Int64Values: []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}},
+		"exclude_devices":           {Pattern: "([0-9a-z]{2}:){5}[0-9a-z]{2}"},
+		"high_priority_devices":     {Pattern: "([0-9a-z]{2}:){5}[0-9a-z]{2}"},
+		"ht_modes_na":               {Pattern: "^(20|40|80|160)$", Int64Values: []int64{20, 40, 80, 160}},
+		"ht_modes_ng":               {Pattern: "^(20|40)$", Int64Values: []int64{20, 40}},
+		"optimize":                  {Pattern: "channel|power", Values: []string{"channel", "power"}},
+		"radios":                    {Pattern: "na|ng|6e", Values: []string{"na", "ng", "6e"}},
+		"setting_preference":        {Pattern: "auto|manual", Values: []string{"auto", "manual"}},
+	},
+	"SettingRadioAiChannelsBlacklist": {
+		"channel":       {Pattern: "[1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-9]|2[0-1][0-9]|22[0-1]|22[5-9]|233"},
+		"channel_width": {Pattern: "20|40|80|160|240|320", Int64Values: []int64{20, 40, 80, 160, 240, 320}},
+		"radio":         {Pattern: "na|ng|6e", Values: []string{"na", "ng", "6e"}},
+	},
+	"SettingRadioAiRadiosConfiguration": {
+		"channel_width": {Pattern: "20|40|80|160|320", Int64Values: []int64{20, 40, 80, 160, 320}},
+		"radio":         {Pattern: "na|ng|6e", Values: []string{"na", "ng", "6e"}},
+	},
+	"SettingRadius": {
+		"acct_port":               {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1, Max: 65535, HasBounds: true},
+		"auth_port":               {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1, Max: 65535, HasBounds: true},
+		"interim_update_interval": {Pattern: "^([6-9][0-9]|[1-9][0-9]{2,3}|[1-7][0-9]{4}|8[0-5][0-9]{3}|86[0-3][0-9][0-9]|86400)$", Min: 60, Max: 86400, HasBounds: true},
+		"x_secret":                {Pattern: "^[^\\\\\"' ]{1,48}$"},
+	},
+	"SettingRsyslogd": {
+		"contents":        {Pattern: "device|client|firewall_default_policy|triggers|updates|admin_activity|critical|security_detections|vpn|gateway|access_points|switches", Values: []string{"device", "client", "firewall_default_policy", "triggers", "updates", "admin_activity", "critical", "security_detections", "vpn", "gateway", "access_points", "switches"}},
+		"netconsole_port": {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1, Max: 65535, HasBounds: true},
+		"port":            {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]", Min: 1, Max: 65535, HasBounds: true},
+	},
+	"SettingSnmp": {
+		"community":  {Pattern: ".{1,256}", MinLength: 1, MaxLength: 256, HasLength: true},
+		"username":   {Pattern: "[a-zA-Z0-9_-]{1,30}"},
+		"x_password": {Pattern: "[^'\"]{8,32}"},
+	},
+	"SettingSslInspection": {
+		"state": {Pattern: "off|simple|advanced", Values: []string{"off", "simple", "advanced"}},
+	},
+	"SettingSuperFwupdate": {
+		"controller_channel": {Pattern: "internal|alpha|beta|release-candidate|release", Values: []string{"internal", "alpha", "beta", "release-candidate", "release"}},
+		"firmware_channel":   {Pattern: "internal|alpha|beta|release-candidate|release", Values: []string{"internal", "alpha", "beta", "release-candidate", "release"}},
+	},
+	"SettingSuperMail": {
+		"provider": {Pattern: "smtp|cloud|disabled", Values: []string{"smtp", "cloud", "disabled"}},
+	},
+	"SettingSuperMgmt": {
+		"autobackup_post_actions":                 {Pattern: "copy_local|copy_cloud", Values: []string{"copy_local", "copy_cloud"}},
+		"data_retention_setting_preference":       {Pattern: "auto|manual", Values: []string{"auto", "manual"}},
+		"default_site_device_auth_password_alert": {Pattern: "false"},
+		"live_chat":     {Pattern: "disabled|super-only|everyone", Values: []string{"disabled", "super-only", "everyone"}},
+		"store_enabled": {Pattern: "disabled|super-only|everyone", Values: []string{"disabled", "super-only", "everyone"}},
+	},
+	"SettingSuperSmtp": {
+		"port": {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]|^$", Min: 1, Max: 65535, HasBounds: true},
+	},
+	"SettingTeleport": {
+		"subnet_cidr": {Pattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\/([8-9]|[1-2][0-9]|3[0-2])$|^$"},
+	},
+	"SettingTestAndCommit": {
+		"mode": {Pattern: "auto|custom", Values: []string{"auto", "custom"}},
+	},
+	"SettingUsg": {
+		"arp_cache_base_reachable":   {Pattern: "^$|^[1-9]{1}[0-9]{0,4}$", Min: 1, Max: 99999, HasBounds: true},
+		"arp_cache_timeout":          {Pattern: "normal|min-dhcp-lease|custom", Values: []string{"normal", "min-dhcp-lease", "custom"}},
+		"dhcp_relay_agents_packets":  {Pattern: "append|discard|forward|replace|^$"},
+		"dhcp_relay_hop_count":       {Pattern: "([1-9]|[1-8][0-9]|9[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|^$", Min: 1, Max: 255, HasBounds: true},
+		"dhcp_relay_max_size":        {Pattern: "(6[4-9]|[7-9][0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|1[0-3][0-9]{2}|1400)|^$", Min: 64, Max: 1400, HasBounds: true},
+		"dhcp_relay_port":            {Pattern: "[1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]|^$", Min: 1, Max: 65535, HasBounds: true},
+		"echo_server":                {Pattern: "[^\\\"\\' ]{1,255}"},
+		"mss_clamp":                  {Pattern: "auto|custom|disabled", Values: []string{"auto", "custom", "disabled"}},
+		"mss_clamp_mss":              {Pattern: "[1-9][0-9]{2,3}", Min: 100, Max: 9999, HasBounds: true},
+		"timeout_setting_preference": {Pattern: "auto|reduced|manual", Values: []string{"auto", "reduced", "manual"}},
+		"upnp_wan_interface":         {Pattern: "WAN[2-9]?"},
+	},
+	"SettingUsgDNSVerification": {
+		"setting_preference": {Pattern: "auto|manual", Values: []string{"auto", "manual"}},
+	},
+	"SettingUsgGeoIPFiltering": {
+		"action":            {Pattern: "block|allow", Values: []string{"block", "allow"}},
+		"countries":         {Pattern: "^([A-Z]{2})?(,[A-Z]{2}){0,149}$"},
+		"traffic_direction": {Pattern: "^(both|ingress|egress)$", Values: []string{"both", "ingress", "egress"}},
+	},
+}
