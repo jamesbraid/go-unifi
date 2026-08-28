@@ -47,7 +47,7 @@ func TestIntegrationSettingPreferenceUnset(t *testing.T) {
 		IGMPSnooping:           true,
 		UPnPLanEnabled:         true,
 		DHCPDDNSEnabled:        true,
-		DHCPDDNS1:              "10.93.81.53",
+		DHCPDDNS1:              strPtr("10.93.81.53"),
 		DHCPDNtpEnabled:        true,
 		DHCPDNtp1:              strPtr("10.93.81.123"),
 		DHCPDTimeOffsetEnabled: true,

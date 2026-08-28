@@ -116,10 +116,10 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		DHCPDStop              *string `json:"dhcpd_stop,omitempty"`
 		DHCPDLeaseTime         *int64  `json:"dhcpd_leasetime,omitempty"`
 		DHCPDDNSEnabled        bool    `json:"dhcpd_dns_enabled"`
-		DHCPDDNS1              string  `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2              string  `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3              string  `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4              string  `json:"dhcpd_dns_4,omitempty"`
+		DHCPDDNS1              *string `json:"dhcpd_dns_1,omitempty"`
+		DHCPDDNS2              *string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNS3              *string `json:"dhcpd_dns_3,omitempty"`
+		DHCPDDNS4              *string `json:"dhcpd_dns_4,omitempty"`
 		DHCPDGatewayEnabled    bool    `json:"dhcpd_gateway_enabled"`
 		DHCPDGateway           *string `json:"dhcpd_gateway,omitempty"`
 		DHCPDNtpEnabled        bool    `json:"dhcpd_ntp_enabled"`
@@ -232,11 +232,11 @@ func (n *Network) marshalCorporate() ([]byte, error) {
 		DHCPDGatewayEnabled:    n.DHCPDGatewayEnabled,
 		DHCPDGateway:           nilIfEmpty(n.DHCPDGateway),
 		DHCPDNtpEnabled:        n.DHCPDNtpEnabled,
-		DHCPDNtp1:              nilIfEmpty(n.DHCPDNtp1),
-		DHCPDNtp2:              nilIfEmpty(n.DHCPDNtp2),
+		DHCPDNtp1:              n.DHCPDNtp1,
+		DHCPDNtp2:              n.DHCPDNtp2,
 		DHCPDWinsEnabled:       n.DHCPDWinsEnabled,
-		DHCPDWins1:             nilIfEmpty(n.DHCPDWins1),
-		DHCPDWins2:             nilIfEmpty(n.DHCPDWins2),
+		DHCPDWins1:             n.DHCPDWins1,
+		DHCPDWins2:             n.DHCPDWins2,
 		DHCPDTimeOffsetEnabled: n.DHCPDTimeOffsetEnabled,
 		DHCPDTimeOffset:        n.DHCPDTimeOffset,
 		DHCPDConflictChecking:  n.DHCPDConflictChecking,
@@ -422,10 +422,10 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPDStop              *string `json:"dhcpd_stop,omitempty"`
 		DHCPDLeaseTime         *int64  `json:"dhcpd_leasetime,omitempty"`
 		DHCPDDNSEnabled        bool    `json:"dhcpd_dns_enabled"`
-		DHCPDDNS1              string  `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2              string  `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3              string  `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4              string  `json:"dhcpd_dns_4,omitempty"`
+		DHCPDDNS1              *string `json:"dhcpd_dns_1,omitempty"`
+		DHCPDDNS2              *string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNS3              *string `json:"dhcpd_dns_3,omitempty"`
+		DHCPDDNS4              *string `json:"dhcpd_dns_4,omitempty"`
 		DHCPDGatewayEnabled    bool    `json:"dhcpd_gateway_enabled"`
 		DHCPDGateway           *string `json:"dhcpd_gateway,omitempty"`
 		DHCPDNtpEnabled        bool    `json:"dhcpd_ntp_enabled"`
@@ -536,11 +536,11 @@ func (n *Network) marshalGuest() ([]byte, error) {
 		DHCPDGatewayEnabled:    n.DHCPDGatewayEnabled,
 		DHCPDGateway:           nilIfEmpty(n.DHCPDGateway),
 		DHCPDNtpEnabled:        n.DHCPDNtpEnabled,
-		DHCPDNtp1:              nilIfEmpty(n.DHCPDNtp1),
-		DHCPDNtp2:              nilIfEmpty(n.DHCPDNtp2),
+		DHCPDNtp1:              n.DHCPDNtp1,
+		DHCPDNtp2:              n.DHCPDNtp2,
 		DHCPDWinsEnabled:       n.DHCPDWinsEnabled,
-		DHCPDWins1:             nilIfEmpty(n.DHCPDWins1),
-		DHCPDWins2:             nilIfEmpty(n.DHCPDWins2),
+		DHCPDWins1:             n.DHCPDWins1,
+		DHCPDWins2:             n.DHCPDWins2,
 		DHCPDTimeOffsetEnabled: n.DHCPDTimeOffsetEnabled,
 		DHCPDTimeOffset:        n.DHCPDTimeOffset,
 		DHCPDConflictChecking:  n.DHCPDConflictChecking,
@@ -920,11 +920,11 @@ func (n *Network) marshalVPNClient() ([]byte, error) {
 		WireguardPrivateKey                  *string `json:"x_wireguard_private_key,omitempty"`
 
 		// DNS servers for WireGuard interface
-		DHCPDDNS1       string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2       string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3       string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4       string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDDNSEnabled bool   `json:"dhcpd_dns_enabled"`
+		DHCPDDNS1       *string `json:"dhcpd_dns_1,omitempty"`
+		DHCPDDNS2       *string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNS3       *string `json:"dhcpd_dns_3,omitempty"`
+		DHCPDDNS4       *string `json:"dhcpd_dns_4,omitempty"`
+		DHCPDDNSEnabled bool    `json:"dhcpd_dns_enabled"`
 	}{
 		ID:       n.ID,
 		SiteID:   n.SiteID,
@@ -998,11 +998,11 @@ func (n *Network) marshalUserVPN() ([]byte, error) {
 		MssClampMssIPV6 *int64  `json:"mss_clamp_mss_ipv6,omitempty"`
 
 		// DNS
-		DHCPDDNS1       string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2       string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3       string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4       string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDDNSEnabled bool   `json:"dhcpd_dns_enabled"`
+		DHCPDDNS1       *string `json:"dhcpd_dns_1,omitempty"`
+		DHCPDDNS2       *string `json:"dhcpd_dns_2,omitempty"`
+		DHCPDDNS3       *string `json:"dhcpd_dns_3,omitempty"`
+		DHCPDDNS4       *string `json:"dhcpd_dns_4,omitempty"`
+		DHCPDDNSEnabled bool    `json:"dhcpd_dns_enabled"`
 
 		// DHCP Range
 		DHCPDStart *string `json:"dhcpd_start,omitempty"`

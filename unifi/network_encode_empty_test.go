@@ -29,9 +29,23 @@ import (
 //     in their published pattern and all reject "". The controller is
 //     stricter than its own schema.
 //
-// Which leaves one rule with no exceptions: an optional *string that is empty
-// is absent. It clears the field just the same, and it never hands the
-// controller a value it refuses.
+// Which left one rule: an optional *string that is empty is absent. It
+// clears the field just the same, and it never hands the controller a value
+// it refuses.
+//
+// That rule now has exactly one class of exception, measured on 10.6.101 and
+// listed in clearableSlots below. The eight DHCP slot fields behave the
+// opposite way round: omitting one PRESERVES the stored value, and sending
+// "" is what clears it. Seven of the eight accept "" outright; dhcpd_ntp_1
+// accepts it only in a write that also turns dhcpd_ntp_enabled off, which is
+// a pairing constraint rather than a refusal.
+//
+// So for those eight, dropping the empty string is not a harmless
+// simplification -- it is the reason a caller could not empty a DHCP DNS,
+// NTP or WINS list at all. They are sent as "" deliberately.
+//
+// Nothing else is exempt. The other optional strings were never measured
+// this way, and the rule stands for them until they are.
 
 // newPointerStringNetwork returns a Network whose every *string field points
 // at value, with Purpose set.
@@ -69,8 +83,20 @@ func marshalKeys(t *testing.T, n *Network) map[string]any {
 	return out
 }
 
+// clearableSlots are the wire names measured to need an explicit "" to
+// clear, listed in one place so the exception stays a short, checkable list
+// rather than a habit. Every entry was measured on 10.6.101 by seeding a
+// corporate network with all eight populated, then writing each one back
+// both ways.
+var clearableSlots = map[string]bool{
+	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
+	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
+	"dhcpd_wins_1": true, "dhcpd_wins_2": true,
+}
+
 // TestNetworkEncoderDropsEmptyStrings fails when the encoder puts an empty
-// string on the wire for an optional field.
+// string on the wire for an optional field, and when it drops one for a
+// field that can only be cleared that way.
 func TestNetworkEncoderDropsEmptyStrings(t *testing.T) {
 	// Which wire names are *string on the generated struct: only those can
 	// carry a pointer to "". A plain string with omitempty already drops.
@@ -96,10 +122,24 @@ func TestNetworkEncoderDropsEmptyStrings(t *testing.T) {
 				if _, emitted := control[wire]; !emitted {
 					continue
 				}
-				if value, present := empty[wire]; present && value == "" {
+				value, present := empty[wire]
+				sendsEmpty := present && value == ""
+
+				if clearableSlots[wire] {
+					if !sendsEmpty {
+						t.Errorf("%s drops an explicit empty; it must reach the wire as \"\". "+
+							"Measured on 10.6.101: omitting this field leaves the stored value "+
+							"alone, so \"\" is the only way a caller can clear it. Do not wrap "+
+							"it in nilIfEmpty.", wire)
+					}
+					continue
+				}
+
+				if sendsEmpty {
 					t.Errorf("%s is emitted as \"\" for an unset pointer; wrap it in nilIfEmpty. "+
-						"Omitting it clears the field just the same (measured: PUT replaces), "+
-						"and several fields reject \"\" outright.", wire)
+						"Omitting it clears the field just the same, and several fields reject "+
+						"\"\" outright. If this field is one a caller has to clear explicitly, "+
+						"measure it and add it to clearableSlots rather than removing the wrap.", wire)
 				}
 			}
 		})

@@ -191,10 +191,6 @@ Network.dhcp_relay_enabled
 Network.dhcpd_boot_enabled
 Network.dhcpd_boot_server
 Network.dhcpd_conflict_checking
-Network.dhcpd_dns_1
-Network.dhcpd_dns_2
-Network.dhcpd_dns_3
-Network.dhcpd_dns_4
 Network.dhcpd_dns_enabled
 Network.dhcpd_enabled
 Network.dhcpd_gateway_enabled
