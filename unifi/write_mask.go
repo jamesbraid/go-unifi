@@ -3,6 +3,7 @@ package unifi
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -257,6 +258,34 @@ func zeroJSONFor(field reflect.StructField) (json.RawMessage, error) {
 		return nil, err
 	}
 	return raw, nil
+}
+
+// overlayMasked applies a masked write to the object as the controller
+// stores it, for the endpoints that will not take a partial body.
+//
+// Not every collection merges. Measured on 10.4.57: set/setting/<key> keeps
+// every field a partial body leaves out, but a WireGuard peer batch PUT that
+// omits fields answers HTTP 500 and stores nothing, and the BGP endpoint's
+// only write is a POST of the whole object. For those the mask is honoured
+// the long way round -- read the stored object, replace exactly the named
+// fields, write the whole thing back -- which is correct whether or not the
+// endpoint would have merged.
+//
+// The merge is done on the raw JSON, never through the Go struct. Decoding
+// the stored object into the struct and re-encoding it would silently drop
+// every key the struct does not model, and a newer controller may store
+// keys this client has never heard of. Those come back verbatim.
+func overlayMasked(stored, masked json.RawMessage) (json.RawMessage, error) {
+	var base map[string]json.RawMessage
+	if err := json.Unmarshal(stored, &base); err != nil {
+		return nil, fmt.Errorf("unable to read the stored object: %w", err)
+	}
+	var patch map[string]json.RawMessage
+	if err := json.Unmarshal(masked, &patch); err != nil {
+		return nil, fmt.Errorf("unable to read the masked write: %w", err)
+	}
+	maps.Copy(base, patch)
+	return json.Marshal(base)
 }
 
 // emptyIfNil renders a nil slice as an empty one.
