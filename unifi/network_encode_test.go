@@ -59,8 +59,8 @@ func TestMarshalNetworkCorporate(t *testing.T) {
 		DHCPDStart:            &dhcpStart,
 		DHCPDStop:             &dhcpStop,
 		DHCPDLeaseTime:        &leasetime,
-		DHCPDDNS1:             "8.8.8.8",
-		DHCPDDNS2:             "8.8.4.4",
+		DHCPDDNS1:             strPtr("8.8.8.8"),
+		DHCPDDNS2:             strPtr("8.8.4.4"),
 		DHCPDDNSEnabled:       true,
 		IPAliases:             []string{},
 	}
@@ -379,7 +379,7 @@ func TestMarshalNetworkGuest(t *testing.T) {
 		DHCPDStop:             &dhcpStop,
 		DHCPDLeaseTime:        &leasetime,
 		DHCPDDNSEnabled:       true,
-		DHCPDDNS1:             "8.8.8.8",
+		DHCPDDNS1:             strPtr("8.8.8.8"),
 	}
 
 	data, err := json.Marshal(network)
