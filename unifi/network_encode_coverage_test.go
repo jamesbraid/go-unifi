@@ -16,18 +16,9 @@ import (
 // field is silently dropped from update payloads until it is added by hand.
 // TestNetworkEncoderCoversGeneratedFields fails loudly when that happens.
 
-// networkEncoderPurposes lists every purpose value Network.MarshalJSON
-// dispatches on. When a new purpose is added to the switch in
-// network_encode.go, add it here too.
-var networkEncoderPurposes = []string{
-	PurposeCorporate,
-	PurposeGuest,
-	PurposeVLANOnly,
-	PurposeWAN,
-	PurposeSiteVPN,
-	PurposeVPNClient,
-	PurposeUserVPN,
-}
+// networkEncoderPurposes is the package's own list of the purposes the
+// encoder dispatches on, so the coverage test keeps working from it.
+var networkEncoderPurposes = NetworkPurposes
 
 // networkEncoderPresenceAllowlistTODOs lists generated wire names that were
 // probed against a live simulation-mode controller (TestIntegrationNetworkFieldProbe,
@@ -223,44 +214,6 @@ func networkWireNames(t *testing.T) []string {
 // element, nested structs populated field by field. MarshalJSON does not
 // validate field contents, so placeholder values that fail enum or pattern
 // validation are fine here. The depth limit guards against unbounded recursion
-// through self-referential types.
-func populateNonZero(v reflect.Value, depth int) {
-	if depth <= 0 || !v.CanSet() {
-		return
-	}
-
-	switch v.Kind() {
-	case reflect.String:
-		v.SetString("x")
-	case reflect.Bool:
-		v.SetBool(true)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v.SetInt(1)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v.SetUint(1)
-	case reflect.Float32, reflect.Float64:
-		v.SetFloat(1)
-	case reflect.Pointer:
-		v.Set(reflect.New(v.Type().Elem()))
-		populateNonZero(v.Elem(), depth-1)
-	case reflect.Slice:
-		elem := reflect.New(v.Type().Elem()).Elem()
-		populateNonZero(elem, depth-1)
-		v.Set(reflect.Append(reflect.MakeSlice(v.Type(), 0, 1), elem))
-	case reflect.Map:
-		m := reflect.MakeMap(v.Type())
-		key := reflect.New(v.Type().Key()).Elem()
-		populateNonZero(key, depth-1)
-		val := reflect.New(v.Type().Elem()).Elem()
-		populateNonZero(val, depth-1)
-		m.SetMapIndex(key, val)
-		v.Set(m)
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			populateNonZero(v.Field(i), depth-1)
-		}
-	}
-}
 
 // networkEmittedKeys marshals a fully-populated Network with the given purpose
 // and returns the set of top-level JSON keys the encoder emitted.
