@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/settings"
 )
@@ -117,6 +118,56 @@ func (c *ApiClient) UpdateSetting(ctx context.Context, site string, setting sett
 	}
 
 	// Unmarshal the response back into the setting
+	if err := json.Unmarshal(respBody.Data[0], setting); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateSettingFields writes only the named wire fields of a setting section
+// and leaves the rest of the stored section untouched. Names are the wire
+// names of the section's own struct ("ntp_server_1"); the section key is
+// carried along with the identity fields whether or not the mask names it.
+//
+// Measured on 10.4.57, set/setting/<key> merges a partial body -- a field the
+// body leaves out keeps its stored value -- so this is a direct masked PUT.
+// TestIntegrationSettingPartialWriteMerges pins that.
+func (c *ApiClient) UpdateSettingFields(ctx context.Context, site string, setting settings.Setting, fields ...string) error {
+	if len(fields) == 0 {
+		return fmt.Errorf("a masked write needs at least one field; to write the whole section, use UpdateSetting")
+	}
+
+	key, err := settings.GetSettingKey(setting)
+	if err != nil {
+		return fmt.Errorf("failed to determine setting key: %w", err)
+	}
+	setting.SetKey(key)
+
+	// The key addresses the section the way _id addresses an object.
+	body, err := maskedBody(setting, append(slices.Clone(fields), "key"))
+	if err != nil {
+		return err
+	}
+
+	var respBody struct {
+		Meta meta              `json:"meta"`
+		Data []json.RawMessage `json:"data"`
+	}
+	if err := c.do(
+		ctx,
+		"PUT",
+		fmt.Sprintf("api/s/%s/set/setting/%s", site, key),
+		body,
+		&respBody,
+	); err != nil {
+		return err
+	}
+
+	if len(respBody.Data) != 1 {
+		return &NotFoundError{}
+	}
+
 	if err := json.Unmarshal(respBody.Data[0], setting); err != nil {
 		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
