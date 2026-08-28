@@ -837,8 +837,16 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		IPSecPfs            bool `json:"ipsec_pfs"`
 		IPSecDynamicRouting bool `json:"ipsec_dynamic_routing"`
 
-		RemoteVPNSubnets  []string `json:"remote_vpn_subnets,omitempty"`
-		RemoteSiteSubnets []string `json:"remote_site_subnets,omitempty"`
+		// No omitempty on either: encoding/json drops an empty slice exactly
+		// as it drops a nil one, so with it neither field can be sent as [].
+		// Measured on 10.6.101, that costs both of them something.
+		// remote_vpn_subnets is required -- a site-to-site network created
+		// without the key is refused with api.err.Invalid, so a caller with
+		// no remote subnets could not create one at all, which is what
+		// dynamic routing wants. And an explicit [] is how remote_site_subnets
+		// is cleared once it holds something.
+		RemoteVPNSubnets  []string `json:"remote_vpn_subnets"`
+		RemoteSiteSubnets []string `json:"remote_site_subnets"`
 		RouteDistance     *int64   `json:"route_distance,omitempty"`
 	}{
 		ID:       n.ID,
@@ -879,8 +887,10 @@ func (n *Network) marshalSiteVPN() ([]byte, error) {
 		IPSecPfs:            n.IPSecPfs,
 		IPSecDynamicRouting: n.IPSecDynamicRouting,
 
-		RemoteVPNSubnets:  n.RemoteVPNSubnets,
-		RemoteSiteSubnets: n.RemoteSiteSubnets,
+		// nil reaches the wire as [] rather than null: the controller wants
+		// an array here, and null is not one.
+		RemoteVPNSubnets:  orEmptySlice(n.RemoteVPNSubnets),
+		RemoteSiteSubnets: orEmptySlice(n.RemoteSiteSubnets),
 		RouteDistance:     n.RouteDistance,
 	})
 }
