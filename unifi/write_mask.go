@@ -288,6 +288,78 @@ func overlayMasked(stored, masked json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(base)
 }
 
+// overlayKeyedEntries applies masked entries to an array-of-objects member,
+// matching each one to the stored entry that carries the same key value.
+//
+// A member like port_overrides is an array whose elements are identified by
+// a field rather than by position: port_idx names the port an override
+// belongs to. The controller replaces the array with what it receives AND
+// replaces each entry with what that entry carries -- measured on 10.6.101,
+// where writing one entry dropped the other, and writing an entry with two
+// members dropped the rest of that entry's members. So a caller that means
+// "set the PoE mode on port 1" has to resend every other entry and every
+// other member of entry 1, or lose them.
+//
+// Building that from the Go structs loses exactly what the caller never
+// modelled: the generated members are omitempty, so a stored value this
+// client has no field for, or one sitting at its zero value, is gone by the
+// time the array is re-encoded. The merge therefore happens on the raw
+// JSON, entry by entry, for the same reason overlayMasked does.
+//
+// An entry whose key matches nothing stored is appended: adding an override
+// to a port that had none is how a caller creates one.
+func overlayKeyedEntries(stored []json.RawMessage, key string, masked []json.RawMessage) ([]json.RawMessage, error) {
+	keyOf := func(raw json.RawMessage) (string, error) {
+		var entry map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			return "", fmt.Errorf("unable to read an entry: %w", err)
+		}
+		value, ok := entry[key]
+		if !ok {
+			return "", fmt.Errorf(
+				"an entry carries no %q.\n\n"+
+					"Entries in this member are addressed by that field, so one without it "+
+					"cannot be matched to the entry it means to change", key)
+		}
+		return string(value), nil
+	}
+
+	merged := slices.Clone(stored)
+
+	at := make(map[string]int, len(stored))
+	for i, raw := range stored {
+		k, err := keyOf(raw)
+		if err != nil {
+			return nil, fmt.Errorf("stored member: %w", err)
+		}
+		// A duplicate key in the stored array would make the match
+		// ambiguous; the first wins, which is what a reader would assume.
+		if _, seen := at[k]; !seen {
+			at[k] = i
+		}
+	}
+
+	for _, raw := range masked {
+		k, err := keyOf(raw)
+		if err != nil {
+			return nil, fmt.Errorf("declared entry: %w", err)
+		}
+		index, found := at[k]
+		if !found {
+			at[k] = len(merged)
+			merged = append(merged, raw)
+			continue
+		}
+		overlaid, err := overlayMasked(merged[index], raw)
+		if err != nil {
+			return nil, fmt.Errorf("entry %s=%s: %w", key, k, err)
+		}
+		merged[index] = overlaid
+	}
+
+	return merged, nil
+}
+
 // emptyIfNil renders a nil slice as an empty one.
 //
 // Used by generated MarshalJSON for slices that serialize unconditionally: an
