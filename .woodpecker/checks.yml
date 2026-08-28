@@ -1,0 +1,54 @@
+---
+# Gates for the canonical forge. The same checks CI runs on the mirror, so a
+# pull request here is reviewed against the evidence a release is cut on.
+#
+# manual is in the event list deliberately: without it a hand-triggered run
+# matches no step and reports success having tested nothing.
+#
+# No step references a secret. The org write token is not issued to
+# pull_request events, so a step that wanted one would silently receive an
+# empty value on exactly the runs that matter.
+when:
+  - event: pull_request
+  - event: push
+    branch: [main]
+  - event: manual
+
+# The toolchain comes from go.mod, as it does on the mirror: the image only
+# has to be recent enough to honour the toolchain line.
+steps:
+  generated:
+    image: golang:1.26
+    commands:
+      # The lock's input digests cover the generator, the overrides and the
+      # extraction rules, so this fails when a change to any of them was not
+      # captured -- without needing the controller artifact.
+      - go run ./cmd/fields -verify-lock-only
+      # And the committed generated tree has to be the one those inputs
+      # produce. Regenerating here is not possible (the artifact is
+      # restricted), so compare the recorded digest instead.
+      - |
+        generated="$(go run ./cmd/rebuild-manifest -root=.)"
+        accepted="$(cat schemas/GENERATED_SHA256)"
+        if [ "$generated" != "$accepted" ]; then
+          echo "generated output digest is $generated; expected $accepted" >&2
+          exit 1
+        fi
+
+  test:
+    image: golang:1.26
+    commands:
+      - go build ./...
+      - go test ./...
+
+  lint:
+    # Pinned to the version the mirror pins, so the two forges cannot disagree
+    # about which lint decided a diff.
+    image: golangci/golangci-lint:v2.12.2
+    commands:
+      - golangci-lint run --timeout=10m
+
+  yamllint:
+    image: pipelinecomponents/yamllint:latest
+    commands:
+      - yamllint -c .yamllint .
