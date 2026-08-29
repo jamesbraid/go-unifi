@@ -290,7 +290,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"icmp_v6_typename":      "ANY|SPECIFIC|LIST|OBJECT",
 		"index":                 "[1-9][0-9]+",
 		"ip_version":            "BOTH|IPV4|IPV6",
-		"protocol":              "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6",
+		"protocol":              "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax\\.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6",
 	},
 	"FirewallPolicyDestination": {
 		"matching_target":      "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
@@ -2837,7 +2837,7 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		"icmp_v6_typename":      {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
 		"index":                 {Pattern: "[1-9][0-9]+"},
 		"ip_version":            {Pattern: "BOTH|IPV4|IPV6", Values: []string{"BOTH", "IPV4", "IPV6"}},
-		"protocol":              {Pattern: "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6"},
+		"protocol":              {Pattern: "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax\\.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6"},
 	},
 	"FirewallPolicyDestination": {
 		"matching_target":      {Pattern: "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY", Values: []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}},
