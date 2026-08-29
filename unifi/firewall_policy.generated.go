@@ -34,7 +34,7 @@ type FirewallPolicy struct {
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
 	Action                string                     `json:"action,omitempty"`                // ALLOW|BLOCK|REJECT
-	ConnectionStateType   string                     `json:"connection_state_type,omitempty"` // ALL|RESPOND_ONLY
+	ConnectionStateType   string                     `json:"connection_state_type,omitempty"` // ALL|RESPOND_ONLY|CUSTOM
 	ConnectionStates      []string                   `json:"connection_states"`
 	CreateAllowRespond    bool                       `json:"create_allow_respond"`
 	Description           string                     `json:"description,omitempty"`
@@ -48,7 +48,7 @@ type FirewallPolicy struct {
 	MatchOppositeProtocol bool                       `json:"match_opposite_protocol"`
 	Name                  string                     `json:"name,omitempty"`
 	Predefined            bool                       `json:"predefined"`
-	Protocol              string                     `json:"protocol,omitempty"` // all|tcp|udp|tcp_udp
+	Protocol              string                     `json:"protocol,omitempty"` // all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6
 	Schedule              *FirewallPolicySchedule    `json:"schedule,omitempty"`
 	Source                *FirewallPolicySource      `json:"source,omitempty"`
 	Version               string                     `json:"ip_version,omitempty"` // BOTH|IPV4|IPV6

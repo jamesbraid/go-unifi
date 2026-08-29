@@ -560,8 +560,8 @@ omitempty = true
 [Client.field.last_ip]
 add = true
 name = "LastIP"
+doc = "The client's most recent IP, reported by the controller on /rest/user. Read-only: the controller publishes no schema for it, so it carries no validation."
 type = "string"
-validation = "non-generated field"
 omitempty = true
 
 # Removed in v6, retained for backwards compatibility.
