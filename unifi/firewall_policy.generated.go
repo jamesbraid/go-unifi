@@ -57,7 +57,8 @@ type FirewallPolicy struct {
 func (dst *FirewallPolicy) UnmarshalJSON(b []byte) error {
 	type Alias FirewallPolicy
 	aux := &struct {
-		Index *types.Number `json:"index"`
+		Index    *types.Number `json:"index"`
+		Protocol types.Number  `json:"protocol"`
 
 		*Alias
 	}{
@@ -76,6 +77,7 @@ func (dst *FirewallPolicy) UnmarshalJSON(b []byte) error {
 			dst.Index = &zero
 		}
 	}
+	dst.Protocol = aux.Protocol.String()
 
 	return nil
 }
