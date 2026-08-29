@@ -1083,6 +1083,7 @@ func (dst *DeviceQOSMatching) UnmarshalJSON(b []byte) error {
 		DscpCode         *types.Number `json:"dscp_code"`
 		DstPort          *types.Number `json:"dst_port"`
 		IPPrecedenceCode *types.Number `json:"ip_precedence_code"`
+		Protocol         types.Number  `json:"protocol"`
 		SrcPort          *types.Number `json:"src_port"`
 
 		*Alias
@@ -1126,6 +1127,7 @@ func (dst *DeviceQOSMatching) UnmarshalJSON(b []byte) error {
 			dst.IPPrecedenceCode = &zero
 		}
 	}
+	dst.Protocol = aux.Protocol.String()
 	if aux.SrcPort != nil {
 		if val, err := aux.SrcPort.Int64(); err == nil {
 			dst.SrcPort = &val

@@ -748,16 +748,6 @@ func main() {
 				}
 				return nil
 			}
-		case "ChannelPlan":
-			resource.FieldProcessor = func(name string, f *FieldInfo) error {
-				switch name {
-				case "Channel", "BackupChannel", "TxPower":
-					if f.FieldType == fields.String {
-						f.CustomUnmarshalType = fields.Number
-					}
-				}
-				return nil
-			}
 		case "Device":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
@@ -772,12 +762,6 @@ func main() {
 					// Field within DeviceRadioTable nested type
 					f.CustomUnmarshalType = "types.Number"
 					f.CustomUnmarshalFunc = "types.ToInt64Pointer"
-				case "Channel", "TxPower":
-					// String fields in DeviceRadioTable that newer controllers
-					// (UniFi 10.x) return as numbers; accept either form.
-					if f.FieldType == fields.String {
-						f.CustomUnmarshalType = fields.Number
-					}
 				}
 
 				f.OmitEmpty = true
@@ -922,6 +906,11 @@ func main() {
 				return nil
 			}
 		}
+
+		// After the resource's own processor, so one that installs its own
+		// does not lose the rule -- and so a hand-written decision, which
+		// runs first, still wins.
+		resource.FieldProcessor = withNumberOrWordDecoding(resource.FieldProcessor)
 
 		err = resource.processJSON(b)
 		if err != nil {
