@@ -197,12 +197,19 @@ func shorthandsOutsideAClass(pattern string) []string {
 // then rejects "5" and accepts "5]". Nothing checked the claim -- the pin
 // records which fields carry a shorthand, not where.
 //
-// It matters beyond keeping a comment honest. A consumer's outside-a-class
-// branch cannot be exercised by this corpus, so it is the branch their tests
-// are least likely to reach; terraform-provider-unifi measured exactly that,
-// and a collapse of theirs left every test green. The first controller
-// release to publish a bare \d makes that branch live. This is the thing that
-// would notice, and it should say so loudly enough to forward.
+// It matters beyond keeping a comment honest. A consumer translating these
+// patterns for another engine writes the expansion differently inside a class
+// than outside one, and no pattern here has ever been outside one -- so a
+// consumer's outside-a-class handling cannot be exercised by this corpus at
+// all. The first controller release to publish a bare \d makes that case real
+// for every consumer at once.
+//
+// This test is the notification, NOT the protection. A consumer's own tests
+// are what prove its translation correct in both positions, and they have to
+// stand alone: this guard sees the corpus, not their code, and it cannot fail
+// on their behalf. Nobody downstream should relax a local test because this
+// exists. What it buys is that the case is announced when it arrives, rather
+// than discovered afterwards by a translation that quietly mis-validated.
 func TestPinnedShorthandsAreAllInsideACharacterClass(t *testing.T) {
 	pinned := map[string]bool{}
 	for _, key := range asciiClassFields {
