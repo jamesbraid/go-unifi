@@ -51,6 +51,7 @@ func run(stdout, stderr io.Writer) int {
 		}
 	}
 	var breaking, wireAdded, wireRemoved []string
+	var validatorChanged, validatorAdded, validatorRemoved []string
 	if base != "" {
 		baseTree, cleanup, err := extractBase(base)
 		if err != nil {
@@ -68,9 +69,14 @@ func run(stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
+		validatorChanged, validatorAdded, validatorRemoved, err = validatorSurfaceDelta(baseTree)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
 	}
 	if *markdown {
-		fmt.Fprintln(stdout, summaryMarkdown(base, breaking, wireAdded, wireRemoved))
+		fmt.Fprintln(stdout, summaryMarkdown(base, breaking, wireAdded, wireRemoved, validatorChanged, validatorAdded, validatorRemoved))
 	} else {
 		for _, line := range breaking {
 			fmt.Fprintln(stdout, line)
@@ -79,7 +85,7 @@ func run(stdout, stderr io.Writer) int {
 	if len(breaking) == 0 {
 		fmt.Fprintf(stderr, "no breaking API changes against %s\n", orNone(base))
 	}
-	if err := writeGitHubOutput(base, breaking, wireAdded, wireRemoved); err != nil {
+	if err := writeGitHubOutput(base, breaking, wireAdded, wireRemoved, validatorChanged, validatorAdded, validatorRemoved); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -273,7 +279,7 @@ func wireSection(base string, added, removed []string) string {
 	return strings.TrimRight(section.String(), "\n")
 }
 
-func summaryMarkdown(base string, breaking, wireAdded, wireRemoved []string) string {
+func summaryMarkdown(base string, breaking, wireAdded, wireRemoved, validatorChanged, validatorAdded, validatorRemoved []string) string {
 	var summary strings.Builder
 	if len(breaking) > 0 {
 		fmt.Fprintf(&summary, "**Breaking API changes** against `%s` (apidiff):\n\n```\n", base)
@@ -292,10 +298,12 @@ func summaryMarkdown(base string, breaking, wireAdded, wireRemoved []string) str
 	}
 	summary.WriteString("\n\n")
 	summary.WriteString(wireSection(base, wireAdded, wireRemoved))
+	summary.WriteString("\n\n")
+	summary.WriteString(validatorSection(base, validatorChanged, validatorAdded, validatorRemoved))
 	return summary.String()
 }
 
-func writeGitHubOutput(base string, breaking, wireAdded, wireRemoved []string) error {
+func writeGitHubOutput(base string, breaking, wireAdded, wireRemoved, validatorChanged, validatorAdded, validatorRemoved []string) error {
 	path := os.Getenv("GITHUB_OUTPUT")
 	if path == "" {
 		return nil
@@ -314,8 +322,13 @@ func writeGitHubOutput(base string, breaking, wireAdded, wireRemoved []string) e
 	if len(wireAdded)+len(wireRemoved) > 0 {
 		wireChanged = "true"
 	}
-	_, err = fmt.Fprintf(output, "base=%s\nbreaking=%s\nwire_changed=%s\nsummary<<APIDIFF_SUMMARY\n%s\nAPIDIFF_SUMMARY\n",
-		base, isBreaking, wireChanged, summaryMarkdown(base, breaking, wireAdded, wireRemoved))
+	validatorsChanged := "false"
+	if len(validatorChanged)+len(validatorAdded)+len(validatorRemoved) > 0 {
+		validatorsChanged = "true"
+	}
+	_, err = fmt.Fprintf(output, "base=%s\nbreaking=%s\nwire_changed=%s\nvalidators_changed=%s\nsummary<<APIDIFF_SUMMARY\n%s\nAPIDIFF_SUMMARY\n",
+		base, isBreaking, wireChanged, validatorsChanged,
+		summaryMarkdown(base, breaking, wireAdded, wireRemoved, validatorChanged, validatorAdded, validatorRemoved))
 	return err
 }
 
