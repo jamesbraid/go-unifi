@@ -33,7 +33,8 @@ type trafficRouteMatchCase struct {
 // traffic route carries more than one kind of destination filter.
 //
 // terraform-provider-unifi declares domain, region and ip mutually exclusive
-// with ConflictsWith. The wire shape suggests otherwise: matching_target is
+// with ConflictsWith -- three declarations, verified present 2026-08-29 and
+// ungated here, so treat it as dated rather than permanent. The wire shape suggests otherwise: matching_target is
 // its own field taking DOMAIN|IP|INTERNET, which reads like a selector -- the
 // same shape as stormctrl_type, where the equivalent provider-side conflict
 // turned out to be stricter than the controller.
