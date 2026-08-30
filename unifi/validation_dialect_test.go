@@ -165,3 +165,91 @@ func TestUntranslatableProbesFire(t *testing.T) {
 		}
 	}
 }
+
+// shorthandsOutsideAClass returns the ASCII shorthands in pattern that sit
+// outside any [...] class. The scan tracks class depth rather than matching,
+// because whether an occurrence is inside one is the whole question.
+func shorthandsOutsideAClass(pattern string) []string {
+	var out []string
+	inClass := false
+	for i := 0; i < len(pattern); i++ {
+		switch c := pattern[i]; {
+		case c == '\\' && i+1 < len(pattern):
+			if next := pattern[i+1]; !inClass && (next == 'd' || next == 'w' || next == 's') {
+				out = append(out, `\`+string(next))
+			}
+			i++
+		case c == '[' && !inClass:
+			inClass = true
+		case c == ']' && inClass:
+			inClass = false
+		}
+	}
+	return out
+}
+
+// TestPinnedShorthandsAreAllInsideACharacterClass checks the claim
+// asciiClassFields makes about itself.
+//
+// The comment there says every pinned pattern holds its \d or \w inside a
+// character class, and that fact decides how a consumer writes the expansion:
+// inside a class it must be 0-9, because .NET classes do not nest and [[0-9]]
+// then rejects "5" and accepts "5]". Nothing checked the claim -- the pin
+// records which fields carry a shorthand, not where.
+//
+// It matters beyond keeping a comment honest. A consumer's outside-a-class
+// branch cannot be exercised by this corpus, so it is the branch their tests
+// are least likely to reach; terraform-provider-unifi measured exactly that,
+// and a collapse of theirs left every test green. The first controller
+// release to publish a bare \d makes that branch live. This is the thing that
+// would notice, and it should say so loudly enough to forward.
+func TestPinnedShorthandsAreAllInsideACharacterClass(t *testing.T) {
+	pinned := map[string]bool{}
+	for _, key := range asciiClassFields {
+		pinned[key] = true
+	}
+
+	checked := 0
+	eachPublishedPattern(func(key, pattern string) {
+		if !pinned[key] {
+			return
+		}
+		checked++
+		if loose := shorthandsOutsideAClass(pattern); len(loose) > 0 {
+			t.Errorf("%s has %v outside a character class\n\n"+
+				"pattern: %s\n\n"+
+				"Every pinned pattern until now kept its shorthand inside a class, so a "+
+				"consumer expanding \\d to 0-9 (no brackets, because .NET classes do not "+
+				"nest) was always right. A bare one needs the bracketed form instead, and "+
+				"that branch of a consumer's translation has never run. Tell the consumers.",
+				key, loose, pattern)
+		}
+	})
+
+	if checked != len(asciiClassFields) {
+		t.Errorf("checked %d of %d pinned fields; the pin and the tables disagree",
+			checked, len(asciiClassFields))
+	}
+}
+
+// The scan has to be right in both directions or the test above is decoration.
+func TestShorthandsOutsideAClass(t *testing.T) {
+	cases := []struct {
+		pattern string
+		want    int
+	}{
+		{`[\d]+|auto`, 0},
+		{`[\d\w-]+|^$`, 0},
+		{`\d+`, 1},        // bare, the case that has never appeared
+		{`\d+|[\w]`, 1},   // one of each
+		{`[a-z]\d`, 1},    // after a class has closed
+		{`\\d`, 0},        // an escaped backslash, then a literal d
+		{`[\d]\w[\s]`, 1}, // only the middle one is loose
+		{`no shorthands here`, 0},
+	}
+	for _, c := range cases {
+		if got := len(shorthandsOutsideAClass(c.pattern)); got != c.want {
+			t.Errorf("shorthandsOutsideAClass(%q) found %d, want %d", c.pattern, got, c.want)
+		}
+	}
+}
