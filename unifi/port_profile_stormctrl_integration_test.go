@@ -33,8 +33,13 @@ type stormctrlCase struct {
 //
 // The reason to measure it: terraform-provider-unifi declares
 // stormctrl_bcast_level and stormctrl_bcast_rate mutually exclusive with
-// ConflictsWith, and the same for mcast and ucast. Nothing measured says the
-// controller agrees. The schema has a separate stormctrl_type field taking
+// ConflictsWith, and the same for mcast and ucast -- six declarations,
+// verified present 2026-08-29. Nothing measured says the controller agrees.
+//
+// That sentence is a claim about another project's current source, and
+// nothing here is gated on it: if those declarations go, this comment is
+// quietly wrong and no build breaks. Dated so a reader knows what it was
+// checked against rather than reading it as a permanent fact. The schema has a separate stormctrl_type field taking
 // level|rate, which suggests the type selects which of the two applies rather
 // than the two being illegal together -- in which case ConflictsWith rejects
 // configurations the controller would accept, and that failure looks like a
