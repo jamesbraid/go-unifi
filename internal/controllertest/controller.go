@@ -23,7 +23,7 @@ const (
 	// github.com/jamesbraid/unifi-containers). Bump the tag when
 	// schemas/VERSION bumps. CI derives its tag from the marker so only
 	// bare local runs depend on this constant.
-	defaultImage = "ghcr.io/jamesbraid/unifi-network:10.4.57-sim"
+	defaultImage = "ghcr.io/jamesbraid/unifi-network:10.6.101-sim"
 	// Simulation mode seeds this account.
 	demoUsername = "admin"
 	demoPassword = "admin"
