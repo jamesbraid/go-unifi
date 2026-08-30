@@ -38,7 +38,17 @@ const (
 	// UOS reports them unsupported exactly like the standalone controller
 	// (verified 2026-07-22). Its version tracks UniFi OS Server, not the
 	// Network app; bump alongside the UOS component the schemas came from.
-	uosDefaultImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.21-sim"
+	uosDefaultImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.37-sim"
+
+	// uosNetworkVersion is the Network app bundled in uosDefaultImage, which is
+	// NOT schemas/VERSION and never can be: UniFi OS Server trails the
+	// standalone .deb, so the newest UOS release embeds an older Network app
+	// than the one the schemas were captured from. Bump both together.
+	//
+	// It exists so the UOS arm asserts something. Tying the check to
+	// schemas/VERSION would fail permanently; leaving it unasserted is how the
+	// pin sat two Network releases behind for weeks while the job stayed green.
+	uosNetworkVersion = "10.5.67"
 
 	// uosNetworkPort is where UOS_NETWORK_DIRECT (default in the -sim tags)
 	// proxies the bundled Network Application API, bypassing UOS SSO. Plain
@@ -103,8 +113,19 @@ func StartUOS(ctx context.Context, t *testing.T) *Controller {
 
 	caps, tmpfs := uosRuntimeContract()
 
+	// Resolved once and announced before the start, as the standalone path
+	// does. The bundled Network version is named too: it is not
+	// schemas/VERSION, so a transcript that shows only the image leaves a
+	// reader to assume the locked controller produced the result.
+	image := uosImageFromEnv()
+	if image == uosDefaultImage {
+		t.Logf("controller: %s (bundles Network %s)", image, uosNetworkVersion)
+	} else {
+		t.Logf("controller: %s (overridden; bundled Network version not known from here)", image)
+	}
+
 	req := testcontainers.ContainerRequest{
-		Image:        uosImageFromEnv(),
+		Image:        image,
 		ExposedPorts: []string{uosNetworkPort},
 		WaitingFor:   wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
 		HostConfigModifier: func(hc *container.HostConfig) {
