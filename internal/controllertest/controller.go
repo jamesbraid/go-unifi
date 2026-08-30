@@ -122,6 +122,12 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		// there is no image healthcheck to lean on here, so readiness is a
 		// bounded login poll.
 		waitReady(ctx, t, c)
+		// Name the target. A probe verdict is a claim about one controller
+		// generation, and this path is the one where nothing in the tree says
+		// which: the controller was started by somebody else, so its version
+		// is not ours to know. A transcript that does not record the endpoint
+		// reads as though the default image produced the result.
+		t.Logf("controller: UNIFI_TEST_URL=%s (already running; generation not known from here)", c.BaseURL)
 		return c
 	}
 
@@ -234,6 +240,10 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	if err != nil {
 		t.Fatalf("controller on network %s: %v", net.Name, err)
 	}
+
+	// Record which controller produced this run, for the same reason: a
+	// verdict read out of a transcript needs its generation attached.
+	t.Logf("controller: %s", imageFromEnv())
 
 	return &Controller{
 		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
