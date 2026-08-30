@@ -247,12 +247,21 @@ func roundTripSeeds() []roundTripSeed {
 			name:    "rt-corporate-auto",
 			purpose: PurposeCorporate,
 			seed:    corporateRoundTripSeed("rt-corporate-auto", 50, 850, "auto"),
-			// Measured on 10.4.57. Nine, not the six c476b82 recorded: that
-			// sweep walked the *_enabled toggles, so the two fields below
-			// that are not toggles were never in view.
+			// Re-measured on 10.6.101, 2026-08-30. Eight: dhcpguard_enabled
+			// left the list because this controller generation stores it as
+			// asked under "auto", which it did not on 10.4.57. Confirmed
+			// twice -- this test reported it on three consecutive nightlies,
+			// and terraform-provider-unifi measured the same field sticking
+			// under both preferences through Terraform. Everything else here
+			// is unchanged from the 10.4.57 measurement, and the check runs
+			// in both directions, so no field started being discarded either.
+			//
+			// Nine on 10.4.57, not the six c476b82 recorded: that sweep
+			// walked the *_enabled toggles, so the two fields below that are
+			// not toggles were never in view.
 			wantDiscarded: []string{
-				// The six from c476b82.
-				"dhcpguard_enabled",
+				// Five of the six from c476b82; dhcpguard_enabled is the one
+				// this generation dropped.
 				"igmp_snooping",
 				"upnp_lan_enabled",
 				"dhcpd_dns_enabled",
