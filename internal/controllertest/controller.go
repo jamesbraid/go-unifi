@@ -160,8 +160,19 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		}
 	})
 
+	// Resolved once and used for both the announcement and the request. A
+	// second imageFromEnv() call here would be a second copy of the
+	// resolution, and a log line able to name an image the run did not use is
+	// the failure this line exists to prevent.
+	image := imageFromEnv()
+
+	// Announced before the start, not after: a controller that fails to boot
+	// is when knowing which image was attempted matters most, and the start
+	// below fails the test outright.
+	t.Logf("controller: %s", image)
+
 	req := testcontainers.ContainerRequest{
-		Image: imageFromEnv(),
+		Image: image,
 		// Only the API is published, and only on an ephemeral port: the
 		// test host drives the controller over BaseURL, while 8080 (inform)
 		// is reached across the network below and needs no host binding at
@@ -240,10 +251,6 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	if err != nil {
 		t.Fatalf("controller on network %s: %v", net.Name, err)
 	}
-
-	// Record which controller produced this run, for the same reason: a
-	// verdict read out of a transcript needs its generation attached.
-	t.Logf("controller: %s", imageFromEnv())
 
 	return &Controller{
 		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
