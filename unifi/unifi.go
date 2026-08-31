@@ -901,6 +901,16 @@ func redactSensitiveValue(v any) {
 
 func isSensitiveKey(k string) bool {
 	lk := strings.ToLower(k)
+	// The controller's own list first: exact names it marks sensitive.
+	// sensitivePayloadKeys below is a substring fallback for shapes the
+	// metadata does not enumerate (x_passphrase and friends); it is not
+	// sufficient alone -- it misses 51 of the controller's 64 names.
+	if sensitiveWireFields[lk] {
+		return true
+	}
+	if sensitiveNamePattern.MatchString(lk) {
+		return true
+	}
 	for _, s := range sensitivePayloadKeys {
 		if strings.Contains(lk, s) {
 			return true
