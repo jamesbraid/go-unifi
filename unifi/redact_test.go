@@ -56,3 +56,76 @@ func TestRedactSensitivePayload(t *testing.T) {
 		t.Errorf("non-JSON body echoed: %q", got)
 	}
 }
+
+// TestRedactCoversTheControllersOwnSensitiveFields is the case the test above
+// could not have caught: it uses five secrets whose names happen to match the
+// six hand-written substrings, so it passed while every OpenVPN private key
+// printed in full.
+//
+// The controller publishes sensitive_metadata.json. Of the 64 field names it
+// marks sensitive, the substring list matched 13. x_ca_key, x_server_key,
+// x_shared_client_key and x_dh_key -- the whole OpenVPN key set -- were
+// among the 51 that did not, as were the SSH password hashes, the SSO and API
+// tokens and the SIM PIN. wireguard_client_preshared_key missed by a single
+// underscore against "pre_shared_key".
+//
+// The set is derived from that metadata now. This pins both directions,
+// because a redactor that hides the object's name makes the error
+// undiagnosable and gains nothing.
+func TestRedactCoversTheControllersOwnSensitiveFields(t *testing.T) {
+	secrets := []string{
+		"x_ca_key", "x_server_key", "x_shared_client_key", "x_dh_key",
+		"x_ssh_md5passwd", "x_ssh_sha512passwd", "x_sso_token", "x_api_token",
+		"lte_sim_pin", "x_stripe_api_key", "google_maps_api_key", "auth_token",
+		"wireguard_client_preshared_key", "wireguard_client_private_key",
+		"x_iapp_key", "zone_key", "x_mgmt_key", "x_ble_adopt_key",
+	}
+	keep := []string{"name", "desc", "hostname", "purpose", "ip_subnet"}
+
+	payload := map[string]any{
+		"nested": map[string]any{"x_server_key": "SUPERSECRET"},
+		"list":   []any{map[string]any{"x_ca_key": "SUPERSECRET"}},
+	}
+	for _, k := range secrets {
+		payload[k] = "SUPERSECRET"
+	}
+	for _, k := range keep {
+		payload[k] = "diagnostic-value"
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := redactSensitivePayload(body)
+	if strings.Contains(out, "SUPERSECRET") {
+		for _, k := range secrets {
+			if !isSensitiveKey(k) {
+				t.Errorf("%s is not redacted; it prints in full in every non-2xx error", k)
+			}
+		}
+		t.Fatalf("secret material survived redaction:\n%s", out)
+	}
+	for _, k := range keep {
+		if !strings.Contains(out, k) {
+			t.Errorf("%s vanished from the payload; an error that hides it is not diagnosable", k)
+		}
+	}
+	if !strings.Contains(out, "diagnostic-value") {
+		t.Error("every non-secret value was redacted; the error carries no diagnostic content")
+	}
+}
+
+// An empty generated set silently reduces redaction to the substring fallback,
+// which is where the defect was, and every other test here would still pass.
+func TestSensitiveWireFieldsReachTheClient(t *testing.T) {
+	if len(sensitiveWireFields) < 20 {
+		t.Fatalf("sensitiveWireFields has %d entries; the generated set is not reaching the client",
+			len(sensitiveWireFields))
+	}
+	for _, want := range []string{"x_ca_key", "x_server_key", "x_dh_key", "x_shared_client_key"} {
+		if !sensitiveWireFields[want] {
+			t.Errorf("%s missing from the generated set", want)
+		}
+	}
+}
