@@ -1048,6 +1048,18 @@ const UnifiVersion = %q
 		writtenGenerated[path] = true
 	}
 
+	// The controller's own sensitive-field list, so the client redacts by
+	// name instead of guessing from substrings.
+	if sensitiveGo, err := renderSensitiveFile("unifi", sensitive); err != nil {
+		panic(fmt.Errorf("render sensitive file: %w", err))
+	} else {
+		path := filepath.Join(outDir, "sensitive.generated.go")
+		if err := os.WriteFile(path, sensitiveGo, 0o644); err != nil {
+			panic(err)
+		}
+		writtenGenerated[path] = true
+	}
+
 	// A resource that left the schema must also leave the SDK, or the public
 	// API silently diverges from the controller (and apidiff never sees the
 	// removal). Delete generated files no schema produced this run, and fail
