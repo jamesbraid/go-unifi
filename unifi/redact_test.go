@@ -129,3 +129,29 @@ func TestSensitiveWireFieldsReachTheClient(t *testing.T) {
 		}
 	}
 }
+
+// TestRequestBodyIsNotInErrorsByDefault pins the default. Redaction is a
+// second line, not the first: it cannot cover a secret the controller never
+// declared sensitive, and when it misses, the value lands in an error string
+// that callers put into logs, Terraform diagnostics and issue reports. Nothing
+// about that failure is visible.
+//
+// So the body is out unless a caller asks for it in code. Opting in is a
+// deliberate act at the call site rather than an ambient default or an
+// environment variable someone sets in CI and forgets.
+func TestRequestBodyIsNotInErrorsByDefault(t *testing.T) {
+	var cfg Config
+	if cfg.IncludeRequestBodyInErrors {
+		t.Fatal("the zero-value Config includes request bodies in errors; the safe default is off")
+	}
+
+	client := &ApiClient{}
+	if client.includeRequestBodyInErrors {
+		t.Error("a zero-value client includes request bodies in errors")
+	}
+
+	client.includeRequestBodyInErrors = true
+	if !client.includeRequestBodyInErrors {
+		t.Error("the opt-in does not take effect; the flag is inert and the payload can never be shown")
+	}
+}
