@@ -69,6 +69,19 @@ type Config struct {
 	Logger         any
 	TimeoutSeconds *int
 	RetryMax       *int
+
+	// IncludeRequestBodyInErrors appends the request body to the error
+	// returned for a non-2xx response. It is off by default and should stay
+	// off outside debugging.
+	//
+	// The body is redacted against the field names the controller marks
+	// sensitive, but that list cannot cover a secret the controller never
+	// declared, and the failure mode is silent: the value simply appears in
+	// an error string, which callers put into logs, diagnostics and issue
+	// reports. Defaulting to off makes leaking a deliberate choice by the
+	// caller rather than the consequence of a name the redactor did not
+	// anticipate.
+	IncludeRequestBodyInErrors bool
 }
 
 // New creates a fully initialized ApiClient from the provided configuration.
@@ -141,10 +154,11 @@ func New(ctx context.Context, cfg *Config) (*ApiClient, error) {
 	c.HTTPClient.Jar = jar
 
 	client := &ApiClient{
-		c:        c,
-		apiKey:   cfg.APIKey,
-		username: cfg.Username,
-		password: cfg.Password,
+		c:                          c,
+		apiKey:                     cfg.APIKey,
+		username:                   cfg.Username,
+		password:                   cfg.Password,
+		includeRequestBodyInErrors: cfg.IncludeRequestBodyInErrors,
 	}
 
 	if cfg.CloudConnector {
@@ -183,6 +197,8 @@ type ApiClient struct {
 
 	c       *retryablehttp.Client
 	baseURL *url.URL
+
+	includeRequestBodyInErrors bool
 
 	apiKey    string
 	username  string
@@ -779,13 +795,22 @@ func (c *ApiClient) doRequest(
 				ae.Validation = errBody.Validation
 			}
 		}
+		if c.includeRequestBodyInErrors {
+			return fmt.Errorf(
+				"%w (%s) for %s %s\npayload: %s",
+				apiErr,
+				strings.TrimSpace(resp.Status),
+				method,
+				url.String(),
+				redactSensitivePayload(reqBytes),
+			)
+		}
 		return fmt.Errorf(
-			"%w (%s) for %s %s\npayload: %s",
+			"%w (%s) for %s %s",
 			apiErr,
 			strings.TrimSpace(resp.Status),
 			method,
 			url.String(),
-			redactSensitivePayload(reqBytes),
 		)
 	}
 
