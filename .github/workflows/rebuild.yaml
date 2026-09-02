@@ -23,6 +23,10 @@ permissions:
 
 jobs:
   rebuild:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

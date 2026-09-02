@@ -38,6 +38,10 @@ permissions:
 
 jobs:
   fields:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     # Bounds the damage of a malformed artifact: the download and nested
     # decompression are otherwise unbounded work.
