@@ -11,12 +11,59 @@ on:
         description: Existing tag to release
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release
+        required: true
+        type: string
+      force:
+        description: >-
+          Release even though the latest integration run on main is not
+          green. Use only for a red that is understood and accepted, and
+          say why in the release notes.
+        required: false
+        type: boolean
+        default: false
 
 jobs:
+  # A tag used to publish whatever the integration suite said: v1.111.0
+  # shipped while the nightly had been red for two days, and nothing
+  # objected. The unit tests below re-run on the tag itself, but the
+  # docker-backed integration suite runs nightly against main, so this
+  # asks for its most recent verdict instead of re-running it.
+  #
+  # The override is a workflow_dispatch input, not an environment secret
+  # or a magic tag name: forcing a release over a red suite should be a
+  # deliberate act with a paper trail.
+  preflight:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Latest integration verdict on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          conclusion=$(gh run list --repo "$GITHUB_REPOSITORY"             --workflow integration.yaml --branch main --limit 20             --json conclusion,status             --jq '[.[] | select(.status == "completed")][0].conclusion // "none"')
+          echo "latest completed integration run on main: ${conclusion}"
+          if [ "$conclusion" = "success" ]; then
+            exit 0
+          fi
+          if [ "$FORCE" = "true" ]; then
+            echo "::warning::releasing over integration=${conclusion} because force was set"
+            exit 0
+          fi
+          echo "::error::integration on main is ${conclusion}, not success. Understand it, fix it or re-run it -- or dispatch this workflow with force=true to accept it deliberately."
+          exit 1
+
   goreleaser:
     # Releases are cut at the public publish point. A deployment whose only
     # forge is elsewhere changes this guard.
     if: github.server_url == 'https://github.com'
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write
