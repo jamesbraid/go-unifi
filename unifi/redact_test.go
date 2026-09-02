@@ -155,3 +155,48 @@ func TestRequestBodyIsNotInErrorsByDefault(t *testing.T) {
 		t.Error("the opt-in does not take effect; the flag is inert and the payload can never be shown")
 	}
 }
+
+// TestSensitiveFormsAgree ties the exported per-collection declaration to the
+// flat set the redactor consults. Both are emitted from one pass today, but
+// this is what keeps an emitter edit from quietly splitting them into two
+// definitions of "secret" -- one consumers derive from, one the redactor uses.
+func TestSensitiveFormsAgree(t *testing.T) {
+	// 8 of the metadata's 17 collections declare actual secrets; the other 9
+	// carry only anonymization entries and are filtered out. Pin presence by
+	// known members rather than a guessed count.
+	if len(SensitiveFieldsByCollection) == 0 {
+		t.Fatal("SensitiveFieldsByCollection is empty; the export is not populated")
+	}
+	for collection, field := range map[string]string{
+		"device":     "x_authkey",
+		"dynamicdns": "x_password", //nolint:misspell // the controller collection name
+		"setting":    "x_ssh_password",
+	} {
+		found := false
+		for _, f := range SensitiveFieldsByCollection[collection] {
+			if f == field {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s.%s missing from the export", collection, field)
+		}
+	}
+	union := map[string]bool{}
+	for collection, fields := range SensitiveFieldsByCollection {
+		if len(fields) == 0 {
+			t.Errorf("collection %q declares no fields; an empty entry is noise", collection)
+		}
+		for _, f := range fields {
+			union[f] = true
+			if !sensitiveWireFields[f] {
+				t.Errorf("%s.%s is exported as sensitive but the redactor does not know it", collection, f)
+			}
+		}
+	}
+	for f := range sensitiveWireFields {
+		if !union[f] {
+			t.Errorf("the redactor knows %q but no collection exports it", f)
+		}
+	}
+}
