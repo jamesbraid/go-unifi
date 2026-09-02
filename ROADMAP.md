@@ -139,3 +139,58 @@ items land on main untagged. The provider derives against a pinned commit
 throughout. When the work is proven, each project cuts exactly one tag —
 one image release, one SDK tag, one provider tag — on James's word, and
 nothing before.
+
+## Beyond this cycle
+
+The plan above is one cycle; the direction it serves is longer. Ordered by
+dependency, not by date — a cycle ends when its work is proven, and the next
+begins on James's word.
+
+### Next cycle: the controller train becomes routine
+
+- Controller adoption stops being an event. unifi-containers' network lane
+  already selects and tags new stable controller releases automatically; a
+  capture bump against each one runs the probe stage and lands as an
+  artifact diff to review, not a hunt through red CI. The 10.6.101 bump took
+  a day of hand-measurement; the goal is an afternoon of reading a diff.
+- Retire the hand-written network encoder. The per-purpose marshalling in
+  `unifi/network_encode.go` is the largest remaining hand-maintained
+  surface, and its emission sets are exactly what the measured wire-shape
+  baselines record. Derive the sets, keep only the genuinely irregular
+  cases by hand, delete the rest.
+- Provider coverage expands from a generated gap list. The SDK generates
+  roughly thirty-five resources; the provider exposes a subset chosen by
+  history. Emit the coverage gap as an artifact (resource, endpoints,
+  write-shape status, known blockers) so choosing the next resource is
+  picking from a list, not spelunking.
+
+### After that
+
+- The v2 definitions go from cross-checked to generated: the compiled-class
+  scan becomes the source, and `overrides/resources/` shrinks to true
+  exceptions with a reason attached to each.
+- The behaviour artifact's schema is stabilised and versioned as a public
+  contract, so downstream consumers (the provider, anyone else) depend on
+  it the way they depend on the field definitions today.
+- Drift coverage reaches every collection the controller serves, including
+  device and fleet state, so "the SDK models what the wire carries" is
+  checked everywhere rather than in the four collections history happened
+  to cover.
+- The five repos in this program (go-unifi, terraform-provider-unifi,
+  unifi-containers, unifi-ghost, unifi-emu) converge on one forge pattern:
+  Forgejo Actions for CI and scheduled work, Renovate for dependencies, one
+  CI system per repo, GitHub kept only for publish. Each repo's own roadmap
+  carries its half; this one records the target.
+
+### Standing invariants
+
+These outlive any cycle:
+
+- Derive, don't transcribe: anything the controller declares or measurably
+  does is consumed from the controller, never copied by hand.
+- Net reduction: a change that adds more maintained code than it retires is
+  rejected or re-scoped, per pull request.
+- One tag per lane per cycle, cut on James's word; automation-driven lanes
+  tag on their own machinery. Work lands on main; consumers pin commits.
+- The canonical forge is git.octanix.dev; GitHub is a mirror that publishes.
+  Upstream ubiquiti-community is never touched.
