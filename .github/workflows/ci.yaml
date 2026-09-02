@@ -14,6 +14,10 @@ permissions:
 
 jobs:
   generate:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,6 +43,10 @@ jobs:
           fi
 
   lint:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     name: Lint
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +67,10 @@ jobs:
           args: --timeout=10m
 
   test:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -75,6 +87,10 @@ jobs:
         run: go test ./...
 
   yamllint:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     name: yamllint
     runs-on: 'ubuntu-latest'
     steps:

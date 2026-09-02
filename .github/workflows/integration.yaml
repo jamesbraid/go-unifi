@@ -35,6 +35,10 @@ concurrency:
 
 jobs:
   suite:
+    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
+    # too, so without this guard enabling Actions doubles every job onto
+    # runners that lack this workflow's environment.
+    if: github.server_url == 'https://github.com'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -127,7 +131,10 @@ jobs:
   integration:
     name: Integration
     needs: suite
-    if: always()
+    # always() so it reports on every PR whatever the legs did -- but on the
+    # GitHub mirror only, or Forgejo aggregates legs this guard already
+    # skipped there and reports a failure about nothing.
+    if: always() && github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
