@@ -38,6 +38,12 @@ exported constraints, the way validation patterns and sensitive fields are
 exported today. Re-measured on every controller pin, so a behaviour change
 surfaces in the capture diff instead of three nights of red CI.
 
+The artifact carries the write contract, not just field behaviour: the
+generated create for content-filtering POSTs to the collection and the
+controller answers 405 — the route exists, the verb is wrong (measured on
+10.6.101). A boundary write at capture time records the accepted verb and
+path instead of the codegen assuming them from the resource's shape.
+
 Retires: the hand-pasted ownership blocks in `overrides/fields.toml`, the
 `wantDiscarded` lists in the round-trip test, the separate clearing-,
 null-write- and preference-probe scaffolding (consolidated into the
@@ -97,18 +103,21 @@ fold the pre-tag checklist into it.
 
 Retires: the human checklist as the only protection.
 
-## 7. UOS image carries the current Network app (unifi-containers)
+## 7. Current-app UOS images via the product's own updater (unifi-containers)
 
 Owned by unifi-containers, consumed here. UniFi OS Server structurally
-trails the standalone package, so the UOS test image bundles an older
+trails the standalone package, so the UOS test image bundled an older
 Network app than the one the schemas target — half the integration matrix
-green about the wrong controller until the pin moved. Real consoles update
-the Network app in place (measured: the firmware API serves the current
-Network package for the UOS platform string), so an image variant that
-applies that update is faithful to deployed systems. Once both matrix arms
-run the same Network version, the ownership-table ambiguity (platform
-difference versus version difference) disappears and `uos_excludes`
-becomes trustworthy again.
+green about the wrong controller until the pin moved. The fix is not a
+hand-swapped package: UOS ships its own app updater, and running it at
+image build against a pinned app version installs the byte-identical
+artifact a real console self-updates to (measured end-to-end on 10.6.101).
+Standard image tags stay as they are; an app bump is a new packaging
+revision, and each image carries the bundled Network version as an OCI
+label. Once both matrix arms run the same Network version, this repo's
+UOS version assertion goes back to equalling the captured version with no
+extra mechanism, and the ownership-table ambiguity (platform difference
+versus version difference) disappears.
 
 ## Code accounting
 
