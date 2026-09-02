@@ -1,11 +1,12 @@
 # Dependency updates, running where the code is reviewed.
 #
-# The GitHub fork carries a Dependabot config that has never produced a
-# single pull request: forks do not get Dependabot runs, so every action
-# and module pin here was manually maintained while looking covered.
-# Renovate does the same job and speaks Forgejo's API natively, which
-# Dependabot does not; it runs here on a schedule and opens its pull
-# requests on the canonical repository, where review happens.
+# This file lives in .github/workflows like every other workflow, because
+# a .forgejo/workflows directory REPLACES .github/workflows on the forge
+# rather than adding to it -- one directory, and the server guard on each
+# job decides where it runs. This one runs only on the forge; the mirror
+# skips it. (The Dependabot config it replaced never ran once: forks do
+# not get Dependabot, so pins were manually maintained while looking
+# covered.)
 #
 # Needs a repository secret RENOVATE_TOKEN: a token for a dedicated
 # renovate-bot Forgejo user with write access to this repository. The
@@ -20,6 +21,9 @@ on:
 
 jobs:
   renovate:
+    # Forge only -- the inverse of the guard every other workflow here
+    # carries. On GitHub this job skips.
+    if: github.server_url != 'https://github.com'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/renovatebot/renovate:41
