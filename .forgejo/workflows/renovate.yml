@@ -1,0 +1,42 @@
+# Dependency updates, running where the code is reviewed.
+#
+# The GitHub fork carries a Dependabot config that has never produced a
+# single pull request: forks do not get Dependabot runs, so every action
+# and module pin here was manually maintained while looking covered.
+# Renovate does the same job and speaks Forgejo's API natively, which
+# Dependabot does not; it runs here on a schedule and opens its pull
+# requests on the canonical repository, where review happens.
+#
+# Needs a repository secret RENOVATE_TOKEN: a token for a dedicated
+# renovate-bot Forgejo user with write access to this repository. The
+# run fails loudly until that exists -- a quietly-skipping updater is
+# how the last one went unnoticed for months.
+---
+name: renovate
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/renovatebot/renovate:41
+    steps:
+      - name: Refuse to pretend without a token
+        run: |
+          if [ -z "${{ secrets.RENOVATE_TOKEN }}" ]; then
+            echo "::error::RENOVATE_TOKEN is not set; mint a token for a renovate-bot user and add it as a repository secret"
+            exit 1
+          fi
+      - name: Run renovate
+        env:
+          RENOVATE_PLATFORM: gitea
+          RENOVATE_ENDPOINT: https://git.octanix.dev/api/v1
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_REPOSITORIES: infra/go-unifi
+          RENOVATE_ONBOARDING: 'false'
+          RENOVATE_REQUIRE_CONFIG: optional
+          LOG_LEVEL: info
+        run: renovate
