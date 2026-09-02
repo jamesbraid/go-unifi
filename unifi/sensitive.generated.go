@@ -45,5 +45,68 @@ var sensitiveWireFields = map[string]bool{
 	"x_wireguard_private_key": true,
 }
 
+// SensitiveFieldsByCollection is the controller's own declaration of which
+// fields carry secret material, from sensitive_metadata.json, filtered to
+// actual secrets by the same rule that sets Sensitive in the generated
+// Terraform specification. Anonymization-only entries (name, hostname,
+// serial, ...) are deliberately absent.
+//
+// Keys are the controller's collection names -- the lowercased schema file
+// base names such as "networkconf" or "setting" -- not Go type names. Values
+// are leaf wire names: a nested declaration like "auth_servers.x_secret" is
+// recorded as "x_secret", because that is the key a consumer sees on the
+// object it holds.
+//
+// Derive from this rather than hand-maintaining a list: a hand-set list is
+// one unanticipated field name away from wrong, and nothing detects the day
+// that happens.
+var SensitiveFieldsByCollection = map[string][]string{
+	"account": {
+		"x_password",
+	},
+	"device": {
+		"lte_password",
+		"lte_sim_pin",
+		"x_authkey",
+		"x_baresip_password",
+		"x_ble_adopt_key",
+		"x_ble_auth_key",
+	},
+	"dynamicdns": {
+		"x_password",
+	},
+	"networkconf": {
+		"x_auth_key",
+		"x_ca_key",
+		"x_dh_key",
+		"x_ipsec_pre_shared_key",
+		"x_openvpn_password",
+		"x_server_key",
+		"x_shared_client_key",
+		"x_wan_password",
+		"x_wireguard_private_key",
+	},
+	"radiusprofile": {
+		"x_secret",
+	},
+	"setting": {
+		"x_api_token",
+		"x_mesh_psk",
+		"x_mgmt_key",
+		"x_private_key",
+		"x_ssh_md5passwd",
+		"x_ssh_password",
+		"x_ssh_sha512passwd",
+		"x_sso_token",
+		"x_stunnel_key",
+	},
+	"teleport_token": {
+		"secret_verifier_encoded",
+	},
+	"wlanconf": {
+		"x_passphrase",
+	},
+}
+
 // sensitiveNamePattern is the generator's secret-name rule, shared with the generator.
 var sensitiveNamePattern = regexp.MustCompile("(?i)passw|passphrase|secret|token|psk|sim_pin|private_key|auth_?key|_key$")
