@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -275,63 +274,6 @@ func jsonText(v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return string(raw)
-}
-
-// firstData unwraps {"meta":..., "data":[obj,...]} envelopes; v2-style bare
-// objects/arrays pass through.
-func firstData(t *testing.T, body any) map[string]any {
-	t.Helper()
-	switch v := body.(type) {
-	case map[string]any:
-		if data, ok := v["data"].([]any); ok && len(data) > 0 {
-			if m, ok := data[0].(map[string]any); ok {
-				return m
-			}
-			return nil
-		}
-		return v
-	case []any:
-		if len(v) > 0 {
-			if m, ok := v[0].(map[string]any); ok {
-				return m
-			}
-		}
-	}
-	return nil
-}
-
-// jsonEqual compares a and b by round-tripping both through JSON and
-// comparing the decoded result with reflect.DeepEqual. Raw comparison of a
-// Go struct/slice candidate value against the map[string]any the controller
-// hands back on read-back never matches -- and fmt.Sprintf("%v", ...) on
-// either side is no better, since it string-formats field order and types
-// the wire format doesn't preserve. Normalizing both sides through JSON
-// gives them the same shape (map[string]any, []any, float64, ...) before
-// comparing. The float64 normalization also means int/float differences
-// between what was sent and what came back are treated as equal, which is
-// the desired semantic here: did the controller keep the value.
-func jsonEqual(a, b any) bool {
-	na, err := normalizeJSON(a)
-	if err != nil {
-		return false
-	}
-	nb, err := normalizeJSON(b)
-	if err != nil {
-		return false
-	}
-	return reflect.DeepEqual(na, nb)
-}
-
-func normalizeJSON(v any) (any, error) {
-	raw, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func firstZoneID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {

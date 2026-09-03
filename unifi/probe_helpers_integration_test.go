@@ -8,7 +8,27 @@ import (
 	"testing"
 
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
+	"github.com/ubiquiti-community/go-unifi/internal/probe"
 )
+
+// The probe primitives live in internal/probe so the capture-time behaviour
+// stage and these tests share one implementation. These file-local wrappers
+// keep the ~30 existing call sites unchanged while the definitions collapse
+// to one place.
+
+func firstData(_ *testing.T, body any) map[string]any { return probe.FirstData(body) }
+
+func jsonEqual(a, b any) bool { return probe.JSONEqual(a, b) }
+
+// discardedFields reports, per asked field, what the controller did not store
+// as asked -- Changed or Dropped, keyed by wire name with a before/after.
+func discardedFields(asked, stored map[string]any) map[string]string {
+	out := map[string]string{}
+	for _, r := range probe.Classify(asked, stored) {
+		out[r.Wire] = r.Detail
+	}
+	return out
+}
 
 // probeDeps carries ids resolved from the live controller that a payload has
 // to reference by value. A well-formed but nonexistent id is rejected, and a
