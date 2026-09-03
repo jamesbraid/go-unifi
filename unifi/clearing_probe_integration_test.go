@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 )
 
@@ -49,6 +50,14 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 	s := c.NewSession(ctx, t)
 
 	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
+
+	// The artifact is the cross-run memory: without BEHAVIOR_WRITE the
+	// measured verdicts are checked against it, with BEHAVIOR_WRITE=1 they
+	// are recorded into it. measured accumulates across the sequential
+	// subtests so the artifact is written once, after all resources ran.
+	artifact, artifactFound := loadBehaviorArtifact(t)
+	recording := behaviorWriteEnabled()
+	measured := map[string]map[string]behavior.EmptySemantics{}
 
 	for _, res := range clearingProbeResources(t, ctx, s, c.Site) {
 		t.Run(res.path, func(t *testing.T) {
@@ -127,6 +136,19 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 
 				summary = append(summary, fmt.Sprintf("%-34s %-16s %s", field, empty, omit))
 
+				sem := behavior.EmptySemantics{Empty: empty, Omit: omit}
+				if measured[res.path] == nil {
+					measured[res.path] = map[string]behavior.EmptySemantics{}
+				}
+				measured[res.path][field] = sem
+				if artifactFound && !recording {
+					if prev, ok := artifact.Empty[res.path][field]; ok && prev != sem {
+						t.Errorf("%s.%s: measured empty=%s omit=%s but %s records empty=%s omit=%s; "+
+							"re-measure with BEHAVIOR_WRITE=1 once the change is understood",
+							res.path, field, empty, omit, behavior.Path, prev.Empty, prev.Omit)
+					}
+				}
+
 				// The finding the encoder rule rests on: leaving a key out
 				// clears it, so dropping an empty field is never worse than
 				// sending it. If a controller ever merges instead, the rule
@@ -139,6 +161,32 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 
 			t.Logf("clearing semantics for %s (%d fields):\n  %s", res.path, len(summary), strings.Join(summary, "\n  "))
 		})
+	}
+
+	if recording {
+		// Per-field upsert, not a section replace: only fields the seed
+		// populated with a non-empty string get measured on any given run,
+		// so replacing a resource's whole map would erase real measurements
+		// of fields this run happened not to reach.
+		updateBehaviorArtifact(t, func(a *behavior.Artifact) {
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			for res, byField := range measured {
+				if a.Empty[res] == nil {
+					a.Empty[res] = map[string]behavior.EmptySemantics{}
+				}
+				for field, sem := range byField {
+					a.Empty[res][field] = sem
+				}
+			}
+		})
+		total := 0
+		for _, byField := range measured {
+			total += len(byField)
+		}
+		t.Logf("recorded empty semantics for %d fields across %d resources into %s",
+			total, len(measured), behavior.Path)
 	}
 }
 
