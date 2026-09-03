@@ -149,40 +149,6 @@ type roundTripSeed struct {
 	wantDiscarded []string
 }
 
-// discardedFields returns the keys of asked that the controller did not store
-// as asked, mapped to a human-readable before/after. A missing key counts as
-// discarded: the controller dropped it rather than storing it.
-//
-// Shared with TestIntegrationPreferenceOwnership, which subtracts one call's
-// result from another's to isolate what a mode owns.
-func discardedFields(asked, stored map[string]any) map[string]string {
-	out := map[string]string{}
-	for wire, want := range asked {
-		have, ok := stored[wire]
-		if ok && jsonEqual(have, want) {
-			continue
-		}
-		out[wire] = describeDifference(want, have)
-	}
-	return out
-}
-
-// describeDifference renders a before/after that a reader can act on.
-//
-// %v alone is not enough: the controller returns some numeric fields as JSON
-// strings, so a values-differ report can read "asked [1 6 11], stored
-// [1 6 11]" and look like a bug in the comparison. When the rendered forms
-// match, the difference is representation, and saying so is the whole
-// message.
-func describeDifference(want, have any) string {
-	wantStr := fmt.Sprintf("%v", want)
-	haveStr := fmt.Sprintf("%v", have)
-	if wantStr == haveStr {
-		return fmt.Sprintf("asked %s (%T), stored the same value as %T", wantStr, want, have)
-	}
-	return fmt.Sprintf("asked %s, stored %s", wantStr, haveStr)
-}
-
 // checkDiscarded compares what the seed asked for against what the controller
 // stored, and pins the difference. Both directions are errors: a field the
 // controller newly refuses is a regression to find, and a field it stopped
