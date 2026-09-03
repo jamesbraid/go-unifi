@@ -1,0 +1,179 @@
+{
+  "controller_version": "10.6.101",
+  "discarded": {
+    "Network": [
+      "dhcpd_dns_enabled",
+      "dhcpd_gateway_enabled",
+      "dhcpd_leasetime",
+      "dhcpd_ntp_enabled",
+      "dhcpd_time_offset_enabled",
+      "domain_name",
+      "igmp_snooping",
+      "upnp_lan_enabled"
+    ]
+  },
+  "empty": {
+    "networkconf": {
+      "dhcpd_boot_filename": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_boot_server": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_dns_1": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_dns_3": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_gateway": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_ip_1": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "dhcpd_mac_1": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_ntp_1": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_start": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "dhcpd_stop": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "domain_name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "external_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "ip_subnet": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "ipv6_setting_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "mac_override": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "networkgroup": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "setting_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      }
+    },
+    "portconf": {
+      "forward": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "native_networkconf_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "op_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "poe_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "setting_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "stormctrl_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      }
+    },
+    "wlanconf": {
+      "ap_group_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "external_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "minrate_setting_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "networkconf_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "pmf_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "security": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "setting_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "usergroup_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "wlan_band": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "wpa_enc": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "wpa_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "x_iapp_key": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "x_passphrase": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      }
+    }
+  }
+}
