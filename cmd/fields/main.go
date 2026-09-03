@@ -24,6 +24,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -127,8 +128,12 @@ type ResourceInfo struct {
 	// verb uses. Defaults to ResourcePath.
 	ListResourcePath string
 	Collection       string
-	Types            map[string]*FieldInfo
-	FieldProcessor   func(name string, f *FieldInfo) error
+	// CreateMethod is the HTTP verb the generated Create issues. POST unless
+	// the measured write contract (schemas/behavior.json) recorded the
+	// controller accepting creates only over PUT.
+	CreateMethod   string
+	Types          map[string]*FieldInfo
+	FieldProcessor func(name string, f *FieldInfo) error
 }
 
 type FieldInfo struct {
@@ -208,6 +213,7 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		StructName:   structName,
 		ResourcePath: resourcePath,
 		Collection:   resourcePath,
+		CreateMethod: "POST",
 		Types: map[string]*FieldInfo{
 			structName: baseType,
 		},
@@ -705,6 +711,14 @@ func main() {
 	}
 	specGen := NewSpecificationGenerator("unifi", sensitive)
 
+	// The measured-behaviour artifact, if the probes have written one.
+	// Missing means nothing measured: write contracts stay at their
+	// defaults and the coercion map emits empty.
+	measured, _, err := behavior.Load(moduleRoot)
+	if err != nil {
+		panic(err)
+	}
+
 	for _, fieldsFile := range fieldsFiles {
 		name := fieldsFile.Name()
 		ext := filepath.Ext(name)
@@ -912,6 +926,11 @@ func main() {
 		// runs first, still wins.
 		resource.FieldProcessor = withNumberOrWordDecoding(resource.FieldProcessor)
 
+		// The measured write contract wraps last of all, because unlike the
+		// rules above it outranks a hand-written decision: what the probes
+		// recorded the controller doing is not a guess to be overridden.
+		applyWriteContract(resource, measured.Writes[resource.StructName])
+
 		err = resource.processJSON(b)
 		if err != nil {
 			fmt.Printf("skipping file %s: %s", fieldsFile.Name(), err)
@@ -1055,6 +1074,18 @@ const UnifiVersion = %q
 	} else {
 		path := filepath.Join(outDir, "sensitive.generated.go")
 		if err := os.WriteFile(path, sensitiveGo, 0o644); err != nil {
+			panic(err)
+		}
+		writtenGenerated[path] = true
+	}
+
+	// The measured coercion floors, exported so a caller can know before
+	// writing that the controller will silently rewrite a value.
+	if coercionsGo, err := renderCoercionsFile("unifi", measured.Coercions); err != nil {
+		panic(fmt.Errorf("render coercions file: %w", err))
+	} else {
+		path := filepath.Join(outDir, "coercions.generated.go")
+		if err := os.WriteFile(path, coercionsGo, 0o644); err != nil {
 			panic(err)
 		}
 		writtenGenerated[path] = true

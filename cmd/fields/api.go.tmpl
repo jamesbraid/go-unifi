@@ -319,7 +319,7 @@ func (c *ApiClient) create{{ .StructName }}(
 
 	err := c.do(
 		ctx,
-		http.MethodPost,
+		{{ if eq .CreateMethod "PUT" }}http.MethodPut{{ else }}http.MethodPost{{ end }},
 		fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}", site),
 		d,
 		&respBody,
