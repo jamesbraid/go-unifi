@@ -30,9 +30,14 @@ func TestWithRequiredOnCreate(t *testing.T) {
 			wantOmitEmpty: false,
 		},
 		{
-			name:          "a required nested type loses omitempty",
+			// The template couples the pointer to omitempty, so flipping a
+			// pointer field turns *T into T -- a breaking Go API change the
+			// measurement does not require. Required pointer fields stay in
+			// the artifact for consumers; their tags are left alone and the
+			// controller's own rejection enforces them at runtime.
+			name:          "a required pointer field keeps omitempty and its pointer",
 			field:         NewFieldInfo("SourceFilter", "source_filter", "NatSourceFilter", "", true, false, true, ""),
-			wantOmitEmpty: false,
+			wantOmitEmpty: true,
 		},
 		{
 			name:          "an unlisted field keeps its omitempty",
