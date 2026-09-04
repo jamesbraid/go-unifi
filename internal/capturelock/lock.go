@@ -490,15 +490,27 @@ func ComputeInputDigests(moduleRoot string) (Inputs, error) {
 	}
 
 	extractionFiles := []string{"cmd/fields/extract.go"}
+	// schemas/behavior.json is a measured generator input: the write
+	// contracts and coercions it records change what the generator emits, so
+	// a re-measure must move this digest exactly like an override edit does.
 	generatorFiles := []string{"go.mod", "go.sum", "unifi/unifi.go"}
+	if _, err := os.Stat(filepath.Join(moduleRoot, "schemas", "behavior.json")); err == nil {
+		generatorFiles = append(generatorFiles, "schemas/behavior.json")
+	}
 
 	for _, dir := range []string{
 		"cmd/fields",
+		"internal/behavior",
 		"internal/capturelock",
 		"internal/fields",
 		"overrides",
 	} {
 		root := filepath.Join(moduleRoot, filepath.FromSlash(dir))
+		if _, statErr := os.Stat(root); os.IsNotExist(statErr) {
+			// A tree from before the directory existed still digests: the
+			// inputs it lacked cannot have shaped its output.
+			continue
+		}
 		err := filepath.WalkDir(root, func(filename string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
