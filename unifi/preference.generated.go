@@ -94,7 +94,6 @@ var PreferenceOwnedFields = map[string][]Preference{
 			"dhcpd_time_offset_enabled",
 			"dhcpd_unifi_controller",
 			"dhcpd_wins_enabled",
-			"dhcpguard_enabled",
 			"domain_name",
 			"igmp_snooping",
 			"upnp_lan_enabled",
@@ -107,7 +106,6 @@ var PreferenceOwnedFields = map[string][]Preference{
 	},
 	"PortProfile": {
 		{Mode: "setting_preference", Owns: []string{
-			"autoneg",
 			"egress_rate_limit_kbps_enabled",
 			"isolation",
 			"lldpmed_enabled",
@@ -133,9 +131,7 @@ var PreferenceOwnedFields = map[string][]Preference{
 		}},
 	},
 	"SettingRadioAi": {
-		{Mode: "setting_preference", Owns: []string{
-			"cron_expr",
-		}},
+		{Mode: "setting_preference", Owns: []string{}},
 	},
 	"SettingSuperMgmt": {
 		{Mode: "data_retention_setting_preference", Owns: []string{

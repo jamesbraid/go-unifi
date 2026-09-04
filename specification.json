@@ -18620,7 +18620,7 @@
                     "name": "setting_preference",
                     "string": {
                       "computed_optional_required": "computed_optional",
-                      "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing.",
+                      "description": "auto|manual. Measured against UniFi Network 10.6.101: this mode governs no fields, so \"auto\" discards nothing.",
                       "validators": [
                         {
                           "custom": {
@@ -21219,7 +21219,7 @@
             "name": "setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: state_established, state_related. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: state_established, state_related. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -22909,7 +22909,7 @@
             "name": "setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing.",
+              "description": "auto|manual. Measured against UniFi Network 10.6.101: this mode governs no fields, so \"auto\" discards nothing.",
               "validators": [
                 {
                   "custom": {
@@ -23615,8 +23615,7 @@
           {
             "name": "dhcpguard_enabled",
             "bool": {
-              "computed_optional_required": "optional",
-              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
+              "computed_optional_required": "optional"
             }
           },
           {
@@ -24430,7 +24429,7 @@
             "name": "ipv6_setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhcpdv6_dns_auto, dhcpdv6_leasetime, ipv6_ra_preferred_lifetime. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhcpdv6_dns_auto, dhcpdv6_leasetime, ipv6_ra_preferred_lifetime. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -25343,7 +25342,7 @@
             "name": "setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhcpd_dns_enabled, dhcpd_gateway_enabled, dhcpd_leasetime, dhcpd_ntp_enabled, dhcpd_tftp_server, dhcpd_time_offset_enabled, dhcpd_unifi_controller, dhcpd_wins_enabled, dhcpguard_enabled, domain_name, igmp_snooping, upnp_lan_enabled. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: dhcpd_dns_enabled, dhcpd_gateway_enabled, dhcpd_leasetime, dhcpd_ntp_enabled, dhcpd_tftp_server, dhcpd_time_offset_enabled, dhcpd_unifi_controller, dhcpd_wins_enabled, domain_name, igmp_snooping, upnp_lan_enabled. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -25976,7 +25975,7 @@
             "name": "wan_dns_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: wan_dns1, wan_dns2. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: wan_dns1, wan_dns2. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -26184,7 +26183,7 @@
             "name": "wan_ipv6_dns_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. Measured against UniFi Network 10.4.57: this mode governs no fields, so \"auto\" discards nothing.",
+              "description": "auto|manual. Measured against UniFi Network 10.6.101: this mode governs no fields, so \"auto\" discards nothing.",
               "validators": [
                 {
                   "custom": {
@@ -27035,8 +27034,7 @@
           {
             "name": "autoneg",
             "bool": {
-              "computed_optional_required": "optional",
-              "description": "Ignored while setting_preference is \"auto\": the controller stores its own value for this field, answers rc: ok, and reports nothing. Set setting_preference to \"manual\" to configure it."
+              "computed_optional_required": "optional"
             }
           },
           {
@@ -27607,7 +27605,7 @@
             "name": "setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: autoneg, egress_rate_limit_kbps_enabled, isolation, lldpmed_enabled, lldpmed_notify_enabled, port_keepalive_enabled, stormctrl_bcast_enabled, stormctrl_mcast_enabled, stormctrl_ucast_enabled, stp_port_mode. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: egress_rate_limit_kbps_enabled, isolation, lldpmed_enabled, lldpmed_notify_enabled, port_keepalive_enabled, stormctrl_bcast_enabled, stormctrl_mcast_enabled, stormctrl_ucast_enabled, stp_port_mode. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -29863,7 +29861,7 @@
             "name": "minrate_setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: minrate_na_data_rate_kbps, minrate_na_enabled, minrate_ng_data_rate_kbps. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: minrate_na_data_rate_kbps, minrate_na_enabled, minrate_ng_data_rate_kbps. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
@@ -30497,7 +30495,7 @@
             "name": "setting_preference",
             "string": {
               "computed_optional_required": "computed_optional",
-              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: bc_filter_enabled, bss_transition, dtim_mode, dtim_ng, fast_roaming_enabled, group_rekey, l2_isolation, mcastenhance_enabled, proxy_arp, uapsd_enabled. Measured against UniFi Network 10.4.57.",
+              "description": "auto|manual. While \"auto\", the controller manages these attributes itself and overwrites whatever is sent for them, without reporting it: bc_filter_enabled, bss_transition, dtim_mode, dtim_ng, fast_roaming_enabled, group_rekey, l2_isolation, mcastenhance_enabled, proxy_arp, uapsd_enabled. Measured against UniFi Network 10.6.101.",
               "validators": [
                 {
                   "custom": {
