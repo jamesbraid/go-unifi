@@ -296,12 +296,11 @@ owns = [
   "dhcpd_time_offset_enabled",
   "dhcpd_unifi_controller",
   "dhcpd_wins_enabled",
-  "dhcpguard_enabled",
   "domain_name",
   "igmp_snooping",
   "upnp_lan_enabled",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Measured with ipv6_interface_type "none": "static" needs a deployable
 # prefix, which a gateway-less harness cannot supply (the controller answers
@@ -313,7 +312,7 @@ owns = [
   "dhcpdv6_leasetime",
   "ipv6_ra_preferred_lifetime",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Only the first two slots. wan_dns3 and wan_dns4 were set in the same payload
 # and survived under auto, so the controller takes over the resolvers it hands
@@ -323,7 +322,7 @@ owns = [
   "wan_dns1",
   "wan_dns2",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Owns nothing: wan_ipv6_dns1 and wan_ipv6_dns2 were stored as asked under
 # both modes. Measured on a harness with no gateway and no real WAN, so the
@@ -331,7 +330,7 @@ measured = "10.4.57"
 # evidence than a populated one.
 [Network.preference.wan_ipv6_dns_preference]
 owns = []
-measured = "10.4.57"
+measured = "10.6.101"
 
 # The WLAN advanced block. dtim_na is not owned while dtim_ng is, and both
 # were set in the same payload, so the split is the controller's and not an
@@ -349,7 +348,7 @@ owns = [
   "proxy_arp",
   "uapsd_enabled",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # A second mode on the same object, governing minimum data rates
 # independently of the WLAN's general one. The advertising-rate flags and
@@ -360,7 +359,7 @@ owns = [
   "minrate_na_enabled",
   "minrate_ng_data_rate_kbps",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # The switch-port advanced block. Note autoneg, lldpmed_enabled and
 # stp_port_mode are forced back ON here rather than off: auto restores the
@@ -368,7 +367,6 @@ measured = "10.4.57"
 # a synonym for "disabled".
 [PortProfile.preference.setting_preference]
 owns = [
-  "autoneg",
   "egress_rate_limit_kbps_enabled",
   "isolation",
   "lldpmed_enabled",
@@ -379,14 +377,14 @@ owns = [
   "stormctrl_ucast_enabled",
   "stp_port_mode",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 [FirewallRule.preference.setting_preference]
 owns = [
   "state_established",
   "state_related",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Owns nothing. Every field in the probe payload survived auto, including the
 # ones the controller echoes back in a different representation (the filter
@@ -394,7 +392,7 @@ measured = "10.4.57"
 # this is a mode that carries the enum without acting on it.
 [Nat.preference.setting_preference]
 owns = []
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Under auto the site's NTP servers revert to the ubnt pool, so a caller who
 # points a site at internal time servers under auto is silently ignored.
@@ -405,7 +403,7 @@ owns = [
   "ntp_server_3",
   "ntp_server_4",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Every connection-tracking timeout except other_timeout, which stored what
 # was asked under both modes.
@@ -423,7 +421,7 @@ owns = [
   "udp_other_timeout",
   "udp_stream_timeout",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Nested in the gateway's DNS verification block, and quoted because an
 # unquoted dotted key decodes as nested tables into an entry that owns
@@ -436,7 +434,7 @@ owns = [
   "primary_dns_server",
   "secondary_dns_server",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Three of the five retention windows. The daily and monthly scales kept
 # what they were given under auto.
@@ -456,15 +454,14 @@ uos_excludes = [
   "data_retention_time_in_hours_for_5minutes_scale",
   "data_retention_time_in_hours_for_hourly_scale",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Only the schedule. The channel and radio lists are rewritten by the
 # controller under both modes, so they are not this mode's doing.
 [SettingRadioAi.preference.setting_preference]
 owns = [
-  "cron_expr",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # layout_preference is a real mode, not a UI-only choice: under auto the
 # submitted widget list is dropped entirely. Worth stating because the name
@@ -473,7 +470,7 @@ measured = "10.4.57"
 owns = [
   "widgets",
 ]
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Nested in each port override, and quoted for the same reason as the gateway's
 # DNS verification block. Owns nothing: every field of an override survived
@@ -481,7 +478,7 @@ measured = "10.4.57"
 # adopted UXGENT -- a switch with more port shapes may differ.
 [Device.preference."port_overrides.setting_preference"]
 owns = []
-measured = "10.4.57"
+measured = "10.6.101"
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
