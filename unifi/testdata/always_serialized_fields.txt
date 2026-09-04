@@ -180,6 +180,7 @@ Nat.exclude
 Nat.is_predefined
 Nat.logging
 Nat.pppoe_use_base_interface
+Nat.protocol
 NatDestinationFilter.invert_address
 NatDestinationFilter.invert_port
 NatSourceFilter.invert_address
