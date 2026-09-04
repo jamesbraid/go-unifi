@@ -42,5 +42,10 @@ jobs:
           RENOVATE_REPOSITORIES: infra/go-unifi
           RENOVATE_ONBOARDING: 'false'
           RENOVATE_REQUIRE_CONFIG: optional
+          # Post-upgrade relock: a gomod bump moves go.mod/go.sum, which the
+          # capture lock's generator-inputs digest covers, so the bump must
+          # recompute the lock or verification refuses the tree. The command
+          # is allowlisted here rather than trusted from repo config.
+          RENOVATE_ALLOWED_POST_UPGRADE_COMMANDS: '["^go run ./cmd/relock$"]'
           LOG_LEVEL: info
         run: renovate
