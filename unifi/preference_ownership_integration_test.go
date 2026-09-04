@@ -7,11 +7,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -208,6 +210,33 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 		t.Fatalf("load overrides/fields.toml: %v", err)
 	}
 
+	// schemas/behavior.json is the versioned home for these measurements;
+	// the TOML table above still feeds the generator and keeps its
+	// assertions until that consumer moves over. BEHAVIOR_WRITE=1
+	// re-measures the artifact -- standalone harness only, because the
+	// artifact records the standalone controller's answers and UniFi OS
+	// pins fields it does not. An ordinary standalone run compares against
+	// the artifact where it has an entry and skips silently where it does
+	// not, so a checkout that predates the artifact still runs.
+	root := fields.ModuleRoot()
+	writeArtifact := os.Getenv("BEHAVIOR_WRITE") == "1" && !onUOSHarness()
+	var artifactOwnership map[string]map[string][]string
+	if os.Getenv("BEHAVIOR_WRITE") == "" && !onUOSHarness() && root != "" {
+		a, _, err := behavior.Load(root)
+		if err != nil {
+			t.Fatalf("load %s: %v", behavior.Path, err)
+		}
+		artifactOwnership = a.Ownership
+	}
+
+	// Collected inside the subtests and written once after the loop.
+	// Subtests run sequentially, so plain appends are safe.
+	type measuredOwnership struct {
+		resource, key string
+		owned         []string
+	}
+	var measurements []measuredOwnership
+
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 	c := controllertest.StartForHarness(ctx, t)
@@ -253,6 +282,17 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 				t.Logf("refused under MANUAL only, which is the mode inverted: %s (%s)", wire, detail)
 			}
 
+			if writeArtifact {
+				measurements = append(measurements, measuredOwnership{probe.resource, probe.key(), owned})
+			} else if want, ok := artifactOwnership[probe.resource][probe.key()]; ok {
+				if diff := ownershipDiff(want, owned); diff != "" {
+					t.Errorf("%s.%s ownership no longer matches %s:\n%s\n"+
+						"The controller's behaviour moved or the artifact is stale. Understand the "+
+						"change, then re-run with BEHAVIOR_WRITE=1 to record it.",
+						probe.resource, probe.key(), behavior.Path, diff)
+				}
+			}
+
 			entry, ok := recorded[probe.resource][probe.key()]
 			if !ok {
 				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s) on %s; add to "+
@@ -276,6 +316,36 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 					probe.resource, probe.key(), harnessName(), diff)
 			}
 		})
+	}
+
+	if writeArtifact {
+		if root == "" {
+			t.Fatal("BEHAVIOR_WRITE=1 but no enclosing go.mod to anchor " + behavior.Path)
+		}
+		// Load-then-merge so the other sections survive: this probe only
+		// speaks for ownership.
+		a, _, err := behavior.Load(root)
+		if err != nil {
+			t.Fatalf("load %s before merging: %v", behavior.Path, err)
+		}
+		version, err := os.ReadFile(filepath.Join(root, "schemas", "VERSION"))
+		if err != nil {
+			t.Fatalf("read schemas/VERSION: %v", err)
+		}
+		a.ControllerVersion = strings.TrimSpace(string(version))
+		if a.Ownership == nil {
+			a.Ownership = map[string]map[string][]string{}
+		}
+		for _, m := range measurements {
+			if a.Ownership[m.resource] == nil {
+				a.Ownership[m.resource] = map[string][]string{}
+			}
+			a.Ownership[m.resource][m.key] = m.owned
+		}
+		if err := behavior.Write(root, a); err != nil {
+			t.Fatalf("write %s: %v", behavior.Path, err)
+		}
+		t.Logf("merged %d ownership measurement(s) into %s", len(measurements), filepath.Join(root, behavior.Path))
 	}
 }
 
@@ -435,6 +505,32 @@ func comparePreference(recorded, measured []string, refusedUnderManual map[strin
 			continue
 		}
 		fmt.Fprintf(&b, "  - %s (the table says the controller owns this; it stored what was asked)\n", wire)
+	}
+	return b.String()
+}
+
+// ownershipDiff renders the difference between the artifact's recorded
+// ownership and the measured set, or "" when they agree.
+func ownershipDiff(recorded, measured []string) string {
+	has := func(list []string, wire string) bool {
+		for _, w := range list {
+			if w == wire {
+				return true
+			}
+		}
+		return false
+	}
+
+	var b strings.Builder
+	for _, wire := range measured {
+		if !has(recorded, wire) {
+			fmt.Fprintf(&b, "  + %s (measured as owned; the artifact does not say so)\n", wire)
+		}
+	}
+	for _, wire := range recorded {
+		if !has(measured, wire) {
+			fmt.Fprintf(&b, "  - %s (the artifact says owned; not measured this run)\n", wire)
+		}
 	}
 	return b.String()
 }
