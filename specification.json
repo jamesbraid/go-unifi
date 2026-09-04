@@ -22884,7 +22884,7 @@
           {
             "name": "protocol",
             "string": {
-              "computed_optional_required": "computed_optional",
+              "computed_optional_required": "optional",
               "validators": [
                 {
                   "custom": {
