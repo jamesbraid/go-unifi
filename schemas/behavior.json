@@ -175,5 +175,27 @@
         "omit": "OMIT-CLEARS"
       }
     }
+  },
+  "coercions": {
+    "SettingUsg": {}
+  },
+  "writes": {
+    "ContentFiltering": {
+      "create_verb": "POST-REJECTED-405",
+      "create_path": "v2/api/site/{site}/content-filtering",
+      "update_verb": "",
+      "update_path": ""
+    },
+    "Nat": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/nat",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/nat/{id}",
+      "required_on_create": [
+        "destination_filter",
+        "protocol",
+        "source_filter"
+      ]
+    }
   }
 }
