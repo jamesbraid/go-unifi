@@ -1,10 +1,28 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "enabledManagers": ["gomod", "github-actions"],
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "gomod",
+    "github-actions"
+  ],
   "prConcurrentLimit": 5,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "gomod": {
-    "postUpdateOptions": ["gomodTidy"]
+    "postUpdateOptions": [
+      "gomodTidy"
+    ]
+  },
+  "postUpgradeTasks": {
+    "commands": [
+      "go run ./cmd/relock"
+    ],
+    "fileFilters": [
+      "schemas/capture.lock.json"
+    ],
+    "executionMode": "branch"
   }
 }
