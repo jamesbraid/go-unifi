@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 )
 
@@ -61,6 +62,8 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 		known[w] = true
 	}
 
+	artifact, artifactFound := loadBehaviorArtifact(t)
+
 	// remote-user-vpn authenticates against the built-in RADIUS server, which
 	// has to be running before the controller will accept the network.
 	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
@@ -88,7 +91,18 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 				defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id) //nolint:errcheck
 			}
 
+			if tc.artifactKey != "" {
+				source := "in-file wantDiscarded"
+				if list, ok := artifact.Discarded[tc.artifactKey]; artifactFound && ok {
+					tc.wantDiscarded = list
+					source = behavior.Path + " Discarded[" + tc.artifactKey + "]"
+				}
+				t.Logf("discard baseline for %s: %s", tc.name, source)
+			}
 			checkDiscarded(t, tc, stored)
+			if tc.artifactKey != "" && behaviorWriteEnabled() {
+				recordDiscarded(t, tc, stored)
+			}
 
 			raw, err := json.Marshal(stored)
 			if err != nil {
@@ -147,6 +161,13 @@ type roundTripSeed struct {
 	// is the deliberate exception: it exists to hold the measured cost of
 	// setting_preference "auto" and must never be emptied to make CI green.
 	wantDiscarded []string
+
+	// artifactKey, when set, names the behaviour-artifact resource whose
+	// Discarded list supersedes wantDiscarded. wantDiscarded stays as the
+	// in-file default so a checkout without schemas/behavior.json still
+	// measures against something; once the artifact carries the key, the
+	// artifact is the baseline and BEHAVIOR_WRITE=1 re-measures it.
+	artifactKey string
 }
 
 // checkDiscarded compares what the seed asked for against what the controller
@@ -183,6 +204,32 @@ func checkDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
 	}
 }
 
+// recordDiscarded writes the measured discarded set for this seed into the
+// behaviour artifact. The measured set replaces the stored list rather than
+// unioning with it: the probe sees the whole set every run, and a union could
+// never drop a field the controller stopped discarding, so the reverse
+// direction of checkDiscarded would stay red with no re-measure able to fix
+// it. Other artifact sections are untouched (load-modify-write).
+func recordDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
+	t.Helper()
+
+	detail := discardedFields(tc.seed, stored)
+	measured := make([]string, 0, len(detail))
+	for wire := range detail {
+		measured = append(measured, wire)
+	}
+	sort.Strings(measured)
+
+	updateBehaviorArtifact(t, func(a *behavior.Artifact) {
+		if a.Discarded == nil {
+			a.Discarded = map[string][]string{}
+		}
+		a.Discarded[tc.artifactKey] = measured
+	})
+	t.Logf("recorded %d discarded fields into %s under Discarded[%q]",
+		len(measured), behavior.Path, tc.artifactKey)
+}
+
 // roundTripSeeds builds one richly-populated raw payload per purpose that a
 // bare simulation controller will accept.
 //
@@ -210,9 +257,10 @@ func roundTripSeeds() []roundTripSeed {
 			// Pinned, not fixed: the SDK sends what it is given, and a caller
 			// who asks for "auto" gets the controller's advanced block. What
 			// was missing was any record of the price.
-			name:    "rt-corporate-auto",
-			purpose: PurposeCorporate,
-			seed:    corporateRoundTripSeed("rt-corporate-auto", 50, 850, "auto"),
+			name:        "rt-corporate-auto",
+			purpose:     PurposeCorporate,
+			seed:        corporateRoundTripSeed("rt-corporate-auto", 50, 850, "auto"),
+			artifactKey: "Network",
 			// Re-measured on 10.6.101, 2026-08-30. Eight: dhcpguard_enabled
 			// left the list because this controller generation stores it as
 			// asked under "auto", which it did not on 10.4.57. Confirmed
