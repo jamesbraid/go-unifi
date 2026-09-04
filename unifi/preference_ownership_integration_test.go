@@ -309,6 +309,15 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 			// leaves to manual mode, and reports the same version while
 			// doing it. Compare against the answer for the harness actually
 			// under test.
+			// The table records one controller version's answer. Comparing a
+			// different build against it is a category error -- it is how a
+			// 10.5.67-bundling UOS run filed a 10.6.101 behaviour change as
+			// platform difference. The live version decides, so this is a
+			// live-observation skip, not a baked-in one; the per-version
+			// artifact is the cross-version record.
+			if live := controllerVersion(ctx, t, s); entry.Measured != "" && entry.Measured != live {
+				t.Skipf("table measured on %s, controller is %s; nothing to compare", entry.Measured, live)
+			}
 			want := entry.OwnsOn(onUOSHarness())
 			if diff := comparePreference(want, owned, manual); diff != "" {
 				t.Errorf("%s.%s ownership no longer matches overrides/fields.toml (harness: %s):\n%s\n\n"+
