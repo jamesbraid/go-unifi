@@ -48,7 +48,13 @@ func withRequiredOnCreate(required []string, next func(string, *FieldInfo) error
 				return err
 			}
 		}
-		if names[f.JSONName] {
+		// Pointer fields are left alone: the template couples the pointer
+		// to omitempty, so flipping one turns *T into T -- a breaking Go
+		// API change the measurement does not require. The artifact still
+		// records the field as required; consumers derive requiredness
+		// from it, and an SDK caller omitting a required pointer gets the
+		// controller's own rejection, same as today.
+		if names[f.JSONName] && !f.IsPointer {
 			f.OmitEmpty = false
 		}
 		return nil

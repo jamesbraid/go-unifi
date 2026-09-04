@@ -490,10 +490,14 @@ func ComputeInputDigests(moduleRoot string) (Inputs, error) {
 	}
 
 	extractionFiles := []string{"cmd/fields/extract.go"}
-	generatorFiles := []string{"go.mod", "go.sum", "unifi/unifi.go"}
+	// schemas/behavior.json is a measured generator input: the write
+	// contracts and coercions it records change what the generator emits, so
+	// a re-measure must move this digest exactly like an override edit does.
+	generatorFiles := []string{"go.mod", "go.sum", "unifi/unifi.go", "schemas/behavior.json"}
 
 	for _, dir := range []string{
 		"cmd/fields",
+		"internal/behavior",
 		"internal/capturelock",
 		"internal/fields",
 		"overrides",
