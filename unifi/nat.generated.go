@@ -44,7 +44,7 @@ type Nat struct {
 	OutInterface          string                `json:"out_interface,omitempty"`
 	Port                  *int64                `json:"port,omitempty"` // [1-9][0-9]{0,4}
 	PppoeUseBaseInterface bool                  `json:"pppoe_use_base_interface"`
-	Protocol              string                `json:"protocol,omitempty"` // all|tcp|udp|tcp_udp
+	Protocol              string                `json:"protocol"` // all|tcp|udp|tcp_udp
 	RuleIndex             *int64                `json:"rule_index,omitempty"`
 	SettingPreference     string                `json:"setting_preference,omitempty"` // auto|manual
 	SourceFilter          *NatSourceFilter      `json:"source_filter,omitempty"`

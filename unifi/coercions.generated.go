@@ -7,4 +7,6 @@ package unifi
 // floors and clamps from schemas/behavior.json, not guesses. A field listed
 // here is one the controller rewrites in silence: what was written is not
 // what a read returns, and nothing in the response says so.
-var FieldCoercionFloors = map[string]map[string]string{}
+var FieldCoercionFloors = map[string]map[string]string{
+	"SettingUsg": {},
+}
