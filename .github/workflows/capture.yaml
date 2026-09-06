@@ -89,11 +89,9 @@ jobs:
 
       # The regeneration diff is the discovered surface: whatever the new
       # capture changes shows up as the working-tree diff on this PR.
+      # Generation re-stamps the lock digests and GENERATED_SHA256 itself.
       - name: Generate
         run: go generate ./...
-
-      - name: Record generated output digest
-        run: go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
 
       # Controller schema drift can break the public Go API (removed
       # fields, type changes such as []string -> []struct). Compare the

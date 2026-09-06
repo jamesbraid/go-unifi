@@ -13,7 +13,6 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ulikunitz/xz"
 )
 
@@ -364,23 +363,6 @@ func TestBuildLockedSchemasRejectsSnapshotMismatchBeforeReplacingCache(t *testin
 	marker, err := os.ReadFile(filepath.Join(schemasDir, "VERSION"))
 	require.NoError(t, err)
 	require.Equal(t, "old\n", string(marker))
-}
-
-func TestVerifyInputDigestsRejectsGeneratorAndExtractionDrift(t *testing.T) {
-	want := capturelock.Inputs{
-		ExtractionRulesSHA256: strings.Repeat("a", 64),
-		GeneratorInputsSHA256: strings.Repeat("b", 64),
-	}
-
-	require.NoError(t, verifyInputDigests(want, want))
-
-	got := want
-	got.ExtractionRulesSHA256 = strings.Repeat("c", 64)
-	require.ErrorContains(t, verifyInputDigests(want, got), "extraction-rules SHA-256")
-
-	got = want
-	got.GeneratorInputsSHA256 = strings.Repeat("d", 64)
-	require.ErrorContains(t, verifyInputDigests(want, got), "generator-input SHA-256")
 }
 
 func TestReadNetworkVersionMissing(t *testing.T) {

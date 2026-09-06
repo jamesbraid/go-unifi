@@ -27,9 +27,10 @@ outside Git.
 [`schemas/capture.lock.json`](schemas/capture.lock.json) identifies the exact
 controller artifact and expected extracted snapshots. Put the retained artifact
 in a restricted content-addressed store and set `GO_UNIFI_CONTENT_STORE`. Then
-run `go generate ./...`. Generation verifies every digest and fails if the
-retained bytes are missing or changed. It never looks up "latest," downloads a
-replacement, or updates the lock.
+run `go generate ./...`. Generation fails if the retained bytes are missing or
+changed, and a successful run re-stamps the lock's input digests and
+`schemas/GENERATED_SHA256`, so the tree it leaves is consistent. It never looks
+up "latest," downloads a replacement, or changes which artifact the lock names.
 
 Maintainers capture a new artifact separately with `cmd/schema-capture`. That
 command stores the bytes by SHA-256 and proposes a new lock. Ordinary generation

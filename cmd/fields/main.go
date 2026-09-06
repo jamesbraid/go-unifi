@@ -27,6 +27,7 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
+	"github.com/ubiquiti-community/go-unifi/internal/rebuild"
 )
 
 type replacement struct {
@@ -491,22 +492,41 @@ func verifyFieldDocuments(want, got map[string]string) error {
 	return nil
 }
 
-func verifyInputDigests(want, got capturelock.Inputs) error {
-	if want.ExtractionRulesSHA256 != got.ExtractionRulesSHA256 {
-		return fmt.Errorf(
-			"extraction-rules SHA-256 is %s, lock requires %s",
-			got.ExtractionRulesSHA256,
-			want.ExtractionRulesSHA256,
-		)
+// stampGeneratedTree re-records what a finished generation run produced: the
+// lock's input digests, then the generated-output digest -- lock first,
+// because the manifest hashes the lock. The lock's two values are replaced
+// textually; round-tripping the JSON would reorder its keys.
+func stampGeneratedTree(moduleRoot, lockPath string) error {
+	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
+	if err != nil {
+		return err
 	}
-	if want.GeneratorInputsSHA256 != got.GeneratorInputsSHA256 {
-		return fmt.Errorf(
-			"generator-input SHA-256 is %s, lock requires %s",
-			got.GeneratorInputsSHA256,
-			want.GeneratorInputsSHA256,
-		)
+	raw, err := os.ReadFile(lockPath)
+	if err != nil {
+		return err
 	}
-	return nil
+	for field, value := range map[string]string{
+		"extraction_rules_sha256": inputs.ExtractionRulesSHA256,
+		"generator_inputs_sha256": inputs.GeneratorInputsSHA256,
+	} {
+		re := regexp.MustCompile(`("` + field + `"\s*:\s*")[0-9a-f]{64}(")`)
+		if !re.Match(raw) {
+			return fmt.Errorf("%s not found in %s", field, lockPath)
+		}
+		raw = re.ReplaceAll(raw, []byte(`${1}`+value+`${2}`))
+	}
+	if err := os.WriteFile(lockPath, raw, 0o644); err != nil {
+		return err
+	}
+	manifest, err := rebuild.BuildManifest(moduleRoot)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(
+		filepath.Join(moduleRoot, "schemas", "GENERATED_SHA256"),
+		[]byte(manifest.OutputSHA256+"\n"),
+		0o644,
+	)
 }
 
 var handWrittenTypesCache = map[string]map[string]string{}
@@ -637,14 +657,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
-	if err != nil {
-		panic(err)
-	}
-	if err := verifyInputDigests(lock.Inputs, inputs); err != nil {
-		panic(err)
-	}
+	// Generation re-stamps the input digests when it succeeds, so only
+	// explicit verification checks the recorded values against the tree; a
+	// pre-check would refuse exactly the runs that exist to update them.
 	if *verifyLockOnly {
+		inputs, err := capturelock.ComputeInputDigests(moduleRoot)
+		if err != nil {
+			panic(err)
+		}
+		if inputs != lock.Inputs {
+			panic(fmt.Sprintf("tree computes %+v, lock records %+v", inputs, lock.Inputs))
+		}
 		fmt.Println("Capture lock inputs verified!")
 		return
 	}
@@ -1136,6 +1159,12 @@ const UnifiVersion = %q
 			panic(err)
 		}
 		fmt.Printf("Generated specification: %s\n", specOutputFile)
+	}
+
+	// A successful run leaves the tree consistent, so an input edit is
+	// committed together with its regenerate and nothing else.
+	if err := stampGeneratedTree(moduleRoot, lockPath); err != nil {
+		panic(err)
 	}
 
 	fmt.Printf("%s\n", outDir)
