@@ -19,6 +19,7 @@
 /apidiff
 /fields
 /rebuild-manifest
+/relock
 /schema-capture
 
 # Local Go workspace; per-machine, never committed.
