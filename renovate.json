@@ -15,14 +15,5 @@
     "postUpdateOptions": [
       "gomodTidy"
     ]
-  },
-  "postUpgradeTasks": {
-    "commands": [
-      "go run ./cmd/relock"
-    ],
-    "fileFilters": [
-      "schemas/capture.lock.json"
-    ],
-    "executionMode": "branch"
   }
 }

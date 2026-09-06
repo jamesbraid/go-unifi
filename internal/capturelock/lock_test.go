@@ -474,6 +474,22 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 		t.Fatalf("test-only edit changed input digests: %#v != %#v", afterTest, first)
 	}
 
+	// A dependency bump is not a generator input; the rebuild workflow
+	// proves dependency-caused output drift instead.
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.invalid/test // bumped"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.sum"), []byte("sum-v2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	afterDeps, err := ComputeInputDigests(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterDeps != first {
+		t.Fatalf("dependency-only edit changed input digests: %#v != %#v", afterDeps, first)
+	}
+
 	if err := os.WriteFile(filepath.Join(root, "cmd/fields/main.go"), []byte("generate-v2"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -527,8 +543,6 @@ func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 		"internal/capturelock/lock.go": "lock-v1",
 		"internal/fields/fields.go":    "fields-v1",
 		"overrides/fields.toml":        "fields-v1",
-		"go.mod":                       "module example.invalid/test",
-		"go.sum":                       "sum-v1",
 		"unifi/unifi.go":               "package unifi\n\n" + directive + "\n" + directive + "\n",
 	}
 	for name, content := range files {

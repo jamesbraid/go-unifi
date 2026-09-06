@@ -490,10 +490,15 @@ func ComputeInputDigests(moduleRoot string) (Inputs, error) {
 	}
 
 	extractionFiles := []string{"cmd/fields/extract.go"}
+	// go.mod and go.sum are deliberately absent: a dependency bump changes
+	// nothing the generator reads, so it must not move this digest. The
+	// rebuild workflow regenerates from scratch on every push touching
+	// either file, which is what proves dependency-caused output drift.
+	//
 	// schemas/behavior.json is a measured generator input: the write
 	// contracts and coercions it records change what the generator emits, so
 	// a re-measure must move this digest exactly like an override edit does.
-	generatorFiles := []string{"go.mod", "go.sum", "unifi/unifi.go"}
+	generatorFiles := []string{"unifi/unifi.go"}
 	if _, err := os.Stat(filepath.Join(moduleRoot, "schemas", "behavior.json")); err == nil {
 		generatorFiles = append(generatorFiles, "schemas/behavior.json")
 	}
