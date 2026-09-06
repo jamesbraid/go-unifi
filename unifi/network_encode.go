@@ -1,10 +1,15 @@
 package unifi
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/netip"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
 )
 
 const (
@@ -17,1161 +22,460 @@ const (
 	PurposeUserVPN   = "remote-user-vpn"
 )
 
-// MarshalJSON implements custom JSON marshaling that only includes fields relevant to the network's Purpose.
+// MarshalJSON writes only the fields relevant to the network's Purpose.
+//
+// Which fields a purpose sends is the per-purpose lists below: hand-kept
+// data, because the controller's own definitions carry no per-purpose
+// applicability, so every entry is a measurement by usage or by probe. HOW a
+// listed field is sent is not hand-kept: the emission rule is derived from
+// the generated struct's own declaration (type and omitempty), plus the
+// measured exception tables and the per-purpose derivations below. A field
+// added by regeneration therefore needs exactly one decision -- which
+// purposes send it -- and its wire behaviour follows the schema.
 func (n *Network) MarshalJSON() ([]byte, error) {
-	switch n.Purpose {
-	case PurposeWAN:
-		return n.marshalWAN()
-	case PurposeCorporate:
-		return n.marshalCorporate()
-	case PurposeGuest:
-		return n.marshalGuest()
-	case PurposeVLANOnly:
-		return n.marshalVLANOnly()
-	case PurposeSiteVPN:
-		return n.marshalSiteVPN()
-	case PurposeVPNClient:
-		return n.marshalVPNClient()
-	case PurposeUserVPN:
-		return n.marshalUserVPN()
-	default:
+	fields := networkPurposeFields[n.Purpose]
+	if fields == nil {
 		return nil, fmt.Errorf("unknown network purpose: %s", n.Purpose)
 	}
+	overrides := n.networkPurposeOverrides()
+	byWire := networkFieldByWire()
+	v := reflect.ValueOf(n).Elem()
+
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for _, wire := range fields {
+		var value any
+		var emit bool
+		if override, ok := overrides[wire]; ok {
+			value, emit = override()
+		} else {
+			field, ok := byWire[wire]
+			if !ok {
+				return nil, fmt.Errorf("network purpose %s lists field %q, which is not on the generated Network struct", n.Purpose, wire)
+			}
+			value, emit = networkFieldValue(wire, v.FieldByIndex(field.index), field.omitEmpty)
+		}
+		if !emit {
+			continue
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("marshal network field %s: %w", wire, err)
+		}
+		if buf.Len() > 1 {
+			buf.WriteByte(',')
+		}
+		buf.WriteByte('"')
+		buf.WriteString(wire)
+		buf.WriteString(`":`)
+		buf.Write(raw)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
 }
 
-// marshalCorporate marshals a Corporate/LAN network using the alias pattern.
+// Per-purpose field lists. Order is the wire order, pinned by the corpus
+// golden (testdata/network_encode_corpus.txt).
 //
-// dhcpguard_enabled blocks every DHCP server on the network except the trusted
-// ones in dhcpd_ip_1..3 (paired with dhcpd_mac_1..3). Measured against a
-// 10.4.57 controller: with dhcpguard_enabled true the controller rejects the
-// write with api.err.MissingIPAddress unless dhcpd_ip_1 is a non-empty
-// address -- an empty string does not satisfy it. The slots are sent
-// unconditionally (no omitempty, matching marshalVLANOnly and the generated
-// struct) so a read-modify-write round trip preserves them; omitting them made
-// every PUT on a guarded network fail, not just creates.
-func (n *Network) marshalCorporate() ([]byte, error) {
-	// Derive DHCP range defaults from ip_subnet only for a create, which is
-	// the only write without an _id yet. The controller rejects a corporate
-	// create without a range, so inventing one there is load-bearing. On an
-	// update the same derivation put a range the caller never set and the
-	// controller never stored on the wire -- under a masked update it
-	// replaced the caller's value for a named dhcpd_start/stop, and a masked
-	// write must carry exactly what the mask names.
-	var defaultStart, defaultEnd string
-	if n.ID == "" && n.IPSubnet != nil {
-		var err error
-		defaultStart, defaultEnd, err = dhcpRange(*n.IPSubnet)
-		if err != nil {
-			log.Default().Printf("error calculating DHCP range: %s", err)
+// networkCommonFields is the controller envelope plus the identity every
+// purpose sends.
+var networkCommonFields = []string{
+	"_id", "site_id",
+	"attr_hidden", "attr_hidden_id", "attr_no_delete", "attr_no_edit",
+	"name", "purpose", "enabled",
+}
+
+// networkCorporateFields is what a Corporate/LAN network sends.
+//
+// The dhcpd_ip_1..3 / dhcpd_mac_1..3 DHCP-guard slots ride along
+// unconditionally, exactly as the generated struct declares them (plain
+// string, no omitempty). Measured on 10.4.57: with dhcpguard_enabled true
+// the controller rejects any write whose dhcpd_ip_1 is absent with
+// api.err.MissingIPAddress, so omitting the slots made every PUT on a
+// guarded network fail, not just creates.
+var networkCorporateFields = slices.Concat(networkCommonFields, []string{
+	"networkgroup", "ip_subnet", "vlan", "vlan_enabled",
+	"l3_interface_type", "routed_port_idx", "routed_lag_idx",
+	"domain_name", "auto_scale_enabled", "gateway_type",
+	"internet_access_enabled", "network_isolation_enabled",
+	"setting_preference", "firewall_zone_id",
+	"igmp_snooping", "igmp_fastleave", "igmp_flood_unknown_multicast",
+	"igmp_groupmembership", "igmp_maxresponse", "igmp_mcrtrexpiretime",
+	"igmp_querier_switches", "igmp_supression",
+	"dhcpguard_enabled",
+	"dhcpd_ip_1", "dhcpd_ip_2", "dhcpd_ip_3",
+	"dhcpd_mac_1", "dhcpd_mac_2", "dhcpd_mac_3",
+	"mdns_enabled", "lte_lan_enabled", "upnp_lan_enabled",
+	"ip_aliases", "ipv6_aliases", "nat_outbound_ip_addresses",
+	"mac_override", "mac_override_enabled",
+
+	// DHCP server
+	"dhcpd_enabled", "dhcpd_start", "dhcpd_stop", "dhcpd_leasetime",
+	"dhcpd_dns_enabled", "dhcpd_dns_1", "dhcpd_dns_2", "dhcpd_dns_3", "dhcpd_dns_4",
+	"dhcpd_gateway_enabled", "dhcpd_gateway",
+	"dhcpd_ntp_enabled", "dhcpd_ntp_1", "dhcpd_ntp_2",
+	"dhcpd_wins_enabled", "dhcpd_wins_1", "dhcpd_wins_2",
+	"dhcpd_time_offset_enabled", "dhcpd_time_offset",
+	"dhcpd_conflict_checking",
+	"dhcpd_boot_enabled", "dhcpd_boot_server", "dhcpd_boot_filename",
+	"dhcpd_tftp_server", "dhcpd_wpad_url", "dhcpd_unifi_controller",
+
+	// DHCP relay
+	"dhcp_relay_enabled", "dhcp_relay_servers",
+
+	// IPv6
+	"ipv6_interface_type", "ipv6_client_address_assignment",
+	"ipv6_setting_preference", "ipv6_ra_priority", "ipv6_subnet",
+	"ipv6_ra_enabled", "ipv6_ra_preferred_lifetime", "ipv6_ra_valid_lifetime",
+	"ipv6_pd_interface", "ipv6_pd_prefixid", "ipv6_pd_start", "ipv6_pd_stop",
+	"ipv6_pd_auto_prefixid_enabled",
+	"ipv6_single_network_interface", "single_network_lan",
+
+	// DHCPv6
+	"dhcpdv6_enabled", "dhcpdv6_dns_auto",
+	"dhcpdv6_dns_1", "dhcpdv6_dns_2", "dhcpdv6_dns_3", "dhcpdv6_dns_4",
+	"dhcpdv6_allow_slaac", "dhcpdv6_start", "dhcpdv6_stop", "dhcpdv6_leasetime",
+})
+
+// networkGuestFields is derived rather than listed: a guest-purpose probe
+// pass (TestIntegrationGuestParityProbe) confirmed the controller persists
+// the same advanced fields on a guest network as on a corporate one. The
+// ipv6 single-network pair is the exception -- it was not part of the guest
+// probe and is corporate-specific ipv6 addressing.
+var networkGuestFields = withoutNetworkFields(networkCorporateFields,
+	"ipv6_single_network_interface", "single_network_lan")
+
+// networkVLANOnlyFields is what a VLAN-only network (Layer 2, no routing)
+// sends.
+var networkVLANOnlyFields = slices.Concat(networkCommonFields, []string{
+	"networkgroup", "vlan", "vlan_enabled",
+	"igmp_snooping", "network_isolation_enabled", "mdns_enabled",
+	"dhcpguard_enabled",
+	"dhcpd_ip_1", "dhcpd_ip_2", "dhcpd_ip_3",
+	"dhcpd_mac_1", "dhcpd_mac_2", "dhcpd_mac_3",
+})
+
+// networkWANFields is what a WAN network sends. ipv6_enabled exists nowhere
+// on the generated struct; it is synthesized from wan_type_v6 by the WAN
+// overrides below.
+var networkWANFields = slices.Concat(networkCommonFields, []string{
+	"setting_preference", "ipv6_setting_preference",
+	"wan_type", "wan_type_v6", "wan_networkgroup",
+
+	// Static addressing (wan_type "static" / wan_type_v6 "static")
+	"wan_ip", "wan_netmask", "wan_gateway",
+	"wan_ipv6", "wan_gateway_v6", "wan_prefixlen",
+
+	// PPPoE credentials (wan_type "pppoe")
+	"wan_username", "x_wan_password",
+	"wan_pppoe_username_enabled", "wan_pppoe_password_enabled",
+
+	// DS-Lite (wan_type "dslite")
+	"wan_dslite_remote_host", "wan_dslite_remote_host_auto",
+
+	"interface_mtu", "interface_mtu_enabled",
+	"wan_vlan_enabled", "wan_vlan",
+	"wan_dhcp_cos", "wan_dhcpv6_cos",
+	"wan_dns1", "wan_dns2", "wan_dns_preference",
+	"wan_ipv6_dns1", "wan_ipv6_dns2", "wan_ipv6_dns_preference",
+	"wan_dhcpv6_pd_size", "wan_dhcpv6_pd_size_auto", "wan_dhcpv6_options",
+	"ipv6_wan_delegation_type", "ipv6_enabled",
+	"wan_egress_qos_enabled", "wan_egress_qos",
+	"wan_smartq_enabled", "wan_smartq_up_rate", "wan_smartq_down_rate",
+	"mss_clamp", "mss_clamp_mss", "mss_clamp_ipv6", "mss_clamp_mss_ipv6",
+	"upnp_enabled", "upnp_wan_interface", "upnp_nat_pmp_enabled", "upnp_secure_mode",
+	"wan_load_balance_type", "wan_load_balance_weight", "wan_failover_priority",
+	"igmp_proxy_for", "igmp_proxy_upstream",
+	"report_wan_event", "wan_ip_aliases", "wan_dhcp_options",
+	"wan_provider_capabilities",
+})
+
+// networkSiteVPNFields is what a site-to-site IPsec VPN network sends. The
+// IKE phase-1 parameters go under the legacy names ipsec_encryption /
+// ipsec_hash / ipsec_dh_group, not the newer ipsec_ike_* spellings.
+var networkSiteVPNFields = slices.Concat(networkCommonFields, []string{
+	"vpn_type",
+	"ipsec_interface", "ipsec_peer_ip", "ipsec_local_ip",
+	"ipsec_key_exchange", "x_ipsec_pre_shared_key", "ipsec_profile",
+
+	// IKE (phase 1)
+	"ipsec_encryption", "ipsec_hash", "ipsec_dh_group", "ipsec_ike_lifetime",
+
+	// IKE peer identifiers and per-child-SA networks (policy-based mode)
+	"ipsec_local_identifier", "ipsec_local_identifier_enabled",
+	"ipsec_remote_identifier", "ipsec_remote_identifier_enabled",
+	"ipsec_separate_ikev2_networks",
+
+	// ESP (phase 2)
+	"ipsec_esp_encryption", "ipsec_esp_hash", "ipsec_esp_dh_group", "ipsec_esp_lifetime",
+
+	"ipsec_pfs", "ipsec_dynamic_routing",
+	"remote_vpn_subnets", "remote_site_subnets", "route_distance",
+})
+
+// networkVPNClientFields is what a VPN client (WireGuard client) network
+// sends. dhcpd_dns_enabled is a plain bool sent on every write like any
+// other: omitting it turned the flag off on every read-modify-write.
+var networkVPNClientFields = slices.Concat(networkCommonFields, []string{
+	"ip_subnet", "vpn_type",
+	"vpn_client_default_route", "vpn_client_pull_dns",
+	"wireguard_client_mode",
+	"wireguard_client_configuration_file", "wireguard_client_configuration_filename",
+	"wireguard_client_peer_ip", "wireguard_client_peer_port",
+	"wireguard_client_peer_public_key",
+	"wireguard_client_preshared_key_enabled", "wireguard_client_preshared_key",
+	"wireguard_interface", "x_wireguard_private_key",
+	"dhcpd_dns_1", "dhcpd_dns_2", "dhcpd_dns_3", "dhcpd_dns_4", "dhcpd_dns_enabled",
+})
+
+// networkUserVPNFields is what a remote-user VPN network sends. mss_clamp is
+// here because live 10.4.57 controllers report it on remote-user-vpn
+// networks (tunnel MTU), not only on WANs.
+var networkUserVPNFields = slices.Concat(networkCommonFields, []string{
+	"setting_preference", "ip_subnet", "vpn_type",
+	"vpn_binding_mode",
+	"mss_clamp", "mss_clamp_mss", "mss_clamp_ipv6", "mss_clamp_mss_ipv6",
+	"dhcpd_dns_1", "dhcpd_dns_2", "dhcpd_dns_3", "dhcpd_dns_4", "dhcpd_dns_enabled",
+	"dhcpd_start", "dhcpd_stop",
+	"radiusprofile_id",
+
+	// WireGuard server
+	"wireguard_interface", "x_wireguard_private_key", "wireguard_local_wan_ip",
+	"local_port", "wireguard_interface_binding_mode_ip_version",
+	"vpn_client_configuration_remote_ip_override",
+	"vpn_client_configuration_remote_ip_override_enabled",
+
+	// L2TP server
+	"l2tp_interface", "l2tp_local_wan_ip", "l2tp_allow_weak_ciphers",
+	"x_ipsec_pre_shared_key", "require_mschapv2",
+
+	// OpenVPN server
+	"openvpn_interface", "openvpn_local_wan_ip", "openvpn_mode",
+	"openvpn_encryption_cipher", "vpn_protocol",
+	"x_server_crt", "x_server_key", "x_dh_key",
+	"x_shared_client_key", "x_shared_client_crt",
+	"x_auth_key", "x_ca_crt", "x_ca_key",
+})
+
+var networkPurposeFields = map[string][]string{
+	PurposeCorporate: networkCorporateFields,
+	PurposeGuest:     networkGuestFields,
+	PurposeVLANOnly:  networkVLANOnlyFields,
+	PurposeWAN:       networkWANFields,
+	PurposeSiteVPN:   networkSiteVPNFields,
+	PurposeVPNClient: networkVPNClientFields,
+	PurposeUserVPN:   networkUserVPNFields,
+}
+
+// withoutNetworkFields returns fields with the named entries removed,
+// preserving order.
+func withoutNetworkFields(fields []string, drop ...string) []string {
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if !slices.Contains(drop, f) {
+			out = append(out, f)
 		}
 	}
-
-	// Use anonymous struct with explicit field selection
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name                      *string                         `json:"name,omitempty"`
-		Purpose                   string                          `json:"purpose"`
-		Enabled                   bool                            `json:"enabled"`
-		NetworkGroup              *string                         `json:"networkgroup,omitempty"`
-		IPSubnet                  *string                         `json:"ip_subnet,omitempty"`
-		VLAN                      *int64                          `json:"vlan,omitempty"`
-		VLANEnabled               bool                            `json:"vlan_enabled"`
-		L3InterfaceType           *string                         `json:"l3_interface_type,omitempty"`
-		RoutedPortIDX             *int64                          `json:"routed_port_idx,omitempty"`
-		RoutedLagIDX              *int64                          `json:"routed_lag_idx,omitempty"`
-		DomainName                *string                         `json:"domain_name,omitempty"`
-		AutoScaleEnabled          bool                            `json:"auto_scale_enabled"`
-		GatewayType               *string                         `json:"gateway_type,omitempty"`
-		InternetAccessEnabled     bool                            `json:"internet_access_enabled"`
-		NetworkIsolationEnabled   bool                            `json:"network_isolation_enabled"`
-		SettingPreference         *string                         `json:"setting_preference,omitempty"`
-		FirewallZoneID            *string                         `json:"firewall_zone_id,omitempty"`
-		IGMPSnooping              bool                            `json:"igmp_snooping"`
-		IGMPFastleave             bool                            `json:"igmp_fastleave"`
-		IGMPFloodUnknownMulticast bool                            `json:"igmp_flood_unknown_multicast"`
-		IGMPGroupmembership       *int64                          `json:"igmp_groupmembership,omitempty"`
-		IGMPMaxresponse           *int64                          `json:"igmp_maxresponse,omitempty"`
-		IGMPMcrtrexpiretime       *int64                          `json:"igmp_mcrtrexpiretime,omitempty"`
-		IGMPQuerierSwitches       []NetworkIGMPQuerierSwitches    `json:"igmp_querier_switches,omitempty"`
-		IGMPSuppression           bool                            `json:"igmp_supression"`
-		DHCPguardEnabled          bool                            `json:"dhcpguard_enabled"`
-		DHCPDIP1                  string                          `json:"dhcpd_ip_1"`
-		DHCPDIP2                  string                          `json:"dhcpd_ip_2"`
-		DHCPDIP3                  string                          `json:"dhcpd_ip_3"`
-		DHCPDMAC1                 string                          `json:"dhcpd_mac_1"`
-		DHCPDMAC2                 string                          `json:"dhcpd_mac_2"`
-		DHCPDMAC3                 string                          `json:"dhcpd_mac_3"`
-		MdnsEnabled               bool                            `json:"mdns_enabled"`
-		LteLanEnabled             bool                            `json:"lte_lan_enabled"`
-		UPnPLanEnabled            bool                            `json:"upnp_lan_enabled"`
-		IPAliases                 []string                        `json:"ip_aliases"`
-		IPV6Aliases               []string                        `json:"ipv6_aliases"`
-		NATOutboundIPAddresses    []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
-		MACOverride               string                          `json:"mac_override,omitempty"`
-		MACOverrideEnabled        bool                            `json:"mac_override_enabled"`
-
-		// DHCP Server
-		DHCPDEnabled           bool    `json:"dhcpd_enabled"`
-		DHCPDStart             *string `json:"dhcpd_start,omitempty"`
-		DHCPDStop              *string `json:"dhcpd_stop,omitempty"`
-		DHCPDLeaseTime         *int64  `json:"dhcpd_leasetime,omitempty"`
-		DHCPDDNSEnabled        bool    `json:"dhcpd_dns_enabled"`
-		DHCPDDNS1              *string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2              *string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3              *string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4              *string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDGatewayEnabled    bool    `json:"dhcpd_gateway_enabled"`
-		DHCPDGateway           *string `json:"dhcpd_gateway,omitempty"`
-		DHCPDNtpEnabled        bool    `json:"dhcpd_ntp_enabled"`
-		DHCPDNtp1              *string `json:"dhcpd_ntp_1,omitempty"`
-		DHCPDNtp2              *string `json:"dhcpd_ntp_2,omitempty"`
-		DHCPDWinsEnabled       bool    `json:"dhcpd_wins_enabled"`
-		DHCPDWins1             *string `json:"dhcpd_wins_1,omitempty"`
-		DHCPDWins2             *string `json:"dhcpd_wins_2,omitempty"`
-		DHCPDTimeOffsetEnabled bool    `json:"dhcpd_time_offset_enabled"`
-		DHCPDTimeOffset        *int64  `json:"dhcpd_time_offset,omitempty"`
-		DHCPDConflictChecking  bool    `json:"dhcpd_conflict_checking"`
-		DHCPDBootEnabled       bool    `json:"dhcpd_boot_enabled"`
-		DHCPDBootServer        string  `json:"dhcpd_boot_server,omitempty"`
-		DHCPDBootFilename      string  `json:"dhcpd_boot_filename,omitempty"`
-		DHCPDTFTPServer        *string `json:"dhcpd_tftp_server,omitempty"`
-		DHCPDWPAdUrl           *string `json:"dhcpd_wpad_url,omitempty"`
-		DHCPDUnifiController   *string `json:"dhcpd_unifi_controller,omitempty"`
-
-		// DHCP Relay
-		DHCPRelayEnabled bool     `json:"dhcp_relay_enabled"`
-		DHCPRelayServers []string `json:"dhcp_relay_servers"`
-
-		// IPv6
-		IPV6InterfaceType           *string `json:"ipv6_interface_type,omitempty"`
-		IPV6ClientAddressAssignment *string `json:"ipv6_client_address_assignment,omitempty"`
-		IPV6SettingPreference       *string `json:"ipv6_setting_preference,omitempty"`
-		IPV6RaPriority              *string `json:"ipv6_ra_priority,omitempty"`
-		IPV6Subnet                  *string `json:"ipv6_subnet,omitempty"`
-		IPV6RaEnabled               bool    `json:"ipv6_ra_enabled"`
-		IPV6RaPreferredLifetime     *int64  `json:"ipv6_ra_preferred_lifetime,omitempty"`
-		IPV6RaValidLifetime         *int64  `json:"ipv6_ra_valid_lifetime,omitempty"`
-		IPV6PDInterface             *string `json:"ipv6_pd_interface,omitempty"`
-		IPV6PDPrefixid              string  `json:"ipv6_pd_prefixid"`
-		IPV6PDStart                 *string `json:"ipv6_pd_start,omitempty"`
-		IPV6PDStop                  *string `json:"ipv6_pd_stop,omitempty"`
-		IPV6PDAutoPrefixidEnabled   bool    `json:"ipv6_pd_auto_prefixid_enabled"`
-		IPV6SingleNetworkInterface  *string `json:"ipv6_single_network_interface,omitempty"`
-		SingleNetworkLan            *string `json:"single_network_lan,omitempty"`
-
-		// DHCPv6
-		DHCPDV6Enabled    bool    `json:"dhcpdv6_enabled"`
-		DHCPDV6DNSAuto    bool    `json:"dhcpdv6_dns_auto"`
-		DHCPDV6DNS1       *string `json:"dhcpdv6_dns_1,omitempty"`
-		DHCPDV6DNS2       *string `json:"dhcpdv6_dns_2,omitempty"`
-		DHCPDV6DNS3       *string `json:"dhcpdv6_dns_3,omitempty"`
-		DHCPDV6DNS4       *string `json:"dhcpdv6_dns_4,omitempty"`
-		DHCPDV6AllowSlaac bool    `json:"dhcpdv6_allow_slaac"`
-		DHCPDV6Start      *string `json:"dhcpdv6_start,omitempty"`
-		DHCPDV6Stop       *string `json:"dhcpdv6_stop,omitempty"`
-		DHCPDV6LeaseTime  *int64  `json:"dhcpdv6_leasetime,omitempty"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:                      nilIfEmpty(n.Name),
-		Purpose:                   n.Purpose,
-		Enabled:                   n.Enabled,
-		NetworkGroup:              nilIfEmpty(n.NetworkGroup),
-		IPSubnet:                  nilIfEmpty(n.IPSubnet),
-		VLAN:                      n.VLAN,
-		VLANEnabled:               n.VLANEnabled,
-		L3InterfaceType:           nilIfEmpty(n.L3InterfaceType),
-		RoutedPortIDX:             n.RoutedPortIDX,
-		RoutedLagIDX:              n.RoutedLagIDX,
-		DomainName:                nilIfEmpty(n.DomainName),
-		AutoScaleEnabled:          n.AutoScaleEnabled,
-		GatewayType:               nilIfEmpty(n.GatewayType),
-		InternetAccessEnabled:     n.InternetAccessEnabled,
-		NetworkIsolationEnabled:   n.NetworkIsolationEnabled,
-		SettingPreference:         nilIfEmpty(n.SettingPreference),
-		FirewallZoneID:            nilIfEmpty(n.FirewallZoneID),
-		IGMPSnooping:              n.IGMPSnooping,
-		IGMPFastleave:             n.IGMPFastleave,
-		IGMPFloodUnknownMulticast: n.IGMPFloodUnknownMulticast,
-		IGMPGroupmembership:       n.IGMPGroupmembership,
-		IGMPMaxresponse:           n.IGMPMaxresponse,
-		IGMPMcrtrexpiretime:       n.IGMPMcrtrexpiretime,
-		IGMPQuerierSwitches:       n.IGMPQuerierSwitches,
-		IGMPSuppression:           n.IGMPSuppression,
-		DHCPguardEnabled:          n.DHCPguardEnabled,
-		DHCPDIP1:                  n.DHCPDIP1,
-		DHCPDIP2:                  n.DHCPDIP2,
-		DHCPDIP3:                  n.DHCPDIP3,
-		DHCPDMAC1:                 n.DHCPDMAC1,
-		DHCPDMAC2:                 n.DHCPDMAC2,
-		DHCPDMAC3:                 n.DHCPDMAC3,
-		MdnsEnabled:               n.MdnsEnabled,
-		LteLanEnabled:             n.LteLanEnabled,
-		UPnPLanEnabled:            n.UPnPLanEnabled,
-		IPAliases:                 orEmptySlice(n.IPAliases),
-		IPV6Aliases:               orEmptySlice(n.IPV6Aliases),
-		NATOutboundIPAddresses:    orEmptyNATSlice(n.NATOutboundIPAddresses),
-		MACOverride:               n.MACOverride,
-		MACOverrideEnabled:        n.MACOverrideEnabled,
-
-		// DHCP Server with defaults
-		DHCPDEnabled:           n.DHCPDEnabled,
-		DHCPDStart:             nilIfEmpty(valueOrDefault(nilIfEmpty(n.DHCPDStart), defaultStart)),
-		DHCPDStop:              nilIfEmpty(valueOrDefault(nilIfEmpty(n.DHCPDStop), defaultEnd)),
-		DHCPDLeaseTime:         n.DHCPDLeaseTime,
-		DHCPDDNSEnabled:        n.DHCPDDNSEnabled,
-		DHCPDDNS1:              n.DHCPDDNS1,
-		DHCPDDNS2:              n.DHCPDDNS2,
-		DHCPDDNS3:              n.DHCPDDNS3,
-		DHCPDDNS4:              n.DHCPDDNS4,
-		DHCPDGatewayEnabled:    n.DHCPDGatewayEnabled,
-		DHCPDGateway:           nilIfEmpty(n.DHCPDGateway),
-		DHCPDNtpEnabled:        n.DHCPDNtpEnabled,
-		DHCPDNtp1:              n.DHCPDNtp1,
-		DHCPDNtp2:              n.DHCPDNtp2,
-		DHCPDWinsEnabled:       n.DHCPDWinsEnabled,
-		DHCPDWins1:             n.DHCPDWins1,
-		DHCPDWins2:             n.DHCPDWins2,
-		DHCPDTimeOffsetEnabled: n.DHCPDTimeOffsetEnabled,
-		DHCPDTimeOffset:        n.DHCPDTimeOffset,
-		DHCPDConflictChecking:  n.DHCPDConflictChecking,
-		DHCPDBootEnabled:       n.DHCPDBootEnabled,
-		DHCPDBootServer:        n.DHCPDBootServer,
-		DHCPDBootFilename:      derefOrEmpty(n.DHCPDBootFilename),
-		DHCPDTFTPServer:        nilIfEmpty(n.DHCPDTFTPServer),
-		DHCPDWPAdUrl:           nilIfEmpty(n.DHCPDWPAdUrl),
-		DHCPDUnifiController:   nilIfEmpty(n.DHCPDUnifiController),
-
-		// DHCP Relay
-		DHCPRelayEnabled: n.DHCPRelayEnabled,
-		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
-
-		// IPv6
-		IPV6InterfaceType:           nilIfEmpty(n.IPV6InterfaceType),
-		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
-		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
-		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
-		IPV6Subnet:                  nilIfEmpty(n.IPV6Subnet),
-		IPV6RaEnabled:               n.IPV6RaEnabled,
-		IPV6RaPreferredLifetime:     n.IPV6RaPreferredLifetime,
-		IPV6RaValidLifetime:         n.IPV6RaValidLifetime,
-		IPV6PDInterface:             nilIfEmpty(n.IPV6PDInterface),
-		IPV6PDPrefixid:              n.IPV6PDPrefixid,
-		IPV6PDStart:                 nilIfEmpty(n.IPV6PDStart),
-		IPV6PDStop:                  nilIfEmpty(n.IPV6PDStop),
-		IPV6PDAutoPrefixidEnabled:   n.IPV6PDAutoPrefixidEnabled,
-		IPV6SingleNetworkInterface:  nilIfEmpty(n.IPV6SingleNetworkInterface),
-		SingleNetworkLan:            nilIfEmpty(n.SingleNetworkLan),
-
-		// DHCPv6
-		DHCPDV6Enabled:    n.DHCPDV6Enabled,
-		DHCPDV6DNSAuto:    n.DHCPDV6DNSAuto,
-		DHCPDV6DNS1:       nilIfEmpty(n.DHCPDV6DNS1),
-		DHCPDV6DNS2:       nilIfEmpty(n.DHCPDV6DNS2),
-		DHCPDV6DNS3:       nilIfEmpty(n.DHCPDV6DNS3),
-		DHCPDV6DNS4:       nilIfEmpty(n.DHCPDV6DNS4),
-		DHCPDV6AllowSlaac: n.DHCPDV6AllowSlaac,
-		DHCPDV6Start:      nilIfEmpty(n.DHCPDV6Start),
-		DHCPDV6Stop:       nilIfEmpty(n.DHCPDV6Stop),
-		DHCPDV6LeaseTime:  n.DHCPDV6LeaseTime,
-	})
+	return out
 }
 
-// marshalVLANOnly marshals a VLAN-only network (Layer 2 only, no routing).
-func (n *Network) marshalVLANOnly() ([]byte, error) {
-	// A VLAN id with vlan_enabled false is not a usable config: the
-	// controller ignores the id, falls back to VLAN 1, and rejects the
-	// create with api.err.VlanUsed naming the Default network -- measured on
-	// 10.4.57. Turning the flag on with the id is what the caller meant.
-	vlanEnabled := n.VLANEnabled
-	if !vlanEnabled && n.VLAN != nil && *n.VLAN > 0 {
-		vlanEnabled = true
-	}
-
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name                    *string `json:"name,omitempty"`
-		Purpose                 string  `json:"purpose"`
-		Enabled                 bool    `json:"enabled"`
-		NetworkGroup            *string `json:"networkgroup,omitempty"`
-		VLAN                    *int64  `json:"vlan,omitempty"`
-		VLANEnabled             bool    `json:"vlan_enabled"`
-		IGMPSnooping            bool    `json:"igmp_snooping"`
-		NetworkIsolationEnabled bool    `json:"network_isolation_enabled"`
-		MdnsEnabled             bool    `json:"mdns_enabled"`
-		DHCPguardEnabled        bool    `json:"dhcpguard_enabled"`
-		DHCPDIP1                string  `json:"dhcpd_ip_1"`
-		DHCPDIP2                string  `json:"dhcpd_ip_2"`
-		DHCPDIP3                string  `json:"dhcpd_ip_3"`
-		DHCPDMAC1               string  `json:"dhcpd_mac_1"`
-		DHCPDMAC2               string  `json:"dhcpd_mac_2"`
-		DHCPDMAC3               string  `json:"dhcpd_mac_3"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:                    nilIfEmpty(n.Name),
-		Purpose:                 n.Purpose,
-		Enabled:                 n.Enabled,
-		NetworkGroup:            valueOrDefault(nilIfEmpty(n.NetworkGroup), "LAN"),
-		VLAN:                    n.VLAN,
-		VLANEnabled:             vlanEnabled,
-		IGMPSnooping:            n.IGMPSnooping,
-		NetworkIsolationEnabled: n.NetworkIsolationEnabled,
-		MdnsEnabled:             n.MdnsEnabled,
-		DHCPguardEnabled:        n.DHCPguardEnabled,
-		DHCPDIP1:                n.DHCPDIP1,
-		DHCPDIP2:                n.DHCPDIP2,
-		DHCPDIP3:                n.DHCPDIP3,
-		DHCPDMAC1:               n.DHCPDMAC1,
-		DHCPDMAC2:               n.DHCPDMAC2,
-		DHCPDMAC3:               n.DHCPDMAC3,
-	})
+// networkClearableSlots are the *string fields whose explicit "" must reach
+// the wire. The blanket rule is the opposite -- an optional string that is
+// empty is absent (see TestNetworkEncoderDropsEmptyStrings) -- but these
+// eight were measured on 10.6.101 to behave the other way round: omitting
+// one PRESERVES the stored value, and "" is what clears it. Dropping the
+// empty here is why a caller could not empty a DHCP DNS, NTP or WINS list
+// at all.
+var networkClearableSlots = map[string]bool{
+	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
+	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
+	"dhcpd_wins_1": true, "dhcpd_wins_2": true,
 }
 
-// marshalGuest marshals a Guest network.
-//
-// Guest shares the networkconf collection with Corporate. A guest-purpose
-// probe pass (TestIntegrationGuestParityProbe) confirmed the controller
-// persists the same advanced fields on a guest network as on a corporate
-// one, so these are mirrored from marshalCorporate: dhcpd_time_offset
-// (paired with dhcpd_time_offset_enabled), mac_override_enabled (paired with
-// mac_override), firewall_zone_id, upnp_lan_enabled, and the advanced IGMP
-// fields (igmp_fastleave, igmp_flood_unknown_multicast, igmp_groupmembership,
-// igmp_maxresponse, igmp_mcrtrexpiretime, igmp_querier_switches,
-// igmp_supression). The ipv6 single-network pair
-// (ipv6_single_network_interface, single_network_lan) is NOT emitted here: it
-// was not part of the guest probe and is corporate-specific ipv6 addressing.
-func (n *Network) marshalGuest() ([]byte, error) {
-	// Create-only, same reasoning as marshalCorporate: an update must not
-	// carry a derived range the caller never set.
-	var defaultStart, defaultEnd string
-	if n.ID == "" && n.IPSubnet != nil {
-		var err error
-		defaultStart, defaultEnd, err = dhcpRange(*n.IPSubnet)
-		if err != nil {
-			log.Default().Printf("error calculating DHCP range: %s", err)
+// networkEmptyStringOmitted are plain-string fields the generated struct
+// sends unconditionally but the encoder drops when empty. Both await a
+// controller measurement of what an explicit "" does; until one exists the
+// long-standing omission stands (TestKnownStringOmitemptyDriftIsUnchanged
+// in network_encode_drift_test.go keeps this list honest).
+var networkEmptyStringOmitted = map[string]bool{
+	"dhcpd_boot_server": true,
+	"mac_override":      true,
+}
+
+// networkAlwaysArrays are slice fields sent as [] even when the caller left
+// them nil, against their generated omitempty. The controller wants an
+// array for these, and for remote_vpn_subnets it is load-bearing twice
+// over, measured on 10.6.101: a site-to-site create without the key is
+// refused with api.err.Invalid, and an explicit [] is how
+// remote_site_subnets is cleared once it holds something. encoding/json
+// drops an empty slice exactly as it drops a nil one, so omitempty could
+// never send either.
+var networkAlwaysArrays = map[string]bool{
+	"ip_aliases":                true,
+	"ipv6_aliases":              true,
+	"nat_outbound_ip_addresses": true,
+	"dhcp_relay_servers":        true,
+	"wan_ip_aliases":            true,
+	"wan_dhcp_options":          true,
+	"remote_vpn_subnets":        true,
+	"remote_site_subnets":       true,
+}
+
+// networkPurposeOverrides returns the fields whose value this purpose
+// derives instead of copying from the struct. Everything here is behaviour
+// with a measurement behind it; enumeration stays in the field lists.
+func (n *Network) networkPurposeOverrides() map[string]func() (any, bool) {
+	switch n.Purpose {
+	case PurposeCorporate, PurposeGuest:
+		// Derive DHCP range defaults from ip_subnet only for a create,
+		// which is the only write without an _id yet. The controller
+		// rejects a corporate create without a range, so inventing one
+		// there is load-bearing. On an update the same derivation put a
+		// range the caller never set and the controller never stored on
+		// the wire -- under a masked update it replaced the caller's value
+		// for a named dhcpd_start/stop, and a masked write must carry
+		// exactly what the mask names.
+		var defaultStart, defaultEnd string
+		if n.ID == "" && n.IPSubnet != nil {
+			var err error
+			defaultStart, defaultEnd, err = dhcpRange(*n.IPSubnet)
+			if err != nil {
+				log.Default().Printf("error calculating DHCP range: %s", err)
+			}
+		}
+		rangeBound := func(caller *string, derived string) func() (any, bool) {
+			return func() (any, bool) {
+				value := derived
+				if caller != nil && *caller != "" {
+					value = *caller
+				}
+				return value, value != ""
+			}
+		}
+		return map[string]func() (any, bool){
+			"dhcpd_start": rangeBound(n.DHCPDStart, defaultStart),
+			"dhcpd_stop":  rangeBound(n.DHCPDStop, defaultEnd),
+		}
+	case PurposeVLANOnly:
+		return map[string]func() (any, bool){
+			// A VLAN id with vlan_enabled false is not a usable config: the
+			// controller ignores the id, falls back to VLAN 1, and rejects
+			// the create with api.err.VlanUsed naming the Default network --
+			// measured on 10.4.57. Turning the flag on with the id is what
+			// the caller meant.
+			"vlan_enabled": func() (any, bool) {
+				return n.VLANEnabled || (n.VLAN != nil && *n.VLAN > 0), true
+			},
+			// Measured on 10.4.57: a corporate or guest network created
+			// without networkgroup comes back with "LAN" anyway, so the
+			// default was dropped there. A vlan-only network created
+			// without it comes back with no networkgroup at all, so
+			// dropping it here would change what is stored rather than
+			// restate it.
+			"networkgroup": func() (any, bool) {
+				if n.NetworkGroup != nil && *n.NetworkGroup != "" {
+					return *n.NetworkGroup, true
+				}
+				return "LAN", true
+			},
+		}
+	case PurposeWAN:
+		return map[string]func() (any, bool){
+			// ipv6_enabled is derived from wan_type_v6, so both have to
+			// read the same value: an empty wan_type_v6 is dropped as
+			// unset, and must not leave ipv6_enabled asserting IPv6 off a
+			// field that was not sent.
+			"ipv6_enabled": func() (any, bool) {
+				v6 := n.WANTypeV6
+				return v6 != nil && *v6 != "" && *v6 != "disabled", true
+			},
 		}
 	}
-
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name                      *string                         `json:"name,omitempty"`
-		Purpose                   string                          `json:"purpose"`
-		Enabled                   bool                            `json:"enabled"`
-		NetworkGroup              *string                         `json:"networkgroup,omitempty"`
-		IPSubnet                  *string                         `json:"ip_subnet,omitempty"`
-		VLAN                      *int64                          `json:"vlan,omitempty"`
-		VLANEnabled               bool                            `json:"vlan_enabled"`
-		L3InterfaceType           *string                         `json:"l3_interface_type,omitempty"`
-		RoutedPortIDX             *int64                          `json:"routed_port_idx,omitempty"`
-		RoutedLagIDX              *int64                          `json:"routed_lag_idx,omitempty"`
-		DomainName                *string                         `json:"domain_name,omitempty"`
-		AutoScaleEnabled          bool                            `json:"auto_scale_enabled"`
-		GatewayType               *string                         `json:"gateway_type,omitempty"`
-		InternetAccessEnabled     bool                            `json:"internet_access_enabled"`
-		NetworkIsolationEnabled   bool                            `json:"network_isolation_enabled"`
-		SettingPreference         *string                         `json:"setting_preference,omitempty"`
-		FirewallZoneID            *string                         `json:"firewall_zone_id,omitempty"`
-		IGMPSnooping              bool                            `json:"igmp_snooping"`
-		IGMPFastleave             bool                            `json:"igmp_fastleave"`
-		IGMPFloodUnknownMulticast bool                            `json:"igmp_flood_unknown_multicast"`
-		IGMPGroupmembership       *int64                          `json:"igmp_groupmembership,omitempty"`
-		IGMPMaxresponse           *int64                          `json:"igmp_maxresponse,omitempty"`
-		IGMPMcrtrexpiretime       *int64                          `json:"igmp_mcrtrexpiretime,omitempty"`
-		IGMPQuerierSwitches       []NetworkIGMPQuerierSwitches    `json:"igmp_querier_switches,omitempty"`
-		IGMPSuppression           bool                            `json:"igmp_supression"`
-		DHCPguardEnabled          bool                            `json:"dhcpguard_enabled"`
-		DHCPDIP1                  string                          `json:"dhcpd_ip_1"`
-		DHCPDIP2                  string                          `json:"dhcpd_ip_2"`
-		DHCPDIP3                  string                          `json:"dhcpd_ip_3"`
-		DHCPDMAC1                 string                          `json:"dhcpd_mac_1"`
-		DHCPDMAC2                 string                          `json:"dhcpd_mac_2"`
-		DHCPDMAC3                 string                          `json:"dhcpd_mac_3"`
-		MdnsEnabled               bool                            `json:"mdns_enabled"`
-		LteLanEnabled             bool                            `json:"lte_lan_enabled"`
-		UPnPLanEnabled            bool                            `json:"upnp_lan_enabled"`
-		IPAliases                 []string                        `json:"ip_aliases"`
-		IPV6Aliases               []string                        `json:"ipv6_aliases"`
-		NATOutboundIPAddresses    []NetworkNATOutboundIPAddresses `json:"nat_outbound_ip_addresses"`
-		MACOverride               string                          `json:"mac_override,omitempty"`
-		MACOverrideEnabled        bool                            `json:"mac_override_enabled"`
-
-		// DHCP Server
-		DHCPDEnabled           bool    `json:"dhcpd_enabled"`
-		DHCPDStart             *string `json:"dhcpd_start,omitempty"`
-		DHCPDStop              *string `json:"dhcpd_stop,omitempty"`
-		DHCPDLeaseTime         *int64  `json:"dhcpd_leasetime,omitempty"`
-		DHCPDDNSEnabled        bool    `json:"dhcpd_dns_enabled"`
-		DHCPDDNS1              *string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2              *string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3              *string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4              *string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDGatewayEnabled    bool    `json:"dhcpd_gateway_enabled"`
-		DHCPDGateway           *string `json:"dhcpd_gateway,omitempty"`
-		DHCPDNtpEnabled        bool    `json:"dhcpd_ntp_enabled"`
-		DHCPDNtp1              *string `json:"dhcpd_ntp_1,omitempty"`
-		DHCPDNtp2              *string `json:"dhcpd_ntp_2,omitempty"`
-		DHCPDWinsEnabled       bool    `json:"dhcpd_wins_enabled"`
-		DHCPDWins1             *string `json:"dhcpd_wins_1,omitempty"`
-		DHCPDWins2             *string `json:"dhcpd_wins_2,omitempty"`
-		DHCPDTimeOffsetEnabled bool    `json:"dhcpd_time_offset_enabled"`
-		DHCPDTimeOffset        *int64  `json:"dhcpd_time_offset,omitempty"`
-		DHCPDConflictChecking  bool    `json:"dhcpd_conflict_checking"`
-		DHCPDBootEnabled       bool    `json:"dhcpd_boot_enabled"`
-		DHCPDBootServer        string  `json:"dhcpd_boot_server,omitempty"`
-		DHCPDBootFilename      string  `json:"dhcpd_boot_filename,omitempty"`
-		DHCPDTFTPServer        *string `json:"dhcpd_tftp_server,omitempty"`
-		DHCPDWPAdUrl           *string `json:"dhcpd_wpad_url,omitempty"`
-		DHCPDUnifiController   *string `json:"dhcpd_unifi_controller,omitempty"`
-
-		// DHCP Relay
-		DHCPRelayEnabled bool     `json:"dhcp_relay_enabled"`
-		DHCPRelayServers []string `json:"dhcp_relay_servers"`
-
-		// IPv6
-		IPV6InterfaceType           *string `json:"ipv6_interface_type,omitempty"`
-		IPV6ClientAddressAssignment *string `json:"ipv6_client_address_assignment,omitempty"`
-		IPV6SettingPreference       *string `json:"ipv6_setting_preference,omitempty"`
-		IPV6RaPriority              *string `json:"ipv6_ra_priority,omitempty"`
-		IPV6Subnet                  *string `json:"ipv6_subnet,omitempty"`
-		IPV6RaEnabled               bool    `json:"ipv6_ra_enabled"`
-		IPV6RaPreferredLifetime     *int64  `json:"ipv6_ra_preferred_lifetime,omitempty"`
-		IPV6RaValidLifetime         *int64  `json:"ipv6_ra_valid_lifetime,omitempty"`
-		IPV6PDInterface             *string `json:"ipv6_pd_interface,omitempty"`
-		IPV6PDPrefixid              string  `json:"ipv6_pd_prefixid"`
-		IPV6PDStart                 *string `json:"ipv6_pd_start,omitempty"`
-		IPV6PDStop                  *string `json:"ipv6_pd_stop,omitempty"`
-		IPV6PDAutoPrefixidEnabled   bool    `json:"ipv6_pd_auto_prefixid_enabled"`
-
-		// DHCPv6
-		DHCPDV6Enabled    bool    `json:"dhcpdv6_enabled"`
-		DHCPDV6DNSAuto    bool    `json:"dhcpdv6_dns_auto"`
-		DHCPDV6DNS1       *string `json:"dhcpdv6_dns_1,omitempty"`
-		DHCPDV6DNS2       *string `json:"dhcpdv6_dns_2,omitempty"`
-		DHCPDV6DNS3       *string `json:"dhcpdv6_dns_3,omitempty"`
-		DHCPDV6DNS4       *string `json:"dhcpdv6_dns_4,omitempty"`
-		DHCPDV6AllowSlaac bool    `json:"dhcpdv6_allow_slaac"`
-		DHCPDV6Start      *string `json:"dhcpdv6_start,omitempty"`
-		DHCPDV6Stop       *string `json:"dhcpdv6_stop,omitempty"`
-		DHCPDV6LeaseTime  *int64  `json:"dhcpdv6_leasetime,omitempty"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:                      nilIfEmpty(n.Name),
-		Purpose:                   n.Purpose,
-		Enabled:                   n.Enabled,
-		NetworkGroup:              nilIfEmpty(n.NetworkGroup),
-		IPSubnet:                  nilIfEmpty(n.IPSubnet),
-		VLAN:                      n.VLAN,
-		VLANEnabled:               n.VLANEnabled,
-		L3InterfaceType:           nilIfEmpty(n.L3InterfaceType),
-		RoutedPortIDX:             n.RoutedPortIDX,
-		RoutedLagIDX:              n.RoutedLagIDX,
-		DomainName:                nilIfEmpty(n.DomainName),
-		AutoScaleEnabled:          n.AutoScaleEnabled,
-		GatewayType:               nilIfEmpty(n.GatewayType),
-		InternetAccessEnabled:     n.InternetAccessEnabled,
-		NetworkIsolationEnabled:   n.NetworkIsolationEnabled,
-		SettingPreference:         nilIfEmpty(n.SettingPreference),
-		FirewallZoneID:            nilIfEmpty(n.FirewallZoneID),
-		IGMPSnooping:              n.IGMPSnooping,
-		IGMPFastleave:             n.IGMPFastleave,
-		IGMPFloodUnknownMulticast: n.IGMPFloodUnknownMulticast,
-		IGMPGroupmembership:       n.IGMPGroupmembership,
-		IGMPMaxresponse:           n.IGMPMaxresponse,
-		IGMPMcrtrexpiretime:       n.IGMPMcrtrexpiretime,
-		IGMPQuerierSwitches:       n.IGMPQuerierSwitches,
-		IGMPSuppression:           n.IGMPSuppression,
-		DHCPguardEnabled:          n.DHCPguardEnabled,
-		DHCPDIP1:                  n.DHCPDIP1,
-		DHCPDIP2:                  n.DHCPDIP2,
-		DHCPDIP3:                  n.DHCPDIP3,
-		DHCPDMAC1:                 n.DHCPDMAC1,
-		DHCPDMAC2:                 n.DHCPDMAC2,
-		DHCPDMAC3:                 n.DHCPDMAC3,
-		MdnsEnabled:               n.MdnsEnabled,
-		LteLanEnabled:             n.LteLanEnabled,
-		UPnPLanEnabled:            n.UPnPLanEnabled,
-		IPAliases:                 orEmptySlice(n.IPAliases),
-		IPV6Aliases:               orEmptySlice(n.IPV6Aliases),
-		NATOutboundIPAddresses:    orEmptyNATSlice(n.NATOutboundIPAddresses),
-		MACOverride:               n.MACOverride,
-		MACOverrideEnabled:        n.MACOverrideEnabled,
-
-		// DHCP Server with defaults
-		DHCPDEnabled:           n.DHCPDEnabled,
-		DHCPDStart:             nilIfEmpty(valueOrDefault(nilIfEmpty(n.DHCPDStart), defaultStart)),
-		DHCPDStop:              nilIfEmpty(valueOrDefault(nilIfEmpty(n.DHCPDStop), defaultEnd)),
-		DHCPDLeaseTime:         n.DHCPDLeaseTime,
-		DHCPDDNSEnabled:        n.DHCPDDNSEnabled,
-		DHCPDDNS1:              n.DHCPDDNS1,
-		DHCPDDNS2:              n.DHCPDDNS2,
-		DHCPDDNS3:              n.DHCPDDNS3,
-		DHCPDDNS4:              n.DHCPDDNS4,
-		DHCPDGatewayEnabled:    n.DHCPDGatewayEnabled,
-		DHCPDGateway:           nilIfEmpty(n.DHCPDGateway),
-		DHCPDNtpEnabled:        n.DHCPDNtpEnabled,
-		DHCPDNtp1:              n.DHCPDNtp1,
-		DHCPDNtp2:              n.DHCPDNtp2,
-		DHCPDWinsEnabled:       n.DHCPDWinsEnabled,
-		DHCPDWins1:             n.DHCPDWins1,
-		DHCPDWins2:             n.DHCPDWins2,
-		DHCPDTimeOffsetEnabled: n.DHCPDTimeOffsetEnabled,
-		DHCPDTimeOffset:        n.DHCPDTimeOffset,
-		DHCPDConflictChecking:  n.DHCPDConflictChecking,
-		DHCPDBootEnabled:       n.DHCPDBootEnabled,
-		DHCPDBootServer:        n.DHCPDBootServer,
-		DHCPDBootFilename:      derefOrEmpty(n.DHCPDBootFilename),
-		DHCPDTFTPServer:        nilIfEmpty(n.DHCPDTFTPServer),
-		DHCPDWPAdUrl:           nilIfEmpty(n.DHCPDWPAdUrl),
-		DHCPDUnifiController:   nilIfEmpty(n.DHCPDUnifiController),
-
-		// DHCP Relay
-		DHCPRelayEnabled: n.DHCPRelayEnabled,
-		DHCPRelayServers: orEmptySlice(n.DHCPRelayServers),
-
-		// IPv6
-		IPV6InterfaceType:           nilIfEmpty(n.IPV6InterfaceType),
-		IPV6ClientAddressAssignment: nilIfEmpty(n.IPV6ClientAddressAssignment),
-		IPV6SettingPreference:       nilIfEmpty(n.IPV6SettingPreference),
-		IPV6RaPriority:              nilIfEmpty(n.IPV6RaPriority),
-		IPV6Subnet:                  nilIfEmpty(n.IPV6Subnet),
-		IPV6RaEnabled:               n.IPV6RaEnabled,
-		IPV6RaPreferredLifetime:     n.IPV6RaPreferredLifetime,
-		IPV6RaValidLifetime:         n.IPV6RaValidLifetime,
-		IPV6PDInterface:             nilIfEmpty(n.IPV6PDInterface),
-		IPV6PDPrefixid:              n.IPV6PDPrefixid,
-		IPV6PDStart:                 nilIfEmpty(n.IPV6PDStart),
-		IPV6PDStop:                  nilIfEmpty(n.IPV6PDStop),
-		IPV6PDAutoPrefixidEnabled:   n.IPV6PDAutoPrefixidEnabled,
-
-		// DHCPv6
-		DHCPDV6Enabled:    n.DHCPDV6Enabled,
-		DHCPDV6DNSAuto:    n.DHCPDV6DNSAuto,
-		DHCPDV6DNS1:       nilIfEmpty(n.DHCPDV6DNS1),
-		DHCPDV6DNS2:       nilIfEmpty(n.DHCPDV6DNS2),
-		DHCPDV6DNS3:       nilIfEmpty(n.DHCPDV6DNS3),
-		DHCPDV6DNS4:       nilIfEmpty(n.DHCPDV6DNS4),
-		DHCPDV6AllowSlaac: n.DHCPDV6AllowSlaac,
-		DHCPDV6Start:      nilIfEmpty(n.DHCPDV6Start),
-		DHCPDV6Stop:       nilIfEmpty(n.DHCPDV6Stop),
-		DHCPDV6LeaseTime:  n.DHCPDV6LeaseTime,
-	})
+	return nil
 }
 
-// marshalWAN marshals a WAN network.
-func (n *Network) marshalWAN() ([]byte, error) {
-	// ipv6_enabled is derived from wan_type_v6, so both have to read the
-	// same value: an empty wan_type_v6 is dropped as unset, and must not
-	// leave ipv6_enabled asserting IPv6 off a field that was not sent.
-	wanTypeV6 := nilIfEmpty(n.WANTypeV6)
-
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name                  *string `json:"name,omitempty"`
-		Purpose               string  `json:"purpose"`
-		Enabled               bool    `json:"enabled"`
-		SettingPreference     *string `json:"setting_preference,omitempty"`
-		IPV6SettingPreference *string `json:"ipv6_setting_preference,omitempty"`
-
-		// WAN type fields
-		WANType         *string `json:"wan_type,omitempty"`
-		WANTypeV6       *string `json:"wan_type_v6,omitempty"`
-		WANNetworkGroup *string `json:"wan_networkgroup,omitempty"`
-
-		// Static addressing (wan_type "static" / wan_type_v6 "static")
-		WANIP        *string `json:"wan_ip,omitempty"`
-		WANNetmask   *string `json:"wan_netmask,omitempty"`
-		WANGateway   *string `json:"wan_gateway,omitempty"`
-		WANIPV6      string  `json:"wan_ipv6"`
-		WANGatewayV6 string  `json:"wan_gateway_v6"`
-		WANPrefixlen *int64  `json:"wan_prefixlen,omitempty"`
-
-		// PPPoE credentials (wan_type "pppoe")
-		WANUsername             string `json:"wan_username"`
-		WANPassword             string `json:"x_wan_password"`
-		WANPppoeUsernameEnabled bool   `json:"wan_pppoe_username_enabled"`
-		WANPppoePasswordEnabled bool   `json:"wan_pppoe_password_enabled"`
-
-		// DS-Lite (wan_type "dslite")
-		WANDsliteRemoteHost     *string `json:"wan_dslite_remote_host,omitempty"`
-		WANDsliteRemoteHostAuto bool    `json:"wan_dslite_remote_host_auto"`
-
-		// Interface MTU
-		InterfaceMtu        *int64 `json:"interface_mtu,omitempty"`
-		InterfaceMtuEnabled bool   `json:"interface_mtu_enabled"`
-
-		// VLAN fields
-		WANVLANEnabled bool   `json:"wan_vlan_enabled"`
-		WANVLAN        *int64 `json:"wan_vlan,omitempty"`
-
-		// DHCP CoS fields
-		WANDHCPCos   *int64 `json:"wan_dhcp_cos,omitempty"`
-		WANDHCPv6Cos *int64 `json:"wan_dhcpv6_cos,omitempty"`
-
-		// DNS fields
-		WANDNS1              *string `json:"wan_dns1,omitempty"`
-		WANDNS2              *string `json:"wan_dns2,omitempty"`
-		WANDNSPreference     *string `json:"wan_dns_preference,omitempty"`
-		WANIPV6DNS1          *string `json:"wan_ipv6_dns1,omitempty"`
-		WANIPV6DNS2          *string `json:"wan_ipv6_dns2,omitempty"`
-		WANIPV6DNSPreference *string `json:"wan_ipv6_dns_preference,omitempty"`
-
-		// DHCPv6 / IPv6 fields
-		WANDHCPv6PDSize       *int64                    `json:"wan_dhcpv6_pd_size,omitempty"`
-		WANDHCPv6PDSizeAuto   bool                      `json:"wan_dhcpv6_pd_size_auto"`
-		WANDHCPv6Options      []NetworkWANDHCPv6Options `json:"wan_dhcpv6_options,omitempty"`
-		IPV6WANDelegationType *string                   `json:"ipv6_wan_delegation_type,omitempty"`
-		IPV6Enabled           bool                      `json:"ipv6_enabled"`
-
-		// QoS fields
-		WANEgressQOSEnabled *bool  `json:"wan_egress_qos_enabled,omitempty"`
-		WANEgressQOS        *int64 `json:"wan_egress_qos,omitempty"`
-		WANSmartQEnabled    bool   `json:"wan_smartq_enabled"`
-		WANSmartQUpRate     *int64 `json:"wan_smartq_up_rate,omitempty"`
-		WANSmartQDownRate   *int64 `json:"wan_smartq_down_rate,omitempty"`
-
-		// MSS clamping fields
-		MssClamp        *string `json:"mss_clamp,omitempty"`
-		MssClampMss     *int64  `json:"mss_clamp_mss,omitempty"`
-		MssClampIPV6    *string `json:"mss_clamp_ipv6,omitempty"`
-		MssClampMssIPV6 *int64  `json:"mss_clamp_mss_ipv6,omitempty"`
-
-		// UPnP fields
-		UPnPEnabled       *bool   `json:"upnp_enabled,omitempty"`
-		UPnPWANInterface  *string `json:"upnp_wan_interface,omitempty"`
-		UPnPNatPMPEnabled *bool   `json:"upnp_nat_pmp_enabled,omitempty"`
-		UPnPSecureMode    *bool   `json:"upnp_secure_mode,omitempty"`
-
-		// Load balance / failover fields
-		WANLoadBalanceType   *string `json:"wan_load_balance_type,omitempty"`
-		WANLoadBalanceWeight *int64  `json:"wan_load_balance_weight,omitempty"`
-		WANFailoverPriority  *int64  `json:"wan_failover_priority,omitempty"`
-
-		// IGMP fields
-		IGMPProxyFor      *string `json:"igmp_proxy_for,omitempty"`
-		IGMPProxyUpstream bool    `json:"igmp_proxy_upstream"`
-
-		// Event / alias fields
-		ReportWANEvent bool                    `json:"report_wan_event"`
-		WANIPAliases   []string                `json:"wan_ip_aliases"`
-		WANDHCPOptions []NetworkWANDHCPOptions `json:"wan_dhcp_options"`
-
-		// Provider capabilities
-		WANProviderCapabilities *NetworkWANProviderCapabilities `json:"wan_provider_capabilities,omitempty"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:                  nilIfEmpty(n.Name),
-		Purpose:               n.Purpose,
-		Enabled:               n.Enabled,
-		SettingPreference:     nilIfEmpty(n.SettingPreference),
-		IPV6SettingPreference: nilIfEmpty(n.IPV6SettingPreference),
-
-		// WAN type fields
-		WANType:         nilIfEmpty(n.WANType),
-		WANTypeV6:       wanTypeV6,
-		WANNetworkGroup: nilIfEmpty(n.WANNetworkGroup),
-
-		// Static addressing
-		WANIP:        nilIfEmpty(n.WANIP),
-		WANNetmask:   nilIfEmpty(n.WANNetmask),
-		WANGateway:   nilIfEmpty(n.WANGateway),
-		WANIPV6:      n.WANIPV6,
-		WANGatewayV6: n.WANGatewayV6,
-		WANPrefixlen: n.WANPrefixlen,
-
-		// PPPoE credentials
-		WANUsername:             n.WANUsername,
-		WANPassword:             n.WANPassword,
-		WANPppoeUsernameEnabled: n.WANPppoeUsernameEnabled,
-		WANPppoePasswordEnabled: n.WANPppoePasswordEnabled,
-
-		// DS-Lite
-		WANDsliteRemoteHost:     nilIfEmpty(n.WANDsliteRemoteHost),
-		WANDsliteRemoteHostAuto: n.WANDsliteRemoteHostAuto,
-
-		// Interface MTU
-		InterfaceMtu:        n.InterfaceMtu,
-		InterfaceMtuEnabled: n.InterfaceMtuEnabled,
-
-		// VLAN fields
-		WANVLANEnabled: n.WANVLANEnabled,
-		WANVLAN:        n.WANVLAN,
-
-		// DHCP CoS fields
-		WANDHCPCos:   n.WANDHCPCos,
-		WANDHCPv6Cos: n.WANDHCPv6Cos,
-
-		// DNS fields
-		WANDNS1:              nilIfEmpty(n.WANDNS1),
-		WANDNS2:              nilIfEmpty(n.WANDNS2),
-		WANDNSPreference:     nilIfEmpty(n.WANDNSPreference),
-		WANIPV6DNS1:          nilIfEmpty(n.WANIPV6DNS1),
-		WANIPV6DNS2:          nilIfEmpty(n.WANIPV6DNS2),
-		WANIPV6DNSPreference: nilIfEmpty(n.WANIPV6DNSPreference),
-
-		// DHCPv6 / IPv6 fields
-		WANDHCPv6PDSize:       n.WANDHCPv6PDSize,
-		WANDHCPv6PDSizeAuto:   n.WANDHCPv6PDSizeAuto,
-		WANDHCPv6Options:      n.WANDHCPv6Options,
-		IPV6WANDelegationType: nilIfEmpty(n.IPV6WANDelegationType),
-		IPV6Enabled:           wanTypeV6 != nil && *wanTypeV6 != "disabled",
-
-		// QoS fields
-		WANEgressQOSEnabled: n.WANEgressQOSEnabled,
-		WANEgressQOS:        n.WANEgressQOS,
-		WANSmartQEnabled:    n.WANSmartQEnabled,
-		WANSmartQUpRate:     n.WANSmartQUpRate,
-		WANSmartQDownRate:   n.WANSmartQDownRate,
-
-		// MSS clamping fields
-		MssClamp:        nilIfEmpty(n.MssClamp),
-		MssClampMss:     n.MssClampMss,
-		MssClampIPV6:    nilIfEmpty(n.MssClampIPV6),
-		MssClampMssIPV6: n.MssClampMssIPV6,
-
-		// UPnP fields
-		UPnPEnabled:       n.UPnPEnabled,
-		UPnPWANInterface:  nilIfEmpty(n.UPnPWANInterface),
-		UPnPNatPMPEnabled: n.UPnPNatPMPEnabled,
-		UPnPSecureMode:    n.UPnPSecureMode,
-
-		// Load balance / failover fields
-		WANLoadBalanceType:   nilIfEmpty(n.WANLoadBalanceType),
-		WANLoadBalanceWeight: n.WANLoadBalanceWeight,
-		WANFailoverPriority:  n.WANFailoverPriority,
-
-		// IGMP fields
-		IGMPProxyFor:      nilIfEmpty(n.IGMPProxyFor),
-		IGMPProxyUpstream: n.IGMPProxyUpstream,
-
-		// Event / alias fields
-		ReportWANEvent: n.ReportWANEvent,
-		WANIPAliases:   orEmptySlice(n.WANIPAliases),
-		WANDHCPOptions: orEmptyWANDHCPOptions(n.WANDHCPOptions),
-
-		// Provider capabilities
-		WANProviderCapabilities: n.WANProviderCapabilities,
-	})
+type networkWireField struct {
+	index     []int
+	omitEmpty bool
 }
 
-// marshalSiteVPN marshals a site-to-site VPN network.
-func (n *Network) marshalSiteVPN() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name    *string `json:"name,omitempty"`
-		Purpose string  `json:"purpose"`
-		Enabled bool    `json:"enabled"`
-
-		// VPN / IPsec
-		VPNType           *string `json:"vpn_type,omitempty"`
-		IPSecInterface    *string `json:"ipsec_interface,omitempty"`
-		IPSecPeerIP       *string `json:"ipsec_peer_ip,omitempty"`
-		IPSecLocalIP      *string `json:"ipsec_local_ip,omitempty"`
-		IPSecKeyExchange  *string `json:"ipsec_key_exchange,omitempty"`
-		IPSecPreSharedKey *string `json:"x_ipsec_pre_shared_key,omitempty"`
-		IPSecProfile      *string `json:"ipsec_profile,omitempty"`
-
-		// IKE (phase 1)
-		IPSecEncryption  *string `json:"ipsec_encryption,omitempty"`
-		IPSecHash        *string `json:"ipsec_hash,omitempty"`
-		IPSecDhGroup     *int64  `json:"ipsec_dh_group,omitempty"`
-		IPSecIkeLifetime *int64  `json:"ipsec_ike_lifetime,omitempty"`
-
-		// IKE peer identifiers and per-child-SA networks (policy-based mode)
-		IPSecLocalIDentifier         *string `json:"ipsec_local_identifier,omitempty"`
-		IPSecLocalIDentifierEnabled  bool    `json:"ipsec_local_identifier_enabled"`
-		IPSecRemoteIDentifier        *string `json:"ipsec_remote_identifier,omitempty"`
-		IPSecRemoteIDentifierEnabled bool    `json:"ipsec_remote_identifier_enabled"`
-		IPSecSeparateIkev2Networks   bool    `json:"ipsec_separate_ikev2_networks"`
-
-		// ESP (phase 2)
-		IPSecEspEncryption *string `json:"ipsec_esp_encryption,omitempty"`
-		IPSecEspHash       *string `json:"ipsec_esp_hash,omitempty"`
-		IPSecEspDhGroup    *int64  `json:"ipsec_esp_dh_group,omitempty"`
-		IPSecEspLifetime   *int64  `json:"ipsec_esp_lifetime,omitempty"`
-
-		IPSecPfs            bool `json:"ipsec_pfs"`
-		IPSecDynamicRouting bool `json:"ipsec_dynamic_routing"`
-
-		// No omitempty on either: encoding/json drops an empty slice exactly
-		// as it drops a nil one, so with it neither field can be sent as [].
-		// Measured on 10.6.101, that costs both of them something.
-		// remote_vpn_subnets is required -- a site-to-site network created
-		// without the key is refused with api.err.Invalid, so a caller with
-		// no remote subnets could not create one at all, which is what
-		// dynamic routing wants. And an explicit [] is how remote_site_subnets
-		// is cleared once it holds something.
-		RemoteVPNSubnets  []string `json:"remote_vpn_subnets"`
-		RemoteSiteSubnets []string `json:"remote_site_subnets"`
-		RouteDistance     *int64   `json:"route_distance,omitempty"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:    nilIfEmpty(n.Name),
-		Purpose: n.Purpose,
-		Enabled: n.Enabled,
-
-		VPNType:           nilIfEmpty(n.VPNType),
-		IPSecInterface:    nilIfEmpty(n.IPSecInterface),
-		IPSecPeerIP:       nilIfEmpty(n.IPSecPeerIP),
-		IPSecLocalIP:      nilIfEmpty(n.IPSecLocalIP),
-		IPSecKeyExchange:  nilIfEmpty(n.IPSecKeyExchange),
-		IPSecPreSharedKey: nilIfEmpty(n.IPSecPreSharedKey),
-		IPSecProfile:      nilIfEmpty(n.IPSecProfile),
-
-		IPSecEncryption:  nilIfEmpty(n.IPSecEncryption),
-		IPSecHash:        nilIfEmpty(n.IPSecHash),
-		IPSecDhGroup:     n.IPSecDhGroup,
-		IPSecIkeLifetime: n.IPSecIkeLifetime,
-
-		IPSecLocalIDentifier:         nilIfEmpty(n.IPSecLocalIDentifier),
-		IPSecLocalIDentifierEnabled:  n.IPSecLocalIDentifierEnabled,
-		IPSecRemoteIDentifier:        nilIfEmpty(n.IPSecRemoteIDentifier),
-		IPSecRemoteIDentifierEnabled: n.IPSecRemoteIDentifierEnabled,
-		IPSecSeparateIkev2Networks:   n.IPSecSeparateIkev2Networks,
-
-		IPSecEspEncryption: nilIfEmpty(n.IPSecEspEncryption),
-		IPSecEspHash:       nilIfEmpty(n.IPSecEspHash),
-		IPSecEspDhGroup:    n.IPSecEspDhGroup,
-		IPSecEspLifetime:   n.IPSecEspLifetime,
-
-		IPSecPfs:            n.IPSecPfs,
-		IPSecDynamicRouting: n.IPSecDynamicRouting,
-
-		// nil reaches the wire as [] rather than null: the controller wants
-		// an array here, and null is not one.
-		RemoteVPNSubnets:  orEmptySlice(n.RemoteVPNSubnets),
-		RemoteSiteSubnets: orEmptySlice(n.RemoteSiteSubnets),
-		RouteDistance:     n.RouteDistance,
-	})
-}
-
-// marshalVPNClient marshals a VPN client network (WireGuard client).
-func (n *Network) marshalVPNClient() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name     *string `json:"name,omitempty"`
-		Purpose  string  `json:"purpose"`
-		Enabled  bool    `json:"enabled"`
-		IPSubnet *string `json:"ip_subnet,omitempty"`
-
-		// VPN Type
-		VPNType *string `json:"vpn_type,omitempty"`
-
-		// VPN Client routing
-		VPNClientDefaultRoute bool `json:"vpn_client_default_route"`
-		VPNClientPullDNS      bool `json:"vpn_client_pull_dns"`
-
-		// WireGuard Client Configuration
-		WireguardClientMode                  *string `json:"wireguard_client_mode,omitempty"`
-		WireguardClientConfigurationFile     *string `json:"wireguard_client_configuration_file,omitempty"`
-		WireguardClientConfigurationFilename *string `json:"wireguard_client_configuration_filename,omitempty"`
-		WireguardClientPeerIP                *string `json:"wireguard_client_peer_ip,omitempty"`
-		WireguardClientPeerPort              *int64  `json:"wireguard_client_peer_port,omitempty"`
-		WireguardClientPeerPublicKey         *string `json:"wireguard_client_peer_public_key,omitempty"`
-		WireguardClientPresharedKeyEnabled   bool    `json:"wireguard_client_preshared_key_enabled"`
-		WireguardClientPresharedKey          *string `json:"wireguard_client_preshared_key,omitempty"`
-		WireguardInterface                   *string `json:"wireguard_interface,omitempty"`
-		WireguardPrivateKey                  *string `json:"x_wireguard_private_key,omitempty"`
-
-		// DNS servers for WireGuard interface
-		DHCPDDNS1       *string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2       *string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3       *string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4       *string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDDNSEnabled bool    `json:"dhcpd_dns_enabled"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:     nilIfEmpty(n.Name),
-		Purpose:  n.Purpose,
-		Enabled:  n.Enabled,
-		IPSubnet: nilIfEmpty(n.IPSubnet),
-
-		// VPN Type
-		VPNType: nilIfEmpty(n.VPNType),
-
-		// VPN Client routing
-		VPNClientDefaultRoute: n.VPNClientDefaultRoute,
-		VPNClientPullDNS:      n.VPNClientPullDNS,
-
-		// WireGuard configuration
-		WireguardClientMode:                  nilIfEmpty(n.WireguardClientMode),
-		WireguardClientConfigurationFile:     nilIfEmpty(n.WireguardClientConfigurationFile),
-		WireguardClientConfigurationFilename: nilIfEmpty(n.WireguardClientConfigurationFilename),
-		WireguardClientPeerIP:                nilIfEmpty(n.WireguardClientPeerIP),
-		WireguardClientPeerPort:              n.WireguardClientPeerPort,
-		WireguardClientPeerPublicKey:         nilIfEmpty(n.WireguardClientPeerPublicKey),
-		WireguardClientPresharedKeyEnabled:   n.WireguardClientPresharedKeyEnabled,
-		WireguardClientPresharedKey:          nilIfEmpty(n.WireguardClientPresharedKey),
-		WireguardInterface:                   nilIfEmpty(n.WireguardInterface),
-		WireguardPrivateKey:                  nilIfEmpty(n.WireguardPrivateKey),
-
-		// DNS servers
-		DHCPDDNS1: n.DHCPDDNS1,
-		DHCPDDNS2: n.DHCPDDNS2,
-		DHCPDDNS3: n.DHCPDDNS3,
-		DHCPDDNS4: n.DHCPDDNS4,
-		// A wireguard-client network stores dhcpd_dns_enabled like any
-		// other. Omitting it turned the flag off on every read-modify-write.
-		DHCPDDNSEnabled: n.DHCPDDNSEnabled,
-	})
-}
-
-// marshalUserVPN marshals a remote user VPN network.
-func (n *Network) marshalUserVPN() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID       string `json:"_id,omitempty"`
-		SiteID   string `json:"site_id,omitempty"`
-		Hidden   bool   `json:"attr_hidden,omitempty"`
-		HiddenID string `json:"attr_hidden_id,omitempty"`
-		NoDelete bool   `json:"attr_no_delete,omitempty"`
-		NoEdit   bool   `json:"attr_no_edit,omitempty"`
-
-		Name              *string `json:"name,omitempty"`
-		Purpose           string  `json:"purpose"`
-		Enabled           bool    `json:"enabled"`
-		SettingPreference *string `json:"setting_preference,omitempty"`
-		IPSubnet          *string `json:"ip_subnet,omitempty"`
-
-		// VPN Type
-		VPNType *string `json:"vpn_type,omitempty"`
-
-		// How the VPN server binds to a WAN address: static (IP), interface, or any
-		VPNBindingMode *string `json:"vpn_binding_mode,omitempty"`
-
-		// MSS clamping: live 10.4.57 controllers report mss_clamp on
-		// remote-user-vpn networks (tunnel MTU), not only on WANs.
-		MssClamp        *string `json:"mss_clamp,omitempty"`
-		MssClampMss     *int64  `json:"mss_clamp_mss,omitempty"`
-		MssClampIPV6    *string `json:"mss_clamp_ipv6,omitempty"`
-		MssClampMssIPV6 *int64  `json:"mss_clamp_mss_ipv6,omitempty"`
-
-		// DNS
-		DHCPDDNS1       *string `json:"dhcpd_dns_1,omitempty"`
-		DHCPDDNS2       *string `json:"dhcpd_dns_2,omitempty"`
-		DHCPDDNS3       *string `json:"dhcpd_dns_3,omitempty"`
-		DHCPDDNS4       *string `json:"dhcpd_dns_4,omitempty"`
-		DHCPDDNSEnabled bool    `json:"dhcpd_dns_enabled"`
-
-		// DHCP Range
-		DHCPDStart *string `json:"dhcpd_start,omitempty"`
-		DHCPDStop  *string `json:"dhcpd_stop,omitempty"`
-
-		// RADIUS
-		RADIUSProfileID *string `json:"radiusprofile_id,omitempty"`
-
-		// WireGuard Server Configuration
-		WireguardInterface                            *string `json:"wireguard_interface,omitempty"`
-		WireguardPrivateKey                           *string `json:"x_wireguard_private_key,omitempty"`
-		WireguardLocalWANIP                           *string `json:"wireguard_local_wan_ip,omitempty"`
-		LocalPort                                     *int64  `json:"local_port,omitempty"`
-		WireguardInterfaceBindingModeIPVersion        *string `json:"wireguard_interface_binding_mode_ip_version,omitempty"`
-		VPNClientConfigurationRemoteIPOverride        *string `json:"vpn_client_configuration_remote_ip_override,omitempty"`
-		VPNClientConfigurationRemoteIPOverrideEnabled bool    `json:"vpn_client_configuration_remote_ip_override_enabled"`
-
-		// L2TP Server Configuration
-		L2TpInterface        *string `json:"l2tp_interface,omitempty"`
-		L2TpLocalWANIP       *string `json:"l2tp_local_wan_ip,omitempty"`
-		L2TpAllowWeakCiphers bool    `json:"l2tp_allow_weak_ciphers"`
-		IPSecPreSharedKey    *string `json:"x_ipsec_pre_shared_key,omitempty"`
-		RequireMschapv2      bool    `json:"require_mschapv2"`
-
-		// OpenVPN Server Configuration
-		OpenVPNInterface        *string `json:"openvpn_interface,omitempty"`
-		OpenVPNLocalWANIP       *string `json:"openvpn_local_wan_ip,omitempty"`
-		OpenVPNMode             *string `json:"openvpn_mode,omitempty"`
-		OpenVPNEncryptionCipher *string `json:"openvpn_encryption_cipher,omitempty"`
-		VPNProtocol             *string `json:"vpn_protocol,omitempty"`
-
-		// OpenVPN Certificates and Keys
-		ServerCrt       *string `json:"x_server_crt,omitempty"`
-		ServerKey       *string `json:"x_server_key,omitempty"`
-		DhKey           *string `json:"x_dh_key,omitempty"`
-		SharedClientKey *string `json:"x_shared_client_key,omitempty"`
-		SharedClientCrt *string `json:"x_shared_client_crt,omitempty"`
-		AuthKey         *string `json:"x_auth_key,omitempty"`
-		CaCrt           *string `json:"x_ca_crt,omitempty"`
-		CaKey           *string `json:"x_ca_key,omitempty"`
-	}{
-		ID:       n.ID,
-		SiteID:   n.SiteID,
-		Hidden:   n.Hidden,
-		HiddenID: n.HiddenID,
-		NoDelete: n.NoDelete,
-		NoEdit:   n.NoEdit,
-
-		Name:              nilIfEmpty(n.Name),
-		Purpose:           n.Purpose,
-		Enabled:           n.Enabled,
-		SettingPreference: nilIfEmpty(n.SettingPreference),
-		IPSubnet:          nilIfEmpty(n.IPSubnet),
-
-		// VPN Type
-		VPNType: nilIfEmpty(n.VPNType),
-
-		// VPN server WAN binding
-		VPNBindingMode: nilIfEmpty(n.VPNBindingMode),
-
-		MssClamp:        nilIfEmpty(n.MssClamp),
-		MssClampMss:     n.MssClampMss,
-		MssClampIPV6:    nilIfEmpty(n.MssClampIPV6),
-		MssClampMssIPV6: n.MssClampMssIPV6,
-
-		// DNS
-		DHCPDDNS1:       n.DHCPDDNS1,
-		DHCPDDNS2:       n.DHCPDDNS2,
-		DHCPDDNS3:       n.DHCPDDNS3,
-		DHCPDDNS4:       n.DHCPDDNS4,
-		DHCPDDNSEnabled: n.DHCPDDNSEnabled,
-
-		// DHCP Range
-		DHCPDStart: nilIfEmpty(n.DHCPDStart),
-		DHCPDStop:  nilIfEmpty(n.DHCPDStop),
-
-		// RADIUS
-		RADIUSProfileID: nilIfEmpty(n.RADIUSProfileID),
-
-		// WireGuard Server Configuration
-		WireguardInterface:                            nilIfEmpty(n.WireguardInterface),
-		WireguardPrivateKey:                           nilIfEmpty(n.WireguardPrivateKey),
-		WireguardLocalWANIP:                           nilIfEmpty(n.WireguardLocalWANIP),
-		LocalPort:                                     n.LocalPort,
-		WireguardInterfaceBindingModeIPVersion:        nilIfEmpty(n.WireguardInterfaceBindingModeIPVersion),
-		VPNClientConfigurationRemoteIPOverride:        nilIfEmpty(n.VPNClientConfigurationRemoteIPOverride),
-		VPNClientConfigurationRemoteIPOverrideEnabled: n.VPNClientConfigurationRemoteIPOverrideEnabled,
-
-		// L2TP Server Configuration
-		L2TpInterface:        nilIfEmpty(n.L2TpInterface),
-		L2TpLocalWANIP:       nilIfEmpty(n.L2TpLocalWANIP),
-		L2TpAllowWeakCiphers: n.L2TpAllowWeakCiphers,
-		IPSecPreSharedKey:    nilIfEmpty(n.IPSecPreSharedKey),
-		RequireMschapv2:      n.RequireMschapv2,
-
-		// OpenVPN Server Configuration
-		OpenVPNInterface:        nilIfEmpty(n.OpenVPNInterface),
-		OpenVPNLocalWANIP:       nilIfEmpty(n.OpenVPNLocalWANIP),
-		OpenVPNMode:             nilIfEmpty(n.OpenVPNMode),
-		OpenVPNEncryptionCipher: nilIfEmpty(n.OpenVPNEncryptionCipher),
-		VPNProtocol:             nilIfEmpty(n.VPNProtocol),
-
-		// OpenVPN Certificates and Keys
-		ServerCrt:       nilIfEmpty(n.ServerCrt),
-		ServerKey:       nilIfEmpty(n.ServerKey),
-		DhKey:           nilIfEmpty(n.DhKey),
-		SharedClientKey: nilIfEmpty(n.SharedClientKey),
-		SharedClientCrt: nilIfEmpty(n.SharedClientCrt),
-		AuthKey:         nilIfEmpty(n.AuthKey),
-		CaCrt:           nilIfEmpty(n.CaCrt),
-		CaKey:           nilIfEmpty(n.CaKey),
-	})
-}
-
-// Helper functions for field transformations
-
-func orEmptySlice(s []string) []string {
-	if len(s) > 0 {
-		return s
+// networkFieldByWire indexes the generated Network struct by wire name,
+// once. The json tag carries each field's own emission contract, which is
+// what networkFieldValue applies.
+var networkFieldByWire = sync.OnceValue(func() map[string]networkWireField {
+	typ := reflect.TypeFor[Network]()
+	out := make(map[string]networkWireField, typ.NumField())
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if field.PkgPath != "" { // unexported
+			continue
+		}
+		name, opts, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		out[name] = networkWireField{
+			index:     field.Index,
+			omitEmpty: strings.Contains(opts, "omitempty"),
+		}
 	}
-	return []string{}
-}
+	return out
+})
 
-func orEmptyNATSlice(s []NetworkNATOutboundIPAddresses) []NetworkNATOutboundIPAddresses {
-	if len(s) > 0 {
-		return s
+// networkFieldValue applies the generated declaration's emission rule to one
+// field, with the measured exceptions layered on:
+//
+//   - an optional *string that is empty is absent -- omitting clears the
+//     stored value just the same, and several fields reject "" outright
+//     (measured by TestIntegrationClearingSemantics) -- except the
+//     networkClearableSlots, where "" is the only way to clear;
+//   - networkEmptyStringOmitted drops the empty for two unconditional
+//     strings still awaiting measurement;
+//   - networkAlwaysArrays sends [] where the controller demands an array.
+//
+// Everything else is exactly what marshalling the generated struct would do.
+func networkFieldValue(wire string, fv reflect.Value, omitEmpty bool) (any, bool) {
+	switch fv.Kind() {
+	case reflect.Pointer:
+		if fv.IsNil() {
+			return nil, !omitEmpty
+		}
+		if s, ok := fv.Interface().(*string); ok && *s == "" && !networkClearableSlots[wire] {
+			return nil, false
+		}
+		return fv.Interface(), true
+	case reflect.String:
+		s := fv.String()
+		if s == "" && (omitEmpty || networkEmptyStringOmitted[wire]) {
+			return nil, false
+		}
+		return s, true
+	case reflect.Bool:
+		b := fv.Bool()
+		return b, b || !omitEmpty
+	case reflect.Slice:
+		if networkAlwaysArrays[wire] {
+			if fv.Len() == 0 {
+				return reflect.MakeSlice(fv.Type(), 0, 0).Interface(), true
+			}
+			return fv.Interface(), true
+		}
+		return fv.Interface(), fv.Len() > 0 || !omitEmpty
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		i := fv.Int()
+		return i, i != 0 || !omitEmpty
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		u := fv.Uint()
+		return u, u != 0 || !omitEmpty
+	case reflect.Float32, reflect.Float64:
+		f := fv.Float()
+		return f, f != 0 || !omitEmpty
+	default:
+		return fv.Interface(), true
 	}
-	return []NetworkNATOutboundIPAddresses{}
 }
 
-func orEmptyWANDHCPOptions(s []NetworkWANDHCPOptions) []NetworkWANDHCPOptions {
-	if len(s) > 0 {
-		return s
-	}
-	return []NetworkWANDHCPOptions{}
-}
-
-func nilIfEmpty(s *string) *string {
-	if s != nil && *s == "" {
-		return nil
-	}
-	return s
-}
-
-func derefOrEmpty(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
+// dhcpRange derives the controller's default DHCP range for a subnet.
 func dhcpRange(cidr string) (start, end string, err error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -1237,11 +541,4 @@ func dhcpRange(cidr string) (start, end string, err error) {
 	}).String()
 
 	return start, end, nil
-}
-
-func valueOrDefault[T any](in *T, defaultValue T) *T {
-	if in == nil {
-		return &defaultValue
-	}
-	return in
 }
