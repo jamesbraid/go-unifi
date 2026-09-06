@@ -34,7 +34,7 @@ type OSPFRouter struct {
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
 	AnnounceDefaultRoute                  bool                   `json:"announce_default_route"`
-	Areas                                 []OSPFRouterAreas      `json:"areas,omitempty"`
+	Areas                                 []OSPFRouterAreas      `json:"areas"`
 	Enabled                               bool                   `json:"enabled"`
 	Interfaces                            []OSPFRouterInterfaces `json:"interfaces,omitempty"`
 	RedistributeBgpRoutes                 bool                   `json:"redistribute_bgp_routes"`
@@ -42,7 +42,7 @@ type OSPFRouter struct {
 	RedistributeConnectedRoutesMetricType string                 `json:"redistribute_connected_routes_metric_type,omitempty"`
 	RedistributeStaticRoutes              bool                   `json:"redistribute_static_routes"`
 	RedistributeStaticRoutesMetricType    string                 `json:"redistribute_static_routes_metric_type,omitempty"`
-	RouterID                              string                 `json:"router_id,omitempty"`
+	RouterID                              string                 `json:"router_id"`
 }
 
 func (dst *OSPFRouter) UnmarshalJSON(b []byte) error {
