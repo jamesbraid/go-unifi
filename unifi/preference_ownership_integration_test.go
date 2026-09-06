@@ -28,7 +28,7 @@ import (
 // directly would report the addressing as owned. Comparing each arm to its
 // own request removes the addressing and leaves the mode.
 type preferenceProbe struct {
-	resource string    // struct name, keying into overrides/fields.toml
+	resource string    // struct name, keying into the recorded ownership
 	mode     string    // wire name of the auto|manual field, relative to container
 	path     string    // endpoint, relative to /api/s/<site>/
 	kind     probeKind // how to write it
@@ -180,26 +180,26 @@ var networkPreferenceProbes = []preferenceProbe{
 	},
 }
 
-// Two of the sixteen auto|manual fields in the generated client are not
-// probed here, and neither is an oversight:
+// One of the sixteen auto|manual fields in the generated client is not
+// probed here, and it is not an oversight:
 //
 //	Device.setting_preference        nested in port_overrides
-//	SettingUsg.setting_preference    nested in dns_verification
 //
-// Both sit inside a sub-object rather than on the resource itself, so a
-// [Resource.preference.<wire>] key cannot name them and the generator's
-// validation -- which resolves against top-level fields -- would reject the
-// entry. Addressing nested modes needs a path syntax in the table, which is
-// a schema change worth making deliberately rather than smuggling in with a
-// measurement. Device additionally needs an adopted device to write against.
+// It needs an adopted device to write against, which this sweep does not
+// have. TestIntegrationDevicePortOverridePreference measures it on the
+// adopted-device harness, and its answer lives as a residual entry in
+// overrides/fields.toml, because only this sweep writes the artifact.
 
 // TestIntegrationPreferenceOwnership measures what each auto|manual mode
-// field takes over, and checks the answer against overrides/fields.toml.
+// field takes over, and checks the answer against the recorded ownership:
+// schemas/behavior.json merged with the residual overrides/fields.toml
+// entries, which is exactly what the generator ships.
 //
-// A mode field with no entry there is reported with the TOML to paste, so
-// adding a resource is: write a payload, run this, paste the result. A mode
-// field whose entry disagrees with the controller fails -- either the
-// controller changed or the table was wrong, and both are worth stopping for.
+// A mode field with no entry recorded is reported, and re-running on the
+// standalone harness with BEHAVIOR_WRITE=1 records it, so adding a resource
+// is: write a payload, run this, re-run to record. A mode field whose entry
+// disagrees with the controller fails -- either the controller changed or
+// the record was wrong, and both are worth stopping for.
 func TestIntegrationPreferenceOwnership(t *testing.T) {
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -207,27 +207,15 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 
 	recorded, err := fields.LoadPreferences()
 	if err != nil {
-		t.Fatalf("load overrides/fields.toml: %v", err)
+		t.Fatalf("load the recorded ownership: %v", err)
 	}
 
-	// schemas/behavior.json is the versioned home for these measurements;
-	// the TOML table above still feeds the generator and keeps its
-	// assertions until that consumer moves over. BEHAVIOR_WRITE=1
-	// re-measures the artifact -- standalone harness only, because the
-	// artifact records the standalone controller's answers and UniFi OS
-	// pins fields it does not. An ordinary standalone run compares against
-	// the artifact where it has an entry and skips silently where it does
-	// not, so a checkout that predates the artifact still runs.
+	// BEHAVIOR_WRITE=1 re-measures the artifact -- standalone harness only,
+	// because the artifact records the standalone controller's answers and
+	// UniFi OS pins fields it does not (those land in uos_excludes in
+	// overrides/fields.toml instead).
 	root := fields.ModuleRoot()
 	writeArtifact := os.Getenv("BEHAVIOR_WRITE") == "1" && !onUOSHarness()
-	var artifactOwnership map[string]map[string][]string
-	if os.Getenv("BEHAVIOR_WRITE") == "" && !onUOSHarness() && root != "" {
-		a, _, err := behavior.Load(root)
-		if err != nil {
-			t.Fatalf("load %s: %v", behavior.Path, err)
-		}
-		artifactOwnership = a.Ownership
-	}
 
 	// Collected inside the subtests and written once after the loop.
 	// Subtests run sequentially, so plain appends are safe.
@@ -284,23 +272,16 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 
 			if writeArtifact {
 				measurements = append(measurements, measuredOwnership{probe.resource, probe.key(), owned})
-			} else if want, ok := artifactOwnership[probe.resource][probe.key()]; ok {
-				if diff := ownershipDiff(want, owned); diff != "" {
-					t.Errorf("%s.%s ownership no longer matches %s:\n%s\n"+
-						"The controller's behaviour moved or the artifact is stale. Understand the "+
-						"change, then re-run with BEHAVIOR_WRITE=1 to record it.",
-						probe.resource, probe.key(), behavior.Path, diff)
-				}
 			}
 
 			entry, ok := recorded[probe.resource][probe.key()]
 			if !ok {
-				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s) on %s; add to "+
-					"overrides/fields.toml:\n\n%s\nRun the other harness before trusting this as the "+
-					"whole answer: UniFi OS pins fields the standalone controller leaves to manual "+
-					"mode, and anything it pins belongs in uos_excludes.",
-					probe.resource, probe.key(), len(owned), harnessName(),
-					preferenceTOML(probe, owned, controllerVersion(ctx, t, s)))
+				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s) on %s; re-run on the "+
+					"standalone harness with BEHAVIOR_WRITE=1 to record it in %s. Then run the UniFi OS "+
+					"harness before trusting that as the whole answer: UniFi OS pins fields the "+
+					"standalone controller leaves to manual mode, and anything it pins belongs in "+
+					"uos_excludes in overrides/fields.toml.",
+					probe.resource, probe.key(), len(owned), harnessName(), behavior.Path)
 				return
 			}
 
@@ -309,19 +290,19 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 			// leaves to manual mode, and reports the same version while
 			// doing it. Compare against the answer for the harness actually
 			// under test.
-			// The table records one controller version's answer. Comparing a
+			// The record holds one controller version's answer. Comparing a
 			// different build against it is a category error -- it is how a
 			// 10.5.67-bundling UOS run filed a 10.6.101 behaviour change as
 			// platform difference. The live version decides, so this is a
-			// live-observation skip, not a baked-in one; the per-version
-			// artifact is the cross-version record.
+			// live-observation skip, not a baked-in one.
 			if live := controllerVersion(ctx, t, s); entry.Measured != "" && entry.Measured != live {
-				t.Skipf("table measured on %s, controller is %s; nothing to compare", entry.Measured, live)
+				t.Skipf("recorded on %s, controller is %s; nothing to compare", entry.Measured, live)
 			}
 			want := entry.OwnsOn(onUOSHarness())
 			if diff := comparePreference(want, owned, manual); diff != "" {
-				t.Errorf("%s.%s ownership no longer matches overrides/fields.toml (harness: %s):\n%s\n\n"+
-					"The controller's behaviour moved or the table was wrong. Re-measure before editing it.",
+				t.Errorf("%s.%s ownership no longer matches the recorded measurement (harness: %s):\n%s\n\n"+
+					"The controller's behaviour moved or the record was wrong. Re-measure "+
+					"(BEHAVIOR_WRITE=1 on the standalone harness) rather than editing by hand.",
 					probe.resource, probe.key(), harnessName(), diff)
 			}
 		})
@@ -518,32 +499,6 @@ func comparePreference(recorded, measured []string, refusedUnderManual map[strin
 	return b.String()
 }
 
-// ownershipDiff renders the difference between the artifact's recorded
-// ownership and the measured set, or "" when they agree.
-func ownershipDiff(recorded, measured []string) string {
-	has := func(list []string, wire string) bool {
-		for _, w := range list {
-			if w == wire {
-				return true
-			}
-		}
-		return false
-	}
-
-	var b strings.Builder
-	for _, wire := range measured {
-		if !has(recorded, wire) {
-			fmt.Fprintf(&b, "  + %s (measured as owned; the artifact does not say so)\n", wire)
-		}
-	}
-	for _, wire := range recorded {
-		if !has(measured, wire) {
-			fmt.Fprintf(&b, "  - %s (the artifact says owned; not measured this run)\n", wire)
-		}
-	}
-	return b.String()
-}
-
 // onUOSHarness reports whether this run targets the UniFi OS harness, which
 // answers differently from the standalone controller for some fields.
 func onUOSHarness() bool {
@@ -567,33 +522,6 @@ func (p preferenceProbe) key() string {
 		return p.mode
 	}
 	return p.container + "." + p.mode
-}
-
-// quoteKeyIfNested quotes a dotted key. An unquoted one is read by TOML as
-// nested tables and decodes into an entry that owns nothing.
-func quoteKeyIfNested(key string) string {
-	if strings.Contains(key, ".") {
-		return fmt.Sprintf("%q", key)
-	}
-	return key
-}
-
-// preferenceTOML renders a measured set as the overrides/fields.toml entry to
-// paste, so recording a result is copying rather than transcribing.
-func preferenceTOML(p preferenceProbe, owned []string, version string) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "[%s.preference.%s]\n", p.resource, quoteKeyIfNested(p.key()))
-	if len(owned) == 0 {
-		b.WriteString("owns = []\n")
-	} else {
-		b.WriteString("owns = [\n")
-		for _, wire := range owned {
-			fmt.Fprintf(&b, "  %q,\n", wire)
-		}
-		b.WriteString("]\n")
-	}
-	fmt.Fprintf(&b, "measured = %q\n", version)
-	return b.String()
 }
 
 // corporatePreferencePayload is the corporate advanced block, wider than the

@@ -9,21 +9,22 @@ import (
 )
 
 func TestGeneratePreferenceFile(t *testing.T) {
-	overrides := map[string]resourceOverride{
-		"Thing": {Preference: map[string]fields.Preference{
+	tables := map[string]map[string]fields.Preference{
+		"Thing": {
 			"setting_preference": {Owns: []string{"beta", "alpha"}, Measured: "10.4.57"},
-		}},
+		},
 		// A measured empty set has to survive into the generated map: it
 		// says "probed, owns nothing", which is not the same as absent.
-		"Quiet": {Preference: map[string]fields.Preference{
+		"Quiet": {
 			"setting_preference": {Measured: "10.4.57"},
-		}},
-		"NoPreferences": {Field: map[string]fieldOverride{"x": {Name: "X"}}},
+		},
 	}
 
 	var out []byte
-	withOverrides(t, overrides, func() {
+	withPreferences(t, tables, func() {
 		var err error
+		// NoPreferences is generated but owns no entry, so it must not be
+		// emitted.
 		out, err = generatePreferenceFile(map[string]bool{"Thing": true, "Quiet": true, "NoPreferences": true})
 		require.NoError(t, err)
 	})
@@ -39,17 +40,17 @@ func TestGeneratePreferenceFile(t *testing.T) {
 	require.Less(t, indexOf(src, `"alpha"`), indexOf(src, `"beta"`))
 }
 
-// TestGeneratePreferenceFileRejectsVanishedResource covers a table left
-// behind after a resource leaves the schema. Emitting it would produce a map
-// entry describing an object the SDK no longer has.
+// TestGeneratePreferenceFileRejectsVanishedResource covers an ownership
+// record left behind after a resource leaves the schema. Emitting it would
+// produce a map entry describing an object the SDK no longer has.
 func TestGeneratePreferenceFileRejectsVanishedResource(t *testing.T) {
-	overrides := map[string]resourceOverride{
-		"Gone": {Preference: map[string]fields.Preference{
+	tables := map[string]map[string]fields.Preference{
+		"Gone": {
 			"setting_preference": {Owns: []string{"alpha"}},
-		}},
+		},
 	}
 
-	withOverrides(t, overrides, func() {
+	withPreferences(t, tables, func() {
 		_, err := generatePreferenceFile(map[string]bool{})
 		require.ErrorContains(t, err, "which this run did not generate")
 	})
@@ -72,13 +73,13 @@ func TestDescribePreferenceNamesSpecAttributes(t *testing.T) {
 		"IPV6RAEnabled":         NewFieldInfo("IPV6RAEnabled", "ipv6_ra_enabled", "bool", "", false, false, false, ""),
 	})
 
-	overrides := map[string]resourceOverride{
-		"Thing": {Preference: map[string]fields.Preference{
+	tables := map[string]map[string]fields.Preference{
+		"Thing": {
 			"ipv6_setting_preference": {Owns: []string{"ipv6_ra_enabled"}, Measured: "10.4.57"},
-		}},
+		},
 	}
 
-	withOverrides(t, overrides, func() {
+	withPreferences(t, tables, func() {
 		mode := &resource.Attribute{Name: "x", String: &resource.StringAttribute{}}
 		describePreference(r, "", r.Types["Thing"].Fields["IPV6SettingPreference"], mode)
 		require.NotNil(t, mode.String.Description)

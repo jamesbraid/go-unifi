@@ -33,16 +33,17 @@ type fieldOverride struct {
 }
 
 // resourceOverride is one [Resource] table from overrides/fields.toml.
-//
-// Preference entries are typed in internal/fields because the integration
-// test reads them back out of the same file; see fields.Preference.
 type resourceOverride struct {
 	Path string `toml:"path"`
 	// ListPath overrides the collection path for the list call alone. The
 	// v2 network members group needs it: every other verb is served by the
 	// singular path, and only the list is served by the plural one.
-	ListPath   string                       `toml:"list_path"`
-	Field      map[string]fieldOverride     `toml:"field"`
+	ListPath string                   `toml:"list_path"`
+	Field    map[string]fieldOverride `toml:"field"`
+	// Preference is decoded here only so the residual ownership entries pass
+	// the undecoded-key check below. Every consumer reads them through
+	// fields.LoadPreferences, which merges schemas/behavior.json's measured
+	// ownership over them; see preferenceTables.
 	Preference map[string]fields.Preference `toml:"preference"`
 }
 
@@ -119,7 +120,9 @@ func (r *ResourceInfo) applyOverrides() error {
 			return err
 		}
 	}
-	return nil
+	// After every override is in, so the ownership entries are checked
+	// against the struct the generator actually emits.
+	return r.validatePreferences(preferenceTables()[r.StructName])
 }
 
 func (r *ResourceInfo) applyOverrideToType(typeName string, override resourceOverride) error {
@@ -242,24 +245,26 @@ func (r *ResourceInfo) applyOverrideToType(typeName string, override resourceOve
 		seenJSON[f.JSONName] = f.FieldName
 	}
 
-	return r.validatePreferences(override)
+	return nil
 }
 
-// validatePreferences checks that every wire name in a [Resource.preference.*]
-// table resolves to a field the generator emits.
+// validatePreferences checks that every wire name in the resource's merged
+// ownership entries resolves to a field the generator emits.
 //
-// A misspelled entry would otherwise own nothing and say nothing -- the same
-// silent failure these tables exist to document, reproduced in the tool that
-// documents it. Fields are matched after removals and adds, so the names must
-// match the struct the generator actually emits.
+// A misspelled residual entry would otherwise own nothing and say nothing --
+// the same silent failure these tables exist to document, reproduced in the
+// tool that documents it -- and a schema change that drops a field the
+// artifact still records must stop generation rather than emit a name the
+// struct no longer has. Fields are matched after removals and adds, so the
+// names must match the struct the generator actually emits.
 //
 // A key may name a mode nested inside a sub-object, as
 // "port_overrides.setting_preference". Everything in owns is then resolved in
 // that same sub-object: a mode governs its own object, and for an array
 // container there is no single path to a sibling anyway, because ownership
 // holds per element.
-func (r *ResourceInfo) validatePreferences(override resourceOverride) error {
-	for _, key := range slices.Sorted(maps.Keys(override.Preference)) {
+func (r *ResourceInfo) validatePreferences(prefs map[string]fields.Preference) error {
+	for _, key := range slices.Sorted(maps.Keys(prefs)) {
 		container, mode := splitPreferenceKey(key)
 
 		scope, err := r.resolveContainer(container)
@@ -271,7 +276,7 @@ func (r *ResourceInfo) validatePreferences(override resourceOverride) error {
 			return fmt.Errorf("%s preference %q: no such field on %s",
 				r.StructName, key, containerLabel(r.StructName, container))
 		}
-		for _, owned := range override.Preference[key].Owns {
+		for _, owned := range prefs[key].Owns {
 			if strings.Contains(owned, ".") {
 				return fmt.Errorf("%s preference %q: owns %q, but owned names are relative to %s "+
 					"-- a mode governs its own object",
@@ -292,14 +297,14 @@ func (r *ResourceInfo) validatePreferences(override resourceOverride) error {
 		// "measured" decodes to empty without error, and the generated file
 		// does not carry the value, so the provenance can vanish without
 		// changing a single byte of output.
-		if strings.TrimSpace(override.Preference[key].Measured) == "" {
+		if strings.TrimSpace(prefs[key].Measured) == "" {
 			return fmt.Errorf("%s preference %q: no measured build. Record the controller version "+
 				"the set was measured against (measured = \"10.4.57\"); an ownership set with no "+
 				"provenance reads as current forever", r.StructName, key)
 		}
 
-		for _, excluded := range override.Preference[key].UOSExcludes {
-			if !slices.Contains(override.Preference[key].Owns, excluded) {
+		for _, excluded := range prefs[key].UOSExcludes {
+			if !slices.Contains(prefs[key].Owns, excluded) {
 				return fmt.Errorf("%s preference %q: uos_excludes names %q, which is not in owns. "+
 					"An exclusion says the console takes a field the mode owns elsewhere, so one "+
 					"that names an unowned field describes nothing",

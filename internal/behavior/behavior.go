@@ -29,8 +29,10 @@ type Artifact struct {
 
 	// Ownership: per resource, per preference mode field, the wire names the
 	// controller silently manages when that mode is set -- accepted on write,
-	// stored as the controller's own value, never reported. Replaces the
-	// hand-pasted "owns" blocks in overrides/fields.toml.
+	// stored as the controller's own value, never reported. The generator
+	// derives unifi/preference.generated.go from this; overrides/fields.toml
+	// keeps only what this map has no slot for (an unswept mode, the UniFi
+	// OS exclusions).
 	Ownership map[string]map[string][]string `json:"ownership,omitempty"`
 
 	// Discarded: per resource, wire names the controller accepts on create

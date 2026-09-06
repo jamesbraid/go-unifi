@@ -7,13 +7,34 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-codegen-spec/resource"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
+var (
+	preferenceTablesOnce sync.Once
+	preferenceTablesMap  map[string]map[string]fields.Preference
+)
+
+// preferenceTables lazily loads the measured ownership tables: the ownership
+// section of schemas/behavior.json, merged with the residual
+// overrides/fields.toml entries the artifact cannot record (see
+// fields.LoadPreferences).
+func preferenceTables() map[string]map[string]fields.Preference {
+	preferenceTablesOnce.Do(func() {
+		tables, err := fields.LoadPreferences()
+		if err != nil {
+			panic(err)
+		}
+		preferenceTablesMap = tables
+	})
+	return preferenceTablesMap
+}
+
 // generatePreferenceFile renders the measured auto|manual ownership tables
-// from overrides/fields.toml into a Go map consumers can read at runtime.
+// into a Go map consumers can read at runtime.
 //
 // The tables are the only record of which fields a controller takes over on
 // "auto"; nothing in the schema describes it. Emitting them here means a
@@ -21,18 +42,19 @@ import (
 // value at plan time, say -- can read the measured answer instead of keeping
 // a hand-copied list that nothing checks.
 func generatePreferenceFile(generated map[string]bool) ([]byte, error) {
-	overrides := resourceOverrides()
+	tables := preferenceTables()
 
 	var body bytes.Buffer
-	for _, resource := range slices.Sorted(maps.Keys(overrides)) {
-		prefs := overrides[resource].Preference
+	for _, resource := range slices.Sorted(maps.Keys(tables)) {
+		prefs := tables[resource]
 		if len(prefs) == 0 {
 			continue
 		}
 		if !generated[resource] {
 			return nil, fmt.Errorf(
-				"overrides/fields.toml has a preference table for %s, which this run did not generate; "+
-					"the resource left the schema, so remove the table or restore the resource", resource)
+				"ownership is recorded for %s, which this run did not generate; the resource left the "+
+					"schema, so re-measure schemas/behavior.json (or drop the overrides/fields.toml entry) "+
+					"or restore the resource", resource)
 		}
 
 		fmt.Fprintf(&body, "\t%q: {\n", resource)
@@ -169,7 +191,7 @@ func describePreference(r *ResourceInfo, container string, field *FieldInfo, att
 	if field == nil || attr == nil {
 		return
 	}
-	prefs := resourceOverrides()[r.StructName].Preference
+	prefs := preferenceTables()[r.StructName]
 	if len(prefs) == 0 {
 		return
 	}
