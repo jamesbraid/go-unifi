@@ -53,7 +53,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"key":         ".{1,128}",
 		"port":        "[1-9][0-9]{0,4}",
 		"priority":    ".{1,128}",
-		"record_type": "A|AAAA|CNAME|MX|NS|PTR|SOA|SRV|TXT",
+		"record_type": "A|AAAA|CNAME|MX|NS|SRV|TXT",
 		"value":       ".{1,256}",
 	},
 	"Device": {
@@ -286,25 +286,26 @@ var FieldValidationPatterns = map[string]map[string]string{
 	"FirewallPolicy": {
 		"action":                "ALLOW|BLOCK|REJECT",
 		"connection_state_type": "ALL|RESPOND_ONLY|CUSTOM",
-		"icmp_typename":         "ANY|SPECIFIC|LIST|OBJECT",
-		"icmp_v6_typename":      "ANY|SPECIFIC|LIST|OBJECT",
+		"connection_states":     "NEW|INVALID|ESTABLISHED|RELATED",
+		"icmp_typename":         "ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|ANY",
+		"icmp_v6_typename":      "ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION|ANY",
 		"index":                 "[1-9][0-9]+",
 		"ip_version":            "BOTH|IPV4|IPV6",
 		"protocol":              "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax\\.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6",
 	},
 	"FirewallPolicyDestination": {
-		"matching_target":      "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
-		"matching_target_type": "ANY|SPECIFIC|LIST|OBJECT",
-		"port_matching_type":   "ANY|SPECIFIC|LIST|OBJECT",
+		"matching_target":      "ANY|APP|APP_CATEGORY|IID|IP|NETWORK|REGION|WEB",
+		"matching_target_type": "SPECIFIC|OBJECT",
+		"port_matching_type":   "ANY|SPECIFIC|OBJECT",
 	},
 	"FirewallPolicySchedule": {
 		"mode":           "ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY|CUSTOM",
 		"repeat_on_days": "mon|tue|wed|thu|fri|sat|sun",
 	},
 	"FirewallPolicySource": {
-		"matching_target":      "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY",
-		"matching_target_type": "ANY|SPECIFIC|LIST|OBJECT",
-		"port_matching_type":   "ANY|SPECIFIC|LIST|OBJECT",
+		"matching_target":      "ANY|CLIENT|EXTERNAL_SOURCE|IID|IP|MAC|NETWORK|REGION|USER_IDENTITY|USER_IDENTITY_ONE_CLICK_VPN|USER_IDENTITY_ONE_CLICK_WIFI|VPN_USER",
+		"matching_target_type": "SPECIFIC|OBJECT",
+		"port_matching_type":   "ANY|SPECIFIC|OBJECT",
 	},
 	"FirewallRule": {
 		"action":                "drop|reject|accept",
@@ -398,11 +399,11 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"type":               "DNAT|SNAT|MASQUERADE",
 	},
 	"NatDestinationFilter": {
-		"filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF",
+		"filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT",
 		"port":        "[1-9][0-9]{0,4}",
 	},
 	"NatSourceFilter": {
-		"filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF",
+		"filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT",
 		"port":        "[1-9][0-9]{0,4}",
 	},
 	"Network": {
@@ -570,6 +571,9 @@ var FieldValidationPatterns = map[string]map[string]string{
 		"download_kilobits_per_second": "^[1-9][0-9]*$",
 		"upload_kilobits_per_second":   "^[1-9][0-9]*$",
 	},
+	"OSPFRouterAreas": {
+		"area_type": "normal|nssa|stub",
+	},
 	"PortForward": {
 		"destination_ip":    "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^any$",
 		"dst_port":          "(([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])|([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])-([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]))+(,([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])|,([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])-([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])){0,14}",
@@ -672,7 +676,7 @@ var FieldValidationPatterns = map[string]map[string]string{
 	},
 	"TrafficRoute": {
 		"description":     ".{0,128}",
-		"matching_target": "DOMAIN|IP|INTERNET",
+		"matching_target": "DOMAIN|IP|INTERNET|REGION",
 	},
 	"TrafficRouteDomains": {
 		"domain": ".{1,256}",
@@ -861,7 +865,7 @@ const (
 )
 
 // DNSRecordRecordTypeValues are the values the controller accepts for DNSRecord.record_type.
-var DNSRecordRecordTypeValues = []string{"A", "AAAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"}
+var DNSRecordRecordTypeValues = []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"}
 
 // DNSRecordValueMinLength and DNSRecordValueMaxLength are the character-count bounds the controller accepts for DNSRecord.value.
 const (
@@ -1472,23 +1476,26 @@ var FirewallPolicyActionValues = []string{"ALLOW", "BLOCK", "REJECT"}
 // FirewallPolicyConnectionStateTypeValues are the values the controller accepts for FirewallPolicy.connection_state_type.
 var FirewallPolicyConnectionStateTypeValues = []string{"ALL", "RESPOND_ONLY", "CUSTOM"}
 
+// FirewallPolicyConnectionStatesValues are the values the controller accepts for FirewallPolicy.connection_states.
+var FirewallPolicyConnectionStatesValues = []string{"NEW", "INVALID", "ESTABLISHED", "RELATED"}
+
 // FirewallPolicyICMPTypenameValues are the values the controller accepts for FirewallPolicy.icmp_typename.
-var FirewallPolicyICMPTypenameValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicyICMPTypenameValues = []string{"ADDRESS_MASK_REPLY", "ADDRESS_MASK_REQUEST", "COMMUNICATION_PROHIBITED", "DESTINATION_UNREACHABLE", "ECHO_REPLY", "ECHO_REQUEST", "FRAGMENTATION_NEEDED", "HOST_PRECEDENCE_VIOLATION", "HOST_PROHIBITED", "HOST_REDIRECT", "HOST_UNKNOWN", "HOST_UNREACHABLE", "IP_HEADER_BAD", "NETWORK_PROHIBITED", "NETWORK_REDIRECT", "NETWORK_UNKNOWN", "NETWORK_UNREACHABLE", "PARAMETER_PROBLEM", "PORT_UNREACHABLE", "PRECEDENCE_CUTOFF", "PROTOCOL_UNREACHABLE", "REDIRECT", "REQUIRED_OPTION_MISSING", "ROUTER_ADVERTISEMENT", "ROUTER_SOLICITATION", "SOURCE_QUENCH", "SOURCE_ROUTE_FAILED", "TIME_EXCEEDED", "TIMESTAMP_REPLY", "TIMESTAMP_REQUEST", "TOS_HOST_REDIRECT", "TOS_HOST_UNREACHABLE", "TOS_NETWORK_REDIRECT", "TOS_NETWORK_UNREACHABLE", "TTL_ZERO_DURING_REASSEMBLY", "TTL_ZERO_DURING_TRANSIT", "ANY"}
 
 // FirewallPolicyICMPV6TypenameValues are the values the controller accepts for FirewallPolicy.icmp_v6_typename.
-var FirewallPolicyICMPV6TypenameValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicyICMPV6TypenameValues = []string{"ADDRESS_UNREACHABLE", "BAD_HEADER", "BEYOND_SCOPE", "COMMUNICATION_PROHIBITED", "DESTINATION_UNREACHABLE", "ECHO_REPLY", "ECHO_REQUEST", "FAILED_POLICY", "NEIGHBOR_ADVERTISEMENT", "NEIGHBOR_SOLICITATION", "NO_ROUTE", "PACKET_TOO_BIG", "PARAMETER_PROBLEM", "PORT_UNREACHABLE", "REDIRECT", "REJECT_ROUTE", "ROUTER_ADVERTISEMENT", "ROUTER_SOLICITATION", "TIME_EXCEEDED", "TTL_ZERO_DURING_REASSEMBLY", "TTL_ZERO_DURING_TRANSIT", "UNKNOWN_HEADER_TYPE", "UNKNOWN_OPTION", "ANY"}
 
 // FirewallPolicyVersionValues are the values the controller accepts for FirewallPolicy.ip_version.
 var FirewallPolicyVersionValues = []string{"BOTH", "IPV4", "IPV6"}
 
 // FirewallPolicyDestinationMatchingTargetValues are the values the controller accepts for FirewallPolicyDestination.matching_target.
-var FirewallPolicyDestinationMatchingTargetValues = []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}
+var FirewallPolicyDestinationMatchingTargetValues = []string{"ANY", "APP", "APP_CATEGORY", "IID", "IP", "NETWORK", "REGION", "WEB"}
 
 // FirewallPolicyDestinationMatchingTargetTypeValues are the values the controller accepts for FirewallPolicyDestination.matching_target_type.
-var FirewallPolicyDestinationMatchingTargetTypeValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicyDestinationMatchingTargetTypeValues = []string{"SPECIFIC", "OBJECT"}
 
 // FirewallPolicyDestinationPortMatchingTypeValues are the values the controller accepts for FirewallPolicyDestination.port_matching_type.
-var FirewallPolicyDestinationPortMatchingTypeValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicyDestinationPortMatchingTypeValues = []string{"ANY", "SPECIFIC", "OBJECT"}
 
 // FirewallPolicyScheduleModeValues are the values the controller accepts for FirewallPolicySchedule.mode.
 var FirewallPolicyScheduleModeValues = []string{"ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY", "CUSTOM"}
@@ -1497,13 +1504,13 @@ var FirewallPolicyScheduleModeValues = []string{"ALWAYS", "EVERY_DAY", "EVERY_WE
 var FirewallPolicyScheduleRepeatOnDaysValues = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 
 // FirewallPolicySourceMatchingTargetValues are the values the controller accepts for FirewallPolicySource.matching_target.
-var FirewallPolicySourceMatchingTargetValues = []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}
+var FirewallPolicySourceMatchingTargetValues = []string{"ANY", "CLIENT", "EXTERNAL_SOURCE", "IID", "IP", "MAC", "NETWORK", "REGION", "USER_IDENTITY", "USER_IDENTITY_ONE_CLICK_VPN", "USER_IDENTITY_ONE_CLICK_WIFI", "VPN_USER"}
 
 // FirewallPolicySourceMatchingTargetTypeValues are the values the controller accepts for FirewallPolicySource.matching_target_type.
-var FirewallPolicySourceMatchingTargetTypeValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicySourceMatchingTargetTypeValues = []string{"SPECIFIC", "OBJECT"}
 
 // FirewallPolicySourcePortMatchingTypeValues are the values the controller accepts for FirewallPolicySource.port_matching_type.
-var FirewallPolicySourcePortMatchingTypeValues = []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}
+var FirewallPolicySourcePortMatchingTypeValues = []string{"ANY", "SPECIFIC", "OBJECT"}
 
 // FirewallRuleActionValues are the values the controller accepts for FirewallRule.action.
 var FirewallRuleActionValues = []string{"drop", "reject", "accept"}
@@ -1692,7 +1699,7 @@ var NatSettingPreferenceValues = []string{"auto", "manual"}
 var NatTypeValues = []string{"DNAT", "SNAT", "MASQUERADE"}
 
 // NatDestinationFilterFilterTypeValues are the values the controller accepts for NatDestinationFilter.filter_type.
-var NatDestinationFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}
+var NatDestinationFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF", "IID_AND_PORT"}
 
 // NatDestinationFilterPortMin and NatDestinationFilterPortMax are the inclusive bounds the controller accepts for NatDestinationFilter.port.
 const (
@@ -1701,7 +1708,7 @@ const (
 )
 
 // NatSourceFilterFilterTypeValues are the values the controller accepts for NatSourceFilter.filter_type.
-var NatSourceFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}
+var NatSourceFilterFilterTypeValues = []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF", "IID_AND_PORT"}
 
 // NatSourceFilterPortMin and NatSourceFilterPortMax are the inclusive bounds the controller accepts for NatSourceFilter.port.
 const (
@@ -2039,6 +2046,9 @@ const (
 	NetworkWANDHCPOptionsOptionNumberMax int64 = 254
 )
 
+// OSPFRouterAreasAreaTypeValues are the values the controller accepts for OSPFRouterAreas.area_type.
+var OSPFRouterAreasAreaTypeValues = []string{"normal", "nssa", "stub"}
+
 // PortForwardNameMinLength and PortForwardNameMaxLength are the character-count bounds the controller accepts for PortForward.name.
 const (
 	PortForwardNameMinLength int64 = 1
@@ -2241,7 +2251,7 @@ const (
 )
 
 // TrafficRouteMatchingTargetValues are the values the controller accepts for TrafficRoute.matching_target.
-var TrafficRouteMatchingTargetValues = []string{"DOMAIN", "IP", "INTERNET"}
+var TrafficRouteMatchingTargetValues = []string{"DOMAIN", "IP", "INTERNET", "REGION"}
 
 // TrafficRouteDomainsDomainMinLength and TrafficRouteDomainsDomainMaxLength are the character-count bounds the controller accepts for TrafficRouteDomains.domain.
 const (
@@ -2600,7 +2610,7 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		"key":         {Pattern: ".{1,128}", MinLength: 1, MaxLength: 128, HasLength: true},
 		"port":        {Pattern: "[1-9][0-9]{0,4}", Min: 1, Max: 99999, HasBounds: true},
 		"priority":    {Pattern: ".{1,128}"},
-		"record_type": {Pattern: "A|AAAA|CNAME|MX|NS|PTR|SOA|SRV|TXT", Values: []string{"A", "AAAA", "CNAME", "MX", "NS", "PTR", "SOA", "SRV", "TXT"}},
+		"record_type": {Pattern: "A|AAAA|CNAME|MX|NS|SRV|TXT", Values: []string{"A", "AAAA", "CNAME", "MX", "NS", "SRV", "TXT"}},
 		"value":       {Pattern: ".{1,256}", MinLength: 1, MaxLength: 256, HasLength: true},
 	},
 	"Device": {
@@ -2833,25 +2843,26 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 	"FirewallPolicy": {
 		"action":                {Pattern: "ALLOW|BLOCK|REJECT", Values: []string{"ALLOW", "BLOCK", "REJECT"}},
 		"connection_state_type": {Pattern: "ALL|RESPOND_ONLY|CUSTOM", Values: []string{"ALL", "RESPOND_ONLY", "CUSTOM"}},
-		"icmp_typename":         {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
-		"icmp_v6_typename":      {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
+		"connection_states":     {Pattern: "NEW|INVALID|ESTABLISHED|RELATED", Values: []string{"NEW", "INVALID", "ESTABLISHED", "RELATED"}},
+		"icmp_typename":         {Pattern: "ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|ANY", Values: []string{"ADDRESS_MASK_REPLY", "ADDRESS_MASK_REQUEST", "COMMUNICATION_PROHIBITED", "DESTINATION_UNREACHABLE", "ECHO_REPLY", "ECHO_REQUEST", "FRAGMENTATION_NEEDED", "HOST_PRECEDENCE_VIOLATION", "HOST_PROHIBITED", "HOST_REDIRECT", "HOST_UNKNOWN", "HOST_UNREACHABLE", "IP_HEADER_BAD", "NETWORK_PROHIBITED", "NETWORK_REDIRECT", "NETWORK_UNKNOWN", "NETWORK_UNREACHABLE", "PARAMETER_PROBLEM", "PORT_UNREACHABLE", "PRECEDENCE_CUTOFF", "PROTOCOL_UNREACHABLE", "REDIRECT", "REQUIRED_OPTION_MISSING", "ROUTER_ADVERTISEMENT", "ROUTER_SOLICITATION", "SOURCE_QUENCH", "SOURCE_ROUTE_FAILED", "TIME_EXCEEDED", "TIMESTAMP_REPLY", "TIMESTAMP_REQUEST", "TOS_HOST_REDIRECT", "TOS_HOST_UNREACHABLE", "TOS_NETWORK_REDIRECT", "TOS_NETWORK_UNREACHABLE", "TTL_ZERO_DURING_REASSEMBLY", "TTL_ZERO_DURING_TRANSIT", "ANY"}},
+		"icmp_v6_typename":      {Pattern: "ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION|ANY", Values: []string{"ADDRESS_UNREACHABLE", "BAD_HEADER", "BEYOND_SCOPE", "COMMUNICATION_PROHIBITED", "DESTINATION_UNREACHABLE", "ECHO_REPLY", "ECHO_REQUEST", "FAILED_POLICY", "NEIGHBOR_ADVERTISEMENT", "NEIGHBOR_SOLICITATION", "NO_ROUTE", "PACKET_TOO_BIG", "PARAMETER_PROBLEM", "PORT_UNREACHABLE", "REDIRECT", "REJECT_ROUTE", "ROUTER_ADVERTISEMENT", "ROUTER_SOLICITATION", "TIME_EXCEEDED", "TTL_ZERO_DURING_REASSEMBLY", "TTL_ZERO_DURING_TRANSIT", "UNKNOWN_HEADER_TYPE", "UNKNOWN_OPTION", "ANY"}},
 		"index":                 {Pattern: "[1-9][0-9]+"},
 		"ip_version":            {Pattern: "BOTH|IPV4|IPV6", Values: []string{"BOTH", "IPV4", "IPV6"}},
 		"protocol":              {Pattern: "all|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|tcp|udp|tcp_udp|ah|ax\\.25|dccp|ddp|egp|eigrp|encap|esp|etherip|fc|ggp|gre|hip|hmp|icmp|idpr-cmtp|idrp|igmp|igp|ip|ipcomp|ipencap|ipip|isis|iso-tp4|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|pup|rdp|rohc|rspf|rsvp|sctp|shim6|skip|st|udplite|vmtp|vrrp|wesp|xns-idp|xtp|ipv6|ipv6-frag|ipv6-nonxt|ipv6-opts|ipv6-route|icmpv6"},
 	},
 	"FirewallPolicyDestination": {
-		"matching_target":      {Pattern: "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY", Values: []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}},
-		"matching_target_type": {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
-		"port_matching_type":   {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
+		"matching_target":      {Pattern: "ANY|APP|APP_CATEGORY|IID|IP|NETWORK|REGION|WEB", Values: []string{"ANY", "APP", "APP_CATEGORY", "IID", "IP", "NETWORK", "REGION", "WEB"}},
+		"matching_target_type": {Pattern: "SPECIFIC|OBJECT", Values: []string{"SPECIFIC", "OBJECT"}},
+		"port_matching_type":   {Pattern: "ANY|SPECIFIC|OBJECT", Values: []string{"ANY", "SPECIFIC", "OBJECT"}},
 	},
 	"FirewallPolicySchedule": {
 		"mode":           {Pattern: "ALWAYS|EVERY_DAY|EVERY_WEEK|ONE_TIME_ONLY|CUSTOM", Values: []string{"ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY", "CUSTOM"}},
 		"repeat_on_days": {Pattern: "mon|tue|wed|thu|fri|sat|sun", Values: []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}},
 	},
 	"FirewallPolicySource": {
-		"matching_target":      {Pattern: "ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY", Values: []string{"ANY", "DEVICE", "IP", "NETWORK", "CLIENT", "MAC", "WEB", "APP", "APP_CATEGORY"}},
-		"matching_target_type": {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
-		"port_matching_type":   {Pattern: "ANY|SPECIFIC|LIST|OBJECT", Values: []string{"ANY", "SPECIFIC", "LIST", "OBJECT"}},
+		"matching_target":      {Pattern: "ANY|CLIENT|EXTERNAL_SOURCE|IID|IP|MAC|NETWORK|REGION|USER_IDENTITY|USER_IDENTITY_ONE_CLICK_VPN|USER_IDENTITY_ONE_CLICK_WIFI|VPN_USER", Values: []string{"ANY", "CLIENT", "EXTERNAL_SOURCE", "IID", "IP", "MAC", "NETWORK", "REGION", "USER_IDENTITY", "USER_IDENTITY_ONE_CLICK_VPN", "USER_IDENTITY_ONE_CLICK_WIFI", "VPN_USER"}},
+		"matching_target_type": {Pattern: "SPECIFIC|OBJECT", Values: []string{"SPECIFIC", "OBJECT"}},
+		"port_matching_type":   {Pattern: "ANY|SPECIFIC|OBJECT", Values: []string{"ANY", "SPECIFIC", "OBJECT"}},
 	},
 	"FirewallRule": {
 		"action":                {Pattern: "drop|reject|accept", Values: []string{"drop", "reject", "accept"}},
@@ -2945,11 +2956,11 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		"type":               {Pattern: "DNAT|SNAT|MASQUERADE", Values: []string{"DNAT", "SNAT", "MASQUERADE"}},
 	},
 	"NatDestinationFilter": {
-		"filter_type": {Pattern: "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF", Values: []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}},
+		"filter_type": {Pattern: "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT", Values: []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF", "IID_AND_PORT"}},
 		"port":        {Pattern: "[1-9][0-9]{0,4}", Min: 1, Max: 99999, HasBounds: true},
 	},
 	"NatSourceFilter": {
-		"filter_type": {Pattern: "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF", Values: []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF"}},
+		"filter_type": {Pattern: "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT", Values: []string{"NONE", "ADDRESS_AND_PORT", "FIREWALL_GROUPS", "NETWORK_CONF", "IID_AND_PORT"}},
 		"port":        {Pattern: "[1-9][0-9]{0,4}", Min: 1, Max: 99999, HasBounds: true},
 	},
 	"Network": {
@@ -3117,6 +3128,9 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		"download_kilobits_per_second": {Pattern: "^[1-9][0-9]*$"},
 		"upload_kilobits_per_second":   {Pattern: "^[1-9][0-9]*$"},
 	},
+	"OSPFRouterAreas": {
+		"area_type": {Pattern: "normal|nssa|stub", Values: []string{"normal", "nssa", "stub"}},
+	},
 	"PortForward": {
 		"destination_ip":    {Pattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^any$"},
 		"dst_port":          {Pattern: "(([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])|([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])-([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5]))+(,([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])|,([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])-([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])){0,14}"},
@@ -3219,7 +3233,7 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 	},
 	"TrafficRoute": {
 		"description":     {Pattern: ".{0,128}", MinLength: 0, MaxLength: 128, HasLength: true},
-		"matching_target": {Pattern: "DOMAIN|IP|INTERNET", Values: []string{"DOMAIN", "IP", "INTERNET"}},
+		"matching_target": {Pattern: "DOMAIN|IP|INTERNET|REGION", Values: []string{"DOMAIN", "IP", "INTERNET", "REGION"}},
 	},
 	"TrafficRouteDomains": {
 		"domain": {Pattern: ".{1,256}", MinLength: 1, MaxLength: 256, HasLength: true},

@@ -37,7 +37,7 @@ type DNSRecord struct {
 	Key        string `json:"key,omitempty"`         // .{1,128}
 	Port       *int64 `json:"port,omitempty"`        // [1-9][0-9]{0,4}
 	Priority   int64  `json:"priority,omitempty"`    // .{1,128}
-	RecordType string `json:"record_type,omitempty"` // A|AAAA|CNAME|MX|NS|PTR|SOA|SRV|TXT
+	RecordType string `json:"record_type,omitempty"` // A|AAAA|CNAME|MX|NS|SRV|TXT
 	Ttl        int64  `json:"ttl,omitempty"`
 	Value      string `json:"value,omitempty"` // .{1,256}
 	Weight     int64  `json:"weight,omitempty"`

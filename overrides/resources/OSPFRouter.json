@@ -3,7 +3,7 @@
     "areas": [
         {
             "area_id": "",
-            "area_type": "",
+            "area_type": "normal|nssa|stub",
             "name": "",
             "network_ids": [
                 ""

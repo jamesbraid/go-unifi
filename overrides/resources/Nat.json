@@ -2,10 +2,11 @@
   "description": "",
   "destination_filter": {
     "address": "",
-    "filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF",
+    "filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT",
     "firewall_group_ids": [
       ""
     ],
+    "iid": "",
     "invert_address": "true|false",
     "invert_port": "true|false",
     "network_conf_id": "",
@@ -26,10 +27,11 @@
   "setting_preference": "auto|manual",
   "source_filter": {
     "address": "",
-    "filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF",
+    "filter_type": "NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT",
     "firewall_group_ids": [
       ""
     ],
+    "iid": "",
     "invert_address": "true|false",
     "invert_port": "true|false",
     "network_conf_id": "",

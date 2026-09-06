@@ -129,6 +129,90 @@ func TestIntegrationFirewallPolicyEnumsMatchTheController(t *testing.T) {
 		})
 	}
 
+	// The nested source and destination objects carry their own enums, and
+	// the two sides accept different matching targets -- the definition used
+	// to share one union list across both, which is how DEVICE (accepted by
+	// neither side) survived in it for so long.
+	for _, tc := range []struct {
+		name      string
+		override  map[string]any
+		generated []string
+	}{
+		{
+			name:      "source.matching_target",
+			override:  map[string]any{"source": map[string]any{"matching_target": "NOT_A_VALID_VALUE_XYZ"}},
+			generated: FirewallPolicySourceMatchingTargetValues,
+		},
+		{
+			name:      "destination.matching_target",
+			override:  map[string]any{"destination": map[string]any{"matching_target": "NOT_A_VALID_VALUE_XYZ"}},
+			generated: FirewallPolicyDestinationMatchingTargetValues,
+		},
+		{
+			name:      "source.matching_target_type",
+			override:  map[string]any{"source": map[string]any{"matching_target": "ANY", "matching_target_type": "NOT_A_VALID_VALUE_XYZ"}},
+			generated: FirewallPolicySourceMatchingTargetTypeValues,
+		},
+		{
+			name:      "source.port_matching_type",
+			override:  map[string]any{"source": map[string]any{"matching_target": "ANY", "port_matching_type": "NOT_A_VALID_VALUE_XYZ"}},
+			generated: FirewallPolicySourcePortMatchingTypeValues,
+		},
+		{
+			name:      "connection_states",
+			override:  map[string]any{"connection_state_type": "CUSTOM", "connection_states": []string{"NOT_A_VALID_VALUE_XYZ"}},
+			generated: FirewallPolicyConnectionStatesValues,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, body := post(tc.override)
+			msg, _ := body["message"].(string)
+			match := enumClassRe.FindStringSubmatch(msg)
+			if match == nil {
+				t.Fatalf("%s: the controller did not answer with an enum class list, so this "+
+					"test cannot read its accepted values. It said: %s", tc.name, msg)
+			}
+			want := strings.Split(match[1], ", ")
+			slices.Sort(want)
+			got := slices.Clone(tc.generated)
+			slices.Sort(got)
+			if !slices.Equal(got, want) {
+				t.Errorf("the generated values for %s are %v; the controller accepts %v.\n\n"+
+					"This is a v2 field, so its definition is hand-maintained in "+
+					"overrides/resources/FirewallPolicy.json -- update it there and "+
+					"regenerate.", tc.name, got, want)
+			}
+		})
+	}
+
+	// The ICMP typenames are not enum-typed on the write DTO: any string
+	// deserializes, and an unknown one is silently coerced to ANY on the
+	// stored object. The generated list is the document's own enum -- the
+	// only values a stored policy can carry -- so what is checkable live is
+	// the mechanism: a real constant survives the round trip, an invented
+	// one comes back ANY.
+	t.Run("icmp_typename", func(t *testing.T) {
+		status, body := post(map[string]any{
+			"protocol": "icmp", "ip_version": "IPV4", "icmp_typename": "ECHO_REQUEST",
+		})
+		if status != 200 && status != 201 {
+			t.Fatalf("icmp policy with ECHO_REQUEST was refused (HTTP %d): %v", status, body["message"])
+		}
+		if got, _ := body["icmp_typename"].(string); got != "ECHO_REQUEST" {
+			t.Errorf("icmp_typename ECHO_REQUEST was stored as %q", got)
+		}
+		status, body = post(map[string]any{
+			"protocol": "icmp", "ip_version": "IPV4", "icmp_typename": "NOT_A_VALID_VALUE_XYZ",
+		})
+		if status != 200 && status != 201 {
+			t.Fatalf("icmp policy with an unknown typename was refused (HTTP %d): %v -- "+
+				"the silent-coercion behaviour this test pins has changed", status, body["message"])
+		}
+		if got, _ := body["icmp_typename"].(string); got != "ANY" {
+			t.Errorf("an unknown icmp_typename was stored as %q, not coerced to ANY", got)
+		}
+	})
+
 	// protocol is not an enum on the wire: it takes protocol names and
 	// numbers, so the generated form is a pattern rather than a value list.
 	// What matters is that the names the definition claims are really

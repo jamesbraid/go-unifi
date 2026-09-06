@@ -35,12 +35,9 @@ type trafficRouteMatchCase struct {
 // terraform-provider-unifi declares domain, region and ip mutually exclusive
 // with ConflictsWith -- three declarations, verified present 2026-08-29 and
 // ungated here, so treat it as dated rather than permanent. The wire shape suggests otherwise: matching_target is
-// its own field taking DOMAIN|IP|INTERNET, which reads like a selector -- the
-// same shape as stormctrl_type, where the equivalent provider-side conflict
-// turned out to be stricter than the controller.
-//
-// Note there is no REGION in matching_target, yet regions is a first-class
-// list on the object. What selects it is part of what this measures.
+// its own field taking DOMAIN|IP|INTERNET|REGION, which reads like a selector
+// -- the same shape as stormctrl_type, where the equivalent provider-side
+// conflict turned out to be stricter than the controller.
 var networkTrafficRouteMatchingRules = []trafficRouteMatchCase{
 	{name: "domain only", target: "DOMAIN", domains: true, want: "accepted"},
 	{name: "ip only", target: "IP", ips: true, want: "accepted"},
@@ -52,11 +49,12 @@ var networkTrafficRouteMatchingRules = []trafficRouteMatchCase{
 	{name: "domain target with ip filter too", target: "DOMAIN", domains: true, ips: true, want: "accepted", wantBoth: true},
 	{name: "ip target with domain filter too", target: "IP", domains: true, ips: true, want: "accepted", wantBoth: true},
 
-	// regions rides alongside a filter rather than replacing one -- there is
-	// no REGION in matching_target, and DOMAIN without domains is rejected
-	// however many regions are supplied.
+	// regions rides alongside a filter, and REGION in matching_target
+	// (measured on 10.6.101) selects it directly. DOMAIN without domains
+	// stays rejected however many regions are supplied.
 	{name: "regions with domain target", target: "DOMAIN", domains: true, regions: true, want: "accepted"},
 	{name: "regions alone", target: "DOMAIN", regions: true, want: "api.err.MissingDomain"},
+	{name: "region target with regions", target: "REGION", regions: true, want: "accepted"},
 }
 
 // TestIntegrationTrafficRouteMatchingRules measures each combination.

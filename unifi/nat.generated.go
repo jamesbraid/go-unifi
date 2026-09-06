@@ -89,8 +89,9 @@ func (dst *Nat) UnmarshalJSON(b []byte) error {
 
 type NatDestinationFilter struct {
 	Address          string   `json:"address,omitempty"`
-	FilterType       string   `json:"filter_type,omitempty"` // NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF
+	FilterType       string   `json:"filter_type,omitempty"` // NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT
 	FirewallGroupIDs []string `json:"firewall_group_ids,omitempty"`
+	Iid              string   `json:"iid,omitempty"`
 	InvertAddress    bool     `json:"invert_address"`
 	InvertPort       bool     `json:"invert_port"`
 	NetworkConfID    string   `json:"network_conf_id,omitempty"`
@@ -125,8 +126,9 @@ func (dst *NatDestinationFilter) UnmarshalJSON(b []byte) error {
 
 type NatSourceFilter struct {
 	Address          string   `json:"address,omitempty"`
-	FilterType       string   `json:"filter_type,omitempty"` // NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF
+	FilterType       string   `json:"filter_type,omitempty"` // NONE|ADDRESS_AND_PORT|FIREWALL_GROUPS|NETWORK_CONF|IID_AND_PORT
 	FirewallGroupIDs []string `json:"firewall_group_ids,omitempty"`
+	Iid              string   `json:"iid,omitempty"`
 	InvertAddress    bool     `json:"invert_address"`
 	InvertPort       bool     `json:"invert_port"`
 	NetworkConfID    string   `json:"network_conf_id,omitempty"`
