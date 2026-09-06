@@ -1,50 +1,59 @@
 package unifi
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"maps"
 	"reflect"
-	"sort"
-	"strconv"
-	"strings"
 	"testing"
 )
 
-// THE PER-PURPOSE ENCODERS MUST NOT ADD omitempty THE STRUCT DOES NOT HAVE.
+// This file guards the encoder's emission rules against drifting from the
+// generated Network declaration.
 //
-// Network.MarshalJSON dispatches to one of seven alias structs, each
-// re-declaring the subset of fields its purpose sends. A tag copied with an
-// extra ,omitempty makes the encoder drop that field's zero value -- and for a
-// bool the zero value is `false`, which is a setting the caller asked for.
-//
-// MEASURED, not theorised: a site-vpn Network with IPSecPfs=false emits no
-// ipsec_pfs at all, so PFS can be turned on and never off, by this library and
-// therefore by every caller of it.
-//
-// This test compares each alias tag against the Network field of the same json
-// name and fails on any bool that has drifted.
-func TestPurposeEncodersDoNotAddOmitemptyToBools(t *testing.T) {
-	structTags, structTypes := networkStructTags(t)
-	drifted := map[string][]string{}
+// The encoder used to re-declare every field per purpose in alias structs,
+// and these tests read those declarations from the source to catch a copied
+// tag gaining an omitempty the struct does not have. The alias structs are
+// gone: emission now derives each rule from the generated struct's own json
+// tag, so a per-purpose tag cannot drift because there is no per-purpose
+// tag. What is left to guard is the exception tables that deliberately
+// deviate from the generated declaration, and the behaviour the old checks
+// pinned.
 
-	for encoder, tags := range purposeEncoderTags(t) {
-		for _, tag := range tags {
-			name, aliasOmit := splitJSONTag(tag)
-			structOmit, ok := structTags[name]
-			if !ok || structTypes[name] != "bool" {
-				continue
-			}
-			if aliasOmit && !structOmit {
-				drifted[name] = append(drifted[name], encoder)
-			}
-		}
-	}
+// A FALSE BOOL MUST REACH THE WIRE for every purpose that sends the field.
+//
+// MEASURED, not theorised, back when the alias structs made it possible: a
+// site-vpn Network with IPSecPfs=false emitted no ipsec_pfs at all, so PFS
+// could be turned on and never off, by this library and therefore by every
+// caller of it. Today an override closure is the only code that could
+// reintroduce the bug; this test would catch it doing so.
+func TestPurposeEncodersDoNotDropFalseBools(t *testing.T) {
+	byWire := networkFieldByWire()
+	typ := reflect.TypeFor[Network]()
 
-	for name, encoders := range drifted {
-		sort.Strings(encoders)
-		t.Errorf("%s is tagged omitempty in %v but not on Network, so a false is dropped "+
-			"and the setting can be turned on and never off", name, encoders)
+	for purpose, fields := range networkPurposeFields {
+		t.Run(purpose, func(t *testing.T) {
+			emitted := marshalKeys(t, &Network{Purpose: purpose})
+
+			checked := 0
+			for _, wire := range fields {
+				field, ok := byWire[wire]
+				if !ok || field.omitEmpty {
+					continue
+				}
+				if typ.FieldByIndex(field.index).Type.Kind() != reflect.Bool {
+					continue
+				}
+				checked++
+				if value, present := emitted[wire]; !present {
+					t.Errorf("%s is not emitted for a zero Network, so a false is dropped "+
+						"and the setting can be turned on and never off", wire)
+				} else if value != false {
+					t.Errorf("%s is emitted as %v for a zero Network, want false", wire, value)
+				}
+			}
+			if checked == 0 {
+				t.Fatalf("purpose %q lists no unconditional bools; the check has stopped covering anything", purpose)
+			}
+		})
 	}
 }
 
@@ -55,7 +64,7 @@ func TestPurposeEncodersDoNotAddOmitemptyToBools(t *testing.T) {
 // controller fields reject "" and are omitted deliberately, which is why the
 // provider has an optStr helper doing the same thing on its side.
 //
-// Listing them keeps the check useful in the meantime: a NEW string drift
+// Pinning the list keeps the check useful in the meantime: a NEW deviation
 // fails here, and the day one of these is measured it comes off the list.
 //
 // The four dhcpd_dns_N slots came off it on 2026-08-28. They were the ones
@@ -70,93 +79,99 @@ func TestKnownStringOmitemptyDriftIsUnchanged(t *testing.T) {
 		"mac_override":      true,
 	}
 
-	structTags, structTypes := networkStructTags(t)
-	found := map[string]bool{}
-	for encoder, tags := range purposeEncoderTags(t) {
-		for _, tag := range tags {
-			name, aliasOmit := splitJSONTag(tag)
-			structOmit, ok := structTags[name]
-			if !ok || structTypes[name] != "string" || !aliasOmit || structOmit {
+	if !maps.Equal(networkEmptyStringOmitted, awaitingControllerMeasurement) {
+		t.Errorf("networkEmptyStringOmitted = %v, want %v; an entry only joins with a "+
+			"controller measurement of what an explicit \"\" does, and only leaves with one",
+			networkEmptyStringOmitted, awaitingControllerMeasurement)
+	}
+
+	// An entry is only meaningful for a field the generated struct would
+	// otherwise send unconditionally: a plain string without omitempty.
+	byWire := networkFieldByWire()
+	typ := reflect.TypeFor[Network]()
+	for wire := range networkEmptyStringOmitted {
+		field, ok := byWire[wire]
+		if !ok {
+			t.Errorf("%s is listed in networkEmptyStringOmitted but is not on the generated struct; take it off the list", wire)
+			continue
+		}
+		if field.omitEmpty || typ.FieldByIndex(field.index).Type.Kind() != reflect.String {
+			t.Errorf("%s is listed in networkEmptyStringOmitted but the generated declaration "+
+				"already omits its empty value; the entry is dead, take it off the list", wire)
+		}
+	}
+}
+
+// TestNetworkPurposeFieldListsResolve keeps the per-purpose lists honest
+// against regeneration: every listed wire name must be a field on the
+// generated Network struct, or a synthetic key the purpose derives, and no
+// list may name a field twice. A regeneration that renames or removes a
+// field fails here instead of erroring at marshal time.
+func TestNetworkPurposeFieldListsResolve(t *testing.T) {
+	byWire := networkFieldByWire()
+
+	for purpose, fields := range networkPurposeFields {
+		overrides := (&Network{Purpose: purpose}).networkPurposeOverrides()
+		seen := map[string]bool{}
+		for _, wire := range fields {
+			if seen[wire] {
+				t.Errorf("purpose %q lists %q twice", purpose, wire)
+			}
+			seen[wire] = true
+
+			if _, generated := byWire[wire]; generated {
 				continue
 			}
-			found[name] = true
-			if !awaitingControllerMeasurement[name] {
-				t.Errorf("%s in %s adds omitempty the struct does not have; if clearing it is "+
-					"a thing a caller does, the empty string never reaches the controller",
-					name, encoder)
+			if _, derived := overrides[wire]; derived {
+				// Synthetic keys also need their entry in
+				// networkEncoderSyntheticKeys; the value-flow test checks that.
+				continue
 			}
-		}
-	}
-	for name := range awaitingControllerMeasurement {
-		if !found[name] {
-			t.Errorf("%s is listed as awaiting measurement but no encoder drifts on it any "+
-				"more; take it off the list", name)
+			t.Errorf("purpose %q lists %q, which is neither on the generated Network struct "+
+				"nor derived by the purpose's overrides; the list is stale", purpose, wire)
 		}
 	}
 }
 
-// networkStructTags reads Network's own json names, whether each carries
-// omitempty, and its Go type.
-func networkStructTags(t *testing.T) (map[string]bool, map[string]string) {
-	t.Helper()
-	omit := map[string]bool{}
-	types := map[string]string{}
-	value := reflect.TypeOf(Network{})
-	for i := range value.NumField() {
-		field := value.Field(i)
-		tag := field.Tag.Get("json")
-		if tag == "" || tag == "-" {
-			continue
-		}
-		name, hasOmit := splitJSONTag(tag)
-		omit[name] = hasOmit
-		types[name] = field.Type.String()
-	}
-	if len(omit) == 0 {
-		t.Fatal("Network has no json tags, so both tests above would pass vacuously")
-	}
-	return omit, types
-}
+// TestNetworkEncoderExceptionTablesAreLive fails on an exception entry
+// nothing uses or whose field no longer has the shape the exception assumes.
+// A measured exception that has drifted into fiction is worse than none: it
+// documents behaviour the encoder does not have.
+func TestNetworkEncoderExceptionTablesAreLive(t *testing.T) {
+	byWire := networkFieldByWire()
+	typ := reflect.TypeFor[Network]()
 
-// purposeEncoderTags returns every json tag declared inside each marshalX
-// method, read from the source because the alias structs are local to their
-// functions and reflection cannot reach them.
-func purposeEncoderTags(t *testing.T) map[string][]string {
-	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "network_encode.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parsing network_encode.go: %v", err)
-	}
-	out := map[string][]string{}
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv == nil || !strings.HasPrefix(fn.Name.Name, "marshal") {
-			continue
+	listed := map[string]bool{}
+	for _, fields := range networkPurposeFields {
+		for _, wire := range fields {
+			listed[wire] = true
 		}
-		ast.Inspect(fn, func(n ast.Node) bool {
-			field, ok := n.(*ast.Field)
-			if !ok || field.Tag == nil {
-				return true
-			}
-			raw, err := strconv.Unquote(field.Tag.Value)
-			if err != nil {
-				return true
-			}
-			if tag := reflect.StructTag(raw).Get("json"); tag != "" {
-				out[fn.Name.Name] = append(out[fn.Name.Name], tag)
-			}
-			return true
-		})
 	}
-	if len(out) < 7 {
-		t.Fatalf("found %d purpose encoders, want the seven purposes; the parse missed some "+
-			"and both tests would check less than they claim", len(out))
-	}
-	return out
-}
 
-func splitJSONTag(tag string) (string, bool) {
-	name, rest, _ := strings.Cut(tag, ",")
-	return name, strings.Contains(rest, "omitempty")
+	check := func(table map[string]bool, name string, valid func(reflect.Type) bool, shape string) {
+		for wire := range table {
+			if !listed[wire] {
+				t.Errorf("%s lists %s but no purpose sends it; the entry is dead", name, wire)
+				continue
+			}
+			field, ok := byWire[wire]
+			if !ok {
+				t.Errorf("%s lists %s but the generated struct has no such field", name, wire)
+				continue
+			}
+			if !valid(typ.FieldByIndex(field.index).Type) {
+				t.Errorf("%s lists %s, which is not %s any more; the measured exception no longer applies as written", name, wire, shape)
+			}
+		}
+	}
+
+	check(networkClearableSlots, "networkClearableSlots", func(ft reflect.Type) bool {
+		return ft.Kind() == reflect.Pointer && ft.Elem().Kind() == reflect.String
+	}, "a *string")
+	check(networkAlwaysArrays, "networkAlwaysArrays", func(ft reflect.Type) bool {
+		return ft.Kind() == reflect.Slice
+	}, "a slice")
+	check(networkEmptyStringOmitted, "networkEmptyStringOmitted", func(ft reflect.Type) bool {
+		return ft.Kind() == reflect.String
+	}, "a string")
 }
