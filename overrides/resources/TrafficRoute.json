@@ -38,7 +38,7 @@
         }
     ],
     "kill_switch_enabled": "true|false",
-    "matching_target": "DOMAIN|IP|INTERNET",
+    "matching_target": "DOMAIN|IP|INTERNET|REGION",
     "network_id": "",
     "next_hop": "",
     "regions": [

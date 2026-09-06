@@ -35,13 +35,13 @@ type FirewallPolicy struct {
 
 	Action                string                     `json:"action,omitempty"`                // ALLOW|BLOCK|REJECT
 	ConnectionStateType   string                     `json:"connection_state_type,omitempty"` // ALL|RESPOND_ONLY|CUSTOM
-	ConnectionStates      []string                   `json:"connection_states"`
+	ConnectionStates      []string                   `json:"connection_states"`               // NEW|INVALID|ESTABLISHED|RELATED
 	CreateAllowRespond    bool                       `json:"create_allow_respond"`
 	Description           string                     `json:"description,omitempty"`
 	Destination           *FirewallPolicyDestination `json:"destination,omitempty"`
 	Enabled               bool                       `json:"enabled"`
-	ICMPTypename          string                     `json:"icmp_typename,omitempty"`    // ANY|SPECIFIC|LIST|OBJECT
-	ICMPV6Typename        string                     `json:"icmp_v6_typename,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
+	ICMPTypename          string                     `json:"icmp_typename,omitempty"`    // ADDRESS_MASK_REPLY|ADDRESS_MASK_REQUEST|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FRAGMENTATION_NEEDED|HOST_PRECEDENCE_VIOLATION|HOST_PROHIBITED|HOST_REDIRECT|HOST_UNKNOWN|HOST_UNREACHABLE|IP_HEADER_BAD|NETWORK_PROHIBITED|NETWORK_REDIRECT|NETWORK_UNKNOWN|NETWORK_UNREACHABLE|PARAMETER_PROBLEM|PORT_UNREACHABLE|PRECEDENCE_CUTOFF|PROTOCOL_UNREACHABLE|REDIRECT|REQUIRED_OPTION_MISSING|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|SOURCE_QUENCH|SOURCE_ROUTE_FAILED|TIME_EXCEEDED|TIMESTAMP_REPLY|TIMESTAMP_REQUEST|TOS_HOST_REDIRECT|TOS_HOST_UNREACHABLE|TOS_NETWORK_REDIRECT|TOS_NETWORK_UNREACHABLE|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|ANY
+	ICMPV6Typename        string                     `json:"icmp_v6_typename,omitempty"` // ADDRESS_UNREACHABLE|BAD_HEADER|BEYOND_SCOPE|COMMUNICATION_PROHIBITED|DESTINATION_UNREACHABLE|ECHO_REPLY|ECHO_REQUEST|FAILED_POLICY|NEIGHBOR_ADVERTISEMENT|NEIGHBOR_SOLICITATION|NO_ROUTE|PACKET_TOO_BIG|PARAMETER_PROBLEM|PORT_UNREACHABLE|REDIRECT|REJECT_ROUTE|ROUTER_ADVERTISEMENT|ROUTER_SOLICITATION|TIME_EXCEEDED|TTL_ZERO_DURING_REASSEMBLY|TTL_ZERO_DURING_TRANSIT|UNKNOWN_HEADER_TYPE|UNKNOWN_OPTION|ANY
 	Index                 *int64                     `json:"index,omitempty"`            // [1-9][0-9]+
 	Logging               bool                       `json:"logging"`
 	MatchIPSec            bool                       `json:"match_ip_sec"`
@@ -92,12 +92,12 @@ type FirewallPolicyDestination struct {
 	MatchOppositeIPs      bool     `json:"match_opposite_ips"`
 	MatchOppositeNetworks bool     `json:"match_opposite_networks"`
 	MatchOppositePorts    bool     `json:"match_opposite_ports"`
-	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY
-	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
+	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|APP|APP_CATEGORY|IID|IP|NETWORK|REGION|WEB
+	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // SPECIFIC|OBJECT
 	NetworkIDs            []string `json:"network_ids,omitempty"`
 	Port                  string   `json:"port,omitempty"`
 	PortGroupID           string   `json:"port_group_id,omitempty"`
-	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
+	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|OBJECT
 	WebDomains            []string `json:"web_domains,omitempty"`
 	ZoneID                string   `json:"zone_id,omitempty"`
 }
@@ -172,12 +172,12 @@ type FirewallPolicySource struct {
 	MatchOppositeIPs      bool     `json:"match_opposite_ips"`
 	MatchOppositeNetworks bool     `json:"match_opposite_networks"`
 	MatchOppositePorts    bool     `json:"match_opposite_ports"`
-	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|DEVICE|IP|NETWORK|CLIENT|MAC|WEB|APP|APP_CATEGORY
-	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
+	MatchingTarget        string   `json:"matching_target,omitempty"`      // ANY|CLIENT|EXTERNAL_SOURCE|IID|IP|MAC|NETWORK|REGION|USER_IDENTITY|USER_IDENTITY_ONE_CLICK_VPN|USER_IDENTITY_ONE_CLICK_WIFI|VPN_USER
+	MatchingTargetType    string   `json:"matching_target_type,omitempty"` // SPECIFIC|OBJECT
 	NetworkIDs            []string `json:"network_ids,omitempty"`
 	Port                  string   `json:"port,omitempty"`
 	PortGroupID           string   `json:"port_group_id,omitempty"`
-	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|LIST|OBJECT
+	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|OBJECT
 	WebDomains            []string `json:"web_domains,omitempty"`
 	ZoneID                string   `json:"zone_id,omitempty"`
 }

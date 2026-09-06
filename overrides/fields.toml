@@ -370,3 +370,11 @@ unmarshal_func = "querierAddressesFromRaw"
 [FirewallPolicySchedule.field.time_all_day]
 omitempty = true
 pointer = true
+
+# connection_states gained its element vocabulary (measured 10.6.101: the
+# controller lists NEW|INVALID|ESTABLISHED|RELATED), and an array with a
+# declared element defaults to omitempty where the bare [] it replaced did
+# not. The always-present shape predates the vocabulary and is what every
+# measured write here has sent; keep it.
+[FirewallPolicy.field.connection_states]
+omitempty = false

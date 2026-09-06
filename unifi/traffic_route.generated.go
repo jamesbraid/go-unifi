@@ -39,7 +39,7 @@ type TrafficRoute struct {
 	IPAddresses       []TrafficRouteIPAddresses   `json:"ip_addresses,omitempty"`
 	IPRanges          []TrafficRouteIPRanges      `json:"ip_ranges,omitempty"`
 	KillSwitchEnabled bool                        `json:"kill_switch_enabled"`
-	MatchingTarget    string                      `json:"matching_target,omitempty"` // DOMAIN|IP|INTERNET
+	MatchingTarget    string                      `json:"matching_target,omitempty"` // DOMAIN|IP|INTERNET|REGION
 	NetworkID         string                      `json:"network_id,omitempty"`
 	NextHop           string                      `json:"next_hop,omitempty"`
 	Regions           []string                    `json:"regions,omitempty"`

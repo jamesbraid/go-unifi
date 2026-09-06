@@ -827,7 +827,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"A\", \"AAAA\", \"CNAME\", \"MX\", \"NS\", \"PTR\", \"SOA\", \"SRV\", \"TXT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"A\", \"AAAA\", \"CNAME\", \"MX\", \"NS\", \"SRV\", \"TXT\")"
                   }
                 }
               ]
@@ -5162,7 +5162,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"DEVICE\", \"IP\", \"NETWORK\", \"CLIENT\", \"MAC\", \"WEB\", \"APP\", \"APP_CATEGORY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"APP\", \"APP_CATEGORY\", \"IID\", \"IP\", \"NETWORK\", \"REGION\", \"WEB\")"
                         }
                       }
                     ]
@@ -5180,7 +5180,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -5219,7 +5219,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -5261,7 +5261,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"ADDRESS_MASK_REPLY\", \"ADDRESS_MASK_REQUEST\", \"COMMUNICATION_PROHIBITED\", \"DESTINATION_UNREACHABLE\", \"ECHO_REPLY\", \"ECHO_REQUEST\", \"FRAGMENTATION_NEEDED\", \"HOST_PRECEDENCE_VIOLATION\", \"HOST_PROHIBITED\", \"HOST_REDIRECT\", \"HOST_UNKNOWN\", \"HOST_UNREACHABLE\", \"IP_HEADER_BAD\", \"NETWORK_PROHIBITED\", \"NETWORK_REDIRECT\", \"NETWORK_UNKNOWN\", \"NETWORK_UNREACHABLE\", \"PARAMETER_PROBLEM\", \"PORT_UNREACHABLE\", \"PRECEDENCE_CUTOFF\", \"PROTOCOL_UNREACHABLE\", \"REDIRECT\", \"REQUIRED_OPTION_MISSING\", \"ROUTER_ADVERTISEMENT\", \"ROUTER_SOLICITATION\", \"SOURCE_QUENCH\", \"SOURCE_ROUTE_FAILED\", \"TIME_EXCEEDED\", \"TIMESTAMP_REPLY\", \"TIMESTAMP_REQUEST\", \"TOS_HOST_REDIRECT\", \"TOS_HOST_UNREACHABLE\", \"TOS_NETWORK_REDIRECT\", \"TOS_NETWORK_UNREACHABLE\", \"TTL_ZERO_DURING_REASSEMBLY\", \"TTL_ZERO_DURING_TRANSIT\", \"ANY\")"
                   }
                 }
               ]
@@ -5279,7 +5279,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"ADDRESS_UNREACHABLE\", \"BAD_HEADER\", \"BEYOND_SCOPE\", \"COMMUNICATION_PROHIBITED\", \"DESTINATION_UNREACHABLE\", \"ECHO_REPLY\", \"ECHO_REQUEST\", \"FAILED_POLICY\", \"NEIGHBOR_ADVERTISEMENT\", \"NEIGHBOR_SOLICITATION\", \"NO_ROUTE\", \"PACKET_TOO_BIG\", \"PARAMETER_PROBLEM\", \"PORT_UNREACHABLE\", \"REDIRECT\", \"REJECT_ROUTE\", \"ROUTER_ADVERTISEMENT\", \"ROUTER_SOLICITATION\", \"TIME_EXCEEDED\", \"TTL_ZERO_DURING_REASSEMBLY\", \"TTL_ZERO_DURING_TRANSIT\", \"UNKNOWN_HEADER_TYPE\", \"UNKNOWN_OPTION\", \"ANY\")"
                   }
                 }
               ]
@@ -5496,7 +5496,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"DEVICE\", \"IP\", \"NETWORK\", \"CLIENT\", \"MAC\", \"WEB\", \"APP\", \"APP_CATEGORY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"CLIENT\", \"EXTERNAL_SOURCE\", \"IID\", \"IP\", \"MAC\", \"NETWORK\", \"REGION\", \"USER_IDENTITY\", \"USER_IDENTITY_ONE_CLICK_VPN\", \"USER_IDENTITY_ONE_CLICK_WIFI\", \"VPN_USER\")"
                         }
                       }
                     ]
@@ -5514,7 +5514,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -5553,7 +5553,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -7394,7 +7394,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\")"
+                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\", \"IID_AND_PORT\")"
                         }
                       }
                     ]
@@ -7407,6 +7407,12 @@
                     "element_type": {
                       "string": {}
                     }
+                  }
+                },
+                {
+                  "name": "iid",
+                  "string": {
+                    "computed_optional_required": "computed"
                   }
                 },
                 {
@@ -7579,7 +7585,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\")"
+                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\", \"IID_AND_PORT\")"
                         }
                       }
                     ]
@@ -7592,6 +7598,12 @@
                     "element_type": {
                       "string": {}
                     }
+                  }
+                },
+                {
+                  "name": "iid",
+                  "string": {
+                    "computed_optional_required": "computed"
                   }
                 },
                 {
@@ -11257,7 +11269,19 @@
                   {
                     "name": "area_type",
                     "string": {
-                      "computed_optional_required": "computed"
+                      "computed_optional_required": "computed",
+                      "validators": [
+                        {
+                          "custom": {
+                            "imports": [
+                              {
+                                "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+                              }
+                            ],
+                            "schema_definition": "stringvalidator.OneOf(\"normal\", \"nssa\", \"stub\")"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -13295,7 +13319,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"DOMAIN\", \"IP\", \"INTERNET\")"
+                    "schema_definition": "stringvalidator.OneOf(\"DOMAIN\", \"IP\", \"INTERNET\", \"REGION\")"
                   }
                 }
               ]
@@ -16190,7 +16214,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"A\", \"AAAA\", \"CNAME\", \"MX\", \"NS\", \"PTR\", \"SOA\", \"SRV\", \"TXT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"A\", \"AAAA\", \"CNAME\", \"MX\", \"NS\", \"SRV\", \"TXT\")"
                   }
                 }
               ]
@@ -20526,7 +20550,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"DEVICE\", \"IP\", \"NETWORK\", \"CLIENT\", \"MAC\", \"WEB\", \"APP\", \"APP_CATEGORY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"APP\", \"APP_CATEGORY\", \"IID\", \"IP\", \"NETWORK\", \"REGION\", \"WEB\")"
                         }
                       }
                     ]
@@ -20544,7 +20568,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -20583,7 +20607,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -20625,7 +20649,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"ADDRESS_MASK_REPLY\", \"ADDRESS_MASK_REQUEST\", \"COMMUNICATION_PROHIBITED\", \"DESTINATION_UNREACHABLE\", \"ECHO_REPLY\", \"ECHO_REQUEST\", \"FRAGMENTATION_NEEDED\", \"HOST_PRECEDENCE_VIOLATION\", \"HOST_PROHIBITED\", \"HOST_REDIRECT\", \"HOST_UNKNOWN\", \"HOST_UNREACHABLE\", \"IP_HEADER_BAD\", \"NETWORK_PROHIBITED\", \"NETWORK_REDIRECT\", \"NETWORK_UNKNOWN\", \"NETWORK_UNREACHABLE\", \"PARAMETER_PROBLEM\", \"PORT_UNREACHABLE\", \"PRECEDENCE_CUTOFF\", \"PROTOCOL_UNREACHABLE\", \"REDIRECT\", \"REQUIRED_OPTION_MISSING\", \"ROUTER_ADVERTISEMENT\", \"ROUTER_SOLICITATION\", \"SOURCE_QUENCH\", \"SOURCE_ROUTE_FAILED\", \"TIME_EXCEEDED\", \"TIMESTAMP_REPLY\", \"TIMESTAMP_REQUEST\", \"TOS_HOST_REDIRECT\", \"TOS_HOST_UNREACHABLE\", \"TOS_NETWORK_REDIRECT\", \"TOS_NETWORK_UNREACHABLE\", \"TTL_ZERO_DURING_REASSEMBLY\", \"TTL_ZERO_DURING_TRANSIT\", \"ANY\")"
                   }
                 }
               ]
@@ -20643,7 +20667,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                    "schema_definition": "stringvalidator.OneOf(\"ADDRESS_UNREACHABLE\", \"BAD_HEADER\", \"BEYOND_SCOPE\", \"COMMUNICATION_PROHIBITED\", \"DESTINATION_UNREACHABLE\", \"ECHO_REPLY\", \"ECHO_REQUEST\", \"FAILED_POLICY\", \"NEIGHBOR_ADVERTISEMENT\", \"NEIGHBOR_SOLICITATION\", \"NO_ROUTE\", \"PACKET_TOO_BIG\", \"PARAMETER_PROBLEM\", \"PORT_UNREACHABLE\", \"REDIRECT\", \"REJECT_ROUTE\", \"ROUTER_ADVERTISEMENT\", \"ROUTER_SOLICITATION\", \"TIME_EXCEEDED\", \"TTL_ZERO_DURING_REASSEMBLY\", \"TTL_ZERO_DURING_TRANSIT\", \"UNKNOWN_HEADER_TYPE\", \"UNKNOWN_OPTION\", \"ANY\")"
                   }
                 }
               ]
@@ -20860,7 +20884,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"DEVICE\", \"IP\", \"NETWORK\", \"CLIENT\", \"MAC\", \"WEB\", \"APP\", \"APP_CATEGORY\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"CLIENT\", \"EXTERNAL_SOURCE\", \"IID\", \"IP\", \"MAC\", \"NETWORK\", \"REGION\", \"USER_IDENTITY\", \"USER_IDENTITY_ONE_CLICK_VPN\", \"USER_IDENTITY_ONE_CLICK_WIFI\", \"VPN_USER\")"
                         }
                       }
                     ]
@@ -20878,7 +20902,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -20917,7 +20941,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"LIST\", \"OBJECT\")"
+                          "schema_definition": "stringvalidator.OneOf(\"ANY\", \"SPECIFIC\", \"OBJECT\")"
                         }
                       }
                     ]
@@ -22761,7 +22785,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\")"
+                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\", \"IID_AND_PORT\")"
                         }
                       }
                     ]
@@ -22774,6 +22798,12 @@
                     "element_type": {
                       "string": {}
                     }
+                  }
+                },
+                {
+                  "name": "iid",
+                  "string": {
+                    "computed_optional_required": "computed_optional"
                   }
                 },
                 {
@@ -22947,7 +22977,7 @@
                               "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                             }
                           ],
-                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\")"
+                          "schema_definition": "stringvalidator.OneOf(\"NONE\", \"ADDRESS_AND_PORT\", \"FIREWALL_GROUPS\", \"NETWORK_CONF\", \"IID_AND_PORT\")"
                         }
                       }
                     ]
@@ -22960,6 +22990,12 @@
                     "element_type": {
                       "string": {}
                     }
+                  }
+                },
+                {
+                  "name": "iid",
+                  "string": {
+                    "computed_optional_required": "computed_optional"
                   }
                 },
                 {
@@ -26645,7 +26681,19 @@
                   {
                     "name": "area_type",
                     "string": {
-                      "computed_optional_required": "computed_optional"
+                      "computed_optional_required": "computed_optional",
+                      "validators": [
+                        {
+                          "custom": {
+                            "imports": [
+                              {
+                                "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+                              }
+                            ],
+                            "schema_definition": "stringvalidator.OneOf(\"normal\", \"nssa\", \"stub\")"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -28693,7 +28741,7 @@
                         "path": "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
                       }
                     ],
-                    "schema_definition": "stringvalidator.OneOf(\"DOMAIN\", \"IP\", \"INTERNET\")"
+                    "schema_definition": "stringvalidator.OneOf(\"DOMAIN\", \"IP\", \"INTERNET\", \"REGION\")"
                   }
                 }
               ]

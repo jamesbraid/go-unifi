@@ -63,7 +63,7 @@ func (dst *OSPFRouter) UnmarshalJSON(b []byte) error {
 
 type OSPFRouterAreas struct {
 	AreaID     string   `json:"area_id,omitempty"`
-	AreaType   string   `json:"area_type,omitempty"`
+	AreaType   string   `json:"area_type,omitempty"` // normal|nssa|stub
 	Name       string   `json:"name,omitempty"`
 	NetworkIDs []string `json:"network_ids,omitempty"`
 }
