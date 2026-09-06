@@ -32,6 +32,17 @@ func withOverrides(t *testing.T, overrides map[string]resourceOverride, fn func(
 	fn()
 }
 
+// withPreferences swaps the merged ownership tables, the same way and with
+// the same no-t.Parallel caveat as withOverrides.
+func withPreferences(t *testing.T, tables map[string]map[string]fields.Preference, fn func()) {
+	t.Helper()
+	_ = preferenceTables()
+	saved := preferenceTablesMap
+	preferenceTablesMap = tables
+	t.Cleanup(func() { preferenceTablesMap = saved })
+	fn()
+}
+
 func TestApplyOverridesPinRenameRetagRemove(t *testing.T) {
 	r := resourceWithFields("Thing", map[string]*FieldInfo{
 		"   ID":    NewFieldInfo("ID", "_id", "string", "", true, false, false, ""),
@@ -147,8 +158,8 @@ func TestApplyOverridesPreferenceNamesMustExist(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := resourceWithFields("Thing", fieldsOf())
-			withOverrides(t, map[string]resourceOverride{
-				"Thing": {Preference: tc.pref},
+			withPreferences(t, map[string]map[string]fields.Preference{
+				"Thing": tc.pref,
 			}, func() {
 				err := r.applyOverrides()
 				if tc.wantErr == "" {
@@ -248,8 +259,8 @@ func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := nestedResource()
-			withOverrides(t, map[string]resourceOverride{
-				"Thing": {Preference: tc.pref},
+			withPreferences(t, map[string]map[string]fields.Preference{
+				"Thing": tc.pref,
 			}, func() {
 				err := r.applyOverrides()
 				if tc.wantErr == "" {
@@ -362,8 +373,8 @@ func TestApplyOverridesPreferenceProvenance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := resourceWithFields("Thing", fieldsOf())
-			withOverrides(t, map[string]resourceOverride{
-				"Thing": {Preference: tc.pref},
+			withPreferences(t, map[string]map[string]fields.Preference{
+				"Thing": tc.pref,
 			}, func() {
 				err := r.applyOverrides()
 				if tc.wantErr == "" {

@@ -2,23 +2,27 @@ package fields
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 )
 
-// Preference is one [Resource.preference.<wire>] entry from
-// overrides/fields.toml: an auto|manual mode field, and the wire names the
-// controller takes ownership of while that mode is "auto".
+// Preference is one auto|manual mode field and the wire names the controller
+// takes ownership of while that mode is "auto".
 //
 // Ownership is not in the schema. The extracted validators describe each
 // field on its own, and an auto|manual field looks like any other two-value
 // enum, so the only way to learn what a mode owns is to write the same object
 // twice -- once under each mode -- and diff what came back. That measurement
-// is TestIntegrationPreferenceOwnership; these entries are its answer.
+// is TestIntegrationPreferenceOwnership; the ownership section of
+// schemas/behavior.json is its answer, and the residual
+// [Resource.preference.<wire>] entries in overrides/fields.toml carry the two
+// things the artifact cannot record (see LoadPreferences).
 //
 // The type lives here because both sides need the same shape: the generator
 // turns these entries into client code and provider schema metadata, and the
@@ -78,19 +82,41 @@ type preferenceFile struct {
 	Preference map[string]Preference `toml:"preference"`
 }
 
-// LoadPreferences reads the preference tables out of overrides/fields.toml,
-// keyed by resource struct name and then by the mode's key.
+// LoadPreferences returns the measured ownership tables, keyed by resource
+// struct name and then by the mode's key.
 //
 // A key is the mode's wire name, or a dotted path when the mode sits inside a
-// sub-object ("port_overrides.setting_preference"). Such a key must be quoted
-// in the file: an unquoted dotted key decodes as nested tables, without error,
-// into an entry that owns nothing.
+// sub-object ("port_overrides.setting_preference").
+//
+// The measurements come from the ownership section of schemas/behavior.json,
+// written by TestIntegrationPreferenceOwnership under BEHAVIOR_WRITE=1 and
+// stamped with the build they ran against. The residual
+// [Resource.preference.<wire>] entries in overrides/fields.toml carry only
+// what the artifact cannot record: a mode the sweep does not reach, and the
+// UniFi OS exclusions, because the artifact holds the standalone harness's
+// answers alone. See mergePreferences for how the two combine.
 func LoadPreferences() (map[string]map[string]Preference, error) {
 	root := ModuleRoot()
 	if root == "" {
 		return nil, fmt.Errorf("unable to locate the module root (go.mod)")
 	}
+	residual, err := loadResidualPreferences(root)
+	if err != nil {
+		return nil, err
+	}
+	artifact, _, err := behavior.Load(root)
+	if err != nil {
+		return nil, err
+	}
+	return mergePreferences(artifact, residual)
+}
 
+// loadResidualPreferences reads the [Resource.preference.<wire>] entries out
+// of overrides/fields.toml.
+//
+// A dotted key must be quoted in the file: an unquoted one decodes as nested
+// tables, without error, into an entry that owns nothing.
+func loadResidualPreferences(root string) (map[string]map[string]Preference, error) {
 	path := filepath.Join(root, "overrides", "fields.toml")
 	var file map[string]preferenceFile
 	md, err := toml.DecodeFile(path, &file)
@@ -124,6 +150,64 @@ func LoadPreferences() (map[string]map[string]Preference, error) {
 	for resource, entry := range file {
 		if len(entry.Preference) > 0 {
 			out[resource] = entry.Preference
+		}
+	}
+	return out, nil
+}
+
+// mergePreferences overlays the residual TOML entries onto the artifact's
+// measured ownership.
+//
+// The artifact is authoritative for every mode it covers, so a residual entry
+// that still carries owns for one is a leftover hand-stamped copy of the
+// measurement and is rejected -- the two sources must not be able to drift
+// apart in silence. A residual entry for a covered mode may add uos_excludes,
+// which the artifact has no slot for, and its measured stamp must then match
+// the artifact's build: exclusions measured against one build say nothing
+// about another, so a mismatch demands a UniFi OS re-measure rather than
+// quiet reuse. A mode the artifact does not cover passes through whole, with
+// the provenance rules the generator has always enforced.
+func mergePreferences(a behavior.Artifact, residual map[string]map[string]Preference) (map[string]map[string]Preference, error) {
+	out := map[string]map[string]Preference{}
+	for resource, byKey := range a.Ownership {
+		out[resource] = make(map[string]Preference, len(byKey))
+		for key, owns := range byKey {
+			out[resource][key] = Preference{Owns: owns, Measured: a.ControllerVersion}
+		}
+	}
+
+	for _, resource := range slices.Sorted(maps.Keys(residual)) {
+		for _, key := range slices.Sorted(maps.Keys(residual[resource])) {
+			entry := residual[resource][key]
+			merged, covered := out[resource][key]
+			if !covered {
+				if out[resource] == nil {
+					out[resource] = map[string]Preference{}
+				}
+				out[resource][key] = entry
+				continue
+			}
+			if len(entry.Owns) > 0 {
+				return nil, fmt.Errorf("overrides/fields.toml records owns for %s.%s, which %s already "+
+					"measures; delete the owns from the table and re-measure with BEHAVIOR_WRITE=1 instead "+
+					"of editing it", resource, key, behavior.Path)
+			}
+			if len(entry.UOSExcludes) == 0 {
+				return nil, fmt.Errorf("overrides/fields.toml has an entry for %s.%s that adds nothing to "+
+					"%s; delete it", resource, key, behavior.Path)
+			}
+			m := strings.TrimSpace(entry.Measured)
+			if m == "" {
+				return nil, fmt.Errorf("%s.%s uos_excludes carry no measured build; an exclusion with no "+
+					"provenance reads as current forever", resource, key)
+			}
+			if m != a.ControllerVersion {
+				return nil, fmt.Errorf("%s.%s uos_excludes were measured on %q but %s records %q; "+
+					"re-measure the UniFi OS harness before trusting them", resource, key, m,
+					behavior.Path, a.ControllerVersion)
+			}
+			merged.UOSExcludes = entry.UOSExcludes
+			out[resource][key] = merged
 		}
 	}
 	return out, nil

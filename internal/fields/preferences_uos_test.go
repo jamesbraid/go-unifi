@@ -57,9 +57,10 @@ func TestOwnsOnWithoutExclusionsIsIdentical(t *testing.T) {
 	}
 }
 
-// TestSuperMgmtRetentionExclusionsAreRecorded reads the real table, so the
-// measurement behind this cannot be deleted from fields.toml without a
-// failure. The entry is the only reason the UOS integration leg passes.
+// TestSuperMgmtRetentionExclusionsAreRecorded reads the real record, so
+// neither the uos_excludes in fields.toml nor the owns in
+// schemas/behavior.json can be deleted without a failure. The exclusions are
+// the only reason the UOS integration leg passes.
 func TestSuperMgmtRetentionExclusionsAreRecorded(t *testing.T) {
 	prefs, err := LoadPreferences()
 	if err != nil {

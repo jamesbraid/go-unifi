@@ -15,22 +15,28 @@ override-layer story):
 
 ## Preference tables
 
-`[Resource.preference.<wire>]` records what an `auto|manual` mode field owns.
-While the mode is `auto` the controller owns a block of sibling fields: it
-accepts a payload that sets them, answers `rc: ok`, stores its own values,
-and reports nothing. A caller finds out from the next read, from a
-downstream diff, or not at all.
+`[Resource.preference.<wire>]` carries the residual ownership facts for an
+`auto|manual` mode field. While the mode is `auto` the controller owns a
+block of sibling fields: it accepts a payload that sets them, answers
+`rc: ok`, stores its own values, and reports nothing. A caller finds out
+from the next read, from a downstream diff, or not at all.
 
 The extracted schema describes none of this. Each validator stands alone, and
 an `auto|manual` field looks like any other two-value enum, so ownership has
 to be measured: write the same object twice, once under each mode, and
 compare each write against what it asked for.
-`TestIntegrationPreferenceOwnership` does that against a live controller and
-prints the entry to paste, including the build it measured.
+`TestIntegrationPreferenceOwnership` does that against a live controller
+and, under `BEHAVIOR_WRITE=1` on the standalone harness, records the answer
+in the `ownership` section of `schemas/behavior.json` — which is what the
+generator reads. An entry here carries only what that artifact has no slot
+for: a mode the sweep cannot reach (`Device`'s needs an adopted device), and
+`uos_excludes`, because the artifact records the standalone harness alone.
+An entry that repeats a measurement the artifact covers fails generation.
 
-Re-run the sweep rather than editing `owns` by hand. It finds fields that
-reading the encoder cannot: `setting_preference` owns twelve, several of
-them not `*_enabled` toggles, which is why earlier counts stopped at six.
+Re-run the sweep rather than recording `owns` by hand. It finds fields that
+reading the encoder cannot: `setting_preference` owns eleven on 10.6.101,
+several of them not `*_enabled` toggles, which is why earlier counts stopped
+at six.
 
 ### Nested modes
 
