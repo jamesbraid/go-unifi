@@ -18,23 +18,24 @@ schemas/capture.lock.json — artifact digest, extracted-schema digests,
         │  go generate ./...  (cmd/fields, offline)
         ▼
 unifi/*.generated.go + specification.json
-        │  cmd/rebuild-manifest
-        ▼
 schemas/GENERATED_SHA256 — digest of everything generated
 ```
 
 `cmd/schema-capture` downloads or reads one controller artifact, stores it
 in a content-addressed directory (`GO_UNIFI_CONTENT_STORE`), and writes
 `schemas/capture.lock.json` naming its exact bytes. `cmd/fields` generates
-only from a verified lock: it re-hashes the artifact, the extraction rules,
-`overrides/`, and itself, and refuses to run on any drift. Generation never
-downloads and never looks up "latest".
+only from those bytes: it refuses drifted or missing bytes, never
+downloads, and never looks up "latest". A successful run re-stamps the
+lock's input digests and `schemas/GENERATED_SHA256`, so `go generate`
+leaves the tree consistent. A dependency bump touches nothing but
+go.mod/go.sum; the `rebuild` workflow is what proves dep-caused drift.
 
 The artifact comes from Ubiquiti's public CDN but cannot be redistributed,
 so git carries the lock, not the bytes. Anyone can re-run capture against
 the URL in `schemas/ARTIFACT` and verify the digest. CI verifies the lock
-without the bytes (`-verify-lock-only`) and checks the committed
-generated output against its accepted digest. The `rebuild` workflow
+without the bytes (`-verify-lock-only`) and independently recomputes the
+output digest (`cmd/rebuild-manifest`) against the accepted one. The
+`rebuild` workflow
 proves the whole pipeline reproduces from public inputs alone: on a stock
 runner, it fetches the locked artifact from its public URL, regenerates
 from scratch, and diffs the result against `schemas/GENERATED_SHA256` and

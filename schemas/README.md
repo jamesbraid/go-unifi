@@ -48,10 +48,12 @@ export GO_UNIFI_CONTENT_STORE=/restricted/go-unifi/artifacts
 go generate ./...
 ```
 
-`cmd/fields` verifies the artifact size and SHA-256, generator-input digests,
-Network version, structural snapshot, and sensitivity snapshot before it
-replaces the local cache. A missing object, corrupt lock, changed generator, or
-snapshot mismatch stops the run.
+`cmd/fields` verifies the artifact size and SHA-256, Network version,
+structural snapshot, and sensitivity snapshot before it replaces the local
+cache. A missing object, corrupt lock, or snapshot mismatch stops the run.
+A successful run re-stamps the lock's input digests and `GENERATED_SHA256`
+for the tree it produced, so an input edit (generator code, an override, a
+re-measure) is committed together with its regenerate and nothing else.
 
 To propose a lock for a new artifact:
 
