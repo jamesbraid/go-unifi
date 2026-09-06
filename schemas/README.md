@@ -30,14 +30,14 @@ three compatibility projections. It does not hash itself.
 
 The lock's generator-input digest covers the generator itself
 (`cmd/fields`, `internal/capturelock`, `internal/fields`), `overrides/`,
-`go.mod`/`go.sum`, and the generate directive in `unifi/unifi.go`. Other
-hand-written `unifi/` files participate in generation only for name
-collision avoidance and are deliberately not digested: covering them
-would force a lock refresh on every client edit, and refreshing needs
-the retained artifact that outside contributors do not hold. Drift from
-that gap cannot ship silently -- the `rebuild` workflow regenerates from
-scratch on a stock runner and diffs the result against the committed
-output.
+and the generate directive in `unifi/unifi.go`. Deliberately not
+digested: `go.mod`/`go.sum`, because a dependency bump changes nothing
+the generator reads, and the other hand-written `unifi/` files, which
+only steer name-collision avoidance -- covering them would force a lock
+refresh on every client edit, and refreshing needs the retained
+artifact that outside contributors do not hold. Drift from either gap
+cannot ship silently: the `rebuild` workflow regenerates from scratch
+on a stock runner and diffs the result against the committed output.
 
 ## Regenerating
 
