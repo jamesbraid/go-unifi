@@ -4,9 +4,11 @@ name: capture
 on:
   workflow_dispatch:
     inputs:
+      # The capture inputs are enforced by the fields job, not the form: a
+      # record_only dispatch leaves them empty on purpose.
       artifact_url:
         description: Exact controller artifact URL
-        required: true
+        required: false
         type: string
       product:
         description: Controller product identity
@@ -15,11 +17,11 @@ on:
         type: string
       build_identity:
         description: Full controller build identity
-        required: true
+        required: false
         type: string
       network_version:
         description: Expected UniFi Network version
-        required: true
+        required: false
         type: string
       uos_version:
         description: UniFi OS version, when applicable
@@ -30,6 +32,13 @@ on:
         required: true
         default: application/vnd.debian.binary-package
         type: string
+      record_only:
+        description: >-
+          Skip capture; re-measure behaviour onto the open schema-update PR
+          (for a sim image published after the capture ran)
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -41,12 +50,33 @@ jobs:
     # Runs on the GitHub mirror only. Forgejo executes .github/workflows
     # too, so without this guard enabling Actions doubles every job onto
     # runners that lack this workflow's environment.
-    if: github.server_url == 'https://github.com'
+    if: github.server_url == 'https://github.com' && !inputs.record_only
     runs-on: ubuntu-latest
     # Bounds the damage of a malformed artifact: the download and nested
     # decompression are otherwise unbounded work.
     timeout-minutes: 45
+    outputs:
+      # Empty when the capture changed nothing and opened no PR -- then the
+      # behavior job has nothing to record onto and skips.
+      pr: ${{ steps.pr.outputs.pull-request-number }}
     steps:
+      # The dispatch form cannot require these (a record_only dispatch
+      # leaves them empty), so the job does.
+      - name: Require capture inputs
+        env:
+          ARTIFACT_URL: ${{ inputs.artifact_url }}
+          BUILD_IDENTITY: ${{ inputs.build_identity }}
+          NETWORK_VERSION: ${{ inputs.network_version }}
+        run: |
+          missing=""
+          [ -n "$ARTIFACT_URL" ] || missing="$missing artifact_url"
+          [ -n "$BUILD_IDENTITY" ] || missing="$missing build_identity"
+          [ -n "$NETWORK_VERSION" ] || missing="$missing network_version"
+          if [ -n "$missing" ]; then
+            echo "::error::capture requires$missing (or dispatch with record_only=true to only re-measure behaviour)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -171,3 +201,177 @@ jobs:
           gh pr edit "${{ steps.pr.outputs.pull-request-number }}" \
             --repo "${{ github.repository }}" \
             --add-label breaking-schema-change
+
+  # Re-measure the behaviour artifact on the schema-update branch the capture
+  # just pushed. schemas/behavior.json records what one exact controller
+  # build was measured doing, so a new pin re-runs the recording probes
+  # rather than letting the PR carry the previous build's measurements as if
+  # they were fresh.
+  #
+  # The pinned version's -sim image is built by unifi-containers, a separate
+  # lane, so a fresh pin may have no image yet. That is a red job here, never
+  # a skip: green means re-measured, red means "image not published yet" (the
+  # capture PR still opens from the fields job), and the status comment below
+  # says which without any log reading. Once the image exists, dispatch this
+  # workflow with record_only=true to re-measure onto the same PR branch.
+  behavior:
+    needs: fields
+    if: >-
+      always() && github.server_url == 'https://github.com' &&
+      (inputs.record_only || (needs.fields.result == 'success' &&
+      needs.fields.outputs.pr != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # Same posture as the fields job: a push made with github.token fires
+      # no workflows, so the re-measured commit would sit ungated on the PR.
+      - name: Require a PR credential
+        env:
+          HAS_UPDATE_TOKEN: ${{ secrets.SCHEMA_UPDATE_TOKEN }}
+          HAS_BOT_APP: ${{ vars.SCHEMA_BOT_APP_ID }}
+        run: |
+          if [ -z "$HAS_BOT_APP" ] && [ -z "$HAS_UPDATE_TOKEN" ]; then
+            echo "::error::configure the schema-bot app (SCHEMA_BOT_APP_ID + SCHEMA_BOT_PRIVATE_KEY) or SCHEMA_UPDATE_TOKEN; a github.token push triggers no CI"
+            exit 1
+          fi
+
+      - name: Mint bot token
+        if: vars.SCHEMA_BOT_APP_ID != ''
+        id: bot
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SCHEMA_BOT_APP_ID }}
+          private-key: ${{ secrets.SCHEMA_BOT_PRIVATE_KEY }}
+
+      # The branch create-pull-request maintains. On a record_only dispatch it
+      # must already exist; a missing branch fails checkout, the honest
+      # answer to "nothing to record onto".
+      - name: Checkout schema-update branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: schema-update
+          token: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN }}
+
+      - name: Locate the schema PR
+        id: locate
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          FIELDS_PR: ${{ needs.fields.outputs.pr }}
+        run: |
+          set -euo pipefail
+          n="$FIELDS_PR"
+          if [ -z "$n" ]; then
+            n="$(gh pr list --repo "${{ github.repository }}" --head schema-update --state open --json number --jq '.[0].number // empty')"
+          fi
+          if [ -z "$n" ]; then
+            echo "::error::no open schema-update PR to record onto; run a capture first"
+            exit 1
+          fi
+          echo "number=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+
+      # Same tag derivation as the integration suite. Probing the manifest
+      # first turns "image not built yet" into a one-line diagnosis instead
+      # of a testcontainers pull failure buried in a probe transcript.
+      - name: Require the pinned controller's sim image
+        id: image
+        run: |
+          set -euo pipefail
+          version="$(cat schemas/VERSION)"
+          image="ghcr.io/jamesbraid/unifi-network:${version}-sim"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$image" >> "$GITHUB_OUTPUT"
+          if ! docker manifest inspect "$image"; then
+            echo "::error::${image} is not published (unifi-containers builds it); re-run capture with record_only=true once it exists"
+            exit 1
+          fi
+
+      # Exactly the recording-capable probes -- the ones that rewrite the
+      # artifact under BEHAVIOR_WRITE=1 (ownership, discarded, clearing,
+      # coercions, write contracts). The rest of the suite runs on the PR in
+      # compare mode anyway. -count=1 because a cached pass records nothing.
+      - name: Re-measure behaviour
+        id: record
+        env:
+          UNIFI_TEST_IMAGE: ${{ steps.image.outputs.tag }}
+          UNIFI_TEST_EXPECT_VERSION: ${{ steps.image.outputs.version }}
+        run: |
+          set -euo pipefail
+          UNIFI_TEST_REQUIRE=1 BEHAVIOR_WRITE=1 \
+            go test -tags integration -p 1 -timeout 40m -v -count=1 \
+            ./unifi/ -run '^(TestIntegrationPreferenceOwnership|TestIntegrationNetworkRoundTrip|TestIntegrationClearingSemantics|TestIntegrationCoercionFloors|TestIntegrationWriteContract)$'
+
+      # Generation needs the extracted field definitions, which a fresh
+      # checkout lacks; fetch the locked artifact into an ephemeral store the
+      # same way the rebuild workflow does.
+      - name: Fetch the locked artifact
+        id: fetch
+        run: |
+          set -eu
+          url=$(jq -er '.source.location' schemas/capture.lock.json)
+          sha=$(jq -er '.source.sha256' schemas/capture.lock.json)
+          store="$RUNNER_TEMP/content-store"
+          mkdir -p "$store/sha256"
+          curl --fail --location --silent --show-error --output "$store/sha256/$sha" "$url"
+          echo "$sha  $store/sha256/$sha" | sha256sum --check -
+          echo "GO_UNIFI_CONTENT_STORE=$store" >> "$GITHUB_ENV"
+
+      # behavior.json is a generator input, so the re-measurement re-locks
+      # first (generation refuses a tree whose input digests mismatch the
+      # lock), regenerates, and re-digests the output.
+      - name: Re-lock and regenerate
+        id: regen
+        run: |
+          set -euo pipefail
+          go run ./cmd/relock
+          go generate ./...
+          go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
+
+      - name: Push the re-measurement
+        id: push
+        env:
+          VERSION: ${{ steps.image.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "re-measurement changed nothing; the branch is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898062+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit \
+            -m "schemas: re-measure behaviour against ${VERSION}" \
+            -m "The artifact records what one exact controller build was measured doing, so a new pin re-runs the recording probes rather than carrying the previous build's answers forward. Re-locked and regenerated because the artifact is a generator input."
+          git push origin HEAD:schema-update
+
+      # One status comment, edited in place on reruns (a comment per run
+      # would pile up). It mirrors the job's color so the PR states plainly
+      # whether its behavior.json was measured against the pinned build.
+      - name: Report re-measurement on the PR
+        if: always() && steps.locate.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token || secrets.SCHEMA_UPDATE_TOKEN || github.token }}
+          PR: ${{ steps.locate.outputs.number }}
+          IMAGE: ${{ steps.image.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.image.outcome }}" = failure ]; then
+            body="**Behaviour NOT re-measured**: \`${IMAGE}\` is not published yet (unifi-containers builds it), so schemas/behavior.json still holds the previous controller's measurements. Re-run the capture workflow with record_only=true once the image exists."
+          elif [ "${{ steps.record.outcome }}" = failure ]; then
+            body="**Behaviour re-measurement failed**: the recording probes went red against \`${IMAGE}\`; see the capture run."
+          elif [ "${{ steps.push.outcome }}" = success ]; then
+            # The push proves the whole chain landed: it only runs after the
+            # fetch/relock/regenerate steps succeed.
+            body="Behaviour re-measured: schemas/behavior.json on this PR was recorded against \`${IMAGE}\`."
+          elif [ "${{ steps.record.outcome }}" = success ]; then
+            body="**Behaviour re-measurement did not land**: recording succeeded but a later step failed; see the capture run."
+          else
+            exit 0
+          fi
+          gh pr comment "$PR" --repo "${{ github.repository }}" --edit-last --create-if-none --body "$body"
