@@ -274,10 +274,12 @@ NetworkMembersGroup.type
 NetworkNATOutboundIPAddresses.ip_address
 NetworkOptimization.enabled
 OSPFRouter.announce_default_route
+OSPFRouter.areas
 OSPFRouter.enabled
 OSPFRouter.redistribute_bgp_routes
 OSPFRouter.redistribute_connected_routes
 OSPFRouter.redistribute_static_routes
+OSPFRouter.router_id
 OSPFRouterInterfaces.passive_interface
 PortForward.enabled
 PortForward.log

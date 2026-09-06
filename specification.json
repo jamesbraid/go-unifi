@@ -26633,7 +26633,7 @@
           {
             "name": "areas",
             "list_nested": {
-              "computed_optional_required": "computed_optional",
+              "computed_optional_required": "optional",
               "nested_object": {
                 "attributes": [
                   {
@@ -26758,7 +26758,7 @@
           {
             "name": "router_id",
             "string": {
-              "computed_optional_required": "computed_optional"
+              "computed_optional_required": "optional"
             }
           }
         ]

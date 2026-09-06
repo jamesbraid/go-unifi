@@ -21,6 +21,7 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
+	"github.com/ubiquiti-community/go-unifi/internal/probe"
 )
 
 // These probes feed schemas/behavior.json, the measured-behaviour artifact.
@@ -555,4 +556,519 @@ func compareWriteContract(t *testing.T, resource string, pinned map[string]behav
 		t.Errorf("%s write contract drifted:\n  artifact: %+v\n  measured: %+v\n\nEither the controller "+
 			"changed or the artifact is stale; re-measure with BEHAVIOR_WRITE=1.", resource, want, got)
 	}
+}
+
+// TestIntegrationNatUpdateEmptyVsAbsent measures, on the NAT update path
+// (PUT v2/api/site/{site}/nat/{id}), whether the controller treats an empty
+// string differently from an absent key for three optional fields a caller
+// has to decide how to encode: ip_address, in_interface and description.
+// The verdicts use the clearing probe's vocabulary and land in the
+// artifact's Empty["nat"] section.
+//
+// The provider measured in_interface: "" rejected on update
+// (NatRuleInvalidNetworkConf); this probe confirms or refutes that rather
+// than assuming it.
+//
+// The rule under test is the known-good MASQUERADE create from
+// measureNatContract. That shape constrains what can be measured: a field
+// this rule type cannot hold a value for (the seed write below is how that
+// is found out) has nothing stored to clear, so EMPTY-CLEARS versus
+// EMPTY-IGNORED cannot be distinguished for it and the verdict describes
+// what "" does on a rule where the field is empty -- which is still the
+// case an encoder actually faces.
+func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
+	if os.Getenv("UNIFI_TEST_URL") != "" {
+		t.Skip("mutating probe only runs against the disposable container")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	c := controllertest.StartForHarness(ctx, t)
+	s := c.NewSession(ctx, t)
+
+	root, captured := capturedBehaviorVersion(t)
+	running := runningControllerVersion(ctx, t, s, c.Site)
+	if behaviorWriteRequested() && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+
+	wanID := ensureWANNetwork(ctx, t, s, c.Site)
+	if wanID == "" {
+		t.Fatal("no WAN network; every NAT write would fail for the wrong reason")
+	}
+
+	path := "/v2/api/site/" + c.Site + "/nat"
+	filter := func() map[string]any {
+		return map[string]any{
+			"filter_type": "NONE", "firewall_group_ids": []string{},
+			"invert_address": false, "invert_port": false,
+		}
+	}
+	base := map[string]any{
+		"enabled": true, "type": "MASQUERADE", "ip_version": "IPV4",
+		"protocol": "all", "out_interface": wanID,
+		"source_filter": filter(), "destination_filter": filter(),
+	}
+
+	body, status, err := s.PostJSON(ctx, path, base)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	stored := firstData(t, body)
+	id := objectID(stored)
+	if status/100 != 2 || id == "" {
+		t.Fatalf("the known-good NAT body did not create (HTTP %d): %v\n\nAn update probe "+
+			"with nothing to update measures nothing.", status, body)
+	}
+	defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+
+	put := func(doc map[string]any) (map[string]any, int) {
+		body, status, err := s.PutJSON(ctx, path+"/"+id, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if status != 200 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT %s/%s -> HTTP %d: %v (%v)", path, id, status, body, err)
+		}
+		return firstData(t, body), status
+	}
+
+	probes := []struct{ field, seed string }{
+		// A MASQUERADE rule translates to the outbound interface's own
+		// address, so ip_address may refuse any value here; the seed write
+		// measures that instead of assuming it.
+		{"ip_address", "192.0.2.10"},
+		{"in_interface", wanID},
+		{"description", "clear-probe"},
+	}
+
+	measured := map[string]behavior.EmptySemantics{}
+	var summary []string
+	for _, p := range probes {
+		// Seed a real value first: without one stored, EMPTY-CLEARS and
+		// EMPTY-IGNORED are the same observation. The clearing probe solves
+		// this by only probing fields the seed populated; here the fields
+		// are fixed, so the limitation is logged instead.
+		baseline, original := stored, ""
+		seedDoc := clone(stored)
+		seedDoc[p.field] = p.seed
+		if after, st := put(seedDoc); st == 200 {
+			if got, _ := after[p.field].(string); got != "" {
+				baseline, original = after, got
+			} else {
+				t.Logf("%s: seed %q accepted but not stored; measuring against the bare rule", p.field, p.seed)
+			}
+		} else {
+			t.Logf("%s: this rule cannot hold %q (HTTP %d); measuring against the bare rule", p.field, p.seed, st)
+			put(clone(stored)) // in case the rejected write left partial state
+		}
+
+		// Empty string.
+		doc := clone(baseline)
+		doc[p.field] = ""
+		after, st := put(doc)
+		empty := "EMPTY-REJECTED"
+		if st == 200 {
+			if got, _ := after[p.field].(string); got == "" {
+				empty = "EMPTY-CLEARS"
+			} else if got == original {
+				empty = "EMPTY-IGNORED"
+			} else {
+				empty = "EMPTY-REPLACED-" + got
+			}
+		}
+
+		put(clone(baseline)) // reset
+
+		// Absent key.
+		doc = clone(baseline)
+		delete(doc, p.field)
+		after, st = put(doc)
+		omit := "OMIT-REJECTED"
+		if st == 200 {
+			if got, _ := after[p.field].(string); got == "" {
+				omit = "OMIT-CLEARS"
+			} else if got == original {
+				omit = "OMIT-KEEPS"
+			} else {
+				omit = "OMIT-REPLACED-" + got
+			}
+		}
+
+		put(clone(stored)) // back to the bare rule for the next field
+
+		measured[p.field] = behavior.EmptySemantics{Empty: empty, Omit: omit}
+		summary = append(summary, fmt.Sprintf("%-16s %-16s %s", p.field, empty, omit))
+	}
+	t.Logf("NAT update empty-vs-absent semantics:\n  %s", strings.Join(summary, "\n  "))
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			if a.Empty["nat"] == nil {
+				a.Empty["nat"] = map[string]behavior.EmptySemantics{}
+			}
+			// Per-field upsert, like the clearing probe: this run measures
+			// only its three fields and must not erase others.
+			for f, sem := range measured {
+				a.Empty["nat"][f] = sem
+			}
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	pinned := art.Empty["nat"]
+	if !ok || pinned == nil {
+		t.Logf("no pinned empty semantics for nat in %s; run with BEHAVIOR_WRITE=1 to record them", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	for f, got := range measured {
+		want, has := pinned[f]
+		if !has {
+			t.Errorf("nat.%s: measured empty=%s omit=%s but the artifact pins nothing; "+
+				"re-measure with BEHAVIOR_WRITE=1", f, got.Empty, got.Omit)
+			continue
+		}
+		if want != got {
+			t.Errorf("nat.%s: artifact pins empty=%s omit=%s, measured empty=%s omit=%s; "+
+				"re-measure with BEHAVIOR_WRITE=1 once the change is understood",
+				f, want.Empty, want.Omit, got.Empty, got.Omit)
+		}
+	}
+}
+
+// TestIntegrationOSPFRouterWriteContract measures the OSPF router write
+// contract into the artifact's Writes section. The generated CRUD says POST
+// v2/api/site/{site}/ospf/router creates and PUT .../{id} updates; the
+// create is verified live, and every top-level field of the known-good body
+// is removed one at a time to find which the controller refuses to create
+// without. The struct marks them all optional, which is the codegen's
+// guess-from-shape this section exists to replace.
+//
+// The known-good body comes from the gateway feature sweep (cmd/fields):
+// ospf/router rejects an empty areas list and takes area_type as a
+// lowercase enum, and the areas have to name a real network.
+func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
+	if os.Getenv("UNIFI_TEST_URL") != "" {
+		t.Skip("mutating probe only runs against the disposable container")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	c := controllertest.StartForHarness(ctx, t)
+	s := c.NewSession(ctx, t)
+
+	root, captured := capturedBehaviorVersion(t)
+	running := runningControllerVersion(ctx, t, s, c.Site)
+	if behaviorWriteRequested() && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+
+	lanID := defaultLANNetworkID(ctx, t, s, c.Site)
+	if lanID == "" {
+		t.Fatal("no corporate network on the site; an OSPF area naming nothing would fail for the wrong reason")
+	}
+
+	path := "/v2/api/site/" + c.Site + "/ospf/router"
+	base := map[string]any{
+		"enabled":                       true,
+		"router_id":                     "0.0.0.1",
+		"announce_default_route":        false,
+		"redistribute_bgp_routes":       false,
+		"redistribute_connected_routes": false,
+		"redistribute_static_routes":    false,
+		"interfaces":                    []any{},
+		"areas": []any{map[string]any{
+			"area_id":     "0.0.0.0",
+			"area_type":   "normal",
+			"name":        "probe-area",
+			"network_ids": []string{lanID},
+		}},
+	}
+
+	post := func(doc map[string]any) (int, string, any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if err != nil {
+			t.Logf("POST %s -> HTTP %d (%v)", path, status, err)
+		}
+		return status, objectID(firstData(t, body)), body
+	}
+	// A leftover router would make the next create measure "one already
+	// exists" instead of the removed field, so a failed delete is fatal. The
+	// delete answers 204 with an empty body, so only the status can be
+	// judged; the decode error a bodiless response draws is not a failure.
+	deleteRouter := func(id string) {
+		if body, status, err := s.DeleteJSON(ctx, path+"/"+id); status/100 != 2 {
+			t.Fatalf("delete ospf/router/%s (HTTP %d): %v %v\n\nEvery later verdict would be "+
+				"measured against a site that already has a router.", id, status, body, err)
+		}
+	}
+
+	status, id, body := post(base)
+	if status/100 != 2 {
+		t.Fatalf("the known-good OSPF body was rejected (HTTP %d): %v\n\nNothing removed from a body "+
+			"that does not create can measure anything.", status, body)
+	}
+	if id == "" {
+		t.Fatalf("created OSPF router carries no id; it cannot be deleted and would poison the sweep: %v", body)
+	}
+	deleteRouter(id)
+
+	fields := make([]string, 0, len(base))
+	for f := range base {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var required []string
+	for _, field := range fields {
+		doc := clone(base)
+		delete(doc, field)
+		status, id, body := post(doc)
+		if status/100 == 2 {
+			if id != "" {
+				deleteRouter(id)
+			}
+			t.Logf("OSPF create without %-32s accepted (HTTP %d) -- not required", field, status)
+			continue
+		}
+		t.Logf("OSPF create without %-32s rejected (HTTP %d): %v -- required on create", field, status, body)
+		required = append(required, field)
+	}
+	sort.Strings(required)
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/ospf/router",
+		UpdateVerb: "PUT", UpdatePath: "v2/api/site/{site}/ospf/router/{id}",
+		RequiredOnCreate: required,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			a.Writes["OSPFRouter"] = contract
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok || art.Writes == nil {
+		t.Logf("no pinned write contracts in %s; run with BEHAVIOR_WRITE=1 to record them", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "OSPFRouter", art.Writes, contract)
+}
+
+// defaultLANNetworkID returns the site's stock corporate network, which is
+// what an OSPF area can safely name.
+func defaultLANNetworkID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/rest/networkconf")
+	if err != nil || status != 200 {
+		t.Fatalf("list networkconf: status %d, %v", status, err)
+	}
+	m, _ := body.(map[string]any)
+	items, _ := m["data"].([]any)
+	for _, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if purpose, _ := obj["purpose"].(string); purpose == PurposeCorporate {
+			if id, _ := obj["_id"].(string); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
+// TestIntegrationDevicePortOverridesDiscard writes one port override carrying
+// a rich set of per-port members to an adopted switch and classifies, member
+// by member, what the controller stored versus dropped. The dropped set goes
+// into the artifact's Discarded["DevicePortOverrides"] section: fields the
+// controller accepts with rc ok and does not persist, which a provider would
+// otherwise report as permanent diffs.
+//
+// Unlike the Network discard list, CHANGED members are logged but not
+// recorded: a stored-with-a-different-value member is a coercion, and filing
+// it as discarded would tell the encoder to stop sending a field the
+// controller does keep.
+func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
+	if os.Getenv("UNIFI_TEST_URL") != "" {
+		t.Skip("mutating probe only runs against the disposable container")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	c := controllertest.StartForHarness(ctx, t)
+	s := c.NewSession(ctx, t)
+
+	root, captured := capturedBehaviorVersion(t)
+	running := runningControllerVersion(ctx, t, s, c.Site)
+	if behaviorWriteRequested() && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+
+	emulated := controllertest.StartDevices(ctx, t, c, controllertest.DeviceRequest{Model: "USM8P"})
+	if len(emulated) != 1 {
+		t.Skip("no emulated switch available for this controller target")
+	}
+	adopted := c.AdoptDevice(ctx, t, s, emulated[0].MAC)
+
+	id := deviceIDForMAC(ctx, t, s, c.Site, adopted.MAC)
+	if id == "" {
+		t.Skipf("adopted %s but the controller lists no device with that MAC", adopted.MAC)
+	}
+
+	// One entry, many members: name/port_idx/poe_mode plus a spread of the
+	// generated struct's member kinds -- mode strings, plain bools, and a
+	// stormctrl level with its enable pair so the value is not dead config.
+	asked := map[string]any{
+		"port_idx":                1,
+		"name":                    "discard-probe",
+		"poe_mode":                "off",
+		"op_mode":                 "switch",
+		"setting_preference":      "manual",
+		"autoneg":                 true,
+		"isolation":               true,
+		"eee_enabled":             true,
+		"stp_port_mode":           true,
+		"stormctrl_type":          "level",
+		"stormctrl_bcast_enabled": true,
+		"stormctrl_bcast_level":   42,
+	}
+	if body, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/rest/device/"+id,
+		map[string]any{"port_overrides": []any{asked}}); err != nil || status != 200 {
+		t.Fatalf("writing the probe override (HTTP %d): %v %v", status, body, err)
+	}
+	defer func() {
+		if _, status, err := s.PutJSON(context.WithoutCancel(ctx), "/api/s/"+c.Site+"/rest/device/"+id,
+			map[string]any{"port_overrides": []any{}}); err != nil || status != 200 {
+			t.Logf("clearing the probe override failed (HTTP %d): %v", status, err)
+		}
+	}()
+
+	// stat/device lags a write by a second or two; wait for this write's own
+	// entry (identified by its name) rather than any stored override.
+	var entry map[string]any
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		entry = storedPortOverride(ctx, t, s, c.Site, adopted.MAC, 1)
+		if name, _ := entry["name"].(string); name == "discard-probe" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the probe override never appeared on stat/device; last read: %v", entry)
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	// Non-nil so an all-kept measurement records as [] rather than null:
+	// "measured, nothing dropped" and "never measured" must not render alike.
+	dropped := []string{}
+	for _, r := range probe.Classify(asked, entry) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-26s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			t.Logf("CHANGED %-26s (%s) -- stored, not discarded", r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("port override members: %d asked, %d dropped", len(asked), len(dropped))
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			// Replace, not union: the probe sees the whole set every run,
+			// and a union could never drop a field the controller stopped
+			// discarding (recordDiscarded's reasoning).
+			a.Discarded["DevicePortOverrides"] = dropped
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	pinned, has := art.Discarded["DevicePortOverrides"]
+	if !ok || !has {
+		t.Logf("no pinned discard list for DevicePortOverrides in %s; run with BEHAVIOR_WRITE=1 to record it", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	want := map[string]bool{}
+	for _, wire := range pinned {
+		want[wire] = true
+	}
+	got := map[string]bool{}
+	for _, wire := range dropped {
+		got[wire] = true
+		if !want[wire] {
+			t.Errorf("%s is now dropped from port overrides but the artifact does not list it; "+
+				"re-measure with BEHAVIOR_WRITE=1", wire)
+		}
+	}
+	for _, wire := range pinned {
+		if !got[wire] {
+			t.Errorf("%s is no longer dropped: the controller stored what was asked.\n"+
+				"The controller's behaviour changed -- re-measure with BEHAVIOR_WRITE=1 once that is understood", wire)
+		}
+	}
+}
+
+// storedPortOverride reads the stored override entry for one port off
+// stat/device, or nil while none is stored yet.
+func storedPortOverride(ctx context.Context, t *testing.T, s *controllertest.Session, site, mac string, portIdx int) map[string]any {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/stat/device/"+mac)
+	if err != nil || status != 200 {
+		t.Fatalf("read stat/device/%s (HTTP %d): %v", mac, status, err)
+	}
+	device := firstData(t, body)
+	overrides, _ := device["port_overrides"].([]any)
+	for _, o := range overrides {
+		entry, ok := o.(map[string]any)
+		if !ok {
+			continue
+		}
+		if jsonEqual(entry["port_idx"], portIdx) {
+			return entry
+		}
+	}
+	return nil
 }
