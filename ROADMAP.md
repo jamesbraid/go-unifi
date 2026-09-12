@@ -2,12 +2,13 @@
 
 Date: 2026-09-02
 
-Status: proposed. Replaces the release-train roadmap, which completed with
-v1.106.0 through v1.113.0. Coordinated with terraform-provider-unifi and
-unifi-containers; each of the three projects ships exactly one tagged
-release at the end of this plan, and nothing is tagged before then. Work
-accumulates on main, which is always pushed to the mirror, so consumers pin
-commits in the meantime.
+Status: in progress. Items 1, 3 and 5 have landed and are marked below;
+items 2, 4, 6 and 7 are open. Replaces the release-train roadmap, which
+completed with v1.106.0 through v1.113.0. Coordinated with
+terraform-provider-unifi and unifi-containers; each of the three projects
+ships exactly one tagged release at the end of this plan, and nothing is
+tagged before then. Work accumulates on main, which is always pushed to
+the mirror, so consumers pin commits in the meantime.
 
 ## Aim
 
@@ -20,7 +21,7 @@ hand-written v2 API definitions missing fields the controller's own code
 carries. Each item below replaces a class of transcription with a derivation
 and deletes the transcription.
 
-## 1. A measured-behaviour stage in the capture pipeline
+## 1. A measured-behaviour stage in the capture pipeline (landed)
 
 The controller does things its published schema does not describe: it
 silently coerces the twelve connection-tracking timeouts to per-field
@@ -53,16 +54,16 @@ as a probe mode rather than another test.
 
 ## 2. Retire the hand-written v2 API definitions
 
-Eight resource definitions under `overrides/resources/` are hand-maintained
+Ten resource definitions under `overrides/resources/` are hand-maintained
 and drift; scanning the controller's compiled classes found three missing
 firewall-policy fields last cycle. Promote that scan into the capture: at
 minimum a cross-check that fails when a hand-written definition disagrees
 with the compiled model, at best generation of the definition itself.
 
-Retires: as much of the eight JSON files as generation can carry, and the
+Retires: as much of the ten JSON files as generation can carry, and the
 class of "hand definition missing a field" outright.
 
-## 3. Extend drift detection to devices
+## 3. Extend drift detection to devices (landed)
 
 The wire-versus-model comparison covers four configuration collections and
 not the Device object — the largest and most state-heavy in the API, which
@@ -80,17 +81,14 @@ number-or-word decode rule derives from data instead of a probe heuristic.
 
 Retires: the manual jar-reading step, and the heuristic's probe corpus.
 
-## 5. Dependency updates on the forge
+## 5. Dependency updates on the forge (landed)
 
-The GitHub fork carries a Dependabot config that has never run once —
-forks do not get Dependabot, so every action and module pin is manually
-maintained while appearing covered. Run the updater on the canonical forge
-instead, via Forgejo Actions (enabled for this repo per the runbook's
-migration step — James's call, made). Tool choice at build time: dependabot
-proper if it runs unmodified there, Renovate if dependabot turns out to be
-GitHub-bound.
-
-Retires: the dead `.github/dependabot.yml`, and the false sense of coverage.
+The GitHub fork carried a Dependabot config that never ran once — forks do
+not get Dependabot, so every action and module pin was manually maintained
+while appearing covered. Renovate took the job: `renovate.json` holds the
+config, `.github/workflows/renovate.yml` runs it nightly against the
+canonical forge, and it fails loudly without a token rather than quietly
+skipping the way its predecessor did. `.github/dependabot.yml` is gone.
 
 ## 6. Gate tagging in CI
 
@@ -125,7 +123,7 @@ Additions: one probe framework, one artifact schema, one class-scan check,
 one capture field (types), one updater workflow, one release preflight.
 
 Deletions: ownership TOML blocks, discard-list baselines, three separate
-probe scaffolds, eight (or most of eight) hand-written v2 definitions, the
+probe scaffolds, ten (or most of ten) hand-written v2 definitions, the
 dead Dependabot config, the manual pre-tag checklist, the provider's
 hand-transcribed floors and sensitive lists (their side), and the jar-read
 step. Reviewed per pull request: any item that does not delete at least as

@@ -15,6 +15,7 @@ VERSION            Network version projection of capture.lock.json (tracked)
 SOURCE             product/build projection of capture.lock.json (tracked)
 ARTIFACT           source-location projection of capture.lock.json (tracked)
 GENERATED_SHA256   complete generated-output digest (tracked)
+behavior.json      measured controller behaviour, a generator input (tracked)
 fields/            extracted structural snapshot plus overlays (gitignored)
 metadata/          extracted sensitivity input (gitignored)
 ```
@@ -29,10 +30,12 @@ three compatibility projections. It does not hash itself.
 ## What the input digest covers
 
 The lock's generator-input digest covers the generator itself
-(`cmd/fields`, `internal/capturelock`, `internal/fields`), `overrides/`,
-and the generate directive in `unifi/unifi.go`. Deliberately not
-digested: `go.mod`/`go.sum`, because a dependency bump changes nothing
-the generator reads, and the other hand-written `unifi/` files, which
+(`cmd/fields`, `internal/behavior`, `internal/capturelock`,
+`internal/fields`), `overrides/`, the generate directive in
+`unifi/unifi.go`, and `behavior.json` -- so a re-measure moves the digest
+exactly like an override edit does. Deliberately not digested:
+`go.mod`/`go.sum`, because a dependency bump changes nothing the
+generator reads, and the other hand-written `unifi/` files, which
 only steer name-collision avoidance -- covering them would force a lock
 refresh on every client edit, and refreshing needs the retained
 artifact that outside contributors do not hold. Drift from either gap
