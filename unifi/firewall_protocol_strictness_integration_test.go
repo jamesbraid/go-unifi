@@ -48,9 +48,7 @@ func TestIntegrationFirewallProtocolStrictness(t *testing.T) {
 		payload := firewallPolicyProbeBase(fmt.Sprintf("proto-strict-%d", n), 23200+n, src, dst)
 		payload["protocol"] = protocol
 		body, status, err := s.PostJSON(ctx, policyPath, payload)
-		if err != nil {
-			t.Fatalf("transport: %v", err)
-		}
+		mustTransport(t, err)
 		m, _ := body.(map[string]any)
 		if status == 200 || status == 201 {
 			if id, _ := m["_id"].(string); id != "" {
@@ -88,9 +86,7 @@ func TestIntegrationFirewallProtocolStrictness(t *testing.T) {
 			"rule_index": 2200 + i, "action": "accept", "protocol": wildcarded,
 			"enabled": true, "src_firewallgroup_ids": []string{}, "dst_firewallgroup_ids": []string{},
 		})
-		if err != nil {
-			t.Fatalf("transport: %v", err)
-		}
+		mustTransport(t, err)
 		if status != 200 {
 			t.Errorf("rule refused protocol %q (HTTP %d). The controller got stricter: its "+
 				"published pattern still has the dot unescaped, so the SDK now publishes a rule "+

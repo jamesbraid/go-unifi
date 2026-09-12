@@ -30,9 +30,7 @@ func TestIntegrationV2EnumsMatchTheController(t *testing.T) {
 	controllerEnum := func(t *testing.T, path string, payload map[string]any) []string {
 		t.Helper()
 		body, status, err := s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/"+path, payload)
-		if err != nil {
-			t.Fatalf("transport: %v", err)
-		}
+		mustTransport(t, err)
 		m, _ := body.(map[string]any)
 		msg, _ := m["message"].(string)
 		match := enumClassRe.FindStringSubmatch(msg)
@@ -128,9 +126,7 @@ func TestIntegrationV2EnumsMatchTheController(t *testing.T) {
 				}},
 				"interfaces": []any{},
 			})
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			m, _ := body.(map[string]any)
 			if id, _ := m["_id"].(string); id != "" {
 				s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck

@@ -111,9 +111,7 @@ func TestIntegrationGatewayIPSecLocalIP(t *testing.T) {
 			payload["ipsec_peer_ip"] = fmt.Sprintf("203.0.113.%d", 20+i)
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				t.Logf("REJECTED ipsec_local_ip %s on %s (HTTP %d): %s", a.ip, a.iface, status, jsonText(body))
 				return

@@ -84,9 +84,7 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 				}
 			}
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", tc.seed)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				t.Fatalf("seed rejected (HTTP %d): %v", status, body)
 			}

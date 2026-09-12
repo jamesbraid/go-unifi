@@ -20,6 +20,17 @@ func firstData(_ *testing.T, body any) map[string]any { return probe.FirstData(b
 
 func jsonEqual(a, b any) bool { return probe.JSONEqual(a, b) }
 
+// mustTransport stops the test when the request never reached the controller.
+// That is distinct from a rejection the controller reported, which every probe
+// here treats as a measurement rather than a failure, so the two must not
+// share a code path. t.Helper puts the failure on the caller's line.
+func mustTransport(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("transport: %v", err)
+	}
+}
+
 // discardedFields reports, per asked field, what the controller did not store
 // as asked -- Changed or Dropped, keyed by wire name with a before/after.
 func discardedFields(asked, stored map[string]any) map[string]string {

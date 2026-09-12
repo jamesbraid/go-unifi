@@ -80,9 +80,7 @@ func TestIntegrationIPV6InterfaceTypeWithGateway(t *testing.T) {
 			}
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				raw, _ := json.Marshal(body)
 				t.Logf("REJECTED %-8s HTTP %d %s", tc.name, status, raw)
