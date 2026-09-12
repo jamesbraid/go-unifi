@@ -158,3 +158,95 @@ func TestIntegrationV2EnumsMatchTheController(t *testing.T) {
 		}
 	})
 }
+
+// TestIntegrationV2NatIidFormat pins the accepted format of a NAT filter's
+// iid, which no enum oracle can name: the controller validates it in code.
+// The measured rule (10.6.101) is two plain IPv6 addresses joined by "/" --
+// an interface-identifier/mask pair in ip6tables' address syntax; anything
+// else, blank included, draws api.err.NatRuleInvalidIidAndPortFilter. Every
+// earlier attempt at this field was rejected before storage, so the accepted
+// case is also the proof the write path exists: the value must survive a
+// create and read back verbatim.
+func TestIntegrationV2NatIidFormat(t *testing.T) {
+	if os.Getenv("UNIFI_TEST_URL") != "" {
+		t.Skip("mutating probe only runs against the disposable container")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+	c := controllertest.StartForHarness(ctx, t)
+	s := c.NewSession(ctx, t)
+
+	wanID := ensureWANNetwork(ctx, t, s, c.Site)
+	if wanID == "" {
+		t.Fatal("no WAN network; every NAT create would fail for the wrong reason")
+	}
+	path := "/v2/api/site/" + c.Site + "/nat"
+
+	post := func(iid any) (int, string, map[string]any) {
+		srcFilter := map[string]any{
+			"filter_type": "IID_AND_PORT", "firewall_group_ids": []string{},
+			"invert_address": false, "invert_port": false,
+		}
+		if iid != nil {
+			srcFilter["iid"] = iid
+		}
+		body, status, err := s.PostJSON(ctx, path, map[string]any{
+			"enabled": true, "type": "MASQUERADE", "ip_version": "IPV6",
+			"protocol": "all", "out_interface": wanID,
+			"source_filter": srcFilter,
+			"destination_filter": map[string]any{
+				"filter_type": "NONE", "firewall_group_ids": []string{},
+				"invert_address": false, "invert_port": false,
+			},
+		})
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		m, _ := body.(map[string]any)
+		id, _ := m["_id"].(string)
+		return status, id, m
+	}
+
+	const accepted = "::1:2:3:4/::ffff:ffff:ffff:ffff"
+	status, id, body := post(accepted)
+	if status != 200 && status != 201 {
+		t.Fatalf("iid %q was refused (HTTP %d, %s): %v\n\nThe v6/v6 pair is the one format the "+
+			"10.6.101 jar accepts; either the rule changed or this probe's base body no longer "+
+			"reaches the iid validation.", accepted, status, v2ErrCode(body), body["message"])
+	}
+	if id == "" {
+		t.Errorf("created NAT rule carries no id; it cannot be deleted: %v", body)
+	} else {
+		stored, getStatus, err := s.GetJSON(ctx, path+"/"+id)
+		if err != nil || getStatus != 200 {
+			t.Errorf("read back the created rule: HTTP %d, %v", getStatus, err)
+		} else if f, _ := firstData(t, stored)["source_filter"].(map[string]any); f["iid"] != accepted {
+			t.Errorf("iid stored as %v, wrote %q; the controller rewrote it in silence", f["iid"], accepted)
+		}
+		s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+
+	for _, tc := range []struct {
+		name string
+		iid  any
+	}{
+		{"a bare address with no mask", "::1:2:3:4"},
+		{"a prefix length instead of a mask", "::1:2:3:4/64"},
+		{"three parts", "::1/::2/::3"},
+		{"no iid at all", nil},
+	} {
+		status, id, m := post(tc.iid)
+		if status == 200 || status == 201 {
+			if id != "" {
+				s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+			}
+			t.Errorf("%s (%v) was accepted; the iid format this test pins has loosened", tc.name, tc.iid)
+			continue
+		}
+		if code := v2ErrCode(m); code != "api.err.NatRuleInvalidIidAndPortFilter" {
+			t.Errorf("%s (%v) was refused with %q, wanted api.err.NatRuleInvalidIidAndPortFilter; "+
+				"a different refusal may be about something other than the iid", tc.name, tc.iid, code)
+		}
+	}
+}
