@@ -11,7 +11,6 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -718,6 +717,12 @@ func main() {
 	// Tracks every .generated.go written this run so files whose schema
 	// disappeared upstream can be removed afterwards.
 	writtenGenerated := map[string]bool{}
+	writeGenerated := func(path string, code []byte) {
+		if err := os.WriteFile(path, code, 0o644); err != nil {
+			panic(err)
+		}
+		writtenGenerated[path] = true
+	}
 
 	// Resources this run actually produced, so a preference table naming a
 	// resource the schema no longer defines is reported rather than emitted
@@ -991,10 +996,7 @@ func main() {
 		}
 
 		_ = os.Remove(filepath.Join(targetDir, goFile))
-		if err := os.WriteFile(filepath.Join(targetDir, goFile), ([]byte)(code), 0o644); err != nil {
-			panic(err)
-		}
-		writtenGenerated[filepath.Join(targetDir, goFile)] = true
+		writeGenerated(filepath.Join(targetDir, goFile), []byte(code))
 
 		if !resource.IsSetting() {
 			implFile := strcase.ToSnake(structName) + ".go"
@@ -1029,19 +1031,13 @@ const UnifiVersion = %q
 		panic(err)
 	}
 
-	if err := os.WriteFile(filepath.Join(outDir, "version.generated.go"), versionGo, 0o644); err != nil {
-		panic(err)
-	}
-	writtenGenerated[filepath.Join(outDir, "version.generated.go")] = true
+	writeGenerated(filepath.Join(outDir, "version.generated.go"), versionGo)
 
 	preferenceGo, err := generatePreferenceFile(generatedResources)
 	if err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "preference.generated.go"), preferenceGo, 0o644); err != nil {
-		panic(err)
-	}
-	writtenGenerated[filepath.Join(outDir, "preference.generated.go")] = true
+	writeGenerated(filepath.Join(outDir, "preference.generated.go"), preferenceGo)
 
 	// Write the validation patterns and enumeration values per package.
 	for _, target := range []struct {
@@ -1059,36 +1055,24 @@ const UnifiVersion = %q
 		if err != nil {
 			panic(fmt.Errorf("render %s validation file: %w", target.pkg, err))
 		}
-		path := filepath.Join(target.dir, "validation.generated.go")
-		if err := os.WriteFile(path, validationGo, 0o644); err != nil {
-			panic(err)
-		}
-		writtenGenerated[path] = true
+		writeGenerated(filepath.Join(target.dir, "validation.generated.go"), validationGo)
 	}
 
 	// The controller's own sensitive-field list, so the client redacts by
 	// name instead of guessing from substrings.
-	if sensitiveGo, err := renderSensitiveFile("unifi", sensitive); err != nil {
+	sensitiveGo, err := renderSensitiveFile("unifi", sensitive)
+	if err != nil {
 		panic(fmt.Errorf("render sensitive file: %w", err))
-	} else {
-		path := filepath.Join(outDir, "sensitive.generated.go")
-		if err := os.WriteFile(path, sensitiveGo, 0o644); err != nil {
-			panic(err)
-		}
-		writtenGenerated[path] = true
 	}
+	writeGenerated(filepath.Join(outDir, "sensitive.generated.go"), sensitiveGo)
 
 	// The measured coercion floors, exported so a caller can know before
 	// writing that the controller will silently rewrite a value.
-	if coercionsGo, err := renderCoercionsFile("unifi", measured.Coercions); err != nil {
+	coercionsGo, err := renderCoercionsFile("unifi", measured.Coercions)
+	if err != nil {
 		panic(fmt.Errorf("render coercions file: %w", err))
-	} else {
-		path := filepath.Join(outDir, "coercions.generated.go")
-		if err := os.WriteFile(path, coercionsGo, 0o644); err != nil {
-			panic(err)
-		}
-		writtenGenerated[path] = true
 	}
+	writeGenerated(filepath.Join(outDir, "coercions.generated.go"), coercionsGo)
 
 	// A resource that left the schema must also leave the SDK, or the public
 	// API silently diverges from the controller (and apidiff never sees the
@@ -1170,18 +1154,6 @@ func (r *ResourceInfo) CleanStructName() string {
 		return strings.TrimPrefix(r.StructName, "Setting")
 	}
 	return r.StructName
-}
-
-func (r *ResourceInfo) processFields(fields map[string]any) {
-	t := r.Types[r.StructName]
-	for name, validation := range fields {
-		fieldInfo, err := r.fieldInfoFromValidation(name, validation)
-		if err != nil {
-			continue
-		}
-
-		t.Fields[fieldInfo.FieldName] = fieldInfo
-	}
 }
 
 func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*FieldInfo, error) {
@@ -1278,13 +1250,18 @@ func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*Fi
 
 func (r *ResourceInfo) processJSON(b []byte) error {
 	var fields map[string]any
-	err := json.Unmarshal(b, &fields)
-	if err != nil {
+	if err := json.Unmarshal(b, &fields); err != nil {
 		return err
 	}
 
-	r.processFields(fields)
-
+	t := r.Types[r.StructName]
+	for name, validation := range fields {
+		fieldInfo, err := r.fieldInfoFromValidation(name, validation)
+		if err != nil {
+			continue
+		}
+		t.Fields[fieldInfo.FieldName] = fieldInfo
+	}
 	return nil
 }
 
@@ -1294,24 +1271,21 @@ var apiGoTemplate string
 //go:embed client.go.tmpl
 var clientGoTemplate string
 
+var tmplFuncs = template.FuncMap{"trimPrefix": strings.TrimPrefix}
+
+var (
+	apiTpl    = template.Must(template.New("api.go.tmpl").Funcs(tmplFuncs).Parse(apiGoTemplate))
+	clientTpl = template.Must(template.New("client.go.tmpl").Funcs(tmplFuncs).Parse(clientGoTemplate))
+)
+
 func (r *ResourceInfo) generateCode(isImpl bool) (string, error) {
-	var err error
-	var buf bytes.Buffer
-	writer := io.Writer(&buf)
-
-	var tpl *template.Template
-	funcMap := template.FuncMap{
-		"trimPrefix": strings.TrimPrefix,
-	}
-
+	tpl := apiTpl
 	if isImpl {
-		tpl = template.Must(template.New("client.go.tmpl").Funcs(funcMap).Parse(clientGoTemplate))
-	} else {
-		tpl = template.Must(template.New("api.go.tmpl").Funcs(funcMap).Parse(apiGoTemplate))
+		tpl = clientTpl
 	}
 
-	err = tpl.Execute(writer, r)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, r); err != nil {
 		return "", fmt.Errorf("failed to render template: %w", err)
 	}
 
@@ -1320,7 +1294,7 @@ func (r *ResourceInfo) generateCode(isImpl bool) (string, error) {
 		return "", fmt.Errorf("failed to format source: %w", err)
 	}
 
-	return string(src), err
+	return string(src), nil
 }
 
 func normalizeValidation(re string) string {

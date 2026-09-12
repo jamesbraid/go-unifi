@@ -112,12 +112,8 @@ var FieldValidationPatterns = map[string]map[string]string{
 
 		if e.FieldType == fields.Int {
 			if vs := enumInt64Values(e.Pattern); vs != nil {
-				parts := make([]string, len(vs))
-				for i, v := range vs {
-					parts[i] = strconv.FormatInt(v, 10)
-				}
 				fmt.Fprintf(&buf, "\n// %s are the values the controller accepts for %s.%s.\nvar %s = []int64{%s}\n",
-					values, e.TypeName, e.JSONName, values, strings.Join(parts, ", "))
+					values, e.TypeName, e.JSONName, values, int64List(vs))
 				continue
 			}
 			b, cached := rangeCache[e.Pattern]
@@ -133,12 +129,8 @@ var FieldValidationPatterns = map[string]map[string]string{
 		}
 
 		if vs := enumValues(e.Pattern); vs != nil {
-			parts := make([]string, len(vs))
-			for i, v := range vs {
-				parts[i] = strconv.Quote(v)
-			}
 			fmt.Fprintf(&buf, "\n// %s are the values the controller accepts for %s.%s.\nvar %s = []string{%s}\n",
-				values, e.TypeName, e.JSONName, values, strings.Join(parts, ", "))
+				values, e.TypeName, e.JSONName, values, quotedList(vs))
 			continue
 		}
 
@@ -211,21 +203,13 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		switch e.FieldType {
 		case fields.Int:
 			if vs := enumInt64Values(e.Pattern); vs != nil {
-				parts := make([]string, len(vs))
-				for i, v := range vs {
-					parts[i] = strconv.FormatInt(v, 10)
-				}
-				fmt.Fprintf(buf, ", Int64Values: []int64{%s}", strings.Join(parts, ", "))
+				fmt.Fprintf(buf, ", Int64Values: []int64{%s}", int64List(vs))
 			} else if b := rangeCache[e.Pattern]; b.ok {
 				fmt.Fprintf(buf, ", Min: %d, Max: %d, HasBounds: true", b.low, b.high)
 			}
 		default:
 			if vs := enumValues(e.Pattern); vs != nil {
-				parts := make([]string, len(vs))
-				for i, v := range vs {
-					parts[i] = strconv.Quote(v)
-				}
-				fmt.Fprintf(buf, ", Values: []string{%s}", strings.Join(parts, ", "))
+				fmt.Fprintf(buf, ", Values: []string{%s}", quotedList(vs))
 			} else if low, high, ok := lengthBounds(e.Pattern); ok {
 				fmt.Fprintf(buf, ", MinLength: %d, MaxLength: %d, HasLength: true", low, high)
 			}
@@ -236,6 +220,24 @@ var FieldConstraints = map[string]map[string]FieldConstraint{
 		buf.WriteString("\t},\n")
 	}
 	buf.WriteString("}\n")
+}
+
+// quotedList renders vs as Go source: `"a", "b"`.
+func quotedList(vs []string) string {
+	parts := make([]string, len(vs))
+	for i, v := range vs {
+		parts[i] = strconv.Quote(v)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// int64List renders vs as Go source: `1, 2, 3`.
+func int64List(vs []int64) string {
+	parts := make([]string, len(vs))
+	for i, v := range vs {
+		parts[i] = strconv.FormatInt(v, 10)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // enumValues extracts the alternatives from a schema validation pattern that
