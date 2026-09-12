@@ -140,13 +140,14 @@ func (g *SpecificationGenerator) Generate() *spec.Specification {
 		}
 
 		name := toTerraformName(r.StructName)
+		attrs := g.generateResourceAttributes(r)
 		spec.DataSources = append(spec.DataSources, datasource.DataSource{
 			Name:   name,
-			Schema: &datasource.Schema{Attributes: g.generateDataSourceAttributes(r)},
+			Schema: &datasource.Schema{Attributes: dataSourceAttributes(attrs)},
 		})
 		spec.Resources = append(spec.Resources, resource.Resource{
 			Name:   name,
-			Schema: &resource.Schema{Attributes: g.generateResourceAttributes(r)},
+			Schema: &resource.Schema{Attributes: attrs},
 		})
 	}
 
@@ -224,153 +225,64 @@ func (g *SpecificationGenerator) sensitivePtr(r *ResourceInfo, field *FieldInfo)
 	return nil
 }
 
-// generateDataSourceAttributes generates data source attributes from a resource.
-func (g *SpecificationGenerator) generateDataSourceAttributes(r *ResourceInfo) []datasource.Attribute {
-	baseType := r.Types[r.StructName]
-	if baseType == nil || baseType.Fields == nil {
+// dataSourceAttributes derives a resource's data-source schema from its
+// resource schema. The two were maintained as parallel walkers that differed
+// in exactly two ways, both stated here once: every data-source attribute is
+// computed (a data source cannot write), and none carries a description (the
+// descriptions warn about write-time ownership traps, which cannot bite a
+// reader -- see describePreference).
+func dataSourceAttributes(attrs []resource.Attribute) []datasource.Attribute {
+	if attrs == nil {
 		return nil
 	}
-
-	attrs := make([]datasource.Attribute, 0)
-
-	// Sort fields by name for consistent output
-	fieldNames := slices.Sorted(maps.Keys(baseType.Fields))
-
-	for _, fieldName := range fieldNames {
-		field := baseType.Fields[fieldName]
-		if field == nil || strings.HasPrefix(fieldName, " ") || strings.HasSuffix(fieldName, "_Spacer") {
-			continue
-		}
-
-		attr := g.fieldToDataSourceAttribute(r, field)
-		if attr != nil {
-			attrs = append(attrs, *attr)
-		}
-	}
-
-	return attrs
-}
-
-// fieldToDataSourceAttribute converts a FieldInfo to a datasource.Attribute.
-func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, field *FieldInfo) *datasource.Attribute {
-	if field == nil {
-		return nil
-	}
-
-	// The wire name is already snake_case and is what the API actually
-	// calls the field. Deriving the attribute name from the Go field name
-	// instead produced names no API user would recognise --
-	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
-	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
-	name := field.JSONName
-
-	attr := &datasource.Attribute{
-		Name: name,
-	}
-
-	// Handle array types
-	if field.IsArray {
-		if field.Fields != nil {
-			// Nested object array - use list_nested
-			nestedAttrs := g.generateNestedDataSourceAttributes(r, field)
-			attr.ListNested = &datasource.ListNestedAttribute{
-				ComputedOptionalRequired: "computed",
+	out := make([]datasource.Attribute, 0, len(attrs))
+	for _, a := range attrs {
+		d := datasource.Attribute{Name: a.Name}
+		switch {
+		case a.Bool != nil:
+			d.Bool = &datasource.BoolAttribute{
+				ComputedOptionalRequired: schema.Computed,
+				Sensitive:                a.Bool.Sensitive,
+			}
+		case a.Int64 != nil:
+			d.Int64 = &datasource.Int64Attribute{
+				ComputedOptionalRequired: schema.Computed,
+				Sensitive:                a.Int64.Sensitive,
+				Validators:               a.Int64.Validators,
+			}
+		case a.Float64 != nil:
+			d.Float64 = &datasource.Float64Attribute{
+				ComputedOptionalRequired: schema.Computed,
+				Sensitive:                a.Float64.Sensitive,
+			}
+		case a.String != nil:
+			d.String = &datasource.StringAttribute{
+				ComputedOptionalRequired: schema.Computed,
+				Sensitive:                a.String.Sensitive,
+				Validators:               a.String.Validators,
+			}
+		case a.List != nil:
+			d.List = &datasource.ListAttribute{
+				ComputedOptionalRequired: schema.Computed,
+				ElementType:              a.List.ElementType,
+				Sensitive:                a.List.Sensitive,
+			}
+		case a.ListNested != nil:
+			d.ListNested = &datasource.ListNestedAttribute{
+				ComputedOptionalRequired: schema.Computed,
 				NestedObject: datasource.NestedAttributeObject{
-					Attributes: nestedAttrs,
+					Attributes: dataSourceAttributes(a.ListNested.NestedObject.Attributes),
 				},
 			}
-		} else {
-			// Simple array - use list
-			attr.List = &datasource.ListAttribute{
-				ComputedOptionalRequired: "computed",
-				ElementType:              g.fieldTypeToElementType(field.FieldType),
-				Sensitive:                g.sensitivePtr(r, field),
+		case a.SingleNested != nil:
+			d.SingleNested = &datasource.SingleNestedAttribute{
+				ComputedOptionalRequired: schema.Computed,
+				Attributes:               dataSourceAttributes(a.SingleNested.Attributes),
 			}
 		}
-		return attr
+		out = append(out, d)
 	}
-
-	// Handle nested object types
-	if field.Fields != nil {
-		nestedAttrs := g.generateNestedDataSourceAttributes(r, field)
-		attr.SingleNested = &datasource.SingleNestedAttribute{
-			ComputedOptionalRequired: "computed",
-			Attributes:               nestedAttrs,
-		}
-		return attr
-	}
-
-	// Handle primitive types
-	switch field.FieldType {
-	case "bool":
-		attr.Bool = &datasource.BoolAttribute{
-			ComputedOptionalRequired: "computed",
-			Sensitive:                g.sensitivePtr(r, field),
-		}
-	case "int64":
-		intAttr := &datasource.Int64Attribute{
-			ComputedOptionalRequired: "computed",
-			Sensitive:                g.sensitivePtr(r, field),
-		}
-		if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
-			intAttr.Validators = validators
-		}
-		attr.Int64 = intAttr
-	case "float64":
-		attr.Float64 = &datasource.Float64Attribute{
-			ComputedOptionalRequired: "computed",
-			Sensitive:                g.sensitivePtr(r, field),
-		}
-	case "string":
-		strAttr := &datasource.StringAttribute{
-			ComputedOptionalRequired: "computed",
-			Sensitive:                g.sensitivePtr(r, field),
-		}
-		if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
-			strAttr.Validators = validators
-		}
-		attr.String = strAttr
-	default:
-		// Check if it's a custom type defined in Types
-		if typeInfo, ok := r.Types[field.FieldType]; ok {
-			attr.SingleNested = &datasource.SingleNestedAttribute{
-				ComputedOptionalRequired: "computed",
-				Attributes:               g.generateNestedDataSourceAttributes(r, typeInfo),
-			}
-		} else {
-			// Default to string for unknown types
-			attr.String = &datasource.StringAttribute{
-				ComputedOptionalRequired: "computed",
-				Sensitive:                g.sensitivePtr(r, field),
-			}
-		}
-	}
-
-	return attr
-}
-
-// generateNestedDataSourceAttributes generates nested attributes for data sources.
-func (g *SpecificationGenerator) generateNestedDataSourceAttributes(r *ResourceInfo, field *FieldInfo) []datasource.Attribute {
-	if field.Fields == nil {
-		return nil
-	}
-
-	attrs := make([]datasource.Attribute, 0)
-	fieldNames := slices.Sorted(maps.Keys(field.Fields))
-
-	for _, fieldName := range fieldNames {
-		childField := field.Fields[fieldName]
-		if childField == nil {
-			continue
-		}
-
-		attr := g.fieldToDataSourceAttribute(r, childField)
-		if attr != nil {
-			attrs = append(attrs, *attr)
-		}
-	}
-
-	return attrs
+	return out
 }
 
 // generateResourceAttributes generates resource attributes from a Resource.
