@@ -31,33 +31,7 @@ func TestIntegrationDeviceSimAdoption(t *testing.T) {
 	}
 	mac := devices[0].MAC
 
-	// A couple of inform cycles should land the pending doc; 2m is the
-	// generous ceiling for an inform going nowhere. The doc must NOT be
-	// adopted: nobody adopted it, and a spontaneously adopted doc would
-	// mean the fleet collided with something else.
-	var pending Device
-	deadline := time.Now().Add(2 * time.Minute)
-	for {
-		d, ok, err := deviceByMAC(ctx, s, c.Site, mac)
-		if err != nil {
-			t.Fatalf("poll stat/device for %s: %v", mac, err)
-		}
-		if ok {
-			if d.Adopted {
-				t.Fatalf("device %s appeared already adopted: %+v", mac, d)
-			}
-			pending = d
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("device %s never appeared in stat/device", mac)
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("waiting for %s to appear: %v", mac, ctx.Err())
-		case <-time.After(2 * time.Second):
-		}
-	}
+	pending := awaitPendingDevice(ctx, t, c, s, mac)
 	t.Logf("pending doc: %+v", pending)
 
 	d := c.AdoptDevice(ctx, t, s, mac)

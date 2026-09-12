@@ -95,6 +95,37 @@ func (c *Controller) AdoptDevice(ctx context.Context, t *testing.T, s *Session, 
 	}
 }
 
+// awaitPendingDevice waits for mac's stat/device doc to appear and returns
+// it. A couple of inform cycles land the doc; 2m is the ceiling for an
+// inform going nowhere. The doc must NOT already be adopted — nobody has
+// adopted it yet, and a spontaneously adopted doc would mean the MAC
+// collided with something else.
+func awaitPendingDevice(ctx context.Context, t *testing.T, c *Controller, s *Session, mac string) Device {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		d, ok, err := deviceByMAC(ctx, s, c.Site, mac)
+		if err != nil {
+			t.Fatalf("poll stat/device for %s: %v", mac, err)
+		}
+		if ok {
+			if d.Adopted {
+				t.Fatalf("device %s appeared already adopted: %+v", mac, d)
+			}
+			return d
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("device %s never appeared in stat/device", mac)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("waiting for %s to appear: %v", mac, ctx.Err())
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
 // deviceByMAC returns the stat/device doc for mac in site; ok=false when
 // the controller does not list it (a reaped pending doc is absent, not an
 // error — the device's next inform re-creates it).
