@@ -36,56 +36,42 @@ func completeFixture(t *testing.T) string {
 	return root
 }
 
-func TestBuildManifestIsCanonicalAndIgnoresHandWrittenFiles(t *testing.T) {
-	root := completeFixture(t)
+func digest(t *testing.T, root string) string {
+	t.Helper()
+	value, err := OutputDigest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
 
-	first, err := BuildManifest(root)
-	if err != nil {
-		t.Fatal(err)
+// The digest has to answer for generated output only, wherever it sits in the
+// tree, and has to ignore the hand-written client files next to it -- those
+// change on every ordinary commit, and covering them would make the recorded
+// digest unmaintainable.
+func TestOutputDigestCoversGeneratedOutputOnly(t *testing.T) {
+	root := completeFixture(t)
+	before := digest(t, root)
+
+	writeFixture(t, root, "unifi/hand_written.go", "edited by hand\n")
+	if after := digest(t, root); after != before {
+		t.Fatalf("hand-written edit moved the digest: %s then %s", before, after)
 	}
-	second, err := BuildManifest(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := Compare(first, second); err != nil {
-		t.Fatalf("unchanged manifests differ: %v", err)
-	}
-	if len(first.Files) != 7 {
-		t.Fatalf("manifest has %d files, want 7: %#v", len(first.Files), first.Files)
-	}
-	for _, file := range first.Files {
-		if file.Path == "unifi/hand_written.go" {
-			t.Fatal("manifest included hand-written Go")
-		}
+
+	writeFixture(t, root, "unifi/settings/b.generated.go", "package settings\n// drift\n")
+	if after := digest(t, root); after == before {
+		t.Fatal("a nested generated file changed without moving the digest")
 	}
 }
 
-func TestCompareRejectsIntentionalGeneratorNondeterminism(t *testing.T) {
-	root := completeFixture(t)
-	first, err := BuildManifest(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeFixture(t, root, "unifi/a.generated.go", "package unifi\n// nondeterministic value\n")
-	second, err := BuildManifest(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = Compare(first, second)
-	if err == nil || !strings.Contains(err.Error(), "nondeterministic generated output") || !strings.Contains(err.Error(), "unifi/a.generated.go") {
-		t.Fatalf("Compare() error = %v, want named nondeterminism failure", err)
-	}
-}
-
-func TestBuildManifestFailsWhenRequiredProvenanceIsMissing(t *testing.T) {
+func TestOutputDigestFailsWhenRequiredProvenanceIsMissing(t *testing.T) {
 	root := completeFixture(t)
 	if err := os.Remove(filepath.Join(root, "schemas", "SOURCE")); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := BuildManifest(root)
+	_, err := OutputDigest(root)
 	if err == nil || !strings.Contains(err.Error(), "schemas/SOURCE") {
-		t.Fatalf("BuildManifest() error = %v, want missing provenance failure", err)
+		t.Fatalf("OutputDigest() error = %v, want missing provenance failure", err)
 	}
 }

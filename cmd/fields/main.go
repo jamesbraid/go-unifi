@@ -488,7 +488,7 @@ func verifyFieldDocuments(want, got map[string]string) error {
 
 // stampGeneratedTree re-records what a finished generation run produced: the
 // lock's input digests, then the generated-output digest -- lock first,
-// because the manifest hashes the lock. The lock's two values are replaced
+// because the output digest covers the lock. The lock's two values are replaced
 // textually; round-tripping the JSON would reorder its keys.
 func stampGeneratedTree(moduleRoot, lockPath string) error {
 	inputs, err := capturelock.ComputeInputDigests(moduleRoot)
@@ -512,13 +512,13 @@ func stampGeneratedTree(moduleRoot, lockPath string) error {
 	if err := os.WriteFile(lockPath, raw, 0o644); err != nil {
 		return err
 	}
-	manifest, err := rebuild.BuildManifest(moduleRoot)
+	digest, err := rebuild.OutputDigest(moduleRoot)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(
 		filepath.Join(moduleRoot, "schemas", "GENERATED_SHA256"),
-		[]byte(manifest.OutputSHA256+"\n"),
+		[]byte(digest+"\n"),
 		0o644,
 	)
 }
