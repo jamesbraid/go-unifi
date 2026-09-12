@@ -35,12 +35,7 @@ import (
 func TestIntegrationWriteReplay(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	v1Path := "/api/s/" + c.Site + "/rest/networkconf"
 	v2Path := "/v2/api/site/" + c.Site + "/nat"

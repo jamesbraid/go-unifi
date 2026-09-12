@@ -53,12 +53,7 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 		known[w] = true
 	}
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 	artifact, artifactFound, err := behavior.Load(root)
 	if err != nil {
 		t.Fatalf("load %s: %v", behavior.Path, err)

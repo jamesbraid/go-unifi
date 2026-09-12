@@ -47,13 +47,8 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 	// measured verdicts are checked against it, with BEHAVIOR_WRITE=1 they
 	// are recorded into it. measured accumulates across the sequential
 	// subtests so the artifact is written once, after all resources ran.
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 	recording := behaviorWriteRequested()
-	if recording && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
 	artifact, artifactFound, err := behavior.Load(root)
 	if err != nil {
 		t.Fatalf("load %s: %v", behavior.Path, err)
