@@ -128,7 +128,9 @@ func (g *SpecificationGenerator) Generate() *spec.Specification {
 		Resources:   make([]resource.Resource, 0),
 	}
 
-	// Sort resources by name for consistent output
+	// Sort by Go struct name for deterministic output. That is not the same
+	// as sorting by the Terraform name it maps to: APGroup sorts before
+	// Account, so the emitted order reads ap_group, account, bgp_config.
 	sortedResources := slices.SortedFunc(slices.Values(g.Resources), func(a, b *ResourceInfo) int {
 		return strings.Compare(a.StructName, b.StructName)
 	})

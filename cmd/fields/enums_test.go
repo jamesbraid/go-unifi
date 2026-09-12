@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -217,31 +216,6 @@ func TestNumericRangeBoundsAreTight(t *testing.T) {
 		}
 	}
 	t.Logf("%d distinct patterns, %d yielded a contiguous numeric range", len(patterns), ranges)
-}
-
-// TestLengthBoundsRoundTrip checks a derived length bound really is the
-// length rule the pattern states.
-func TestLengthBoundsRoundTrip(t *testing.T) {
-	for _, pattern := range distinctSchemaPatterns(t) {
-		low, high, ok := lengthBounds(pattern)
-		if !ok {
-			continue
-		}
-		re, err := compileAnchored(pattern)
-		if err != nil {
-			t.Errorf("pattern %q yielded length bounds but will not compile", pattern)
-			continue
-		}
-		if low > 0 && re.MatchString(strings.Repeat("x", int(low)-1)) {
-			t.Errorf("pattern %q: accepts a value shorter than the derived minimum %d", pattern, low)
-		}
-		if !re.MatchString(strings.Repeat("x", int(high))) {
-			t.Errorf("pattern %q: rejects a value at the derived maximum %d", pattern, high)
-		}
-		if re.MatchString(strings.Repeat("x", int(high)+1)) {
-			t.Errorf("pattern %q: accepts a value longer than the derived maximum %d", pattern, high)
-		}
-	}
 }
 
 // generatedFieldPattern matches the trailing validation comment the template

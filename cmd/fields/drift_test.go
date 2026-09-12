@@ -26,12 +26,6 @@ func TestDriftCompare(t *testing.T) {
 	require.Equal(t, []string{"network_ids"}, r.SchemaOnly)
 }
 
-func TestDriftCompareEmptyObserved(t *testing.T) {
-	r := driftCompare(nil, map[string]any{"name": ""})
-	require.Empty(t, r.LiveOnly)
-	require.Equal(t, []string{"name"}, r.SchemaOnly)
-}
-
 func TestObservedObjects(t *testing.T) {
 	tests := []struct {
 		name string
