@@ -18,8 +18,9 @@ import (
 // the standalone Network app -sim (Start). It lets one integration suite run
 // against both harnesses by varying the env per CI job, so the encoder and
 // drift checks run against the full UOS stack as well as the standalone
-// controller. Tests that are inherently one-harness (e.g. the UOS gateway
-// probe) call Start / StartUOS directly instead.
+// controller. Tests that are inherently one-harness (the gateway feature
+// sweep, which needs the standalone sim; the seeded-UOS probes, which need
+// the full console) call Start / StartUOSSeeded directly instead.
 func StartForHarness(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 	if strings.EqualFold(os.Getenv("UNIFI_TEST_HARNESS"), "uos") {

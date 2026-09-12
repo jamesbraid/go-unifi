@@ -173,6 +173,13 @@ func TestIntegrationSeededUOSZoneMigration(t *testing.T) {
 // rejection. The emulator now reports both per model profile, and only the
 // models that carry the bit claim it.
 //
+// It is the capability and nothing else: a gateway-less UniFi OS Server
+// answers bgp/config with the same 404 api.err.BgpUnsupportedDevice as the
+// gateway-less standalone sim (measured on UOS 5.1.21-sim, 2026-07-22), so
+// running the full UOS stack is not what unlocks the feature. The
+// gateway-less standalone half of that comparison is still measured, by
+// TestIntegrationGatewayFeatureGateNoDevice.
+//
 // So this asserts the write lands, and then compares the persisted object
 // against the hand-written schema — the same drift check the base gate runs
 // for the collections it can seed. It stays behind UNIFI_GATEWAY_TEST because
