@@ -3,8 +3,8 @@ name: rebuild
 
 # Prove the committed tree re-derives from the public artifact on a stock
 # runner: fetch the locked artifact from its public URL, regenerate from
-# scratch, and diff the result against the committed output digest and the
-# working tree. Replaces a heavier hermetic double-build.
+# scratch, and diff the result against the committed tree. Replaces a
+# heavier hermetic double-build.
 
 on:
   workflow_dispatch: {}
@@ -44,10 +44,12 @@ jobs:
           curl --fail --location --silent --show-error --output "$store/sha256/$sha" "$url"
           echo "$sha  $store/sha256/$sha" | sha256sum --check -
           echo "GO_UNIFI_CONTENT_STORE=$store" >> "$GITHUB_ENV"
+      # Generation rewrites schemas/GENERATED_SHA256 from the tree it just
+      # produced, so the digest file is never evidence on its own: the diff
+      # against the committed tree is. It fails if any generated file, the
+      # lock, or the digest came out differently here than it was committed.
       - name: regenerate from scratch and compare
         run: |
           set -eu
           go generate ./...
-          go run ./cmd/rebuild-manifest -root=. > /tmp/manifest
-          diff /tmp/manifest schemas/GENERATED_SHA256
           git diff --exit-code
