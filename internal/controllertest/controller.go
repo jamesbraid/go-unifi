@@ -358,7 +358,8 @@ func dumpLogs(ctx context.Context, t *testing.T, container testcontainers.Contai
 func (c *Controller) NewSession(ctx context.Context, t *testing.T) *Session {
 	t.Helper()
 	if c.RootURL != "" {
-		s := NewUOSSession(c.RootURL, c.BaseURL)
+		s := NewSession(c.BaseURL)
+		s.rootURL = c.RootURL
 		if err := s.LoginUOS(ctx, c.Username, c.Password); err != nil {
 			t.Fatalf("UniFi OS login to %s: %v", c.RootURL, err)
 		}
