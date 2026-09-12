@@ -291,10 +291,11 @@ jobs:
             exit 1
           fi
 
-      # Exactly the recording-capable probes -- the ones that rewrite the
-      # artifact under BEHAVIOR_WRITE=1 (ownership, discarded, clearing,
-      # coercions, write contracts). The rest of the suite runs on the PR in
-      # compare mode anyway. -count=1 because a cached pass records nothing.
+      # Every probe that rewrites the artifact under BEHAVIOR_WRITE=1, found
+      # by asking the source rather than by keeping a list here: a name that
+      # drifts out of a hand-written -run regex makes this job match nothing
+      # and record nothing while still reporting success. -count=1 because a
+      # cached pass records nothing either.
       - name: Re-measure behaviour
         id: record
         env:
@@ -302,9 +303,17 @@ jobs:
           UNIFI_TEST_EXPECT_VERSION: ${{ steps.image.outputs.version }}
         run: |
           set -euo pipefail
+          run=$(grep -l 'BEHAVIOR_WRITE' unifi/*_integration_test.go \
+            | xargs grep -hoE '^func TestIntegration[A-Za-z0-9_]+' \
+            | sed 's/^func //' | sort -u | paste -sd '|' -)
+          if [ -z "$run" ]; then
+            echo "::error::no artifact-writing probes found; the BEHAVIOR_WRITE convention moved" >&2
+            exit 1
+          fi
+          echo "recording with: $run"
           UNIFI_TEST_REQUIRE=1 BEHAVIOR_WRITE=1 \
             go test -tags integration -p 1 -timeout 40m -v -count=1 \
-            ./unifi/ -run '^(TestIntegrationPreferenceOwnership|TestIntegrationNetworkRoundTrip|TestIntegrationClearingSemantics|TestIntegrationCoercionFloors|TestIntegrationWriteContract)$'
+            ./unifi/ -run "^($run)\$"
 
       # Generation needs the extracted field definitions, which a fresh
       # checkout lacks; fetch the locked artifact into an ephemeral store the
