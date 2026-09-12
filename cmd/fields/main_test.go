@@ -38,7 +38,6 @@ func TestFieldInfoFromValidation(t *testing.T) {
 			}
 
 			fieldInfo, err := resource.fieldInfoFromValidation("fieldName", c.validation)
-			// actualType, actualComment, actualOmitEmpty, err := fieldInfoFromValidation(c.validation)
 			if err != nil {
 				t.Fatal(err)
 			}

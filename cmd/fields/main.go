@@ -733,7 +733,6 @@ func main() {
 	// written out per package once the loop finishes.
 	var unifiValidation, settingsValidation []validationEntry
 
-	// Initialize specification generator
 	sensitive, err := loadSensitiveMetadata(filepath.Join(metadataDir, "sensitive_metadata.json"))
 	if err != nil {
 		panic(err)
@@ -766,7 +765,6 @@ func main() {
 		urlPath := strings.ToLower(name)
 		structName := cleanName(name, fileReps)
 
-		// For settings, create a cleaner filename without "setting_" prefix
 		goFile := strcase.ToSnake(structName) + ".generated.go"
 		if after, ok := strings.CutPrefix(structName, "Setting"); ok {
 			goFile = strcase.ToSnake(after) + ".generated.go"
@@ -953,7 +951,6 @@ func main() {
 		}
 		generatedResources[resource.StructName] = true
 
-		// Add resource to specification generator
 		specGen.AddResource(resource)
 
 		// Capture the schema's validation patterns before the template
@@ -970,11 +967,9 @@ func main() {
 			panic(err)
 		}
 
-		// Determine output directory based on whether it's a setting
 		var targetDir string
 		if resource.IsSetting() {
 			targetDir = filepath.Join(outDir, "settings")
-			// Ensure settings directory exists
 			if err := os.MkdirAll(targetDir, 0o755); err != nil {
 				panic(err)
 			}
@@ -1017,7 +1012,6 @@ func main() {
 		}
 	}
 
-	// Write version file.
 	versionGo := fmt.Appendf(nil, `
 // Generated code. DO NOT EDIT.
 
@@ -1109,7 +1103,6 @@ const UnifiVersion = %q
 		))
 	}
 
-	// Generate Terraform provider specification if requested
 	if *generateSpec {
 		specOutputFile := *specOutputPath
 		if !filepath.IsAbs(specOutputFile) {
@@ -1160,7 +1153,6 @@ func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*Fi
 	fieldName := strcase.ToCamel(name)
 	fieldName = cleanName(fieldName, fieldReps)
 
-	empty := &FieldInfo{}
 	var fieldInfo *FieldInfo
 
 	switch validation := validation.(type) {
@@ -1171,12 +1163,12 @@ func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*Fi
 			return fieldInfo, err
 		}
 		if len(validation) > 1 {
-			return empty, fmt.Errorf("unknown validation %#v", validation)
+			return nil, fmt.Errorf("unknown validation %#v", validation)
 		}
 
 		fieldInfo, err := r.fieldInfoFromValidation(name, validation[0])
 		if err != nil {
-			return empty, err
+			return nil, err
 		}
 
 		fieldInfo.OmitEmpty = true
@@ -1195,7 +1187,7 @@ func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*Fi
 		for name, fv := range validation {
 			child, err := r.fieldInfoFromValidation(name, fv)
 			if err != nil {
-				return empty, err
+				return nil, err
 			}
 
 			result.Fields[child.FieldName] = child
@@ -1245,7 +1237,7 @@ func (r *ResourceInfo) fieldInfoFromValidation(name string, validation any) (*Fi
 		return fieldInfo, r.FieldProcessor(fieldName, fieldInfo)
 	}
 
-	return empty, fmt.Errorf("unable to determine type from validation %q", validation)
+	return nil, fmt.Errorf("unable to determine type from validation %q", validation)
 }
 
 func (r *ResourceInfo) processJSON(b []byte) error {

@@ -318,10 +318,8 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		Name: name,
 	}
 
-	// Handle array types
 	if field.IsArray {
 		if field.Fields != nil {
-			// Nested object array - use list_nested
 			nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 			attr.ListNested = &resource.ListNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
@@ -330,7 +328,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 				},
 			}
 		} else {
-			// Simple array - use list
 			attr.List = &resource.ListAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
@@ -340,7 +337,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		return attr
 	}
 
-	// Handle nested object types
 	if field.Fields != nil {
 		nestedAttrs := g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), field)
 		attr.SingleNested = &resource.SingleNestedAttribute{
@@ -350,7 +346,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		return attr
 	}
 
-	// Handle primitive types
 	switch field.FieldType {
 	case "bool":
 		attr.Bool = &resource.BoolAttribute{
@@ -381,14 +376,12 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		}
 		attr.String = strAttr
 	default:
-		// Check if it's a custom type defined in Types
 		if typeInfo, ok := r.Types[field.FieldType]; ok {
 			attr.SingleNested = &resource.SingleNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				Attributes:               g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), typeInfo),
 			}
 		} else {
-			// Default to string for unknown types
 			attr.String = &resource.StringAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				Sensitive:                g.sensitivePtr(r, field),
@@ -427,22 +420,13 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 
 // determineComputedOptionalRequired determines the computed_optional_required value for a field.
 func (g *SpecificationGenerator) determineComputedOptionalRequired(field *FieldInfo) schema.ComputedOptionalRequired {
-	// ID and SiteID are computed
-	if field.FieldName == "ID" || field.FieldName == "SiteID" {
+	switch field.FieldName {
+	case "ID", "SiteID", "Hidden", "HiddenID", "NoDelete", "NoEdit":
 		return schema.Computed
 	}
-
-	// Hidden attributes are computed
-	if field.FieldName == "Hidden" || field.FieldName == "HiddenID" ||
-		field.FieldName == "NoDelete" || field.FieldName == "NoEdit" {
-		return schema.Computed
-	}
-
-	// If OmitEmpty is true, the field is optional
 	if field.OmitEmpty {
 		return schema.ComputedOptional
 	}
-
 	return schema.Optional
 }
 
@@ -561,7 +545,6 @@ func (g *SpecificationGenerator) fieldTypeToElementType(fieldType string) schema
 
 // toTerraformName converts a Go struct name to a Terraform resource/data source name.
 func toTerraformName(name string) string {
-	// Convert CamelCase to snake_case and lowercase
 	return strings.ToLower(strcase.ToSnake(name))
 }
 
@@ -578,7 +561,6 @@ func (g *SpecificationGenerator) WriteSpecification(outputPath string) error {
 		return fmt.Errorf("failed to marshal specification: %w", err)
 	}
 
-	// Ensure directory exists
 	dir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
