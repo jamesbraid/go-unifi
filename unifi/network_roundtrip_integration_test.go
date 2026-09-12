@@ -154,9 +154,8 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 }
 
 type roundTripSeed struct {
-	name    string
-	purpose string
-	seed    map[string]any
+	name string
+	seed map[string]any
 
 	// wantDiscarded lists the wire names the controller is known to store
 	// differently from what the seed asked for, with no error. A well-formed
@@ -251,9 +250,8 @@ func recordDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any, root
 func roundTripSeeds() []roundTripSeed {
 	return []roundTripSeed{
 		{
-			name:    "rt-corporate",
-			purpose: PurposeCorporate,
-			seed:    corporateRoundTripSeed("rt-corporate", 10, 810, "manual"),
+			name: "rt-corporate",
+			seed: corporateRoundTripSeed("rt-corporate", 10, 810, "manual"),
 		},
 		{
 			// The same payload as rt-corporate with one key changed, so
@@ -262,7 +260,6 @@ func roundTripSeeds() []roundTripSeed {
 			// who asks for "auto" gets the controller's advanced block. What
 			// was missing was any record of the price.
 			name:        "rt-corporate-auto",
-			purpose:     PurposeCorporate,
 			seed:        corporateRoundTripSeed("rt-corporate-auto", 50, 850, "auto"),
 			artifactKey: "Network",
 			// Re-measured on 10.6.101, 2026-08-30. Eight: dhcpguard_enabled
@@ -297,8 +294,15 @@ func roundTripSeeds() []roundTripSeed {
 			},
 		},
 		{
-			name:    "rt-guest",
-			purpose: PurposeGuest,
+			// The advanced block here is what marshalGuest's field list rests
+			// on: guest shares the networkconf collection with corporate and
+			// was measured keeping the same corporate-family fields, which is
+			// why the encoder derives one list from the other. Carrying them
+			// in this seed rather than in a sweep of their own means the
+			// discard direction says the controller stored each as asked AND
+			// the LOST/MUTATED directions hold the guest marshaller to them --
+			// a field-at-a-time sweep only ever checked the first.
+			name: "rt-guest",
 			seed: map[string]any{
 				"name": "rt-guest", "purpose": PurposeGuest, "enabled": true,
 				"ip_subnet": "10.91.20.1/24", "vlan_enabled": true, "vlan": 820,
@@ -308,11 +312,47 @@ func roundTripSeeds() []roundTripSeed {
 				"dhcpd_enabled": true, "dhcpd_start": "10.91.20.6", "dhcpd_stop": "10.91.20.254",
 				"dhcpd_dns_enabled": true, "dhcpd_dns_1": "10.91.20.53",
 				"dhcpd_dns_2": "10.91.20.54", "dhcpd_dns_3": "9.9.9.9", "dhcpd_dns_4": "149.112.112.112",
+
+				"upnp_lan_enabled":          true,
+				"dhcpd_time_offset_enabled": true, "dhcpd_time_offset": 3600,
+				"mac_override_enabled": true, "mac_override": "02:00:00:00:00:01",
+				"igmp_fastleave": true, "igmp_flood_unknown_multicast": true,
+				"igmp_supression": true, "igmp_groupmembership": 260,
+				"igmp_maxresponse": 10, "igmp_mcrtrexpiretime": 300,
+				"igmp_querier_switches": []NetworkIGMPQuerierSwitches{{QuerierAddress: "10.0.0.254"}},
+				// firewall_zone_id is deliberately absent: it converts the
+				// network. See rt-guest-zoned below.
 			},
 		},
 		{
-			name:    "rt-vlanonly",
-			purpose: PurposeVLANOnly,
+			// A guest create that names a firewall zone is stored as a
+			// CORPORATE network. Measured on 10.6.101, rc ok, no error: the
+			// caller asked for guest and got something else back.
+			//
+			// The zone id below is well-formed and belongs to nothing, and
+			// that is not a shortcut -- a fresh site owns no firewall zones at
+			// all until it is migrated to zone-based firewalling, so it is the
+			// only kind of id available here, and the controller takes it
+			// anyway. Two things are pinned and a third is not: the purpose
+			// rewrite happens, an id naming no zone is accepted, and whether a
+			// REAL zone behaves the same way is unmeasured.
+			//
+			// This arm exists because the field used to be measured on a guest
+			// network by a sweep that read back only the field it had set. It
+			// reported firewall_zone_id PERSISTED, with no way to notice that
+			// the object holding it was no longer a guest network -- and that
+			// verdict is what the encoder's guest field list cites.
+			name: "rt-guest-zoned",
+			seed: map[string]any{
+				"name": "rt-guest-zoned", "purpose": PurposeGuest, "enabled": true,
+				"ip_subnet": "10.91.21.1/24", "vlan_enabled": true, "vlan": 821,
+				"setting_preference": "manual", "networkgroup": "LAN",
+				"firewall_zone_id": "000000000000000000000000",
+			},
+			wantDiscarded: []string{"purpose"},
+		},
+		{
+			name: "rt-vlanonly",
 			seed: map[string]any{
 				"name": "rt-vlanonly", "purpose": PurposeVLANOnly, "enabled": false,
 				"networkgroup": "LAN", "vlan_enabled": true, "vlan": 830,
@@ -329,8 +369,7 @@ func roundTripSeeds() []roundTripSeed {
 			wantDiscarded: []string{"mdns_enabled"},
 		},
 		{
-			name:    "rt-wan",
-			purpose: PurposeWAN,
+			name: "rt-wan",
 			seed: map[string]any{
 				"name": "rt-wan", "purpose": PurposeWAN, "enabled": true,
 				"wan_networkgroup": "WAN2", "wan_type": "dhcp", "wan_type_v6": "disabled",
@@ -340,7 +379,7 @@ func roundTripSeeds() []roundTripSeed {
 			},
 		},
 		{
-			purpose: PurposeSiteVPN,
+			name: "rt-site-vpn",
 			seed: map[string]any{
 				"name": "rt-site-vpn", "purpose": PurposeSiteVPN, "enabled": true,
 				"vpn_type": "ipsec-vpn", "ipsec_interface": "wan",
@@ -352,7 +391,7 @@ func roundTripSeeds() []roundTripSeed {
 			},
 		},
 		{
-			purpose: PurposeVPNClient,
+			name: "rt-vpn-client",
 			seed: map[string]any{
 				"name": "rt-vpn-client", "purpose": PurposeVPNClient, "enabled": true,
 				"vpn_type": "wireguard-client", "wireguard_client_mode": "manual",
@@ -366,7 +405,7 @@ func roundTripSeeds() []roundTripSeed {
 			},
 		},
 		{
-			purpose: PurposeUserVPN,
+			name: "rt-user-vpn",
 			seed: map[string]any{
 				"name": "rt-user-vpn", "purpose": PurposeUserVPN, "enabled": true,
 				"vpn_type": "openvpn-server", "openvpn_mode": "server",

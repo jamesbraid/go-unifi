@@ -137,11 +137,18 @@ var networkCorporateFields = slices.Concat(networkCommonFields, []string{
 	"dhcpdv6_allow_slaac", "dhcpdv6_start", "dhcpdv6_stop", "dhcpdv6_leasetime",
 })
 
-// networkGuestFields is derived rather than listed: a guest-purpose probe
-// pass (TestIntegrationGuestParityProbe) confirmed the controller persists
-// the same advanced fields on a guest network as on a corporate one. The
-// ipv6 single-network pair is the exception -- it was not part of the guest
-// probe and is corporate-specific ipv6 addressing.
+// networkGuestFields is derived rather than listed: the controller was
+// measured persisting the same advanced fields on a guest network as on a
+// corporate one, and the rt-guest seed in TestIntegrationNetworkRoundTrip
+// re-measures that on every run. The ipv6 single-network pair is the
+// exception -- it was never part of the guest measurement and is
+// corporate-specific ipv6 addressing.
+//
+// firewall_zone_id is the one field still here on weaker evidence than the
+// rest: a guest create that names a zone comes back with purpose rewritten to
+// corporate (rt-guest-zoned pins that), so nothing has yet shown what it does
+// on a network that stays a guest network. It is omitempty, so a caller who
+// sets no zone sends no key and is unaffected.
 var networkGuestFields = withoutNetworkFields(networkCorporateFields,
 	"ipv6_single_network_interface", "single_network_lan")
 
