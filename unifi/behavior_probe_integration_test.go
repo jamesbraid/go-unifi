@@ -77,6 +77,22 @@ func runningControllerVersion(ctx context.Context, t *testing.T, s *controllerte
 	return v
 }
 
+// behaviorGate resolves what every artifact probe needs before it measures
+// anything: the module root, the controller version the capture pinned, and
+// the version the booted controller reports. Recording against a controller
+// the capture does not name files the measurement under the wrong build, so
+// that is refused in one place rather than restated in each probe.
+func behaviorGate(ctx context.Context, t *testing.T, s *controllertest.Session, site string) (root, captured, running string) {
+	t.Helper()
+	root, captured = capturedBehaviorVersion(t)
+	running = runningControllerVersion(ctx, t, s, site)
+	if behaviorWriteRequested() && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+	return root, captured, running
+}
+
 // mergeBehaviorArtifact load-modify-writes the artifact so each probe owns
 // only its own section and a partial re-measure never erases the rest.
 func mergeBehaviorArtifact(t *testing.T, root, version string, mutate func(*behavior.Artifact)) {
@@ -107,12 +123,7 @@ func mergeBehaviorArtifact(t *testing.T, root, version string, mutate func(*beha
 func TestIntegrationCoercionFloors(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	body, status, err := s.GetJSON(ctx, "/api/s/"+c.Site+"/get/setting/usg")
 	if err != nil || status != 200 {
@@ -333,12 +344,7 @@ func renderStoredValue(v any) string {
 func TestIntegrationWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	cf := measureContentFilteringContract(ctx, t, s, c.Site)
 	nat := measureNatContract(ctx, t, s, c.Site)
@@ -634,12 +640,7 @@ func compareWriteContract(t *testing.T, resource string, pinned map[string]behav
 func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	wanID := ensureWANNetwork(ctx, t, s, c.Site)
 	if wanID == "" {
@@ -819,12 +820,7 @@ func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
 func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	lanID := defaultLANNetworkID(ctx, t, s, c.Site)
 	if lanID == "" {
@@ -1017,12 +1013,7 @@ func defaultLANNetworkID(ctx context.Context, t *testing.T, s *controllertest.Se
 func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
-	root, captured := capturedBehaviorVersion(t)
-	running := runningControllerVersion(ctx, t, s, c.Site)
-	if behaviorWriteRequested() && running != captured {
-		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
-			"recording would file the measurement against the wrong controller", running, captured)
-	}
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	emulated := controllertest.StartDevices(ctx, t, c, controllertest.DeviceRequest{Model: "USM8P"})
 	if len(emulated) != 1 {
