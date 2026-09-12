@@ -234,7 +234,10 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
 			"recording would file the measurement against the wrong controller", live, captured)
 	}
-	artifact, _ := loadBehaviorArtifact(t)
+	artifact, _, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
 
 	deps := probeDeps{
 		apGroupID:    firstAPGroupID(ctx, t, s, c.Site),
