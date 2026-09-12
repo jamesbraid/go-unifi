@@ -62,7 +62,25 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 		known[w] = true
 	}
 
-	artifact, artifactFound := loadBehaviorArtifact(t)
+	root, captured := capturedBehaviorVersion(t)
+	running := runningControllerVersion(ctx, t, s, c.Site)
+	if behaviorWriteRequested() && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+	artifact, artifactFound, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if artifactFound && artifact.ControllerVersion != running {
+		// A Discarded list measured on another controller is not this run's
+		// baseline -- comparing them would file a version difference as
+		// drift. Fall back to the in-file wantDiscarded defaults, the same
+		// as a checkout without the artifact.
+		t.Logf("artifact was measured on %s, this controller reports %s; using the in-file baselines",
+			artifact.ControllerVersion, running)
+		artifactFound = false
+	}
 
 	// remote-user-vpn authenticates against the built-in RADIUS server, which
 	// has to be running before the controller will accept the network.
@@ -100,8 +118,8 @@ func TestIntegrationNetworkRoundTrip(t *testing.T) {
 				t.Logf("discard baseline for %s: %s", tc.name, source)
 			}
 			checkDiscarded(t, tc, stored)
-			if tc.artifactKey != "" && behaviorWriteEnabled() {
-				recordDiscarded(t, tc, stored)
+			if tc.artifactKey != "" && behaviorWriteRequested() {
+				recordDiscarded(t, tc, stored, root, captured)
 			}
 
 			raw, err := json.Marshal(stored)
@@ -210,7 +228,7 @@ func checkDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
 // never drop a field the controller stopped discarding, so the reverse
 // direction of checkDiscarded would stay red with no re-measure able to fix
 // it. Other artifact sections are untouched (load-modify-write).
-func recordDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
+func recordDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any, root, version string) {
 	t.Helper()
 
 	detail := discardedFields(tc.seed, stored)
@@ -220,7 +238,7 @@ func recordDiscarded(t *testing.T, tc roundTripSeed, stored map[string]any) {
 	}
 	sort.Strings(measured)
 
-	updateBehaviorArtifact(t, func(a *behavior.Artifact) {
+	mergeBehaviorArtifact(t, root, version, func(a *behavior.Artifact) {
 		if a.Discarded == nil {
 			a.Discarded = map[string][]string{}
 		}

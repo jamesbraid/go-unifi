@@ -55,8 +55,25 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 	// measured verdicts are checked against it, with BEHAVIOR_WRITE=1 they
 	// are recorded into it. measured accumulates across the sequential
 	// subtests so the artifact is written once, after all resources ran.
-	artifact, artifactFound := loadBehaviorArtifact(t)
-	recording := behaviorWriteEnabled()
+	root, captured := capturedBehaviorVersion(t)
+	running := runningControllerVersion(ctx, t, s, c.Site)
+	recording := behaviorWriteRequested()
+	if recording && running != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", running, captured)
+	}
+	artifact, artifactFound, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if artifactFound && artifact.ControllerVersion != running {
+		// Comparing two controllers' measurements would file a version
+		// difference as drift, so the artifact stops being this run's
+		// baseline; the in-file assertions below still hold.
+		t.Logf("artifact was measured on %s, this controller reports %s; skipping the artifact comparison",
+			artifact.ControllerVersion, running)
+		artifactFound = false
+	}
 	measured := map[string]map[string]behavior.EmptySemantics{}
 
 	for _, res := range clearingProbeResources(t, ctx, s, c.Site) {
@@ -168,7 +185,7 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 		// populated with a non-empty string get measured on any given run,
 		// so replacing a resource's whole map would erase real measurements
 		// of fields this run happened not to reach.
-		updateBehaviorArtifact(t, func(a *behavior.Artifact) {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
 			if a.Empty == nil {
 				a.Empty = map[string]map[string]behavior.EmptySemantics{}
 			}
