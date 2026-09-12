@@ -53,6 +53,20 @@ type Artifact struct {
 	// the controller actually accepts, and which fields must be present on
 	// create and on update. Replaces the codegen's guess-from-shape.
 	Writes map[string]WriteContract `json:"writes,omitempty"`
+
+	// RejectedCreates: per resource, what a create the controller rejected
+	// left behind -- the status it answered and whether the document was
+	// stored anyway. A rejection that stores is why a client must never
+	// replay a POST it saw fail: each replay can file another copy.
+	RejectedCreates map[string]RejectedCreate `json:"rejected_creates,omitempty"`
+}
+
+// RejectedCreate is the controller's answer to one deliberately invalid
+// create: the rejection status, and whether the document turned up in the
+// collection afterwards regardless.
+type RejectedCreate struct {
+	Status int  `json:"status"`
+	Stored bool `json:"stored"`
 }
 
 // EmptySemantics records what a field did when written as "" and when its key
