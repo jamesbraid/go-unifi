@@ -46,10 +46,12 @@ FirewallPolicyDestination.match_mac
 FirewallPolicyDestination.match_opposite_ips
 FirewallPolicyDestination.match_opposite_networks
 FirewallPolicyDestination.match_opposite_ports
+FirewallPolicyDestination.zone_id
 FirewallPolicySource.match_mac
 FirewallPolicySource.match_opposite_ips
 FirewallPolicySource.match_opposite_networks
 FirewallPolicySource.match_opposite_ports
+FirewallPolicySource.zone_id
 FirewallRule.dst_networkconf_id
 FirewallRule.enabled
 FirewallRule.icmp_typename
@@ -274,7 +276,6 @@ NetworkMembersGroup.type
 NetworkNATOutboundIPAddresses.ip_address
 NetworkOptimization.enabled
 OSPFRouter.announce_default_route
-OSPFRouter.areas
 OSPFRouter.enabled
 OSPFRouter.redistribute_bgp_routes
 OSPFRouter.redistribute_connected_routes

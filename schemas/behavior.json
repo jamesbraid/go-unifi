@@ -356,6 +356,16 @@
       "update_verb": "",
       "update_path": ""
     },
+    "FirewallPolicy": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/firewall-policies",
+      "update_verb": "",
+      "update_path": "",
+      "required_on_create": [
+        "destination.zone_id",
+        "source.zone_id"
+      ]
+    },
     "Nat": {
       "create_verb": "POST",
       "create_path": "v2/api/site/{site}/nat",
@@ -374,8 +384,12 @@
       "update_path": "v2/api/site/{site}/ospf/router/{id}",
       "required_on_create": [
         "areas",
+        "areas[].network_ids",
         "router_id"
-      ]
+      ],
+      "min_items": {
+        "areas[].network_ids": 1
+      }
     }
   },
   "rejected_creates": {

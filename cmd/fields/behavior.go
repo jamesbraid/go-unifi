@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/format"
 	"sort"
+	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 )
@@ -37,9 +38,17 @@ func applyWriteContract(r *ResourceInfo, w behavior.WriteContract) {
 // It wraps outermost and matches on the wire name, because the measurement
 // is authoritative: a hand-written processor's omitempty guess retires the
 // day the probe records the field as required.
+//
+// A dotted artifact entry ("source.zone_id") matches by its leaf, because
+// the processor sees each field without its parent. Leaf matching flips
+// every same-named field in the resource, which is exact today: the
+// measured entries name all of them.
 func withRequiredOnCreate(required []string, next func(string, *FieldInfo) error) func(string, *FieldInfo) error {
 	names := make(map[string]bool, len(required))
 	for _, n := range required {
+		if i := strings.LastIndex(n, "."); i >= 0 {
+			n = n[i+1:]
+		}
 		names[n] = true
 	}
 	return func(name string, f *FieldInfo) error {
@@ -54,7 +63,10 @@ func withRequiredOnCreate(required []string, next func(string, *FieldInfo) error
 		// records the field as required; consumers derive requiredness
 		// from it, and an SDK caller omitting a required pointer gets the
 		// controller's own rejection, same as today.
-		if names[f.JSONName] && !f.IsPointer {
+		//
+		// Array fields are left alone too: without omitempty a nil slice
+		// marshals as null, a wire shape no probe has measured.
+		if names[f.JSONName] && !f.IsPointer && !f.IsArray {
 			f.OmitEmpty = false
 		}
 		return nil

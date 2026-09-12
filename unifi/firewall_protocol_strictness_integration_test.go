@@ -45,23 +45,8 @@ func TestIntegrationFirewallProtocolStrictness(t *testing.T) {
 	// v2 policies: strict. A name that only matches because a dot is a
 	// wildcard is refused by name.
 	policyPath := "/v2/api/site/" + c.Site + "/firewall-policies"
-	for _, name := range []string{"proto-strict-src", "proto-strict-dst"} {
-		s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone", //nolint:errcheck
-			map[string]any{"name": name, "network_ids": []string{}})
-	}
-	zones, status, err := s.GetJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone")
-	if err != nil || status != 200 {
-		t.Fatalf("list zones (HTTP %d): %v", status, err)
-	}
-	var zoneIDs []string
-	for _, z := range asSlice(zones) {
-		if m, _ := z.(map[string]any); m != nil {
-			if id, _ := m["_id"].(string); id != "" {
-				zoneIDs = append(zoneIDs, id)
-			}
-		}
-	}
-	if len(zoneIDs) == 0 {
+	src, dst := firewallZonePair(ctx, t, s, c.Site)
+	if src == "" {
 		t.Fatal("no firewall zones; the policy half cannot be measured and a skip here would " +
 			"hide the strictness this test exists to pin")
 	}
@@ -69,16 +54,9 @@ func TestIntegrationFirewallProtocolStrictness(t *testing.T) {
 	n := 0
 	postPolicy := func(protocol string) (int, map[string]any) {
 		n++
-		body, status, err := s.PostJSON(ctx, policyPath, map[string]any{
-			"name": fmt.Sprintf("proto-strict-%d", n), "enabled": true,
-			"action": "ALLOW", "predefined": false, "index": 23200 + n,
-			"protocol": protocol, "ip_version": "BOTH",
-			"connection_state_type": "ALL", "connection_states": []string{},
-			"source":      map[string]any{"zone_id": zoneIDs[0], "matching_target": "ANY"},
-			"destination": map[string]any{"zone_id": zoneIDs[len(zoneIDs)-1], "matching_target": "ANY"},
-			"logging":     false, "create_allow_respond": true,
-			"schedule": map[string]any{"mode": "ALWAYS", "time_all_day": true, "repeat_on_days": []string{}},
-		})
+		payload := firewallPolicyProbeBase(fmt.Sprintf("proto-strict-%d", n), 23200+n, src, dst)
+		payload["protocol"] = protocol
+		body, status, err := s.PostJSON(ctx, policyPath, payload)
 		if err != nil {
 			t.Fatalf("transport: %v", err)
 		}

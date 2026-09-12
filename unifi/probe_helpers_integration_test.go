@@ -81,6 +81,50 @@ func ensureWANNetwork(ctx context.Context, t *testing.T, s *controllertest.Sessi
 	return id
 }
 
+// firewallZonePair seeds two probe zones and returns ids to address a
+// policy's source and destination with. Empty ids mean the controller
+// offered no zones at all; each caller decides whether that is a skip or a
+// failure. Three tests used to carry this block each.
+func firewallZonePair(ctx context.Context, t *testing.T, s *controllertest.Session, site string) (src, dst string) {
+	t.Helper()
+	for _, name := range []string{"probe-zone-src", "probe-zone-dst"} {
+		s.PostJSON(ctx, "/v2/api/site/"+site+"/firewall/zone", //nolint:errcheck
+			map[string]any{"name": name, "network_ids": []string{}})
+	}
+	zones, status, err := s.GetJSON(ctx, "/v2/api/site/"+site+"/firewall/zone")
+	if err != nil || status != 200 {
+		t.Fatalf("list zones (HTTP %d): %v", status, err)
+	}
+	var ids []string
+	for _, z := range asSlice(zones) {
+		if m, _ := z.(map[string]any); m != nil {
+			if id, _ := m["_id"].(string); id != "" {
+				ids = append(ids, id)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return "", ""
+	}
+	return ids[0], ids[len(ids)-1]
+}
+
+// firewallPolicyProbeBase is the smallest policy body the controller
+// accepts, addressed at the given zones. index must be unique among the
+// policies one probe creates: the controller refuses a duplicate index.
+func firewallPolicyProbeBase(name string, index int, src, dst string) map[string]any {
+	return map[string]any{
+		"name": name, "enabled": true,
+		"action": "ALLOW", "predefined": false, "index": index,
+		"protocol": "all", "ip_version": "BOTH",
+		"connection_state_type": "ALL", "connection_states": []string{},
+		"source":      map[string]any{"zone_id": src, "matching_target": "ANY"},
+		"destination": map[string]any{"zone_id": dst, "matching_target": "ANY"},
+		"logging":     false, "create_allow_respond": true,
+		"schedule": map[string]any{"mode": "ALWAYS", "time_all_day": true, "repeat_on_days": []string{}},
+	}
+}
+
 // wlanBase is the smallest WLAN a bare controller accepts. Without
 // ap_group_ids the create is rejected with api.err.ApGroupMissing.
 func wlanBase(name string, deps probeDeps) map[string]any {
