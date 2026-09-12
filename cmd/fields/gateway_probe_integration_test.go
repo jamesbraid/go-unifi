@@ -362,19 +362,6 @@ func sweepGatewayEndpoints(ctx context.Context, t *testing.T, c *controllertest.
 // "this endpoint wants a capable device", not "this endpoint is unreachable".
 // TestIntegrationSeededUOSBgpConfig is where a capable one is adopted.
 //
-// CAVEAT on the firewall/zone row: the 404 means "this site has not been
-// migrated to zone-based firewalling", not "this endpoint wants a gateway".
-// POST /v2/api/site/{site}/firewall/migrate creates the default zone set, and
-// every zone write — create, update and delete — works afterwards; see
-// migrateZoneBasedFirewall in drift_integration_test.go. This sweep does not
-// migrate on purpose, because an unmigrated site is what isolates the gateway
-// variable this table is measuring. Read "STILL-GATED firewall-zone" below as
-// "answered 404 on an unmigrated site".
-//
-// The rejected POST does also persist its zone document before throwing, but
-// only when it is the site's first zone call, which it is not here (this sweep
-// lists every collection first). Nothing depends on that quirk any more.
-//
 // The test asserts only that the harness boots and the gateway adopts — a valid
 // smoke test. The endpoint verdicts are logged data, not assertions: the point
 // is to record what the controller does, not to freeze what we assume. Gated
