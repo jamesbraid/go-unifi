@@ -64,8 +64,10 @@ func (p Preference) OwnsOn(uos bool) []string {
 // prefix, so the site NTP document is "SettingNtp".
 //
 // Measured against a live controller by TestIntegrationPreferenceOwnership
-// and recorded in overrides/fields.toml; the build of each set is in the
-// "measured" key beside it there.
+// and recorded in the ownership section of schemas/behavior.json, stamped
+// with the build it ran against. The residual [Resource.preference.<wire>]
+// entries in overrides/fields.toml carry only what the artifact cannot
+// record: a mode the sweep cannot reach, and the UniFi OS exclusions.
 var PreferenceOwnedFields = map[string][]Preference{
 	"Device": {
 		{Container: "port_overrides", Mode: "setting_preference", Owns: []string{}},
