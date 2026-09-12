@@ -4,10 +4,8 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -36,14 +34,7 @@ import (
 // with a gateway adopted, since a documentation prefix is not deployable.
 // It was not needed: absent versus "none" answers the question on its own.
 func TestIntegrationIPV6InterfaceTypeWithGateway(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	gw := controllertest.AdoptGateway(ctx, t, c, s)
 	t.Logf("adopted gateway %s (%s) state=%v", gw.MAC, gw.Model, gw.State)

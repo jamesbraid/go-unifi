@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,14 +22,7 @@ import (
 //	STRIPPED:  create succeeded, field absent/zero on read-back
 //	REJECTED:  create failed with the field present
 func TestIntegrationNetworkFieldProbe(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	// Record what the site's devices contribute to the controller's set of
 	// recognized local IPs before anything is created. The networkconf
@@ -428,7 +420,9 @@ func ensureStaticWAN(ctx context.Context, t *testing.T, s *controllertest.Sessio
 	if info.ID != "" {
 		id := info.ID
 		t.Cleanup(func() {
-			// The test's own context is cancelled by the time cleanups run.
+			// A cleanup cannot assume the test's own context is still live,
+			// and a delete on a dead context silently does nothing -- which
+			// leaves this WAN behind for the next run to trip over.
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			deleteNetwork(cleanupCtx, t, s, site, id)

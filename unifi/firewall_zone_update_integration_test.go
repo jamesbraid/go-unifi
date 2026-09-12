@@ -4,10 +4,8 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -38,15 +36,7 @@ import (
 // It sends the marshalled struct over the raw session rather than through
 // ApiClient so the subject is the encoder's bytes, which is where the bug was.
 func TestIntegrationFirewallZoneUpdateAfterRead(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 	path := fmt.Sprintf("/v2/api/site/%s/firewall/zone", c.Site)
 
 	// Seed a zone to edit. The POST must be this site's FIRST request to the

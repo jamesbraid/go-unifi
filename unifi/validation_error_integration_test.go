@@ -4,9 +4,7 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -29,14 +27,7 @@ import (
 // or renames its keys, the log says what the new shape is instead of leaving
 // a bare assertion failure.
 func TestIntegrationValidationErrorShape(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", map[string]any{
 		"name":                      "validation-error-probe",

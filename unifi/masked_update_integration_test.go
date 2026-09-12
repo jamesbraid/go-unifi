@@ -3,8 +3,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -20,14 +18,7 @@ import (
 // Measured on ntp, mgmt and radius when the method was written; ntp is the
 // one pinned here because every field is a scalar with an obvious non-default.
 func TestIntegrationSettingPartialWriteMerges(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	seed := map[string]any{
 		"key": "ntp", "setting_preference": "manual",
@@ -74,14 +65,7 @@ func TestIntegrationSettingPartialWriteMerges(t *testing.T) {
 // nothing is stored, so the mask can only be honoured by writing the whole
 // peer back. The second half proves the method does exactly that.
 func TestIntegrationWireGuardPeerPartialWriteRejected(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", map[string]any{
 		"name": "masked-wg", "purpose": PurposeUserVPN, "enabled": true,

@@ -105,14 +105,7 @@ func mergeBehaviorArtifact(t *testing.T, root, version string, mutate func(*beha
 // rather than coercion), re-reads, and records every field the controller
 // refused to store verbatim.
 func TestIntegrationCoercionFloors(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)
@@ -338,14 +331,7 @@ func renderStoredValue(v any) string {
 // owns the artifact entry outright: two probes replacing the same key would
 // each erase the other's measured facts.
 func TestIntegrationWriteContract(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)
@@ -646,14 +632,7 @@ func compareWriteContract(t *testing.T, resource string, pinned map[string]behav
 // what "" does on a rule where the field is empty -- which is still the
 // case an encoder actually faces.
 func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)
@@ -838,14 +817,7 @@ func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
 // min_items, a distinct fact from required_on_create, which can only say
 // whether the key may be omitted at all.
 func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)
@@ -1043,14 +1015,7 @@ func defaultLANNetworkID(ctx context.Context, t *testing.T, s *controllertest.Se
 // it as discarded would tell the encoder to stop sending a field the
 // controller does keep.
 func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)

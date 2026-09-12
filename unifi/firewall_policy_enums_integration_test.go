@@ -3,9 +3,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -30,14 +28,7 @@ var enumClassRe = regexp.MustCompile(`not one of the values accepted for Enum cl
 // cannot deserialize, it answers with the enum class and every constant in
 // it, which is the list this compares against.
 func TestIntegrationFirewallPolicyEnumsMatchTheController(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 	path := "/v2/api/site/" + c.Site + "/firewall-policies"
 
 	src, dst := firewallZonePair(ctx, t, s, c.Site)

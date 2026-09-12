@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -22,14 +20,7 @@ import (
 // A rejection here would mean one of those always-emitted fields should be
 // omitempty instead.
 func TestIntegrationWANEncoderUnset(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	// A plain DHCP WAN with no static/PPPoE/DS-Lite settings: every
 	// credential and address field marshalWAN emits is left at its zero

@@ -4,7 +4,6 @@ package unifi
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -211,14 +210,7 @@ var v1DriftProbes = []struct {
 // from the wire is ordinary: an option nobody set is simply absent. A wire
 // field missing from the schema is the discovery.
 func TestIntegrationV1Drift(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	seen := map[string]bool{}
 	compared := 0

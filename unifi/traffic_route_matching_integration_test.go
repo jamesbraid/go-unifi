@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -59,14 +58,7 @@ var networkTrafficRouteMatchingRules = []trafficRouteMatchCase{
 
 // TestIntegrationTrafficRouteMatchingRules measures each combination.
 func TestIntegrationTrafficRouteMatchingRules(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	// A traffic route routes one network's traffic via another, so it needs
 	// both to exist. The demo site ships a LAN but no WAN.

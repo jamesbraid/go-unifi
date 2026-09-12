@@ -4,9 +4,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -85,14 +83,7 @@ var networkCrossFieldRules = []crossFieldCase{
 // of these pairings, so this is where they are written down; a change in the
 // table means the controller changed, which is worth knowing.
 func TestIntegrationNetworkCrossFieldRules(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	for i, tc := range networkCrossFieldRules {
 		t.Run(tc.flag, func(t *testing.T) {
