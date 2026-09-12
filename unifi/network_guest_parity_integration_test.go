@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
+	"github.com/ubiquiti-community/go-unifi/internal/probe"
 )
 
 // guestParityCandidates are the corporate-family fields that came back
@@ -84,26 +85,29 @@ func TestIntegrationGuestParityProbe(t *testing.T) {
 
 		created := firstData(t, body)
 		id, _ := created["_id"].(string)
-		if id != "" {
-			defer s.DeleteJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id) //nolint:errcheck
+		if id == "" {
+			t.Errorf("create for %s answered HTTP 200 with no _id, so the stored document cannot be "+
+				"read back and no verdict was measured", cand.Wire)
+			continue
 		}
-		got, ok := created[cand.Wire]
-		if !ok && id != "" {
-			fresh, st, _ := s.GetJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id)
-			if st == 200 {
-				if m := firstData(t, fresh); m != nil {
-					got, ok = m[cand.Wire]
-				}
-			}
-		}
+		defer deleteNetwork(ctx, t, s, c.Site, id)
 
-		switch {
-		case ok && jsonEqual(got, value):
+		// Classify from the STORED document, never from the create response
+		// (network_field_probe_integration_test.go): the controller echoes
+		// back the document it was handed, so an accepted-then-dropped field
+		// reads as PERSISTED until the re-read.
+		stored := fetchNetwork(ctx, t, s, c.Site, id)
+		if stored == nil {
+			t.Errorf("%s: created %s but could not read it back; no verdict measured", cand.Wire, id)
+			continue
+		}
+		switch moved := probe.Classify(map[string]any{cand.Wire: value}, stored); {
+		case len(moved) == 0:
 			results[cand.Wire] = "PERSISTED"
-		case ok:
-			results[cand.Wire] = fmt.Sprintf("MUTATED got=%v", got)
-		default:
+		case moved[0].Verdict == probe.Dropped:
 			results[cand.Wire] = "STRIPPED"
+		default:
+			results[cand.Wire] = "MUTATED " + moved[0].Detail
 		}
 	}
 
