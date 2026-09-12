@@ -339,12 +339,12 @@ func (r *recordingReporter) joined() string {
 	return strings.Join(r.errors, "\n")
 }
 
-// TestHerderStopReportsATerminalFailure proves a run that ends in `failed`
-// rather than `stopped` fails the test and names the code and phase, instead
-// of being written off as an ordinary teardown. A fleet that died under the
-// test measuring it must never leave that test green.
-func TestHerderStopReportsATerminalFailure(t *testing.T) {
-	fakeHerder(t, "failterminal")
+// spawnReadyHerder drives the already-configured stand-in herder to its
+// ready milestone by hand — spawn, request over stdin, stdin closed — for
+// the teardown tests, which need the run live but cannot go through
+// StartDevices because they assert on stop's own failure reporting.
+func spawnReadyHerder(t *testing.T) (*herder, *exec.Cmd) {
+	t.Helper()
 
 	cmd := exec.Command(os.Getenv(herderBinEnv), "--network", "n",
 		"--inform-url", "http://172.28.0.2:8080/inform", "--devices", "-")
@@ -361,6 +361,16 @@ func TestHerderStopReportsATerminalFailure(t *testing.T) {
 	if ready := h.stream.awaitReady(context.Background(), 30*time.Second); ready == nil {
 		t.Fatal("stand-in herder never became ready")
 	}
+	return h, cmd
+}
+
+// TestHerderStopReportsATerminalFailure proves a run that ends in `failed`
+// rather than `stopped` fails the test and names the code and phase, instead
+// of being written off as an ordinary teardown. A fleet that died under the
+// test measuring it must never leave that test green.
+func TestHerderStopReportsATerminalFailure(t *testing.T) {
+	fakeHerder(t, "failterminal")
+	h, _ := spawnReadyHerder(t)
 
 	rec := &recordingReporter{}
 	h.stop(rec)
@@ -383,22 +393,7 @@ func TestHerderStopReportsATerminalFailure(t *testing.T) {
 func TestHerderStopKillsAChildThatIgnoresSIGTERM(t *testing.T) {
 	fakeHerder(t, "deaf")
 	shrinkHerderClock(t)
-
-	cmd := exec.Command(os.Getenv(herderBinEnv), "--network", "n",
-		"--inform-url", "http://172.28.0.2:8080/inform", "--devices", "-")
-	h, stdin, err := spawnHerder(cmd)
-	if err != nil {
-		t.Fatalf("spawn stand-in herder: %v", err)
-	}
-	if err := encodeDeviceRequest(stdin, []DeviceRequest{{Model: "USM8P"}}); err != nil {
-		t.Fatalf("write request: %v", err)
-	}
-	if err := stdin.Close(); err != nil {
-		t.Fatalf("close stdin: %v", err)
-	}
-	if ready := h.stream.awaitReady(context.Background(), 30*time.Second); ready == nil {
-		t.Fatal("stand-in herder never became ready")
-	}
+	h, cmd := spawnReadyHerder(t)
 
 	rec := &recordingReporter{}
 	start := time.Now()

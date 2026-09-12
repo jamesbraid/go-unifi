@@ -10,7 +10,6 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -107,11 +106,7 @@ func uosImageFromEnv() string {
 func StartUOS(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
-	if os.Getenv("UNIFI_TEST_REQUIRE") == "" {
-		testcontainers.SkipIfProviderIsNotHealthy(t)
-	}
-
-	caps, tmpfs := uosRuntimeContract()
+	maybeSkipDocker(t)
 
 	// Resolved once and announced before the start, as the standalone path
 	// does. The bundled Network version is named too: it is not
@@ -125,70 +120,45 @@ func StartUOS(ctx context.Context, t *testing.T) *Controller {
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:        image,
-		ExposedPorts: []string{uosNetworkPort},
-		WaitingFor:   wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.CapDrop = []string{"ALL"}
-			hc.CapAdd = caps
-			hc.CgroupnsMode = "host"
-			hc.Tmpfs = tmpfs
-			hc.Binds = append(hc.Binds, "/sys/fs/cgroup:/sys/fs/cgroup:rw")
-		},
+		Image:              image,
+		ExposedPorts:       []string{uosNetworkPort},
+		WaitingFor:         wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
+		HostConfigModifier: uosHostConfig,
 	}
 
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		dumpLogs(ctx, t, c)
-		t.Fatalf("start UOS container: %v", err)
-	}
-	t.Cleanup(func() {
-		if os.Getenv("UNIFI_TEST_KEEP") != "" {
-			t.Logf("UNIFI_TEST_KEEP set; leaving UOS running at %s", c.GetContainerID())
-			return
-		}
-		_ = c.Terminate(context.Background())
-	})
+	c := startContainer(ctx, t, req, "UOS")
 
-	host, err := c.Host(ctx)
-	if err != nil {
-		t.Fatalf("container host: %v", err)
-	}
-	port, err := c.MappedPort(ctx, "7443/tcp")
-	if err != nil {
-		t.Fatalf("mapped port: %v", err)
-	}
+	host, port := mappedHostPort(ctx, t, c, "7443/tcp")
 
 	return &Controller{
-		BaseURL:  fmt.Sprintf("http://%s:%s", host, port.Port()),
+		BaseURL:  fmt.Sprintf("http://%s:%s", host, port),
 		Username: demoUsername,
 		Password: demoPassword,
 		Site:     demoSite,
 	}
 }
 
-// uosRuntimeContract returns the capability list and tmpfs set systemd-as-PID-1
-// needs, from jamesbraid/unifi-containers' unifi-os compose. Dropping to this
-// cap list (no privileged mode) plus a host cgroup namespace is what lets
-// ucore/systemd come up.
-func uosRuntimeContract() ([]string, map[string]string) {
-	caps := []string{
+// uosHostConfig applies the runtime contract systemd-as-PID-1 needs, from
+// jamesbraid/unifi-containers' unifi-os compose: a capability list (no
+// privileged mode), the host cgroup namespace with /sys/fs/cgroup mounted
+// rw, and a tmpfs set. Dropping to this is what lets ucore/systemd come up.
+func uosHostConfig(hc *container.HostConfig) {
+	hc.CapDrop = []string{"ALL"}
+	hc.CapAdd = []string{
 		"SYS_ADMIN", "NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE",
 		"DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "CHOWN",
 		"SETUID", "SETGID", "KILL", "SYS_CHROOT", "SYS_PTRACE",
 		"SYS_RESOURCE", "AUDIT_WRITE", "MKNOD",
 	}
-	tmpfs := map[string]string{
+	hc.CgroupnsMode = "host"
+	hc.Tmpfs = map[string]string{
 		"/run":               "exec",
 		"/run/lock":          "",
 		"/tmp":               "exec",
 		"/var/lib/journal":   "",
 		"/var/opt/unifi/tmp": "size=64m",
 	}
-	return caps, tmpfs
+	hc.Binds = append(hc.Binds, "/sys/fs/cgroup:/sys/fs/cgroup:rw")
 }
 
 // StartUOSSeeded boots the seeded UniFi OS Server image — real mode with the
@@ -207,76 +177,24 @@ func uosRuntimeContract() ([]string, map[string]string) {
 func StartUOSSeeded(ctx context.Context, t *testing.T) *Controller {
 	t.Helper()
 
-	if os.Getenv("UNIFI_TEST_REQUIRE") == "" {
-		testcontainers.SkipIfProviderIsNotHealthy(t)
-	}
+	maybeSkipDocker(t)
 
-	caps, tmpfs := uosRuntimeContract()
-
-	// Created before the container so t.Cleanup tears them down LIFO: the
-	// container goes first, leaving the network free to be removed.
-	net, err := network.New(ctx)
-	if err != nil {
-		t.Fatalf("create UOS network: %v", err)
-	}
-	t.Cleanup(func() {
-		if os.Getenv("UNIFI_TEST_KEEP") != "" {
-			t.Logf("UNIFI_TEST_KEEP set; leaving network %s in place", net.Name)
-			return
-		}
-		if err := net.Remove(context.Background()); err != nil {
-			t.Errorf("remove UOS network %s: %v", net.Name, err)
-		}
-	})
+	net := newDeviceNetwork(ctx, t, "UOS")
 
 	req := testcontainers.ContainerRequest{
 		Image: uosSeededImageFromEnv(),
 		// Only the console is published, on an ephemeral port. The inform
 		// port stays a container port reached across the network, and exactly
 		// one network keeps ContainerIP unambiguous.
-		ExposedPorts: []string{uosConsolePort},
-		Networks:     []string{net.Name},
-		WaitingFor:   wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.CapDrop = []string{"ALL"}
-			hc.CapAdd = caps
-			hc.CgroupnsMode = "host"
-			hc.Tmpfs = tmpfs
-			hc.Binds = append(hc.Binds, "/sys/fs/cgroup:/sys/fs/cgroup:rw")
-		},
+		ExposedPorts:       []string{uosConsolePort},
+		Networks:           []string{net.Name},
+		WaitingFor:         wait.ForHealthCheck().WithStartupTimeout(15 * time.Minute),
+		HostConfigModifier: uosHostConfig,
 	}
 
-	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	// Registered before the error check: a container that failed its health
-	// wait is returned started, and leaving it stranded would also strand the
-	// network, whose removal then fails on the attached endpoint.
-	if c != nil {
-		t.Cleanup(func() {
-			if os.Getenv("UNIFI_TEST_KEEP") != "" {
-				t.Logf("UNIFI_TEST_KEEP set; leaving seeded UOS running at %s", c.GetContainerID())
-				return
-			}
-			if err := c.Terminate(context.Background()); err != nil {
-				t.Errorf("terminate seeded UOS container: %v", err)
-			}
-		})
-	}
-	if err != nil {
-		dumpLogs(ctx, t, c)
-		t.Fatalf("start seeded UOS container: %v", err)
-	}
+	c := startContainer(ctx, t, req, "seeded UOS")
 
-	host, err := c.Host(ctx)
-	if err != nil {
-		t.Fatalf("container host: %v", err)
-	}
-	port, err := c.MappedPort(ctx, uosConsolePort)
-	if err != nil {
-		t.Fatalf("mapped port: %v", err)
-	}
+	host, port := mappedHostPort(ctx, t, c, uosConsolePort)
 	ip, err := c.ContainerIP(ctx)
 	if err != nil {
 		t.Fatalf("UOS container IP: %v", err)
@@ -286,7 +204,7 @@ func StartUOSSeeded(ctx context.Context, t *testing.T) *Controller {
 		t.Fatalf("seeded UOS on network %s: %v", net.Name, err)
 	}
 
-	root := fmt.Sprintf("https://%s:%s", host, port.Port())
+	root := fmt.Sprintf("https://%s:%s", host, port)
 	return &Controller{
 		BaseURL:   root + uosNetworkPrefix,
 		RootURL:   root,

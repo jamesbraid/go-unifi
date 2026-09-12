@@ -385,15 +385,17 @@ func StartDevices(ctx context.Context, t *testing.T, c *Controller, devices ...D
 		t.Fatalf("close herder stdin: %v", err)
 	}
 
+	// Failures here do not repeat the child's stderr: stop attaches it once,
+	// at cleanup, for whatever failed the test.
 	if started := stream.awaitStarted(ctx, herderSlack); started == nil {
-		h.fatalf(t, "herder never emitted a started event")
+		t.Fatalf("herder never emitted a started event")
 	}
 	ready := stream.awaitReady(ctx, herderStartupTimeout+herderSlack)
 	if ready == nil {
 		if term := stream.terminalEvent(); term != nil {
-			h.fatalf(t, "herder %s during %s: %s", term.Code, term.Phase, term.Message)
+			t.Fatalf("herder %s during %s: %s", term.Code, term.Phase, term.Message)
 		}
-		h.fatalf(t, "herder never became ready")
+		t.Fatalf("herder never became ready")
 	}
 	for _, d := range ready.Devices {
 		t.Logf("herded device %d: model=%s mac=%s serial=%s name=%s ip=%s", d.Index, d.Model, d.MAC, d.Serial, d.Name, d.IP)
@@ -463,13 +465,6 @@ func spawnHerder(cmd *exec.Cmd) (*herder, io.WriteCloser, error) {
 		_, _ = io.Copy(h.evidence, stderr)
 	}()
 	return h, stdin, nil
-}
-
-// fatalf fails the test. The child's stderr is not repeated here: stop
-// attaches it once, at cleanup, for whatever failed the test.
-func (h *herder) fatalf(t *testing.T, format string, args ...any) {
-	t.Helper()
-	t.Fatalf(format, args...)
 }
 
 // stop ends the run the way the protocol expects: SIGTERM, drain stdout until
