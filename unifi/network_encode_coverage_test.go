@@ -16,10 +16,6 @@ import (
 // field is silently dropped from update payloads until it is added by hand.
 // TestNetworkEncoderCoversGeneratedFields fails loudly when that happens.
 
-// networkEncoderPurposes is the package's own list of the purposes the
-// encoder dispatches on, so the coverage test keeps working from it.
-var networkEncoderPurposes = NetworkPurposes
-
 // networkEncoderPresenceAllowlistTODOs lists generated wire names that were
 // probed against a live simulation-mode controller (TestIntegrationNetworkFieldProbe,
 // see network_field_probe_integration_test.go) and did NOT come back
@@ -209,12 +205,6 @@ func networkWireNames(t *testing.T) []string {
 	return names
 }
 
-// populateNonZero recursively sets v to a non-zero value: strings "x", bools
-// true, numbers 1, pointers allocated and populated, slices with one populated
-// element, nested structs populated field by field. MarshalJSON does not
-// validate field contents, so placeholder values that fail enum or pattern
-// validation are fine here. The depth limit guards against unbounded recursion
-
 // networkEmittedKeys marshals a fully-populated Network with the given purpose
 // and returns the set of top-level JSON keys the encoder emitted.
 func networkEmittedKeys(t *testing.T, purpose string) map[string]bool {
@@ -252,7 +242,7 @@ func networkEmittedKeys(t *testing.T, purpose string) map[string]bool {
 // adds fields the hand-written encoder does not know about.
 func TestNetworkEncoderCoversGeneratedFields(t *testing.T) {
 	covered := map[string]bool{}
-	for _, purpose := range networkEncoderPurposes {
+	for _, purpose := range NetworkPurposes {
 		for key := range networkEmittedKeys(t, purpose) {
 			covered[key] = true
 		}
@@ -442,7 +432,7 @@ func TestNetworkEncoderValueFlow(t *testing.T) {
 		generated[name] = true
 	}
 
-	for _, purpose := range networkEncoderPurposes {
+	for _, purpose := range NetworkPurposes {
 		t.Run(purpose, func(t *testing.T) {
 			n := newTaggedNetwork(t)
 			n.Purpose = purpose

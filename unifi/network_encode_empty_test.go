@@ -112,7 +112,7 @@ func TestNetworkEncoderDropsEmptyStrings(t *testing.T) {
 		}
 	}
 
-	for _, purpose := range networkEncoderPurposes {
+	for _, purpose := range NetworkPurposes {
 		t.Run(purpose, func(t *testing.T) {
 			empty := marshalKeys(t, newPointerStringNetwork(purpose, ""))
 			control := marshalKeys(t, newPointerStringNetwork(purpose, "sentinel"))
