@@ -17,7 +17,7 @@ schemas/capture.lock.json — artifact digest, extracted-schema digests,
         ▼
         │  go generate ./...  (cmd/fields, offline)
         ▼
-unifi/*.generated.go + specification.json
+unifi/*.generated.go
 schemas/GENERATED_SHA256 — digest of everything generated
 ```
 

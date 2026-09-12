@@ -1,6 +1,6 @@
 # Schema cache
 
-`cmd/fields` generates the Go client and `specification.json` from the JSON
+`cmd/fields` generates the Go client from the JSON
 field definitions the UniFi Network application ships inside
 `internal-dependencies.jar`. The controller artifact and extracted definitions
 are not committed or redistributed. A restricted content-addressed store holds
@@ -21,11 +21,10 @@ metadata/          extracted sensitivity input (gitignored)
 ```
 
 Do not edit `VERSION`, `SOURCE`, or `ARTIFACT`. Generation rewrites them from
-the lock. `specification.json` remains a bootstrap and golden artifact. It does
-not define Terraform policy.
+the lock.
 
-`GENERATED_SHA256` covers generated Go, `specification.json`, the lock, and the
-three compatibility projections. It does not hash itself.
+`GENERATED_SHA256` covers generated Go, the lock, and the three compatibility
+projections. It does not hash itself.
 
 ## What the input digest covers
 

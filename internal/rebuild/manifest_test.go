@@ -22,7 +22,6 @@ func completeFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	for name, content := range map[string]string{
-		"specification.json":            "spec\n",
 		"schemas/capture.lock.json":     "lock\n",
 		"schemas/VERSION":               "10.4.57\n",
 		"schemas/SOURCE":                "source\n",

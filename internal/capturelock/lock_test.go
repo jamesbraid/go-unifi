@@ -400,7 +400,7 @@ func TestStoreArtifactUsesDigestPathAndRejectsCorruptExistingContent(t *testing.
 
 func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 	root := t.TempDir()
-	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
+	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/"
 	files := map[string]string{
 		"cmd/fields/extract.go":            "extract-v1",
 		"cmd/fields/main.go":               "generate-v1",
@@ -505,7 +505,7 @@ func TestComputeInputDigestsSeparatesExtractionFromGeneration(t *testing.T) {
 
 func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 	root := t.TempDir()
-	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
+	directive := "//go:" + "generate go run ../cmd/fields/ -output-dir=../unifi/"
 	files := map[string]string{
 		"cmd/fields/extract.go":        "extract-v1",
 		"cmd/fields/main.go":           "generate-v1",
@@ -529,7 +529,7 @@ func TestComputeInputDigestsRejectsChangedGeneratorDirective(t *testing.T) {
 		t.Fatalf("ComputeInputDigests() error = %v, want invalid generator directive", err)
 	}
 
-	invalidDirective := "//go:" + "generate go run ../cmd/fields/ -output-dir=../generated/ -generate-spec -spec-output=../specification.json"
+	invalidDirective := "//go:" + "generate go run ../cmd/fields/ -output-dir=../generated/"
 	if err := os.WriteFile(filepath.Join(root, "unifi/unifi.go"), []byte("package unifi\n\n"+invalidDirective+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

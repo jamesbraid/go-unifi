@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-codegen-spec/resource"
 	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -54,54 +53,6 @@ func TestGeneratePreferenceFileRejectsVanishedResource(t *testing.T) {
 		_, err := generatePreferenceFile(map[string]bool{})
 		require.ErrorContains(t, err, "which this run did not generate")
 	})
-}
-
-// TestDescribePreferenceNamesSpecAttributes pins the thing that is easy to
-// get wrong: a description is read beside the attribute name a practitioner
-// types, so it has to use that name.
-//
-// It is the wire name. buildResourceAttribute names attributes from
-// JSONName, having abandoned the Go-name derivation precisely because it
-// produced names nobody would recognise. This test previously asserted the
-// derived forms -- ipv_6_ra_enabled, ipv_6_setting_preference -- and so
-// pinned a belief the spec builder had already stopped acting on, which is
-// how the generated descriptions came to cite sixteen attributes that do not
-// exist.
-func TestDescribePreferenceNamesSpecAttributes(t *testing.T) {
-	r := resourceWithFields("Thing", map[string]*FieldInfo{
-		"IPV6SettingPreference": NewFieldInfo("IPV6SettingPreference", "ipv6_setting_preference", "string", "", true, false, true, ""),
-		"IPV6RAEnabled":         NewFieldInfo("IPV6RAEnabled", "ipv6_ra_enabled", "bool", "", false, false, false, ""),
-	})
-
-	tables := map[string]map[string]fields.Preference{
-		"Thing": {
-			"ipv6_setting_preference": {Owns: []string{"ipv6_ra_enabled"}, Measured: "10.4.57"},
-		},
-	}
-
-	withPreferences(t, tables, func() {
-		mode := &resource.Attribute{Name: "x", String: &resource.StringAttribute{}}
-		describePreference(r, "", r.Types["Thing"].Fields["IPV6SettingPreference"], mode)
-		require.NotNil(t, mode.String.Description)
-		require.Contains(t, *mode.String.Description, "ipv6_ra_enabled")
-		require.Contains(t, *mode.String.Description, "10.4.57")
-
-		owned := &resource.Attribute{Name: "y", Bool: &resource.BoolAttribute{}}
-		describePreference(r, "", r.Types["Thing"].Fields["IPV6RAEnabled"], owned)
-		require.NotNil(t, owned.Bool.Description)
-		require.Contains(t, *owned.Bool.Description, `ipv6_setting_preference is "auto"`)
-
-		// A field in neither role is left alone.
-		other := &resource.Attribute{Name: "z", Bool: &resource.BoolAttribute{}}
-		describePreference(r, "", NewFieldInfo("Unrelated", "unrelated", "bool", "", false, false, false, ""), other)
-		require.Nil(t, other.Bool.Description)
-	})
-}
-
-func TestModeDescriptionEmptySetReadsAsMeasured(t *testing.T) {
-	got := modeDescription(fields.Preference{Measured: "10.4.57"})
-	require.Contains(t, got, "governs no fields")
-	require.Contains(t, got, "10.4.57")
 }
 
 func indexOf(haystack, needle string) int {

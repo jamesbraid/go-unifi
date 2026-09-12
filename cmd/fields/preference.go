@@ -6,10 +6,8 @@ import (
 	"go/format"
 	"maps"
 	"slices"
-	"strings"
 	"sync"
 
-	"github.com/hashicorp/terraform-plugin-codegen-spec/resource"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
@@ -172,103 +170,4 @@ var PreferenceOwnedFields = map[string][]Preference{
 		return nil, fmt.Errorf("unable to format the generated preference file: %w", err)
 	}
 	return formatted, nil
-}
-
-// describePreference annotates a resource attribute that takes part in an
-// auto|manual relationship.
-//
-// Ownership is invisible in the schema: the mode field is an ordinary
-// two-value enum and the fields it governs look like any other. A consumer
-// reading only the generated spec has no way to know that setting one of
-// them under "auto" is accepted and then discarded, so the relationship is
-// written into the description on both sides.
-//
-// Resources only. A data source cannot write, so the trap does not exist
-// there, and describing it on both would double the spec diff for no gain.
-func describePreference(r *ResourceInfo, container string, field *FieldInfo, attr *resource.Attribute) {
-	if field == nil || attr == nil {
-		return
-	}
-	prefs := preferenceTables()[r.StructName]
-	if len(prefs) == 0 {
-		return
-	}
-
-	// Keys are resolved in the object the attribute actually lives in, so a
-	// mode nested in a sub-object never annotates a same-named field on the
-	// resource, and vice versa.
-	if pref, ok := prefs[joinContainer(container, field.JSONName)]; ok {
-		setAttributeDescription(attr, modeDescription(pref))
-		return
-	}
-
-	for _, key := range slices.Sorted(maps.Keys(prefs)) {
-		modeContainer, mode := splitPreferenceKey(key)
-		if modeContainer != container {
-			continue
-		}
-		if slices.Contains(prefs[key].Owns, field.JSONName) {
-			// mode is the wire name, which is also what the attribute is
-			// called -- see modeDescription.
-			name := mode
-			setAttributeDescription(attr, fmt.Sprintf(
-				"Ignored while %s is \"auto\": the controller stores its own value for this field, "+
-					"answers rc: ok, and reports nothing. Set %s to \"manual\" to configure it.",
-				name, name))
-			return
-		}
-	}
-}
-
-// modeDescription renders the description for a mode field itself.
-func modeDescription(pref fields.Preference) string {
-	measured := pref.Measured
-	if measured == "" {
-		measured = "an unrecorded build"
-	}
-	if len(pref.Owns) == 0 {
-		return fmt.Sprintf(
-			"auto|manual. Measured against UniFi Network %s: this mode governs no fields, "+
-				"so \"auto\" discards nothing.", measured)
-	}
-	// The wire name is the attribute name: buildResourceAttribute names
-	// attributes from JSONName, precisely because deriving them from the Go
-	// field name produced names no API user would recognise. A description
-	// is read next to the name a practitioner types, so it has to use the
-	// same one.
-	owns := slices.Clone(pref.Owns)
-	slices.Sort(owns)
-	return fmt.Sprintf(
-		"auto|manual. While \"auto\", the controller manages these attributes itself and overwrites "+
-			"whatever is sent for them, without reporting it: %s. Measured against UniFi Network %s.",
-		strings.Join(owns, ", "), measured)
-}
-
-// setAttributeDescription sets Description on whichever typed attribute the
-// spec builder produced.
-func setAttributeDescription(attr *resource.Attribute, description string) {
-	switch {
-	case attr.Bool != nil:
-		attr.Bool.Description = &description
-	case attr.Int64 != nil:
-		attr.Int64.Description = &description
-	case attr.Float64 != nil:
-		attr.Float64.Description = &description
-	case attr.String != nil:
-		attr.String.Description = &description
-	case attr.List != nil:
-		attr.List.Description = &description
-	case attr.ListNested != nil:
-		attr.ListNested.Description = &description
-	case attr.SingleNested != nil:
-		attr.SingleNested.Description = &description
-	}
-}
-
-// joinContainer appends a wire name to a dotted container path.
-func joinContainer(container, wire string) string {
-	if container == "" {
-		return wire
-	}
-	return container + "." + wire
 }
