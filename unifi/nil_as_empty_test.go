@@ -20,6 +20,8 @@ func TestNilSlicesMarshalAsEmpty(t *testing.T) {
 	}{
 		{"APGroup.device_macs", &APGroup{Name: "example"}, "device_macs"},
 		{"Device.port_overrides", &Device{Name: "example"}, "port_overrides"},
+		// A zone CREATE with no network_ids answered HTTP 500 in
+		// terraform-provider-unifi until the field lost its omitempty.
 		{"FirewallZone.network_ids", &FirewallZone{Name: "example"}, "network_ids"},
 		{"NetworkMembersGroup.members", &NetworkMembersGroup{Name: "example"}, "members"},
 	} {

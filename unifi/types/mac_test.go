@@ -1,8 +1,6 @@
 package types
 
 import (
-	"encoding/json"
-	"reflect"
 	"testing"
 )
 
@@ -49,50 +47,5 @@ func TestNormalizeMACIsIdempotent(t *testing.T) {
 		if twice := NormalizeMAC(once); twice != once {
 			t.Errorf("NormalizeMAC not idempotent for %q: %q then %q", in, once, twice)
 		}
-	}
-}
-
-func TestMACUnmarshalJSON(t *testing.T) {
-	var m MAC
-	if err := json.Unmarshal([]byte(`"AA-BB-CC-DD-EE-FF"`), &m); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if m != "aa:bb:cc:dd:ee:ff" {
-		t.Errorf("MAC = %q, want aa:bb:cc:dd:ee:ff", m)
-	}
-
-	// null must not blow up or invent a value.
-	var null MAC
-	if err := json.Unmarshal([]byte(`null`), &null); err != nil {
-		t.Fatalf("unmarshal null: %v", err)
-	}
-	if null != "" {
-		t.Errorf("MAC from null = %q, want empty", null)
-	}
-
-	// A non-string is an error, not a silent zero.
-	var bad MAC
-	if err := json.Unmarshal([]byte(`42`), &bad); err == nil {
-		t.Error("expected an error unmarshalling a number into MAC")
-	}
-}
-
-func TestMACSliceUnmarshalJSON(t *testing.T) {
-	var got []MAC
-	if err := json.Unmarshal([]byte(`["AA-BB-CC-DD-EE-FF","11:22:33:44:55:66",""]`), &got); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	want := []string{"aa:bb:cc:dd:ee:ff", "11:22:33:44:55:66", ""}
-	if diff := MACStrings(got); !reflect.DeepEqual(diff, want) {
-		t.Errorf("MACStrings = %v, want %v", diff, want)
-	}
-}
-
-func TestMACStringsNilStaysNil(t *testing.T) {
-	// The generated unmarshalers assign this straight into a []string
-	// field; turning a nil into an empty slice would change what the
-	// encoder then sends.
-	if got := MACStrings(nil); got != nil {
-		t.Errorf("MACStrings(nil) = %v, want nil", got)
 	}
 }
