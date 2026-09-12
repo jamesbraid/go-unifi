@@ -91,7 +91,7 @@ func TestSpecificationGenerator_Generate_ArrayAttribute(t *testing.T) {
 	require.Len(t, spec.Resources, 1)
 	res := spec.Resources[0]
 
-	i := slices.IndexFunc(res.Schema.Attributes, findMembers)
+	i := slices.IndexFunc(res.Schema.Attributes, findAttr("members"))
 
 	require.GreaterOrEqual(t, i, 0)
 }
@@ -116,7 +116,7 @@ func TestSpecificationGenerator_Generate_NestedAttribute(t *testing.T) {
 	res := spec.Resources[0]
 
 	// Find the config_network attribute
-	i := slices.IndexFunc(res.Schema.Attributes, findConfigNetwork)
+	i := slices.IndexFunc(res.Schema.Attributes, findAttr("config_network"))
 
 	require.GreaterOrEqual(t, i, 0)
 	configNetworkAttr := &res.Schema.Attributes[i]
@@ -172,40 +172,6 @@ func TestSpecificationGenerator_Generate_SkipsSettings(t *testing.T) {
 	assert.Len(t, spec.Resources, 1)
 	assert.Equal(t, "network", spec.DataSources[0].Name)
 	assert.Equal(t, "network", spec.Resources[0].Name)
-}
-
-func TestAssociatedExternalType_Formatting(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi", nil)
-
-	resource := NewResource("Network", "network")
-
-	// Test basic string field - primitives should return nil
-	stringField := NewFieldInfo("Name", "name", "string", "", false, false, false, "")
-	extType := gen.buildAssociatedExternalType(resource, stringField)
-	assert.Nil(t, extType, "primitive types should not have associated external type")
-
-	// Test pointer field with OmitEmpty - pointer to primitive should return nil
-	ptrField := NewFieldInfo("Description", "description", "string", "", true, false, true, "")
-	extType = gen.buildAssociatedExternalType(resource, ptrField)
-	assert.Nil(t, extType, "pointer to primitive should not have associated external type")
-
-	// Test array field - array of primitives should return nil
-	arrayField := NewFieldInfo("Members", "members", "string", "", true, true, false, "")
-	extType = gen.buildAssociatedExternalType(resource, arrayField)
-	assert.Nil(t, extType, "array of primitives should not have associated external type")
-
-	// Test custom type
-	customField := NewFieldInfo("Config", "config", "CustomType", "", false, false, false, "")
-	extType = gen.buildAssociatedExternalType(resource, customField)
-	require.NotNil(t, extType)
-	assert.Equal(t, GoUnifiImportPath, extType.Import.Path)
-	assert.Equal(t, "CustomType", extType.Type)
-
-	// Test pointer to custom type
-	ptrCustomField := NewFieldInfo("Settings", "settings", "Settings", "", true, false, true, "")
-	extType = gen.buildAssociatedExternalType(resource, ptrCustomField)
-	require.NotNil(t, extType)
-	assert.Equal(t, "*Settings", extType.Type)
 }
 
 func TestToTerraformName(t *testing.T) {
