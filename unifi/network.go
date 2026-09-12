@@ -26,10 +26,6 @@ func (c *ApiClient) ListNetwork(ctx context.Context, site string, params ...[]st
 	return c.listNetwork(ctx, site)
 }
 
-func (c *ApiClient) GetNetwork(ctx context.Context, site, id string) (*Network, error) {
-	return c.getNetwork(ctx, site, id)
-}
-
 func (c *ApiClient) GetNetworkByName(ctx context.Context, site, name string) (*Network, error) {
 	networks, err := c.listNetwork(ctx, site)
 	if err != nil {
@@ -46,12 +42,4 @@ func (c *ApiClient) GetNetworkByName(ctx context.Context, site, name string) (*N
 	}
 	network := networks[i]
 	return &network, nil
-}
-
-func (c *ApiClient) CreateNetwork(ctx context.Context, site string, d *Network) (*Network, error) {
-	return c.createNetwork(ctx, site, d)
-}
-
-func (c *ApiClient) UpdateNetwork(ctx context.Context, site string, d *Network) (*Network, error) {
-	return c.updateNetwork(ctx, site, d)
 }

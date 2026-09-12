@@ -54,10 +54,9 @@ func (dst *DpiGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDpiGroup(
+func (c *ApiClient) ListDpiGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]DpiGroup, error) {
 	var respBody struct {
 		Meta meta       `json:"meta"`
@@ -70,7 +69,6 @@ func (c *ApiClient) listDpiGroup(
 		fmt.Sprintf("api/s/%s/rest/dpigroup", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -78,7 +76,7 @@ func (c *ApiClient) listDpiGroup(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getDpiGroup(
+func (c *ApiClient) GetDpiGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -105,7 +103,7 @@ func (c *ApiClient) getDpiGroup(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDpiGroup(
+func (c *ApiClient) DeleteDpiGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -123,7 +121,7 @@ func (c *ApiClient) deleteDpiGroup(
 	return nil
 }
 
-func (c *ApiClient) createDpiGroup(
+func (c *ApiClient) CreateDpiGroup(
 	ctx context.Context,
 	site string,
 	d *DpiGroup,
@@ -188,7 +186,7 @@ func (c *ApiClient) updateDpiGroupFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDpiGroup(ctx, site, d.ID)
+		return c.GetDpiGroup(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -197,7 +195,7 @@ func (c *ApiClient) updateDpiGroupFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateDpiGroup(
+func (c *ApiClient) UpdateDpiGroup(
 	ctx context.Context,
 	site string,
 	d *DpiGroup,
@@ -220,7 +218,7 @@ func (c *ApiClient) updateDpiGroup(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getDpiGroup(ctx, site, d.ID)
+		return c.GetDpiGroup(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

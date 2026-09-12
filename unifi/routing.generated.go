@@ -71,10 +71,9 @@ func (dst *Routing) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listRouting(
+func (c *ApiClient) ListRouting(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]Routing, error) {
 	var respBody struct {
 		Meta meta      `json:"meta"`
@@ -87,7 +86,6 @@ func (c *ApiClient) listRouting(
 		fmt.Sprintf("api/s/%s/rest/routing", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -95,7 +93,7 @@ func (c *ApiClient) listRouting(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getRouting(
+func (c *ApiClient) GetRouting(
 	ctx context.Context,
 	site string,
 	id string,
@@ -122,7 +120,7 @@ func (c *ApiClient) getRouting(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteRouting(
+func (c *ApiClient) DeleteRouting(
 	ctx context.Context,
 	site string,
 	id string,
@@ -140,7 +138,7 @@ func (c *ApiClient) deleteRouting(
 	return nil
 }
 
-func (c *ApiClient) createRouting(
+func (c *ApiClient) CreateRouting(
 	ctx context.Context,
 	site string,
 	d *Routing,
@@ -205,7 +203,7 @@ func (c *ApiClient) updateRoutingFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getRouting(ctx, site, d.ID)
+		return c.GetRouting(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -214,7 +212,7 @@ func (c *ApiClient) updateRoutingFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateRouting(
+func (c *ApiClient) UpdateRouting(
 	ctx context.Context,
 	site string,
 	d *Routing,
@@ -237,7 +235,7 @@ func (c *ApiClient) updateRouting(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getRouting(ctx, site, d.ID)
+		return c.GetRouting(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

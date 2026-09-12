@@ -215,10 +215,9 @@ func (dst *FirewallPolicySource) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listFirewallPolicy(
+func (c *ApiClient) ListFirewallPolicy(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]FirewallPolicy, error) {
 	var respBody []FirewallPolicy
 
@@ -228,7 +227,6 @@ func (c *ApiClient) listFirewallPolicy(
 		fmt.Sprintf("v2/api/site/%s/firewall-policies", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -236,12 +234,12 @@ func (c *ApiClient) listFirewallPolicy(
 	return respBody, nil
 }
 
-func (c *ApiClient) getFirewallPolicy(
+func (c *ApiClient) GetFirewallPolicy(
 	ctx context.Context,
 	site string,
 	id string,
 ) (*FirewallPolicy, error) {
-	respBody, err := c.listFirewallPolicy(ctx, site)
+	respBody, err := c.ListFirewallPolicy(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +257,7 @@ func (c *ApiClient) getFirewallPolicy(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteFirewallPolicy(
+func (c *ApiClient) DeleteFirewallPolicy(
 	ctx context.Context,
 	site string,
 	id string,
@@ -277,7 +275,7 @@ func (c *ApiClient) deleteFirewallPolicy(
 	return nil
 }
 
-func (c *ApiClient) createFirewallPolicy(
+func (c *ApiClient) CreateFirewallPolicy(
 	ctx context.Context,
 	site string,
 	d *FirewallPolicy,
@@ -332,7 +330,7 @@ func (c *ApiClient) updateFirewallPolicyFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateFirewallPolicy(
+func (c *ApiClient) UpdateFirewallPolicy(
 	ctx context.Context,
 	site string,
 	d *FirewallPolicy,

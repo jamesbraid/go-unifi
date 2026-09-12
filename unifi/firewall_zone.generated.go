@@ -87,10 +87,9 @@ func (dst *FirewallZone) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listFirewallZone(
+func (c *ApiClient) ListFirewallZone(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]FirewallZone, error) {
 	var respBody []FirewallZone
 
@@ -100,7 +99,6 @@ func (c *ApiClient) listFirewallZone(
 		fmt.Sprintf("v2/api/site/%s/firewall/zone", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -108,12 +106,12 @@ func (c *ApiClient) listFirewallZone(
 	return respBody, nil
 }
 
-func (c *ApiClient) getFirewallZone(
+func (c *ApiClient) GetFirewallZone(
 	ctx context.Context,
 	site string,
 	id string,
 ) (*FirewallZone, error) {
-	respBody, err := c.listFirewallZone(ctx, site)
+	respBody, err := c.ListFirewallZone(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +129,7 @@ func (c *ApiClient) getFirewallZone(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteFirewallZone(
+func (c *ApiClient) DeleteFirewallZone(
 	ctx context.Context,
 	site string,
 	id string,
@@ -149,7 +147,7 @@ func (c *ApiClient) deleteFirewallZone(
 	return nil
 }
 
-func (c *ApiClient) createFirewallZone(
+func (c *ApiClient) CreateFirewallZone(
 	ctx context.Context,
 	site string,
 	d *FirewallZone,
@@ -204,7 +202,7 @@ func (c *ApiClient) updateFirewallZoneFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateFirewallZone(
+func (c *ApiClient) UpdateFirewallZone(
 	ctx context.Context,
 	site string,
 	d *FirewallZone,

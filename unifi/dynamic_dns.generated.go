@@ -59,10 +59,9 @@ func (dst *DynamicDNS) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDynamicDNS(
+func (c *ApiClient) ListDynamicDNS(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]DynamicDNS, error) {
 	var respBody struct {
 		Meta meta         `json:"meta"`
@@ -75,7 +74,6 @@ func (c *ApiClient) listDynamicDNS(
 		fmt.Sprintf("api/s/%s/rest/dynamicdns", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -83,7 +81,7 @@ func (c *ApiClient) listDynamicDNS(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getDynamicDNS(
+func (c *ApiClient) GetDynamicDNS(
 	ctx context.Context,
 	site string,
 	id string,
@@ -110,7 +108,7 @@ func (c *ApiClient) getDynamicDNS(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDynamicDNS(
+func (c *ApiClient) DeleteDynamicDNS(
 	ctx context.Context,
 	site string,
 	id string,
@@ -128,7 +126,7 @@ func (c *ApiClient) deleteDynamicDNS(
 	return nil
 }
 
-func (c *ApiClient) createDynamicDNS(
+func (c *ApiClient) CreateDynamicDNS(
 	ctx context.Context,
 	site string,
 	d *DynamicDNS,
@@ -193,7 +191,7 @@ func (c *ApiClient) updateDynamicDNSFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDynamicDNS(ctx, site, d.ID)
+		return c.GetDynamicDNS(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -202,7 +200,7 @@ func (c *ApiClient) updateDynamicDNSFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateDynamicDNS(
+func (c *ApiClient) UpdateDynamicDNS(
 	ctx context.Context,
 	site string,
 	d *DynamicDNS,
@@ -225,7 +223,7 @@ func (c *ApiClient) updateDynamicDNS(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getDynamicDNS(ctx, site, d.ID)
+		return c.GetDynamicDNS(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

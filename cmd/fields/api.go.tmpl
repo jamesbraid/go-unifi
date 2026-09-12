@@ -187,11 +187,13 @@ func (dst *{{ $k }}) UnmarshalJSON(b []byte) error {
 {{ end }}
 
 {{- if not .IsSetting }}
-{{- if ne .StructName "BGPConfig" }}
-func (c *ApiClient) list{{ .StructName }}(
+{{- if and (ne .StructName "BGPConfig") (.Emits "List") }}
+func (c *ApiClient) {{ .Method "List" }}(
 	ctx context.Context,
 	site string,
+{{- if not (.Exports "List") }}
 	query ...map[string]string,
+{{- end }}
 ) ([]{{ .StructName }}, error) {
 {{- if .IsV2 }}
 	var respBody []{{ .StructName }}
@@ -208,7 +210,9 @@ func (c *ApiClient) list{{ .StructName }}(
 		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ListResourcePath }}", site),
 		nil,
 		&respBody,
+{{- if not (.Exports "List") }}
 		query...,
+{{- end }}
 	)
 	if err != nil {
 		return nil, err
@@ -222,7 +226,8 @@ func (c *ApiClient) list{{ .StructName }}(
 }
 {{- end }}
 
-func (c *ApiClient) get{{ .StructName }}(
+{{ if .Emits "Get" }}
+func (c *ApiClient) {{ .Method "Get" }}(
 	ctx context.Context,
 	site string,
 {{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
@@ -230,7 +235,7 @@ func (c *ApiClient) get{{ .StructName }}(
 {{- end }}
 ) (*{{ .StructName }}, error) {
 {{- if and .IsV2 (ne .StructName "BGPConfig") }}
-	respBody, err := c.list{{ .StructName }}(ctx, site)
+	respBody, err := c.{{ .Method "List" }}(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -282,8 +287,10 @@ func (c *ApiClient) get{{ .StructName }}(
 	return &d, nil
 {{- end }}
 }
+{{- end }}
 
-func (c *ApiClient) delete{{ .StructName }}(
+{{ if .Emits "Delete" }}
+func (c *ApiClient) {{ .Method "Delete" }}(
 	ctx context.Context,
 	site string,
 {{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
@@ -302,8 +309,10 @@ func (c *ApiClient) delete{{ .StructName }}(
 	}
 	return nil
 }
+{{- end }}
 
-func (c *ApiClient) create{{ .StructName }}(
+{{ if .Emits "Create" }}
+func (c *ApiClient) {{ .Method "Create" }}(
 	ctx context.Context,
 	site string,
 	d *{{ .StructName }},
@@ -339,6 +348,7 @@ func (c *ApiClient) create{{ .StructName }}(
 	return &res, nil
 {{- end }}
 }
+{{- end }}
 
 {{ if ne .StructName "BGPConfig" }}
 // Update{{ .StructName }}Fields writes only the named wire fields and leaves
@@ -382,7 +392,7 @@ func (c *ApiClient) update{{ .StructName }}Fields(
 	return &respBody, nil
 {{- else }}
 	if len(respBody.Data) == 0 {
-		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}get{{ .StructName }}(ctx, site, d.ID){{ end }}
+		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }}
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -393,8 +403,8 @@ func (c *ApiClient) update{{ .StructName }}Fields(
 }
 {{- end }}
 
-{{ if ne .StructName "BGPConfig" }}
-func (c *ApiClient) update{{ .StructName }}(
+{{ if and (ne .StructName "BGPConfig") (.Emits "Update") }}
+func (c *ApiClient) {{ .Method "Update" }}(
 	ctx context.Context,
 	site string,
 	d *{{ .StructName }},
@@ -429,7 +439,7 @@ func (c *ApiClient) update{{ .StructName }}(
 	// cannot simply be used unconditionally.
 	{{- end }}
 	if len(respBody.Data) == 0 {
-		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}get{{ .StructName }}(ctx, site, d.ID){{ end }}
+		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }}
 	}
 
 	if len(respBody.Data) != 1 {

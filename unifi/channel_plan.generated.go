@@ -92,10 +92,9 @@ func (dst *ChannelPlanRadioTable) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listChannelPlan(
+func (c *ApiClient) ListChannelPlan(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]ChannelPlan, error) {
 	var respBody struct {
 		Meta meta          `json:"meta"`
@@ -108,7 +107,6 @@ func (c *ApiClient) listChannelPlan(
 		fmt.Sprintf("api/s/%s/rest/channelplan", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -116,7 +114,7 @@ func (c *ApiClient) listChannelPlan(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getChannelPlan(
+func (c *ApiClient) GetChannelPlan(
 	ctx context.Context,
 	site string,
 	id string,
@@ -143,7 +141,7 @@ func (c *ApiClient) getChannelPlan(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteChannelPlan(
+func (c *ApiClient) DeleteChannelPlan(
 	ctx context.Context,
 	site string,
 	id string,
@@ -161,7 +159,7 @@ func (c *ApiClient) deleteChannelPlan(
 	return nil
 }
 
-func (c *ApiClient) createChannelPlan(
+func (c *ApiClient) CreateChannelPlan(
 	ctx context.Context,
 	site string,
 	d *ChannelPlan,
@@ -226,7 +224,7 @@ func (c *ApiClient) updateChannelPlanFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getChannelPlan(ctx, site, d.ID)
+		return c.GetChannelPlan(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -235,7 +233,7 @@ func (c *ApiClient) updateChannelPlanFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateChannelPlan(
+func (c *ApiClient) UpdateChannelPlan(
 	ctx context.Context,
 	site string,
 	d *ChannelPlan,
@@ -258,7 +256,7 @@ func (c *ApiClient) updateChannelPlan(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getChannelPlan(ctx, site, d.ID)
+		return c.GetChannelPlan(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

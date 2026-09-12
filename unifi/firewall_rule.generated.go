@@ -95,10 +95,9 @@ func (dst *FirewallRule) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listFirewallRule(
+func (c *ApiClient) ListFirewallRule(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]FirewallRule, error) {
 	var respBody struct {
 		Meta meta           `json:"meta"`
@@ -111,7 +110,6 @@ func (c *ApiClient) listFirewallRule(
 		fmt.Sprintf("api/s/%s/rest/firewallrule", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -119,7 +117,7 @@ func (c *ApiClient) listFirewallRule(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getFirewallRule(
+func (c *ApiClient) GetFirewallRule(
 	ctx context.Context,
 	site string,
 	id string,
@@ -146,7 +144,7 @@ func (c *ApiClient) getFirewallRule(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteFirewallRule(
+func (c *ApiClient) DeleteFirewallRule(
 	ctx context.Context,
 	site string,
 	id string,
@@ -164,7 +162,7 @@ func (c *ApiClient) deleteFirewallRule(
 	return nil
 }
 
-func (c *ApiClient) createFirewallRule(
+func (c *ApiClient) CreateFirewallRule(
 	ctx context.Context,
 	site string,
 	d *FirewallRule,
@@ -229,7 +227,7 @@ func (c *ApiClient) updateFirewallRuleFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getFirewallRule(ctx, site, d.ID)
+		return c.GetFirewallRule(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -238,7 +236,7 @@ func (c *ApiClient) updateFirewallRuleFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateFirewallRule(
+func (c *ApiClient) UpdateFirewallRule(
 	ctx context.Context,
 	site string,
 	d *FirewallRule,
@@ -261,7 +259,7 @@ func (c *ApiClient) updateFirewallRule(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getFirewallRule(ctx, site, d.ID)
+		return c.GetFirewallRule(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

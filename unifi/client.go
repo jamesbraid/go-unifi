@@ -168,18 +168,3 @@ func (c *ApiClient) ListClient(
 func (c *ApiClient) ListClientFiltered(ctx context.Context, site string, filters map[string]string) ([]Client, error) {
 	return c.listClient(ctx, site, filters)
 }
-
-func (c *ApiClient) CreateClient(ctx context.Context, site string, d *Client) (*Client, error) {
-	return c.createClient(ctx, site, d)
-}
-
-// GetClient returns information about a user from the REST endpoint.
-// The GetClientByMAC method returns slightly different information (for
-// example the IP) as it uses a different endpoint.
-func (c *ApiClient) GetClient(ctx context.Context, site, id string) (*Client, error) {
-	return c.getClient(ctx, site, id)
-}
-
-func (c *ApiClient) UpdateClient(ctx context.Context, site string, d *Client) (*Client, error) {
-	return c.updateClient(ctx, site, d)
-}

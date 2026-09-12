@@ -631,10 +631,9 @@ func (dst *Hotspot2ConfVenueName) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listHotspot2Conf(
+func (c *ApiClient) ListHotspot2Conf(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]Hotspot2Conf, error) {
 	var respBody struct {
 		Meta meta           `json:"meta"`
@@ -647,7 +646,6 @@ func (c *ApiClient) listHotspot2Conf(
 		fmt.Sprintf("api/s/%s/rest/hotspot2conf", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -655,7 +653,7 @@ func (c *ApiClient) listHotspot2Conf(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getHotspot2Conf(
+func (c *ApiClient) GetHotspot2Conf(
 	ctx context.Context,
 	site string,
 	id string,
@@ -682,7 +680,7 @@ func (c *ApiClient) getHotspot2Conf(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteHotspot2Conf(
+func (c *ApiClient) DeleteHotspot2Conf(
 	ctx context.Context,
 	site string,
 	id string,
@@ -700,7 +698,7 @@ func (c *ApiClient) deleteHotspot2Conf(
 	return nil
 }
 
-func (c *ApiClient) createHotspot2Conf(
+func (c *ApiClient) CreateHotspot2Conf(
 	ctx context.Context,
 	site string,
 	d *Hotspot2Conf,
@@ -765,7 +763,7 @@ func (c *ApiClient) updateHotspot2ConfFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getHotspot2Conf(ctx, site, d.ID)
+		return c.GetHotspot2Conf(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -774,7 +772,7 @@ func (c *ApiClient) updateHotspot2ConfFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateHotspot2Conf(
+func (c *ApiClient) UpdateHotspot2Conf(
 	ctx context.Context,
 	site string,
 	d *Hotspot2Conf,
@@ -797,7 +795,7 @@ func (c *ApiClient) updateHotspot2Conf(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getHotspot2Conf(ctx, site, d.ID)
+		return c.GetHotspot2Conf(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

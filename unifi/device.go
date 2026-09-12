@@ -167,10 +167,6 @@ func (dst *DevicePortTable) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListDevice(ctx context.Context, site string) ([]Device, error) {
-	return c.listDevice(ctx, site)
-}
-
 func (c *ApiClient) GetDeviceByMAC(ctx context.Context, site, mac string) (*Device, error) {
 	return c.getDevice(ctx, site, types.NormalizeMAC(mac))
 }
@@ -197,14 +193,6 @@ func (c *ApiClient) rereadDevice(ctx context.Context, site string, d *Device) (*
 		return c.getDevice(ctx, site, d.MAC)
 	}
 	return c.GetDevice(ctx, site, d.ID)
-}
-
-func (c *ApiClient) DeleteDevice(ctx context.Context, site, id string) error {
-	return c.deleteDevice(ctx, site, id)
-}
-
-func (c *ApiClient) CreateDevice(ctx context.Context, site string, d *Device) (*Device, error) {
-	return c.createDevice(ctx, site, d)
 }
 
 func (c *ApiClient) UpdateDevice(ctx context.Context, site string, d *Device) (*Device, error) {

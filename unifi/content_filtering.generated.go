@@ -101,7 +101,7 @@ func (c *ApiClient) listContentFiltering(
 	return respBody, nil
 }
 
-func (c *ApiClient) getContentFiltering(
+func (c *ApiClient) GetContentFiltering(
 	ctx context.Context,
 	site string,
 	id string,
@@ -124,7 +124,7 @@ func (c *ApiClient) getContentFiltering(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteContentFiltering(
+func (c *ApiClient) DeleteContentFiltering(
 	ctx context.Context,
 	site string,
 	id string,
@@ -142,7 +142,7 @@ func (c *ApiClient) deleteContentFiltering(
 	return nil
 }
 
-func (c *ApiClient) createContentFiltering(
+func (c *ApiClient) CreateContentFiltering(
 	ctx context.Context,
 	site string,
 	d *ContentFiltering,
@@ -197,7 +197,7 @@ func (c *ApiClient) updateContentFilteringFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateContentFiltering(
+func (c *ApiClient) UpdateContentFiltering(
 	ctx context.Context,
 	site string,
 	d *ContentFiltering,

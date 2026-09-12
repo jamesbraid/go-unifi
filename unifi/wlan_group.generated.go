@@ -52,10 +52,9 @@ func (dst *WLANGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listWLANGroup(
+func (c *ApiClient) ListWLANGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]WLANGroup, error) {
 	var respBody struct {
 		Meta meta        `json:"meta"`
@@ -68,7 +67,6 @@ func (c *ApiClient) listWLANGroup(
 		fmt.Sprintf("api/s/%s/rest/wlangroup", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -76,7 +74,7 @@ func (c *ApiClient) listWLANGroup(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getWLANGroup(
+func (c *ApiClient) GetWLANGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -103,7 +101,7 @@ func (c *ApiClient) getWLANGroup(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteWLANGroup(
+func (c *ApiClient) DeleteWLANGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -121,7 +119,7 @@ func (c *ApiClient) deleteWLANGroup(
 	return nil
 }
 
-func (c *ApiClient) createWLANGroup(
+func (c *ApiClient) CreateWLANGroup(
 	ctx context.Context,
 	site string,
 	d *WLANGroup,
@@ -186,7 +184,7 @@ func (c *ApiClient) updateWLANGroupFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getWLANGroup(ctx, site, d.ID)
+		return c.GetWLANGroup(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -195,7 +193,7 @@ func (c *ApiClient) updateWLANGroupFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateWLANGroup(
+func (c *ApiClient) UpdateWLANGroup(
 	ctx context.Context,
 	site string,
 	d *WLANGroup,
@@ -218,7 +216,7 @@ func (c *ApiClient) updateWLANGroup(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getWLANGroup(ctx, site, d.ID)
+		return c.GetWLANGroup(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

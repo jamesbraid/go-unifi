@@ -110,10 +110,9 @@ func (dst *OSPFRouterInterfaces) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listOSPFRouter(
+func (c *ApiClient) ListOSPFRouter(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]OSPFRouter, error) {
 	var respBody []OSPFRouter
 
@@ -123,7 +122,6 @@ func (c *ApiClient) listOSPFRouter(
 		fmt.Sprintf("v2/api/site/%s/ospf/router", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -131,12 +129,12 @@ func (c *ApiClient) listOSPFRouter(
 	return respBody, nil
 }
 
-func (c *ApiClient) getOSPFRouter(
+func (c *ApiClient) GetOSPFRouter(
 	ctx context.Context,
 	site string,
 	id string,
 ) (*OSPFRouter, error) {
-	respBody, err := c.listOSPFRouter(ctx, site)
+	respBody, err := c.ListOSPFRouter(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +152,7 @@ func (c *ApiClient) getOSPFRouter(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteOSPFRouter(
+func (c *ApiClient) DeleteOSPFRouter(
 	ctx context.Context,
 	site string,
 	id string,
@@ -172,7 +170,7 @@ func (c *ApiClient) deleteOSPFRouter(
 	return nil
 }
 
-func (c *ApiClient) createOSPFRouter(
+func (c *ApiClient) CreateOSPFRouter(
 	ctx context.Context,
 	site string,
 	d *OSPFRouter,
@@ -227,7 +225,7 @@ func (c *ApiClient) updateOSPFRouterFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateOSPFRouter(
+func (c *ApiClient) UpdateOSPFRouter(
 	ctx context.Context,
 	site string,
 	d *OSPFRouter,
