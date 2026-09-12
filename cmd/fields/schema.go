@@ -461,12 +461,8 @@ func (g *SpecificationGenerator) buildStringValidators(validation string) []sche
 	}
 
 	if values := enumValues(validation); values != nil {
-		quoted := make([]string, len(values))
-		for i, v := range values {
-			quoted[i] = strconv.Quote(v)
-		}
 		return []schema.StringValidator{customStringValidator(
-			fmt.Sprintf("stringvalidator.OneOf(%s)", strings.Join(quoted, ", ")),
+			fmt.Sprintf("stringvalidator.OneOf(%s)", quotedList(values)),
 			stringValidatorImport,
 		)}
 	}
@@ -500,14 +496,10 @@ func (g *SpecificationGenerator) buildInt64Validators(validation string) []schem
 	}
 
 	if values := enumInt64Values(validation); values != nil {
-		parts := make([]string, len(values))
-		for i, v := range values {
-			parts[i] = strconv.FormatInt(v, 10)
-		}
 		return []schema.Int64Validator{{
 			Custom: &schema.CustomValidator{
 				Imports:          []code.Import{int64ValidatorImport},
-				SchemaDefinition: fmt.Sprintf("int64validator.OneOf(%s)", strings.Join(parts, ", ")),
+				SchemaDefinition: fmt.Sprintf("int64validator.OneOf(%s)", int64List(values)),
 			},
 		}}
 	}
