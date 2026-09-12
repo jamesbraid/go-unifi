@@ -778,8 +778,10 @@ func main() {
 		switch resource.StructName {
 		case "Account":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
-				switch name {
-				case "IP", "NetworkID":
+				// ip's validator admits "" (a trailing |^$ branch), which
+				// the schema path reads as always-serialize; keep the field
+				// omitted when unset instead.
+				if name == "IP" {
 					f.OmitEmpty = true
 				}
 				return nil
@@ -787,13 +789,9 @@ func main() {
 		case "Device":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
-				case "X", "Y":
-					f.FieldType = "float64"
 				case "StpPriority":
 					f.FieldType = fields.Int
 					f.CustomUnmarshalType = fields.Number
-				case "ConfigNetwork", "EtherLighting", "MbbOverrides", "NutServer", "RpsOverride", "QOSProfile":
-					f.IsPointer = true
 				case "Ht":
 					// Field within DeviceRadioTable nested type
 					f.CustomUnmarshalType = "types.Number"
@@ -811,7 +809,7 @@ func main() {
 		case "Network":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
-				case "InternetAccessEnabled", "IntraNetworkAccessEnabled":
+				case "InternetAccessEnabled":
 					if f.FieldType == fields.Bool {
 						f.CustomUnmarshalType = "*bool"
 						f.CustomUnmarshalFunc = "emptyBoolToTrue"
@@ -890,16 +888,6 @@ func main() {
 				}
 				return nil
 			}
-		case "Nat":
-			resource.FieldProcessor = func(name string, f *FieldInfo) error {
-				switch name {
-				case "SourceFilter":
-					f.IsPointer = true
-				case "DestinationFilter":
-					f.IsPointer = true
-				}
-				return nil
-			}
 		case "Client":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
@@ -924,8 +912,6 @@ func main() {
 		case "DNSRecord":
 			resource.FieldProcessor = func(name string, f *FieldInfo) error {
 				switch name {
-				case "Hidden", "NoDelete", "NoEdit", "Enabled":
-					f.FieldType = fields.Bool
 				case "Priority", "Ttl", "Weight":
 					f.FieldType = fields.Int
 					f.CustomUnmarshalType = fields.Number
