@@ -13,8 +13,8 @@
     "content_store_locator": "sha256/b5ab809c2680b7ec22106ef19c7942f1fa343338c3eed1829303d95b2ce4fdd7"
   },
   "inputs": {
-    "extraction_rules_sha256": "f4e02b550837d6d9526390a3b690c07f88842f32ca99a7ba7d4577209ab3bdb6",
-    "generator_inputs_sha256": "8b7519e2a0a980781b5f920b5d373a1591800f8339b3d2577c64e7b71665c687"
+    "extraction_rules_sha256": "98805cf64a63be8c364072ae9af34a917fbc81ae0812afd92030e182ebb10665",
+    "generator_inputs_sha256": "7747a5c5e440dddb104188d0ed0ca8a70c0fad19709992b0f73413a792e758db"
   },
   "snapshots": {
     "structural_sha256": "909e3d87b9fba4b25c808ab2d435b1eef4b6517033ab44c36721d4bfabfe9a64",

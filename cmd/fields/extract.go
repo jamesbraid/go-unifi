@@ -533,8 +533,5 @@ func syncCustom(customDir, fieldsDir string) error {
 }
 
 func findModuleRoot(dir string) string {
-	if dir == "" {
-		panic("dir not set")
-	}
 	return fields.ModuleRootFrom(dir)
 }
