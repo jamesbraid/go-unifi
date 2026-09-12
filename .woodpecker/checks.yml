@@ -40,6 +40,11 @@ steps:
     commands:
       - go build ./...
       - go test ./...
+      # The integration tests are excluded from the commands above by their
+      # build tag, so nothing here compiles them: a helper they call can be
+      # deleted and every gate stays green. Vet type-checks them without
+      # needing a controller.
+      - go vet -tags integration ./...
 
   lint:
     # Pinned to the version the mirror pins, so the two forges cannot disagree

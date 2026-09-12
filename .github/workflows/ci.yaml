@@ -86,6 +86,13 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      # The integration tests are excluded from the run above by their build
+      # tag, so nothing here compiles them: a helper they call can be deleted
+      # and every gate stays green. Vet type-checks them without needing a
+      # controller.
+      - name: Type-check the integration tests
+        run: go vet -tags integration ./...
+
   yamllint:
     # Runs on the GitHub mirror only. Forgejo executes .github/workflows
     # too, so without this guard enabling Actions doubles every job onto
