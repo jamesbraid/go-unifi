@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -287,61 +288,25 @@ func (c *ApiClient) UpdateDevice(ctx context.Context, site string, d *Device) (*
 	return &res, nil
 }
 
-// getDiff compares two values of the same type and returns a map containing only changed fields.
-// It skips read-only fields specified in skipFields.
-func getDiff[T any](original, target *T, skipFields ...string) (map[string]any, error) {
-	// Marshal both to JSON then unmarshal to maps for comparison
-	origJSON, err := json.Marshal(original)
+// encodedFields renders v through its own encoder and hands back the wire
+// fields as a generic map, so two objects can be compared as the controller
+// would see them.
+func encodedFields(v any) (map[string]any, error) {
+	raw, err := json.Marshal(v)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal original: %w", err)
+		return nil, fmt.Errorf("failed to marshal: %w", err)
 	}
-
-	targetJSON, err := json.Marshal(target)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal target: %w", err)
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
-
-	var origMap map[string]any
-	var targetMap map[string]any
-
-	if err := json.Unmarshal(origJSON, &origMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal original: %w", err)
-	}
-
-	if err := json.Unmarshal(targetJSON, &targetMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal target: %w", err)
-	}
-
-	// Create skip set for O(1) lookup
-	skipSet := make(map[string]bool, len(skipFields))
-	for _, field := range skipFields {
-		skipSet[field] = true
-	}
-
-	// Build patch with only changed fields
-	patch := make(map[string]any)
-
-	for key, targetValue := range targetMap {
-		// Skip read-only fields
-		if skipSet[key] {
-			continue
-		}
-
-		origValue, exists := origMap[key]
-
-		// Include if field doesn't exist in original or value changed
-		if !exists || !deepEqualJSON(origValue, targetValue) {
-			patch[key] = targetValue
-		}
-	}
-
-	return patch, nil
+	return m, nil
 }
 
 // getDeviceDiff compares two Device objects and returns a map containing only changed fields.
 //
-// port_overrides needs handling the generic diff cannot do. getDiff compares
-// the two objects as the encoder renders them, and Device's encoder sends nil
+// port_overrides needs handling the field-by-field diff cannot do. The diff
+// compares the two objects as the encoder renders them, and Device's encoder sends nil
 // port_overrides as [] -- deliberately, because the controller rejects null
 // there and an empty list is the only way to clear the field. That is right
 // for a full write and wrong here: a caller updating one unrelated field
@@ -353,9 +318,27 @@ func getDiff[T any](original, target *T, skipFields ...string) (map[string]any, 
 // slice still means "clear these", and still goes through -- which is why
 // this tests the field rather than the rendered [].
 func getDeviceDiff(original, target *Device) (map[string]any, error) {
-	patch, err := getDiff(original, target, "_id", "site_id", "adopted", "state")
+	origMap, err := encodedFields(original)
 	if err != nil {
 		return nil, err
+	}
+	targetMap, err := encodedFields(target)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read-only fields never belong in a patch.
+	skip := map[string]bool{"_id": true, "site_id": true, "adopted": true, "state": true}
+
+	patch := make(map[string]any)
+	for key, targetValue := range targetMap {
+		if skip[key] {
+			continue
+		}
+		origValue, exists := origMap[key]
+		if !exists || !reflect.DeepEqual(origValue, targetValue) {
+			patch[key] = targetValue
+		}
 	}
 
 	if target.PortOverrides == nil {
@@ -363,19 +346,6 @@ func getDeviceDiff(original, target *Device) (map[string]any, error) {
 	}
 
 	return patch, nil
-}
-
-// deepEqualJSON compares two values for deep equality by comparing their JSON representations.
-func deepEqualJSON(a, b any) bool {
-	aJSON, err := json.Marshal(a)
-	if err != nil {
-		return false
-	}
-	bJSON, err := json.Marshal(b)
-	if err != nil {
-		return false
-	}
-	return string(aJSON) == string(bJSON)
 }
 
 func (c *ApiClient) GetDevice(ctx context.Context, site, id string) (*Device, error) {
