@@ -809,6 +809,17 @@ func main() {
 						f.CustomUnmarshalType = "*bool"
 						f.CustomUnmarshalFunc = "emptyBoolToTrue"
 					}
+				case "Enabled":
+					// Stored rest/networkconf documents carry no enabled key
+					// at all (measured on live 10.6.101), so decoding absence
+					// as false made every network read back as disabled --
+					// and writing that back onto a default network draws
+					// api.err.DisablingDefaultNetworkNotAllowed. An absent
+					// key means enabled, like the two fields above.
+					if f.FieldType == fields.Bool {
+						f.CustomUnmarshalType = "*bool"
+						f.CustomUnmarshalFunc = "emptyBoolToTrue"
+					}
 				case "DHCPDEnabled":
 					// Some controllers (UniFi Network 10.x) return "true"/"false"
 					// as JSON strings for this flag, which breaks a plain bool.
