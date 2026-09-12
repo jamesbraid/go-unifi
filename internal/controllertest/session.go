@@ -54,15 +54,6 @@ func NewSession(baseURL string) *Session {
 	}
 }
 
-// NewUOSSession returns a session for a UniFi OS console. baseURL is the
-// Network API behind the console proxy (…/proxy/network); rootURL is the
-// console itself, where SSO login lives.
-func NewUOSSession(rootURL, baseURL string) *Session {
-	s := NewSession(baseURL)
-	s.rootURL = rootURL
-	return s
-}
-
 // LoginUOS authenticates against UniFi OS SSO. It keeps the TOKEN cookie in
 // the jar and the CSRF token the console returns, which every subsequent write
 // must echo back — without it UniFi OS answers 403 Forbidden.
