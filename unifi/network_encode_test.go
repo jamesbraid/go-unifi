@@ -1436,6 +1436,73 @@ func TestMarshalNetworkSettingPreferenceUnset(t *testing.T) {
 	}
 }
 
+// TestMarshalNetworkDHCPRangeDerivedOnlyOnCreate pins where the DHCP range
+// derivation is allowed to fire. A create (no _id yet) without a range is
+// rejected by the controller, so deriving one from ip_subnet there is
+// load-bearing. An update carrying the same derived range asserts values the
+// caller never set and the controller never stored, so with an _id the
+// encoder passes the caller's values through untouched.
+func TestMarshalNetworkDHCPRangeDerivedOnlyOnCreate(t *testing.T) {
+	for _, purpose := range []string{PurposeCorporate, PurposeGuest} {
+		t.Run(purpose, func(t *testing.T) {
+			// Create: no _id, no range set. The derived defaults go out.
+			data, err := json.Marshal(&Network{
+				Name:     strPtr("derived-range"),
+				Purpose:  purpose,
+				Enabled:  true,
+				IPSubnet: strPtr("192.168.1.0/24"),
+			})
+			if err != nil {
+				t.Fatalf("marshal create %s: %v", purpose, err)
+			}
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal create %s: %v", purpose, err)
+			}
+			if result["dhcpd_start"] != "192.168.1.6" {
+				t.Errorf("create dhcpd_start = %v, want the derived 192.168.1.6", result["dhcpd_start"])
+			}
+			if result["dhcpd_stop"] != "192.168.1.254" {
+				t.Errorf("create dhcpd_stop = %v, want the derived 192.168.1.254", result["dhcpd_stop"])
+			}
+
+			// Update: _id set, no range set. No range may be invented.
+			data, err = json.Marshal(&Network{
+				ID:       "507f1f77bcf86cd799439011",
+				Name:     strPtr("no-invented-range"),
+				Purpose:  purpose,
+				Enabled:  true,
+				IPSubnet: strPtr("192.168.1.0/24"),
+			})
+			if err != nil {
+				t.Fatalf("marshal update %s: %v", purpose, err)
+			}
+			checkJSONFields(t, data, nil, []string{"dhcpd_start", "dhcpd_stop"})
+
+			// Update with an explicit range: the caller's values go out.
+			data, err = json.Marshal(&Network{
+				ID:         "507f1f77bcf86cd799439011",
+				Name:       strPtr("explicit-range"),
+				Purpose:    purpose,
+				Enabled:    true,
+				IPSubnet:   strPtr("192.168.1.0/24"),
+				DHCPDStart: strPtr("192.168.1.100"),
+				DHCPDStop:  strPtr("192.168.1.200"),
+			})
+			if err != nil {
+				t.Fatalf("marshal explicit %s: %v", purpose, err)
+			}
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("unmarshal explicit %s: %v", purpose, err)
+			}
+			if result["dhcpd_start"] != "192.168.1.100" || result["dhcpd_stop"] != "192.168.1.200" {
+				t.Errorf("explicit range came out as %v-%v, want the caller's 192.168.1.100-192.168.1.200",
+					result["dhcpd_start"], result["dhcpd_stop"])
+			}
+		})
+	}
+}
+
 // Helper function to create string pointers.
 func strPtr(s string) *string {
 	return &s
