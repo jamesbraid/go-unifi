@@ -94,6 +94,91 @@ func imageFromEnv() string {
 	return defaultImage
 }
 
+// maybeSkipDocker skips the test when the docker daemon is genuinely
+// unreachable; any failure past this probe (bad image, crashing boot) fails
+// the test rather than skipping green. UNIFI_TEST_REQUIRE (set by CI)
+// disables even that skip: a required gate run without docker must go red,
+// never green.
+func maybeSkipDocker(t *testing.T) {
+	t.Helper()
+	if os.Getenv("UNIFI_TEST_REQUIRE") == "" {
+		testcontainers.SkipIfProviderIsNotHealthy(t)
+	}
+}
+
+// newDeviceNetwork creates the controller's own user-defined Docker network
+// and registers its removal. It must be created before the controller so
+// t.Cleanup tears them down in the right order: cleanups run LIFO, so the
+// container is removed first and the network is free to go afterwards.
+func newDeviceNetwork(ctx context.Context, t *testing.T, what string) *testcontainers.DockerNetwork {
+	t.Helper()
+	net, err := network.New(ctx)
+	if err != nil {
+		t.Fatalf("create %s network: %v", what, err)
+	}
+	t.Cleanup(func() {
+		if os.Getenv("UNIFI_TEST_KEEP") != "" {
+			t.Logf("UNIFI_TEST_KEEP set; leaving network %s in place", net.Name)
+			return
+		}
+		// A network that will not go away means something is still attached
+		// to it, which the next run inherits as an ever-growing pile of
+		// networks. Discarding the error would hide exactly that.
+		if err := net.Remove(context.Background()); err != nil {
+			t.Errorf("remove %s network %s: %v", what, net.Name, err)
+		}
+	})
+	return net
+}
+
+// startContainer starts req and registers the UNIFI_TEST_KEEP-aware
+// teardown. The cleanup is registered before the error is checked, and on
+// purpose: a container that failed its health wait is returned started, not
+// absent (which is why dumpLogs below can read its log). Registering after
+// the check would mean t.Fatalf skipped it, stranding the container — and
+// with it any network it joined, whose removal then fails on the
+// still-attached endpoint.
+func startContainer(ctx context.Context, t *testing.T, req testcontainers.ContainerRequest, what string) testcontainers.Container {
+	t.Helper()
+	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if c != nil {
+		t.Cleanup(func() {
+			if os.Getenv("UNIFI_TEST_KEEP") != "" {
+				t.Logf("UNIFI_TEST_KEEP set; leaving %s running at %s", what, c.GetContainerID())
+				return
+			}
+			if err := c.Terminate(context.Background()); err != nil {
+				t.Errorf("terminate %s container: %v", what, err)
+			}
+		})
+	}
+	if err != nil {
+		// The wait error alone ("container is not healthy") says nothing
+		// about why; the container's own output does.
+		dumpLogs(ctx, t, c)
+		t.Fatalf("start %s container: %v", what, err)
+	}
+	return c
+}
+
+// mappedHostPort returns the host-side coordinates of one exposed container
+// port, for building the base URL the test host drives the controller over.
+func mappedHostPort(ctx context.Context, t *testing.T, c testcontainers.Container, port string) (host, mapped string) {
+	t.Helper()
+	host, err := c.Host(ctx)
+	if err != nil {
+		t.Fatalf("container host: %v", err)
+	}
+	p, err := c.MappedPort(ctx, port)
+	if err != nil {
+		t.Fatalf("mapped port: %v", err)
+	}
+	return host, p.Port()
+}
+
 // Start boots a disposable simulation-mode controller on a user-defined
 // Docker network of its own and returns its coordinates. It skips the test
 // when docker is unavailable, honours UNIFI_TEST_URL to target an existing
@@ -131,34 +216,9 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		return c
 	}
 
-	// Skip is reserved for a genuinely unreachable docker daemon; any
-	// failure past this probe (bad image, crashing boot) fails the test
-	// rather than skipping green. UNIFI_TEST_REQUIRE (set by CI) disables
-	// even that skip: a required gate run without docker must go red, never
-	// green.
-	if os.Getenv("UNIFI_TEST_REQUIRE") == "" {
-		testcontainers.SkipIfProviderIsNotHealthy(t)
-	}
+	maybeSkipDocker(t)
 
-	// The network is created before the controller so t.Cleanup tears them
-	// down in the right order: cleanups run LIFO, so the container is
-	// removed first and the network is free to go afterwards.
-	net, err := network.New(ctx)
-	if err != nil {
-		t.Fatalf("create controller network: %v", err)
-	}
-	t.Cleanup(func() {
-		if os.Getenv("UNIFI_TEST_KEEP") != "" {
-			t.Logf("UNIFI_TEST_KEEP set; leaving network %s in place", net.Name)
-			return
-		}
-		// A network that will not go away means something is still attached
-		// to it, which the next run inherits as an ever-growing pile of
-		// networks. Discarding the error would hide exactly that.
-		if err := net.Remove(context.Background()); err != nil {
-			t.Errorf("remove controller network %s: %v", net.Name, err)
-		}
-	})
+	net := newDeviceNetwork(ctx, t, "controller")
 
 	// Resolved once and used for both the announcement and the request. A
 	// second imageFromEnv() call here would be a second copy of the
@@ -180,6 +240,8 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		ExposedPorts: []string{"8443/tcp"},
 		Networks:     []string{net.Name},
 		Env: map[string]string{
+			// Routes the controller's own log to the container log, which
+			// is the only evidence dumpLogs can surface on a failed boot.
 			"UNIFI_STDOUT": "true",
 			"TZ":           "Etc/UTC",
 			// Simulation mode is what seeds admin/admin and skips the setup
@@ -202,42 +264,9 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 		WaitingFor: wait.ForHealthCheck().WithStartupTimeout(5 * time.Minute),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	// Registered before the error is checked, and on purpose: a container
-	// that failed its health wait is returned started, not absent (which is
-	// why dumpLogs below can read its log). Registering after the check
-	// would mean t.Fatalf skipped it, stranding the container — and with it
-	// the network, whose removal then fails on the still-attached endpoint.
-	if container != nil {
-		t.Cleanup(func() {
-			if os.Getenv("UNIFI_TEST_KEEP") != "" {
-				t.Logf("UNIFI_TEST_KEEP set; leaving controller running at %s", container.GetContainerID())
-				return
-			}
-			if err := container.Terminate(context.Background()); err != nil {
-				t.Errorf("terminate controller container: %v", err)
-			}
-		})
-	}
-	if err != nil {
-		// The wait error alone ("container is not healthy") says nothing
-		// about why; the controller's own output does (UNIFI_STDOUT routes
-		// it to the container log).
-		dumpLogs(ctx, t, container)
-		t.Fatalf("start controller container: %v", err)
-	}
+	container := startContainer(ctx, t, req, "controller")
 
-	host, err := container.Host(ctx)
-	if err != nil {
-		t.Fatalf("container host: %v", err)
-	}
-	port, err := container.MappedPort(ctx, "8443/tcp")
-	if err != nil {
-		t.Fatalf("mapped port: %v", err)
-	}
+	host, port := mappedHostPort(ctx, t, container, "8443/tcp")
 
 	// ContainerIP reports an address only while the container sits on
 	// exactly one network, which is the shape the request asks for — so an
@@ -253,7 +282,7 @@ func Start(ctx context.Context, t *testing.T) *Controller {
 	}
 
 	return &Controller{
-		BaseURL:   fmt.Sprintf("https://%s:%s", host, port.Port()),
+		BaseURL:   fmt.Sprintf("https://%s:%s", host, port),
 		Username:  demoUsername,
 		Password:  demoPassword,
 		Site:      demoSite,
