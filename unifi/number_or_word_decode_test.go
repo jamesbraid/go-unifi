@@ -2,6 +2,7 @@ package unifi
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/settings"
@@ -18,8 +19,8 @@ import (
 // that had expire set (measured on 10.6.101).
 //
 // The decision is derived from the validator now rather than listed by hand
-// (cmd/fields/number_or_word.go). These are the fields it currently covers,
-// each asserted against both wire forms.
+// (cmd/fields/number_or_word.go). These are the fields decoding through
+// types.Number, each asserted against both wire forms.
 func TestNumberOrWordFieldsDecodeBothWireForms(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -65,6 +66,19 @@ func TestNumberOrWordFieldsDecodeBothWireForms(t *testing.T) {
 				var v PortProfileQOSMatching
 				mustUnmarshal(t, body, &v)
 				return v.Protocol
+			},
+		},
+		{
+			// An int64, not a string: the controller has been seen sending
+			// rule_index quoted, and nothing else reads the field back.
+			name: "Nat.RuleIndex", number: `{"rule_index":30001}`, word: `{"rule_index":"30001"}`,
+			decode: func(t *testing.T, body string) string {
+				var v Nat
+				mustUnmarshal(t, body, &v)
+				if v.RuleIndex == nil {
+					return ""
+				}
+				return strconv.FormatInt(*v.RuleIndex, 10)
 			},
 		},
 		{
