@@ -288,28 +288,10 @@ func dataSourceAttributes(attrs []resource.Attribute) []datasource.Attribute {
 // generateResourceAttributes generates resource attributes from a Resource.
 func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []resource.Attribute {
 	baseType := r.Types[r.StructName]
-	if baseType == nil || baseType.Fields == nil {
+	if baseType == nil {
 		return nil
 	}
-
-	attrs := make([]resource.Attribute, 0)
-
-	// Sort fields by name for consistent output
-	fieldNames := slices.Sorted(maps.Keys(baseType.Fields))
-
-	for _, fieldName := range fieldNames {
-		field := baseType.Fields[fieldName]
-		if field == nil || strings.HasPrefix(fieldName, " ") || strings.HasSuffix(fieldName, "_Spacer") {
-			continue
-		}
-
-		attr := g.fieldToResourceAttribute(r, "", field)
-		if attr != nil {
-			attrs = append(attrs, *attr)
-		}
-	}
-
-	return attrs
+	return g.generateNestedResourceAttributes(r, "", baseType)
 }
 
 // fieldToResourceAttribute converts a FieldInfo to a ResourceAttribute.
@@ -428,7 +410,9 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 
 	for _, fieldName := range fieldNames {
 		childField := field.Fields[fieldName]
-		if childField == nil {
+		// Spacer entries are nil; the controller envelope fields are keyed
+		// with a leading space (see NewResource) and stay out of the spec.
+		if childField == nil || strings.HasPrefix(fieldName, " ") {
 			continue
 		}
 
