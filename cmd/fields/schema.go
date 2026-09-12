@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -22,10 +23,7 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
-const (
-	SpecVersion       = "0.1"
-	GoUnifiImportPath = "github.com/ubiquiti-community/go-unifi/unifi"
-)
+const SpecVersion = "0.1"
 
 // SpecificationGenerator generates a Terraform provider specification from resources.
 type SpecificationGenerator struct {
@@ -131,10 +129,8 @@ func (g *SpecificationGenerator) Generate() *spec.Specification {
 	}
 
 	// Sort resources by name for consistent output
-	sortedResources := make([]*ResourceInfo, len(g.Resources))
-	copy(sortedResources, g.Resources)
-	sort.Slice(sortedResources, func(i, j int) bool {
-		return sortedResources[i].StructName < sortedResources[j].StructName
+	sortedResources := slices.SortedFunc(slices.Values(g.Resources), func(a, b *ResourceInfo) int {
+		return strings.Compare(a.StructName, b.StructName)
 	})
 
 	for _, r := range sortedResources {
@@ -143,13 +139,15 @@ func (g *SpecificationGenerator) Generate() *spec.Specification {
 			continue
 		}
 
-		// Generate data source
-		ds := g.generateDataSource(r)
-		spec.DataSources = append(spec.DataSources, ds)
-
-		// Generate resource
-		res := g.generateResource(r)
-		spec.Resources = append(spec.Resources, res)
+		name := toTerraformName(r.StructName)
+		spec.DataSources = append(spec.DataSources, datasource.DataSource{
+			Name:   name,
+			Schema: &datasource.Schema{Attributes: g.generateDataSourceAttributes(r)},
+		})
+		spec.Resources = append(spec.Resources, resource.Resource{
+			Name:   name,
+			Schema: &resource.Schema{Attributes: g.generateResourceAttributes(r)},
+		})
 	}
 
 	return spec
@@ -226,20 +224,6 @@ func (g *SpecificationGenerator) sensitivePtr(r *ResourceInfo, field *FieldInfo)
 	return nil
 }
 
-// generateDataSource generates a data source specification from a resource.
-func (g *SpecificationGenerator) generateDataSource(r *ResourceInfo) datasource.DataSource {
-	name := toTerraformName(r.StructName)
-
-	ds := datasource.DataSource{
-		Name: name,
-		Schema: &datasource.Schema{
-			Attributes: g.generateDataSourceAttributes(r),
-		},
-	}
-
-	return ds
-}
-
 // generateDataSourceAttributes generates data source attributes from a resource.
 func (g *SpecificationGenerator) generateDataSourceAttributes(r *ResourceInfo) []datasource.Attribute {
 	baseType := r.Types[r.StructName]
@@ -250,11 +234,7 @@ func (g *SpecificationGenerator) generateDataSourceAttributes(r *ResourceInfo) [
 	attrs := make([]datasource.Attribute, 0)
 
 	// Sort fields by name for consistent output
-	fieldNames := make([]string, 0, len(baseType.Fields))
-	for name := range baseType.Fields {
-		fieldNames = append(fieldNames, name)
-	}
-	sort.Strings(fieldNames)
+	fieldNames := slices.Sorted(maps.Keys(baseType.Fields))
 
 	for _, fieldName := range fieldNames {
 		field := baseType.Fields[fieldName]
@@ -283,8 +263,6 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
 	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
 	name := field.JSONName
-	_ = g.buildAssociatedExternalType(r, field)
-	var externalType *schema.AssociatedExternalType = nil
 
 	attr := &datasource.Attribute{
 		Name: name,
@@ -298,8 +276,7 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			attr.ListNested = &datasource.ListNestedAttribute{
 				ComputedOptionalRequired: "computed",
 				NestedObject: datasource.NestedAttributeObject{
-					AssociatedExternalType: externalType,
-					Attributes:             nestedAttrs,
+					Attributes: nestedAttrs,
 				},
 			}
 		} else {
@@ -307,7 +284,6 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 			attr.List = &datasource.ListAttribute{
 				ComputedOptionalRequired: "computed",
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
-				AssociatedExternalType:   externalType,
 				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
@@ -320,7 +296,6 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		attr.SingleNested = &datasource.SingleNestedAttribute{
 			ComputedOptionalRequired: "computed",
 			Attributes:               nestedAttrs,
-			AssociatedExternalType:   externalType,
 		}
 		return attr
 	}
@@ -330,13 +305,11 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 	case "bool":
 		attr.Bool = &datasource.BoolAttribute{
 			ComputedOptionalRequired: "computed",
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "int64":
 		intAttr := &datasource.Int64Attribute{
 			ComputedOptionalRequired: "computed",
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 		if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
@@ -346,13 +319,11 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 	case "float64":
 		attr.Float64 = &datasource.Float64Attribute{
 			ComputedOptionalRequired: "computed",
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &datasource.StringAttribute{
 			ComputedOptionalRequired: "computed",
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 		if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
@@ -361,18 +332,15 @@ func (g *SpecificationGenerator) fieldToDataSourceAttribute(r *ResourceInfo, fie
 		attr.String = strAttr
 	default:
 		// Check if it's a custom type defined in Types
-		if _, ok := r.Types[field.FieldType]; ok {
-			nestedAttrs := g.generateNestedDataSourceAttributesFromType(r, field.FieldType)
+		if typeInfo, ok := r.Types[field.FieldType]; ok {
 			attr.SingleNested = &datasource.SingleNestedAttribute{
 				ComputedOptionalRequired: "computed",
-				Attributes:               nestedAttrs,
-				AssociatedExternalType:   externalType,
+				Attributes:               g.generateNestedDataSourceAttributes(r, typeInfo),
 			}
 		} else {
 			// Default to string for unknown types
 			attr.String = &datasource.StringAttribute{
 				ComputedOptionalRequired: "computed",
-				AssociatedExternalType:   externalType,
 				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
@@ -388,11 +356,7 @@ func (g *SpecificationGenerator) generateNestedDataSourceAttributes(r *ResourceI
 	}
 
 	attrs := make([]datasource.Attribute, 0)
-	fieldNames := make([]string, 0, len(field.Fields))
-	for name := range field.Fields {
-		fieldNames = append(fieldNames, name)
-	}
-	sort.Strings(fieldNames)
+	fieldNames := slices.Sorted(maps.Keys(field.Fields))
 
 	for _, fieldName := range fieldNames {
 		childField := field.Fields[fieldName]
@@ -409,30 +373,6 @@ func (g *SpecificationGenerator) generateNestedDataSourceAttributes(r *ResourceI
 	return attrs
 }
 
-// generateNestedDataSourceAttributesFromType generates nested attributes from a type name.
-func (g *SpecificationGenerator) generateNestedDataSourceAttributesFromType(r *ResourceInfo, typeName string) []datasource.Attribute {
-	typeInfo, ok := r.Types[typeName]
-	if !ok || typeInfo.Fields == nil {
-		return nil
-	}
-
-	return g.generateNestedDataSourceAttributes(r, typeInfo)
-}
-
-// generateResource generates a resource specification from a Resource.
-func (g *SpecificationGenerator) generateResource(r *ResourceInfo) resource.Resource {
-	name := toTerraformName(r.StructName)
-
-	res := resource.Resource{
-		Name: name,
-		Schema: &resource.Schema{
-			Attributes: g.generateResourceAttributes(r),
-		},
-	}
-
-	return res
-}
-
 // generateResourceAttributes generates resource attributes from a Resource.
 func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []resource.Attribute {
 	baseType := r.Types[r.StructName]
@@ -443,11 +383,7 @@ func (g *SpecificationGenerator) generateResourceAttributes(r *ResourceInfo) []r
 	attrs := make([]resource.Attribute, 0)
 
 	// Sort fields by name for consistent output
-	fieldNames := make([]string, 0, len(baseType.Fields))
-	for name := range baseType.Fields {
-		fieldNames = append(fieldNames, name)
-	}
-	sort.Strings(fieldNames)
+	fieldNames := slices.Sorted(maps.Keys(baseType.Fields))
 
 	for _, fieldName := range fieldNames {
 		field := baseType.Fields[fieldName]
@@ -482,8 +418,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 	// open_vpn_encryption_cipher for openvpn_encryption_cipher, and
 	// l_2_tp_allow_weak_ciphers for l2tp_allow_weak_ciphers.
 	name := field.JSONName
-	_ = g.buildAssociatedExternalType(r, field)
-	var externalType *schema.AssociatedExternalType = nil
 	computedOptionalRequired := g.determineComputedOptionalRequired(field)
 
 	attr := &resource.Attribute{
@@ -498,8 +432,7 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 			attr.ListNested = &resource.ListNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				NestedObject: resource.NestedAttributeObject{
-					AssociatedExternalType: externalType,
-					Attributes:             nestedAttrs,
+					Attributes: nestedAttrs,
 				},
 			}
 		} else {
@@ -507,7 +440,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 			attr.List = &resource.ListAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
 				ElementType:              g.fieldTypeToElementType(field.FieldType),
-				AssociatedExternalType:   externalType,
 				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
@@ -520,7 +452,6 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		attr.SingleNested = &resource.SingleNestedAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
 			Attributes:               nestedAttrs,
-			AssociatedExternalType:   externalType,
 		}
 		return attr
 	}
@@ -530,13 +461,11 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 	case "bool":
 		attr.Bool = &resource.BoolAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case fields.Int:
 		intAttr := &resource.Int64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 		if validators := g.buildInt64Validators(field.FieldValidation); len(validators) > 0 {
@@ -546,13 +475,11 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 	case "float64":
 		attr.Float64 = &resource.Float64Attribute{
 			ComputedOptionalRequired: computedOptionalRequired,
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 	case "string":
 		strAttr := &resource.StringAttribute{
 			ComputedOptionalRequired: computedOptionalRequired,
-			AssociatedExternalType:   externalType,
 			Sensitive:                g.sensitivePtr(r, field),
 		}
 		if validators := g.buildStringValidators(field.FieldValidation); len(validators) > 0 {
@@ -561,18 +488,15 @@ func (g *SpecificationGenerator) buildResourceAttribute(r *ResourceInfo, contain
 		attr.String = strAttr
 	default:
 		// Check if it's a custom type defined in Types
-		if _, ok := r.Types[field.FieldType]; ok {
-			nestedAttrs := g.generateNestedResourceAttributesFromType(r, joinContainer(container, field.JSONName), field.FieldType)
+		if typeInfo, ok := r.Types[field.FieldType]; ok {
 			attr.SingleNested = &resource.SingleNestedAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
-				Attributes:               nestedAttrs,
-				AssociatedExternalType:   externalType,
+				Attributes:               g.generateNestedResourceAttributes(r, joinContainer(container, field.JSONName), typeInfo),
 			}
 		} else {
 			// Default to string for unknown types
 			attr.String = &resource.StringAttribute{
 				ComputedOptionalRequired: computedOptionalRequired,
-				AssociatedExternalType:   externalType,
 				Sensitive:                g.sensitivePtr(r, field),
 			}
 		}
@@ -588,11 +512,7 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 	}
 
 	attrs := make([]resource.Attribute, 0)
-	fieldNames := make([]string, 0, len(field.Fields))
-	for name := range field.Fields {
-		fieldNames = append(fieldNames, name)
-	}
-	sort.Strings(fieldNames)
+	fieldNames := slices.Sorted(maps.Keys(field.Fields))
 
 	for _, fieldName := range fieldNames {
 		childField := field.Fields[fieldName]
@@ -607,60 +527,6 @@ func (g *SpecificationGenerator) generateNestedResourceAttributes(r *ResourceInf
 	}
 
 	return attrs
-}
-
-// generateNestedResourceAttributesFromType generates nested attributes from a type name.
-func (g *SpecificationGenerator) generateNestedResourceAttributesFromType(r *ResourceInfo, container string, typeName string) []resource.Attribute {
-	typeInfo, ok := r.Types[typeName]
-	if !ok || typeInfo.Fields == nil {
-		return nil
-	}
-
-	return g.generateNestedResourceAttributes(r, container, typeInfo)
-}
-
-// buildAssociatedExternalType creates an AssociatedExternalType for a field.
-func (g *SpecificationGenerator) buildAssociatedExternalType(_ *ResourceInfo, field *FieldInfo) *schema.AssociatedExternalType {
-	if field == nil {
-		return nil
-	}
-
-	var typeName string
-
-	// Build the full type name including pointer and array notation
-	if field.IsArray {
-		if field.Fields != nil {
-			// Nested object array type
-			typeName = field.FieldType
-		} else {
-			typeName = field.FieldType
-		}
-	} else if field.Fields != nil {
-		// Nested object type
-		if field.OmitEmpty && field.IsPointer {
-			typeName = fmt.Sprintf("*%s", field.FieldType)
-		} else {
-			typeName = field.FieldType
-		}
-	} else {
-		// Primitive type
-		if field.OmitEmpty && field.IsPointer {
-			typeName = fmt.Sprintf("*%s", field.FieldType)
-		} else {
-			typeName = field.FieldType
-		}
-	}
-
-	if regexp.MustCompile(`string|bool|int64|float64`).MatchString(typeName) {
-		return nil
-	}
-
-	return &schema.AssociatedExternalType{
-		Import: &code.Import{
-			Path: GoUnifiImportPath,
-		},
-		Type: typeName,
-	}
 }
 
 // determineComputedOptionalRequired determines the computed_optional_required value for a field.
@@ -684,7 +550,6 @@ func (g *SpecificationGenerator) determineComputedOptionalRequired(field *FieldI
 	return schema.Optional
 }
 
-// buildValidators creates validators from a FieldValidation string.
 // Validators for the Terraform code specification, derived from the same
 // controller patterns the SDK exports. Nothing here transcribes a rule by
 // hand: enums.go and ranges.go decide what a pattern means, and refuse
@@ -800,10 +665,8 @@ func (g *SpecificationGenerator) fieldTypeToElementType(fieldType string) schema
 		return schema.ElementType{Int64: &schema.Int64Type{}}
 	case "float64":
 		return schema.ElementType{Float64: &schema.Float64Type{}}
-	case "string":
-		return schema.ElementType{String: &schema.StringType{}}
 	default:
-		// Default to string
+		// Strings, and anything unknown, are string elements.
 		return schema.ElementType{String: &schema.StringType{}}
 	}
 }
@@ -842,14 +705,6 @@ func (g *SpecificationGenerator) WriteSpecification(outputPath string) error {
 
 func ptr[T any](in T) *T {
 	return &in
-}
-
-func findMembers(a resource.Attribute) bool {
-	return a.Name == "members"
-}
-
-func findConfigNetwork(a resource.Attribute) bool {
-	return a.Name == "config_network"
 }
 
 func findAttr(name string) func(a resource.Attribute) bool {
