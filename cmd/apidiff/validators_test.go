@@ -112,15 +112,20 @@ func TestValidatorSurfaceDeltaReportsEachDirection(t *testing.T) {
 	}
 }
 
-// A baseline predating the published tables cannot be compared against, which
-// is not the same as nothing having changed.
-func TestValidatorSurfaceDeltaIsSilentWithoutABaseline(t *testing.T) {
-	changed, added, removed, err := validatorSurfaceDelta(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(changed)+len(added)+len(removed) != 0 {
-		t.Errorf("expected nothing from an empty baseline, got %v %v %v", changed, added, removed)
+// TestValidatorPatternsReportsAMissingTable pins the flag validatorSurfaceDelta
+// reads to tell "the baseline predates the published tables" from "nothing
+// changed".
+//
+// This used to assert the outcome instead, by calling validatorSurfaceDelta
+// with an empty baseline and expecting no report. That test could not fail:
+// validatorSurfaceDelta reads the current table from ".", which is cmd/apidiff
+// when the test runs, and there are no tables there either -- so both sides
+// were empty and the early return it meant to cover made no difference.
+// Deleting that return outright left the package green. The flag is the part
+// that can actually be tested from here.
+func TestValidatorPatternsReportsAMissingTable(t *testing.T) {
+	if _, found, err := validatorPatterns(t.TempDir()); err != nil || found {
+		t.Errorf("validatorPatterns(empty tree) found = %v, err = %v; want false, nil", found, err)
 	}
 }
 

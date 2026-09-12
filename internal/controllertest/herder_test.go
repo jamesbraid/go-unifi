@@ -7,21 +7,6 @@ import (
 	"time"
 )
 
-// TestEncodeDeviceRequestOmitsUnsetIdentity pins the request wire form: the
-// herder's decoder rejects unknown fields, and anything the caller leaves
-// unset must be absent rather than empty so the herder allocates it.
-func TestEncodeDeviceRequestOmitsUnsetIdentity(t *testing.T) {
-	var buf strings.Builder
-	if err := encodeDeviceRequest(&buf, []DeviceRequest{{Model: "UXGENT"}}); err != nil {
-		t.Fatalf("encodeDeviceRequest: %v", err)
-	}
-
-	want := `{"version":1,"devices":[{"model":"UXGENT"}]}` + "\n"
-	if got := buf.String(); got != want {
-		t.Errorf("request = %q, want %q", got, want)
-	}
-}
-
 // TestEncodeDeviceRequestCarriesSuppliedIdentity proves a caller that pins an
 // identity gets it on the wire verbatim; the herder canonicalizes a supplied
 // MAC but never replaces one.

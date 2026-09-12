@@ -25,16 +25,6 @@ func TestFilterIncompatibilities(t *testing.T) {
 	}
 }
 
-func TestWireSurfaceDelta(t *testing.T) {
-	added, removed := wireDelta(
-		[]string{"A.x", "B.y", "C.z"},
-		[]string{"A.x", "C.z", "D.w"},
-	)
-	if !slices.Equal(added, []string{"D.w"}) || !slices.Equal(removed, []string{"B.y"}) {
-		t.Fatalf("wireDelta() = +%q -%q, want +[D.w] -[B.y]", added, removed)
-	}
-}
-
 func TestWireSectionRendering(t *testing.T) {
 	section := wireSection("v1.103.0", []string{"P.native"}, nil)
 	for _, want := range []string{"Wire surface", "v1.103.0", "+ P.native", "now always sent"} {

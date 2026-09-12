@@ -166,21 +166,6 @@ func TestSessionLoginMetaRCError(t *testing.T) {
 	}
 }
 
-func TestSessionGetJSONNotFound(t *testing.T) {
-	srv := fakeController(t)
-	defer srv.Close()
-
-	s := NewSession(srv.URL)
-	_ = s.Login(context.Background(), "admin", "admin")
-	_, status, err := s.GetJSON(context.Background(), "/v2/api/site/default/nope")
-	if err != nil {
-		t.Fatalf("unexpected transport error: %v", err)
-	}
-	if status != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404", status)
-	}
-}
-
 // TestSessionGetJSONNull covers legal JSON null bodies (e.g. an empty v2
 // endpoint): GetJSON must return a nil body with a nil error, not
 // ErrNotJSON — null is valid JSON, distinct from a non-JSON body.

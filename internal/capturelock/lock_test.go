@@ -273,31 +273,6 @@ func TestWriteCompatibilityProjectionsUsesOnlyLock(t *testing.T) {
 	}
 }
 
-func TestDigestSnapshotTreeIsStable(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "nested"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "b.json"), []byte("two"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "nested", "a.json"), []byte("one"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	first, _, err := DigestSnapshot(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, _, err := DigestSnapshot(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatalf("DigestSnapshot() tree changed without input change: %q != %q", first, second)
-	}
-}
-
 // TestDigestSnapshotCoversEveryFileTheTreeDigestDoes is what lets a structural
 // projection pin one document and still be talking about the snapshot the lock
 // pins as a whole.
@@ -324,6 +299,18 @@ func TestDigestSnapshotCoversEveryFileTheTreeDigestDoes(t *testing.T) {
 	tree, documents, err := DigestSnapshot(root)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Determinism over unchanged input, folded in from a test that asserted
+	// only this. The walk collects names into a slice and sorts it before
+	// hashing, so the guarantee is structural -- but a refactor that hashed
+	// over the document map instead would reorder per range.
+	again, _, err := DigestSnapshot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != tree {
+		t.Fatalf("DigestSnapshot() tree changed with no input change: %q != %q", tree, again)
 	}
 
 	if len(documents) != len(contents) {

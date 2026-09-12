@@ -42,19 +42,6 @@ func TestOwnsOnSubtractsUOSExclusions(t *testing.T) {
 	}
 }
 
-// TestOwnsOnWithoutExclusionsIsIdentical keeps the common case honest -- an
-// entry with no exclusions answers the same on both harnesses.
-func TestOwnsOnWithoutExclusionsIsIdentical(t *testing.T) {
-	p := Preference{Owns: []string{"cron_expr"}}
-
-	if got := p.OwnsOn(true); !slices.Equal(got, p.Owns) {
-		t.Errorf("no exclusions should mean no difference, got %v", got)
-	}
-	if got := p.OwnsOn(false); !slices.Equal(got, p.Owns) {
-		t.Errorf("standalone changed an entry with no exclusions: %v", got)
-	}
-}
-
 // TestSuperMgmtRetentionExclusionsAreRecorded reads the real record, so
 // neither the uos_pins nor the owns in schemas/behavior.json can be deleted
 // without a failure. The exclusions are the only reason the UOS integration

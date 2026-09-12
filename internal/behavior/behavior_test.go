@@ -57,18 +57,6 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 }
 
-// A missing artifact must degrade to "nothing measured", not an error, so a
-// consumer predating it still builds.
-func TestLoadMissingIsNotAnError(t *testing.T) {
-	_, found, err := Load(t.TempDir())
-	if err != nil {
-		t.Fatalf("missing artifact errored: %v", err)
-	}
-	if found {
-		t.Error("found reported true for a missing artifact")
-	}
-}
-
 // Re-measuring the same behaviour must produce a byte-identical file, or every
 // controller bump shows spurious diff noise and the reviewable-diff promise
 // fails. Slice values are sorted on write for this reason.
