@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -271,30 +270,6 @@ func TestApplyOverridesNestedPreferencePaths(t *testing.T) {
 			})
 		})
 	}
-}
-
-// TestPreferenceKeysMustBeQuotedInTOML pins the trap in the file format. A
-// bare dotted key nests into sub-tables, which decodes without error and
-// produces a table that is not the one written.
-func TestPreferenceKeysMustBeQuotedInTOML(t *testing.T) {
-	var quoted map[string]resourceOverride
-	_, err := toml.Decode(`
-[Thing.preference."port_overrides.setting_preference"]
-owns = ["stp_port_mode"]
-`, &quoted)
-	require.NoError(t, err)
-	require.Contains(t, quoted["Thing"].Preference, "port_overrides.setting_preference")
-
-	var bare map[string]resourceOverride
-	_, err = toml.Decode(`
-[Thing.preference.port_overrides.setting_preference]
-owns = ["stp_port_mode"]
-`, &bare)
-	require.NoError(t, err, "a bare dotted key parses fine, which is exactly why it is dangerous")
-	require.NotContains(t, bare["Thing"].Preference, "port_overrides.setting_preference")
-	require.Contains(t, bare["Thing"].Preference, "port_overrides")
-	require.Empty(t, bare["Thing"].Preference["port_overrides"].Owns,
-		"the nested table swallowed owns, so the entry would govern nothing")
 }
 
 // TestApplyOverridesPreferenceUOSPins covers the rule that keeps a console

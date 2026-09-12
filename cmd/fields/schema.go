@@ -128,7 +128,7 @@ func (g *SpecificationGenerator) Generate() *spec.Specification {
 		Resources:   make([]resource.Resource, 0),
 	}
 
-	// Sort resources by name for consistent output
+	// Sorted by StructName, hence the ap_group, account, bgp_config order.
 	sortedResources := slices.SortedFunc(slices.Values(g.Resources), func(a, b *ResourceInfo) int {
 		return strings.Compare(a.StructName, b.StructName)
 	})

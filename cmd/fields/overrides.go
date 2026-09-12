@@ -40,11 +40,6 @@ type resourceOverride struct {
 	// singular path, and only the list is served by the plural one.
 	ListPath string                   `toml:"list_path"`
 	Field    map[string]fieldOverride `toml:"field"`
-	// Preference is decoded here only so the residual ownership entries pass
-	// the undecoded-key check below. Every consumer reads them through
-	// fields.LoadPreferences, which merges schemas/behavior.json's measured
-	// ownership over them; see preferenceTables.
-	Preference map[string]fields.Preference `toml:"preference"`
 }
 
 var (
@@ -72,13 +67,9 @@ func resourceOverrides() map[string]resourceOverride {
 		}
 		// TOML ignores a key no struct field claims, so a misspelling is
 		// accepted in silence and the property it meant to set stays at its
-		// zero value: "onws" leaves owns empty, and an empty owns set is a
-		// measured result here, so the mode publishes as owning nothing.
-		// That is the exact silent failure these tables were written to
-		// document, reproduced in the file that documents it.
-		//
-		// Nothing in the file is legitimately undecoded, so any leftover is
-		// a typo.
+		// zero value: "omitemtpy" leaves the field serializing however the
+		// schema left it, and nothing says so. Nothing in the file is
+		// legitimately undecoded, so any leftover is a typo.
 		if undecoded := md.Undecoded(); len(undecoded) > 0 {
 			keys := make([]string, 0, len(undecoded))
 			for _, key := range undecoded {

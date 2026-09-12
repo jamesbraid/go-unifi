@@ -240,12 +240,6 @@ type = "bool"
 [Device.field.port_overrides]
 nil_as_empty = true
 
-# Residual ownership facts. What each auto|manual mode field owns is measured
-# by TestIntegrationPreferenceOwnership and recorded in the ownership section
-# of schemas/behavior.json (re-measure with BEHAVIOR_WRITE=1 on the standalone
-# harness); the generator reads the artifact, so nothing here repeats it. The
-# two entries below carry the facts the artifact has no slot for.
-
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
 # keep compiling. Review for sunset next controller train.
