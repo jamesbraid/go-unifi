@@ -59,6 +59,11 @@ type Artifact struct {
 	// stored anyway. A rejection that stores is why a client must never
 	// replay a POST it saw fail: each replay can file another copy.
 	RejectedCreates map[string]RejectedCreate `json:"rejected_creates,omitempty"`
+
+	// Replays: per resource, what re-sending an identical write did -- the
+	// measured ground under the transport's retry policy (replay PUT, never
+	// POST).
+	Replays map[string]Replay `json:"replays,omitempty"`
 }
 
 // RejectedCreate is the controller's answer to one deliberately invalid
@@ -67,6 +72,14 @@ type Artifact struct {
 type RejectedCreate struct {
 	Status int  `json:"status"`
 	Stored bool `json:"stored"`
+}
+
+// Replay records what an identical second write did. Create is "DUPLICATES"
+// (a second document with its own id) or "REJECTED-<status>"; Update is
+// "IDEMPOTENT" (accepted, document unchanged) or "CHANGED-<fields>".
+type Replay struct {
+	Create string `json:"create,omitempty"`
+	Update string `json:"update,omitempty"`
 }
 
 // EmptySemantics records what a field did when written as "" and when its key
