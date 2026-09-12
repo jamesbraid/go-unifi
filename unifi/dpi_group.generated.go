@@ -155,17 +155,12 @@ func (c *ApiClient) CreateDpiGroup(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateDpiGroupFields(ctx context.Context, site string, d *DpiGroup, fields ...string) (*DpiGroup, error) {
-	return c.updateDpiGroupFields(ctx, site, d, fields)
-}
-
-// updateDpiGroupFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateDpiGroupFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateDpiGroupFields(
 	ctx context.Context,
 	site string,
 	d *DpiGroup,
-	fields []string,
+	fields ...string,
 ) (*DpiGroup, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

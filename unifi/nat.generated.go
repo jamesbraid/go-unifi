@@ -248,17 +248,12 @@ func (c *ApiClient) CreateNat(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateNatFields(ctx context.Context, site string, d *Nat, fields ...string) (*Nat, error) {
-	return c.updateNatFields(ctx, site, d, fields)
-}
-
-// updateNatFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateNatFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateNatFields(
 	ctx context.Context,
 	site string,
 	d *Nat,
-	fields []string,
+	fields ...string,
 ) (*Nat, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

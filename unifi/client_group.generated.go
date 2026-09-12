@@ -174,17 +174,12 @@ func (c *ApiClient) CreateClientGroup(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateClientGroupFields(ctx context.Context, site string, d *ClientGroup, fields ...string) (*ClientGroup, error) {
-	return c.updateClientGroupFields(ctx, site, d, fields)
-}
-
-// updateClientGroupFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateClientGroupFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateClientGroupFields(
 	ctx context.Context,
 	site string,
 	d *ClientGroup,
-	fields []string,
+	fields ...string,
 ) (*ClientGroup, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

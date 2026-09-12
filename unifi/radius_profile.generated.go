@@ -264,17 +264,12 @@ func (c *ApiClient) CreateRADIUSProfile(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateRADIUSProfileFields(ctx context.Context, site string, d *RADIUSProfile, fields ...string) (*RADIUSProfile, error) {
-	return c.updateRADIUSProfileFields(ctx, site, d, fields)
-}
-
-// updateRADIUSProfileFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateRADIUSProfileFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateRADIUSProfileFields(
 	ctx context.Context,
 	site string,
 	d *RADIUSProfile,
-	fields []string,
+	fields ...string,
 ) (*RADIUSProfile, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

@@ -236,17 +236,12 @@ func (c *ApiClient) CreateHotspotPackage(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateHotspotPackageFields(ctx context.Context, site string, d *HotspotPackage, fields ...string) (*HotspotPackage, error) {
-	return c.updateHotspotPackageFields(ctx, site, d, fields)
-}
-
-// updateHotspotPackageFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateHotspotPackageFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateHotspotPackageFields(
 	ctx context.Context,
 	site string,
 	d *HotspotPackage,
-	fields []string,
+	fields ...string,
 ) (*HotspotPackage, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

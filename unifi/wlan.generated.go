@@ -897,17 +897,12 @@ func (c *ApiClient) CreateWLAN(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateWLANFields(ctx context.Context, site string, d *WLAN, fields ...string) (*WLAN, error) {
-	return c.updateWLANFields(ctx, site, d, fields)
-}
-
-// updateWLANFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateWLANFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateWLANFields(
 	ctx context.Context,
 	site string,
 	d *WLAN,
-	fields []string,
+	fields ...string,
 ) (*WLAN, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

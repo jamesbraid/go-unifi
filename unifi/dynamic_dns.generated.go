@@ -160,17 +160,12 @@ func (c *ApiClient) CreateDynamicDNS(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateDynamicDNSFields(ctx context.Context, site string, d *DynamicDNS, fields ...string) (*DynamicDNS, error) {
-	return c.updateDynamicDNSFields(ctx, site, d, fields)
-}
-
-// updateDynamicDNSFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateDynamicDNSFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateDynamicDNSFields(
 	ctx context.Context,
 	site string,
 	d *DynamicDNS,
-	fields []string,
+	fields ...string,
 ) (*DynamicDNS, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {
