@@ -48,9 +48,7 @@ func TestIntegrationDHCPGuard(t *testing.T) {
 			// PostJSON marshals n through Network.MarshalJSON, so this posts
 			// exactly what the SDK would send.
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", n)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				t.Fatalf("controller rejected the encoder's guarded %s network (HTTP %d): %v", purpose, status, body)
 			}
@@ -89,9 +87,7 @@ func TestIntegrationDHCPGuard(t *testing.T) {
 			}
 
 			body, status, err = s.PutJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf/"+id, &round)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				t.Fatalf("controller rejected a round-trip PUT of a guarded %s network (HTTP %d): %v", purpose, status, body)
 			}

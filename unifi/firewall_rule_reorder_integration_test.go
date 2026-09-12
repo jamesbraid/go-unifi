@@ -94,9 +94,7 @@ func TestIntegrationReorderFirewallRules(t *testing.T) {
 		"rule_index": after["reorder-probe-1"],
 		"action":     "accept", "protocol": "all", "enabled": true,
 	})
-	if err != nil {
-		t.Fatalf("transport: %v", err)
-	}
+	mustTransport(t, err)
 	if status == 200 {
 		t.Log("note: this controller accepted a REST write of an index another rule holds; " +
 			"a reorder could become a sequence of masked updates if that holds up")
@@ -113,9 +111,7 @@ func TestIntegrationFirewallCommandAcceptsAnythingItDoesNotKnow(t *testing.T) {
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/cmd/firewall",
 		map[string]any{"cmd": "definitely-not-a-command", "ruleset": "LAN_IN"})
-	if err != nil {
-		t.Fatalf("transport: %v", err)
-	}
+	mustTransport(t, err)
 	if status != 200 {
 		t.Logf("this controller now rejects an unknown firewall command with HTTP %d (%v); "+
 			"the response check in ReorderFirewallRules is no longer the only thing "+

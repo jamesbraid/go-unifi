@@ -37,9 +37,7 @@ func TestIntegrationWANEncoderUnset(t *testing.T) {
 	// PostJSON marshals n through Network.MarshalJSON -> marshalWAN, so this
 	// posts exactly what the SDK would send.
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", n)
-	if err != nil {
-		t.Fatalf("transport: %v", err)
-	}
+	mustTransport(t, err)
 	if status != 200 {
 		t.Fatalf("controller rejected the encoder's plain DHCP WAN output (HTTP %d): %v", status, body)
 	}

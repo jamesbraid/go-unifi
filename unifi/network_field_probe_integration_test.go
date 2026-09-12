@@ -118,9 +118,7 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 			payload[cand.Wire] = value
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				if marker := prereqErrorMarker(body); marker != "" {
 					t.Fatalf("PREREQUISITE FAILURE for %s: HTTP %d, %s. That error names the probe's own "+
@@ -182,9 +180,7 @@ func TestIntegrationNetworkFieldProbe(t *testing.T) {
 			payload["ipsec_local_ip"] = controlForeignLocalIP
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status == 200 {
 				if id, _ := firstData(t, body)["_id"].(string); id != "" {
 					deleteNetwork(ctx, t, s, c.Site, id)

@@ -38,9 +38,7 @@ func TestIntegrationValidationErrorShape(t *testing.T) {
 		"ip_subnet":                 "10.120.0.1/24",
 		"openvpn_encryption_cipher": "AES_256_GCM", // not in AES_256_CBC|BF_CBC
 	})
-	if err != nil {
-		t.Fatalf("transport: %v", err)
-	}
+	mustTransport(t, err)
 
 	raw, _ := json.Marshal(body)
 	t.Logf("HTTP %d, body: %s", status, raw)

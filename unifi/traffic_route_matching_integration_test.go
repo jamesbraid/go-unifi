@@ -96,9 +96,7 @@ func TestIntegrationTrafficRouteMatchingRules(t *testing.T) {
 			}
 
 			body, status, err := s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/trafficroutes", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 
 			got := "accepted"
 			var created map[string]any

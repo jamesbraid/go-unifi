@@ -44,9 +44,7 @@ func TestIntegrationFirewallPolicyEnumsMatchTheController(t *testing.T) {
 			payload[k] = v
 		}
 		body, status, err := s.PostJSON(ctx, path, payload)
-		if err != nil {
-			t.Fatalf("transport: %v", err)
-		}
+		mustTransport(t, err)
 		m, _ := body.(map[string]any)
 		if status == 200 || status == 201 {
 			if id, _ := m["_id"].(string); id != "" {

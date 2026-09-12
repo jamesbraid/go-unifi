@@ -93,9 +93,7 @@ func TestIntegrationNetworkOpenVPNRadiusRules(t *testing.T) {
 			}
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 
 			got := "accepted"
 			if status != 200 {

@@ -66,9 +66,7 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 	for _, res := range clearingProbeResources(t, ctx, s, c.Site) {
 		t.Run(res.path, func(t *testing.T) {
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/"+res.path, res.seed)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 			if status != 200 {
 				t.Fatalf("seed for %s rejected (HTTP %d): %v", res.path, status, body)
 			}
@@ -91,9 +89,7 @@ func TestIntegrationClearingSemantics(t *testing.T) {
 
 			put := func(doc map[string]any) (map[string]any, int) {
 				body, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/rest/"+res.path+"/"+id, doc)
-				if err != nil {
-					t.Fatalf("transport: %v", err)
-				}
+				mustTransport(t, err)
 				if status != 200 {
 					return nil, status
 				}

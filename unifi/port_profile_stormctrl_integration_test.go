@@ -81,9 +81,7 @@ func TestIntegrationPortProfileStormctrlRules(t *testing.T) {
 			}
 
 			body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/portconf", payload)
-			if err != nil {
-				t.Fatalf("transport: %v", err)
-			}
+			mustTransport(t, err)
 
 			got := "accepted"
 			stored := ""

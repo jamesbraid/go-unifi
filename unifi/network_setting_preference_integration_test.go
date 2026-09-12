@@ -46,9 +46,7 @@ func TestIntegrationSettingPreferenceUnset(t *testing.T) {
 	}
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", n)
-	if err != nil {
-		t.Fatalf("transport: %v", err)
-	}
+	mustTransport(t, err)
 	if status != 200 {
 		t.Fatalf("controller rejected the encoder output (HTTP %d): %v", status, body)
 	}
