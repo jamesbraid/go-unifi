@@ -64,10 +64,26 @@ func TestNetworkUnmarshalJSON(t *testing.T) {
 			expected: func(n *unifi.Network) { n.WANVLAN = unifi.Ptr[int64](0) },
 			json:     `{ "wan_vlan": "" }`,
 		},
+
+		// Stored networkconf documents carry no enabled key (measured on
+		// live 10.6.101); an absent key means the network is enabled.
+		"absent enabled": {
+			expected: func(n *unifi.Network) {},
+			json:     `{ }`,
+		},
+		"explicit enabled true": {
+			expected: func(n *unifi.Network) {},
+			json:     `{ "enabled": true }`,
+		},
+		"explicit enabled false": {
+			expected: func(n *unifi.Network) { n.Enabled = false },
+			json:     `{ "enabled": false }`,
+		},
 	} {
 		t.Run(n, func(t *testing.T) {
 			// set some non-zero value defaults
 			expected := unifi.Network{
+				Enabled:               true,
 				InternetAccessEnabled: true,
 			}
 			c.expected(&expected)

@@ -312,6 +312,7 @@ func (dst *Network) UnmarshalJSON(b []byte) error {
 		DHCPDLeaseTime                 *types.Number `json:"dhcpd_leasetime"`
 		DHCPDTimeOffset                *types.Number `json:"dhcpd_time_offset"`
 		DHCPDV6LeaseTime               *types.Number `json:"dhcpdv6_leasetime"`
+		Enabled                        *bool         `json:"enabled"`
 		IGMPGroupmembership            *types.Number `json:"igmp_groupmembership"`
 		IGMPMaxresponse                *types.Number `json:"igmp_maxresponse"`
 		IGMPMcrtrexpiretime            *types.Number `json:"igmp_mcrtrexpiretime"`
@@ -382,6 +383,7 @@ func (dst *Network) UnmarshalJSON(b []byte) error {
 			dst.DHCPDV6LeaseTime = &zero
 		}
 	}
+	dst.Enabled = emptyBoolToTrue(aux.Enabled)
 	if aux.IGMPGroupmembership != nil {
 		if val, err := aux.IGMPGroupmembership.Int64(); err == nil {
 			dst.IGMPGroupmembership = &val
