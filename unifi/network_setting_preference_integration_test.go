@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -22,14 +20,7 @@ import (
 // time-offset toggles. Omitting the key instead makes the controller store
 // "manual", inferred from the settings it was given, and keep all of them.
 func TestIntegrationSettingPreferenceUnset(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	vlan := int64(181)
 	offset := int64(3600)

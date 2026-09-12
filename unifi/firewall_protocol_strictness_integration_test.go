@@ -3,9 +3,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -33,14 +31,7 @@ import (
 // nominal constraint. This pins that, so nobody "finishes the job" later and
 // silently starts rejecting what v1 accepts.
 func TestIntegrationFirewallProtocolStrictness(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 
 	// v2 policies: strict. A name that only matches because a dot is a
 	// wildcard is refused by name.

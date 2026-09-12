@@ -28,6 +28,37 @@ func StartForHarness(ctx context.Context, t *testing.T) *Controller {
 	return Start(ctx, t)
 }
 
+// MutatingHarness is the opening of a probe that writes to the controller: a
+// disposable controller chosen by UNIFI_TEST_HARNESS, a logged-in raw session
+// on it, and a context that expires after timeout.
+//
+// The UNIFI_TEST_URL skip is the part worth having in one place. These probes
+// create, overwrite and delete site objects to find out what the controller
+// does with them, so they are only safe on a controller the run owns and
+// throws away; aimed at a real site they would rewrite it. One container per
+// test function, too — several probes write site singletons and clean nothing
+// up because the container is the cleanup, so nothing here may be shared
+// between test functions.
+//
+// Probes that boot a specific harness (Start, StartUOS, StartUOSSeeded) or
+// carry a second gate of their own keep their own preamble.
+func MutatingHarness(t *testing.T, timeout time.Duration) (context.Context, *Controller, *Session) {
+	t.Helper()
+	if os.Getenv("UNIFI_TEST_URL") != "" {
+		t.Skip("mutating probe only runs against the disposable container")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	// t.Cleanup, not the caller's defer: cleanups run LIFO and this one is
+	// registered before the boot's, so cancel happens after the container
+	// teardown and after any delete a test registered with t.Cleanup. A
+	// cancel that lands first turns those deletes into silent no-ops, and a
+	// leaked object collides with the next candidate, which then reads as a
+	// field verdict.
+	t.Cleanup(cancel)
+	c := StartForHarness(ctx, t)
+	return ctx, c, c.NewSession(ctx, t)
+}
+
 const (
 	// uosDefaultImage is the UniFi OS Server simulation image. Unlike the
 	// standalone -sim network image it runs the full UOS stack (systemd,

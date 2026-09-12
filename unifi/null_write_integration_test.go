@@ -5,7 +5,6 @@ package unifi
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -42,14 +41,7 @@ type nullWriteCase struct {
 // with the rest of the device work in
 // TestIntegrationDevicePortOverridePreference.
 func TestIntegrationNullWrites(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	for _, tc := range nullWriteCases() {
 		t.Run(tc.field, func(t *testing.T) {

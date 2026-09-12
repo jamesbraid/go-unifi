@@ -199,9 +199,7 @@ var networkPreferenceProbes = []preferenceProbe{
 // disagrees with the controller fails -- either the controller changed or
 // the record was wrong, and both are worth stopping for.
 func TestIntegrationPreferenceOwnership(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	recorded, err := fields.LoadPreferences()
 	if err != nil {
@@ -223,11 +221,6 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 		owned         []string
 	}
 	var measurements []measuredOwnership
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
 
 	live := controllerVersion(ctx, t, s)
 	if writeArtifact && !onUOSHarness() && live != captured {

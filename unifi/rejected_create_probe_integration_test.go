@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -81,14 +79,7 @@ func rejectedCreateProbes(site string) []rejectedCreateProbe {
 // FirewallZone create is that case (rejected 404, stored), while the v1
 // validation rejection and the v2 unhandled 500 store nothing.
 func TestIntegrationRejectedCreatePersistence(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)

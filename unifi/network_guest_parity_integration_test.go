@@ -4,9 +4,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -41,14 +39,7 @@ var guestParityCandidates = []fieldCandidate{
 // for corporate, and prints a summary so the wiring decision for marshalGuest
 // rests on observed behavior.
 func TestIntegrationGuestParityProbe(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 
 	zone := firstZoneID(ctx, t, s, c.Site)
 	resolve := func(v any) any {

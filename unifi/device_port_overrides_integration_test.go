@@ -3,10 +3,8 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -23,14 +21,7 @@ import (
 // every other port and every other member of that port -- including members
 // this client does not model, which is why the merge is done on raw JSON.
 func TestIntegrationUpdateDevicePortOverrides(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 25*time.Minute)
 
 	emulated := controllertest.StartDevices(ctx, t, c, controllertest.DeviceRequest{Model: "USM8P"})
 	if len(emulated) != 1 {

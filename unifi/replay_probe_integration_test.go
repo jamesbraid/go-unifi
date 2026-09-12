@@ -4,9 +4,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -35,14 +33,7 @@ import (
 //     and compare what each left -- the idempotency the retry policy
 //     leans on.
 func TestIntegrationWriteReplay(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	root, captured := capturedBehaviorVersion(t)
 	running := runningControllerVersion(ctx, t, s, c.Site)

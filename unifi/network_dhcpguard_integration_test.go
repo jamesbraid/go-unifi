@@ -4,10 +4,8 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -26,14 +24,7 @@ import (
 // the SDK. Neither failure is visible to a unit test -- only the controller
 // enforces the pairing.
 func TestIntegrationDHCPGuard(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	for i, purpose := range []string{PurposeCorporate, PurposeGuest} {
 		t.Run(purpose, func(t *testing.T) {

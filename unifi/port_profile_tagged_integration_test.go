@@ -5,7 +5,6 @@ package unifi
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -58,17 +57,9 @@ import (
 // If the control variant fails, the exclusion mechanism itself changed and
 // PortProfile's model needs re-measuring.
 func TestIntegrationPortProfileTaggedNetworks(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
-
-	lanID := firstCorporateNetworkID(ctx, t, s, c.Site)
+	lanID := firstNetworkIDForPurpose(ctx, t, s, c.Site, PurposeCorporate)
 	vlan51 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan51", 51)
 	vlan52 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan52", 52)
 	vlan53 := seedVLANNetwork(ctx, t, s, c.Site, "probe-tagged-vlan53", 53)
@@ -329,24 +320,6 @@ func seedVLANNetwork(ctx context.Context, t *testing.T, s *controllertest.Sessio
 		s.DeleteJSON(ctx, "/api/s/"+site+"/rest/networkconf/"+id) //nolint:errcheck
 	})
 	return id
-}
-
-// firstCorporateNetworkID returns the site's default LAN network id.
-func firstCorporateNetworkID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
-	t.Helper()
-	nets, err := listNetworks(ctx, s, site)
-	if err != nil {
-		t.Fatalf("list networks: %v", err)
-	}
-	for _, m := range nets {
-		if m["purpose"] == PurposeCorporate {
-			if id, ok := m["_id"].(string); ok {
-				return id
-			}
-		}
-	}
-	t.Fatal("no corporate network on the controller to use as the native network")
-	return ""
 }
 
 // fetchPortConf returns the stored portconf document, matched by _id.

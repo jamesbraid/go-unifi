@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -29,24 +27,9 @@ import (
 // one that carries the envelope fields, and a group created by the test would
 // not exercise them.
 func TestIntegrationAPGroupRoundTrip(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
-
-	api, err := New(ctx, &Config{
-		BaseURL:       c.BaseURL,
-		Username:      c.Username,
-		Password:      c.Password,
-		AllowInsecure: true,
-	})
-	if err != nil {
-		t.Fatalf("build client: %v", err)
-	}
+	api := harnessClient(ctx, t, c)
 
 	id := firstAPGroupID(ctx, t, s, c.Site)
 	if id == "" {

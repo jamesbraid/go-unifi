@@ -4,10 +4,8 @@
 package unifi
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -48,14 +46,7 @@ import (
 // field the encoder cannot express still gets set on the object and the
 // round trip has something to lose.
 func TestIntegrationNetworkRoundTrip(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	known := map[string]bool{}
 	for _, w := range networkWireNames(t) {

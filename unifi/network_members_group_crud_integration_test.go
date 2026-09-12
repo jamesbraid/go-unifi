@@ -32,15 +32,7 @@ func TestIntegrationNetworkMembersGroupCRUD(t *testing.T) {
 	defer cancel()
 	c := controllertest.StartForHarness(ctx, t)
 
-	api, err := New(ctx, &Config{
-		BaseURL:       c.BaseURL,
-		Username:      c.Username,
-		Password:      c.Password,
-		AllowInsecure: true,
-	})
-	if err != nil {
-		t.Fatalf("build client: %v", err)
-	}
+	api := harnessClient(ctx, t, c)
 
 	// type is an enum of USERS|CLIENTS. Sending anything else is answered
 	// with the accepted values, which is how the enum was established.

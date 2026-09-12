@@ -6,7 +6,6 @@ package unifi
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -59,14 +58,7 @@ var networkOpenVPNRadiusRules = []openVPNRadiusCase{
 // a live controller. The cases mutate a site-wide setting, so they run in
 // sequence rather than in parallel.
 func TestIntegrationNetworkOpenVPNRadiusRules(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	builtin := builtinRadiusProfileID(ctx, t, s, c.Site)
 	external := createExternalRadiusProfile(ctx, t, s, c.Site)

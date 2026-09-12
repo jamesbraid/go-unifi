@@ -3,8 +3,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -24,14 +22,7 @@ import (
 // grew. Deserialization runs before any site-state validation, so none of
 // these probes needs seeding: a bare controller answers them all.
 func TestIntegrationV2EnumsMatchTheController(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	// Ask the controller to name an enum's constants by handing it one it
 	// cannot parse. The payload only has to be well-formed JSON that reaches
@@ -168,14 +159,7 @@ func TestIntegrationV2EnumsMatchTheController(t *testing.T) {
 // case is also the proof the write path exists: the value must survive a
 // create and read back verbatim.
 func TestIntegrationV2NatIidFormat(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	wanID := ensureWANNetwork(ctx, t, s, c.Site)
 	if wanID == "" {

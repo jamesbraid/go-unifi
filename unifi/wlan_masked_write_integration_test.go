@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -25,28 +23,13 @@ import (
 // The masked write names only the field it means, so the controller keeps its
 // own value for the rest.
 func TestIntegrationMaskedWritePreservesUnnamedFields(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	deps := probeDeps{apGroupID: firstAPGroupID(ctx, t, s, c.Site)}
 
 	// The harness exposes a raw session; this test needs the real client,
 	// because what is under test is how the client encodes a write.
-	api, err := New(ctx, &Config{
-		BaseURL:       c.BaseURL,
-		Username:      c.Username,
-		Password:      c.Password,
-		AllowInsecure: true,
-	})
-	if err != nil {
-		t.Fatalf("build client: %v", err)
-	}
+	api := harnessClient(ctx, t, c)
 
 	// prepare seeds a WLAN with roaming assistant on, reads it back through
 	// the client, and drops the field the caller does not model.

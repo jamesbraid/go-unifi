@@ -5,7 +5,6 @@ package unifi
 
 import (
 	"context"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -29,14 +28,7 @@ import (
 // The mode is per element. Each override carries its own, governing that
 // port, which is why the preference table addresses it relatively.
 func TestIntegrationDevicePortOverridePreference(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
 
 	device := controllertest.AdoptGateway(ctx, t, c, s)
 

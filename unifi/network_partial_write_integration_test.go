@@ -4,8 +4,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -26,14 +24,7 @@ import (
 // Measured on networkconf, a v1 REST collection. The v2 collections are not
 // covered here and should not be assumed to agree.
 func TestIntegrationPartialWriteMerges(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 10*time.Minute)
 
 	seed := map[string]any{
 		"name": "partial-write", "purpose": PurposeCorporate, "enabled": true,

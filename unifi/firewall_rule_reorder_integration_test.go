@@ -3,9 +3,7 @@
 package unifi
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -27,14 +25,7 @@ import (
 // That is why the client keeps a command for this rather than a masked
 // update per rule.
 func TestIntegrationReorderFirewallRules(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 	client := harnessClient(ctx, t, c)
 	base := "/api/s/" + c.Site + "/rest/firewallrule"
 
@@ -118,14 +109,7 @@ func TestIntegrationReorderFirewallRules(t *testing.T) {
 // HTTP 200 and rc ok, so a caller that discards the body cannot tell a
 // performed command from an ignored one.
 func TestIntegrationFirewallCommandAcceptsAnythingItDoesNotKnow(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/cmd/firewall",
 		map[string]any{"cmd": "definitely-not-a-command", "ruleset": "LAN_IN"})

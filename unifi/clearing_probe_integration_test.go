@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -40,14 +39,7 @@ import (
 //	OMIT-CLEARS      leaving the key out clears it (PUT replaces)
 //	OMIT-KEEPS       leaving the key out preserves it (PUT merges)
 func TestIntegrationClearingSemantics(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
 
 	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
 
@@ -278,25 +270,17 @@ func clearingProbeResources(t *testing.T, ctx context.Context, s *controllertest
 	}
 }
 
-// requiredAPGroupID resolves the site's default AP group. Creating a WLAN
-// without one is api.err.ApGroupMissing. It is a v2 endpoint returning a bare
-// array rather than the v1 data envelope.
+// requiredAPGroupID is firstAPGroupID for a caller that cannot continue
+// without one: creating a WLAN with no AP group is api.err.ApGroupMissing, so
+// a sweep that carried on would measure that rejection instead of the field it
+// came to measure. firstAPGroupID has already logged the status it got.
 func requiredAPGroupID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
 	t.Helper()
-	body, status, err := s.GetJSON(ctx, "/v2/api/site/"+site+"/apgroups")
-	if err != nil || status != 200 {
-		t.Fatalf("list apgroups: status %d, %v", status, err)
+	id := firstAPGroupID(ctx, t, s, site)
+	if id == "" {
+		t.Fatal("no ap groups on this site; a WLAN cannot be created without one")
 	}
-	items, _ := body.([]any)
-	for _, item := range items {
-		if obj, ok := item.(map[string]any); ok {
-			if id, _ := obj["_id"].(string); id != "" {
-				return id
-			}
-		}
-	}
-	t.Fatalf("no ap groups on this site; body %v", body)
-	return ""
+	return id
 }
 
 func firstObjectID(ctx context.Context, t *testing.T, s *controllertest.Session, site, collection string) string {

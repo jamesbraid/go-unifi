@@ -3,8 +3,6 @@
 package unifi
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -25,14 +23,7 @@ import (
 // nilIfEmpty: a caller emptying a DHCP DNS, NTP or WINS list has no other
 // way to say so.
 func TestIntegrationDHCPSlotsClearWithAnEmptyString(t *testing.T) {
-	if os.Getenv("UNIFI_TEST_URL") != "" {
-		t.Skip("mutating probe only runs against the disposable container")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	c := controllertest.StartForHarness(ctx, t)
-	s := c.NewSession(ctx, t)
+	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 	client := harnessClient(ctx, t, c)
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", map[string]any{
