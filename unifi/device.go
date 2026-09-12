@@ -129,77 +129,39 @@ func (dst *DevicePortTable) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("unable to unmarshal alias: %w", err)
 	}
 
-	if portIdx, err := aux.PortIdx.Int64(); err != nil {
-		dst.PortIdx = portIdx
-	}
-	if poeCaps, err := aux.PoeCaps.Int64(); err != nil {
-		dst.PoeCaps = poeCaps
-	}
-	if speedCaps, err := aux.SpeedCaps.Int64(); err != nil {
-		dst.SpeedCaps = speedCaps
-	}
-	if anomalies, err := aux.Anomalies.Int64(); err != nil {
-		dst.Anomalies = anomalies
-	}
-	if macTableCount, err := aux.MacTableCount.Int64(); err != nil {
-		dst.MacTableCount = macTableCount
-	}
-	if rxBroadcast, err := aux.RxBroadcast.Int64(); err != nil {
-		dst.RxBroadcast = rxBroadcast
-	}
-	if rxBytes, err := aux.RxBytes.Int64(); err != nil {
-		dst.RxBytes = rxBytes
-	}
-	if rxDropped, err := aux.RxDropped.Int64(); err != nil {
-		dst.RxDropped = rxDropped
-	}
-	if rxErrors, err := aux.RxErrors.Int64(); err != nil {
-		dst.RxErrors = rxErrors
-	}
-	if rxMulticast, err := aux.RxMulticast.Int64(); err != nil {
-		dst.RxMulticast = rxMulticast
-	}
-	if rxPackets, err := aux.RxPackets.Int64(); err != nil {
-		dst.RxPackets = rxPackets
-	}
-	if satisfaction, err := aux.Satisfaction.Int64(); err != nil {
-		dst.Satisfaction = satisfaction
-	}
-	if satisfactionReason, err := aux.SatisfactionReason.Int64(); err != nil {
-		dst.SatisfactionReason = satisfactionReason
-	}
-	if speed, err := aux.Speed.Int64(); err != nil {
-		dst.Speed = speed
-	}
-	if stpPathcost, err := aux.StpPathcost.Int64(); err != nil {
-		dst.StpPathcost = stpPathcost
-	}
-	if txBroadcast, err := aux.TxBroadcast.Int64(); err != nil {
-		dst.TxBroadcast = txBroadcast
-	}
-	if txBytes, err := aux.TxBytes.Int64(); err != nil {
-		dst.TxBytes = txBytes
-	}
-	if txDropped, err := aux.TxDropped.Int64(); err != nil {
-		dst.TxDropped = txDropped
-	}
-	if txErrors, err := aux.TxErrors.Int64(); err != nil {
-		dst.TxErrors = txErrors
-	}
-	if txMulticast, err := aux.TxMulticast.Int64(); err != nil {
-		dst.TxMulticast = txMulticast
-	}
-	if txPackets, err := aux.TxPackets.Int64(); err != nil {
-		dst.TxPackets = txPackets
-	}
-	if stormctrlBcastRate, err := aux.StormctrlBcastRate.Int64(); err != nil {
-		dst.StormctrlBcastRate = stormctrlBcastRate
-	}
-	if stormctrlMcastRate, err := aux.StormctrlMcastRate.Int64(); err != nil {
-		dst.StormctrlMcastRate = stormctrlMcastRate
-	}
-	if stormctrlUcastRate, err := aux.StormctrlUcastRate.Int64(); err != nil {
-		dst.StormctrlUcastRate = stormctrlUcastRate
+	// The shadow fields exist to tolerate the placeholder strings the
+	// controller mixes into these numeric stats ("", "auto"): whatever
+	// parses lands in the struct, and a placeholder leaves the zero value
+	// instead of failing the whole device decode.
+	for field, n := range map[*int64]types.Number{
+		&dst.PortIdx:            aux.PortIdx,
+		&dst.PoeCaps:            aux.PoeCaps,
+		&dst.SpeedCaps:          aux.SpeedCaps,
+		&dst.Anomalies:          aux.Anomalies,
+		&dst.MacTableCount:      aux.MacTableCount,
+		&dst.RxBroadcast:        aux.RxBroadcast,
+		&dst.RxBytes:            aux.RxBytes,
+		&dst.RxDropped:          aux.RxDropped,
+		&dst.RxErrors:           aux.RxErrors,
+		&dst.RxMulticast:        aux.RxMulticast,
+		&dst.RxPackets:          aux.RxPackets,
+		&dst.Satisfaction:       aux.Satisfaction,
+		&dst.SatisfactionReason: aux.SatisfactionReason,
+		&dst.Speed:              aux.Speed,
+		&dst.StpPathcost:        aux.StpPathcost,
+		&dst.TxBroadcast:        aux.TxBroadcast,
+		&dst.TxBytes:            aux.TxBytes,
+		&dst.TxDropped:          aux.TxDropped,
+		&dst.TxErrors:           aux.TxErrors,
+		&dst.TxMulticast:        aux.TxMulticast,
+		&dst.TxPackets:          aux.TxPackets,
+		&dst.StormctrlBcastRate: aux.StormctrlBcastRate,
+		&dst.StormctrlMcastRate: aux.StormctrlMcastRate,
+		&dst.StormctrlUcastRate: aux.StormctrlUcastRate,
+	} {
+		if v, err := n.Int64(); err == nil {
+			*field = v
+		}
 	}
 
 	return nil
