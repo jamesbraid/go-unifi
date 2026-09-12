@@ -71,28 +71,19 @@ package settings
 package unifi
 {{ end }}
 
+{{- /*
+Every import any branch below can emit, listed unconditionally: the generator
+runs the result through goimports, which drops the ones a given resource does
+not use. Add an import here when you add code that needs it.
+*/}}
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	{{- if not .IsSetting }}
 	"net/http"
-	{{- end }}
 	"strconv"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
-)
-
-// just to fix compile issues with the import.
-var (
-	_ context.Context
-	_ fmt.Formatter
-	_ json.Marshaler
-	_ types.Number
-	_ strconv.NumError
-	{{- if not .IsSetting }}
-	_ http.Client
-	{{- end }}
 )
 
 {{ range $k, $v := .Types }}

@@ -185,7 +185,7 @@ func createFunc(t *testing.T, code string, resource *ResourceInfo) string {
 func TestGeneratedCreateVerb(t *testing.T) {
 	t.Run("defaults to POST", func(t *testing.T) {
 		resource := NewResource("Network", "networkconf")
-		code, err := resource.generateCode()
+		code, err := resource.generateCode("network.generated.go")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +201,7 @@ func TestGeneratedCreateVerb(t *testing.T) {
 	t.Run("a measured PUT contract switches the verb", func(t *testing.T) {
 		resource := NewResource("Network", "networkconf")
 		resource.CreateMethod = "PUT"
-		code, err := resource.generateCode()
+		code, err := resource.generateCode("network.generated.go")
 		if err != nil {
 			t.Fatal(err)
 		}

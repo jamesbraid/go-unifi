@@ -7,20 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strconv"
-
-	"github.com/ubiquiti-community/go-unifi/unifi/types"
-)
-
-// just to fix compile issues with the import.
-var (
-	_ context.Context
-	_ fmt.Formatter
-	_ json.Marshaler
-	_ types.Number
-	_ strconv.NumError
-	_ http.Client
 )
 
 type NetworkMembersGroup struct {

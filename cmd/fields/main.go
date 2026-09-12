@@ -25,6 +25,7 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 	"github.com/ubiquiti-community/go-unifi/internal/rebuild"
+	"golang.org/x/tools/imports"
 )
 
 type replacement struct {
@@ -964,11 +965,6 @@ func main() {
 			unifiValidation = append(unifiValidation, collectValidation(resource)...)
 		}
 
-		var code string
-		if code, err = resource.generateCode(); err != nil {
-			panic(err)
-		}
-
 		var targetDir string
 		if resource.IsSetting() {
 			targetDir = filepath.Join(outDir, "settings")
@@ -977,6 +973,11 @@ func main() {
 			}
 		} else {
 			targetDir = outDir
+		}
+
+		var code string
+		if code, err = resource.generateCode(filepath.Join(targetDir, goFile)); err != nil {
+			panic(err)
 		}
 
 		// A schema update can start defining a type that was previously
@@ -1313,13 +1314,17 @@ var tmplFuncs = template.FuncMap{"trimPrefix": strings.TrimPrefix}
 
 var apiTpl = template.Must(template.New("api.go.tmpl").Funcs(tmplFuncs).Parse(apiGoTemplate))
 
-func (r *ResourceInfo) generateCode() (string, error) {
+// generateCode renders the resource into Go source for path. The template
+// imports everything any of its branches can emit, so the result goes through
+// goimports rather than gofmt: it drops the imports this resource does not
+// actually use, which is what keeps each generated file compiling.
+func (r *ResourceInfo) generateCode(path string) (string, error) {
 	var buf bytes.Buffer
 	if err := apiTpl.Execute(&buf, r); err != nil {
 		return "", fmt.Errorf("failed to render template: %w", err)
 	}
 
-	src, err := format.Source(buf.Bytes())
+	src, err := imports.Process(path, buf.Bytes(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to format source: %w", err)
 	}
