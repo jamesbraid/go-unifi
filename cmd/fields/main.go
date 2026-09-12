@@ -603,17 +603,6 @@ func main() {
 		"",
 		"Capture helper: inspect a draft lock and write snapshot digests without updating the lock",
 	)
-	generateSpec := flag.Bool(
-		"generate-spec",
-		false,
-		"Generate Terraform provider specification JSON file",
-	)
-	specOutputPath := flag.String(
-		"spec-output",
-		"specification.json",
-		"Output path for the Terraform provider specification JSON file",
-	)
-
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fmt.Print("error: generation accepts no version argument; capture a new lock separately\n\n")
@@ -729,7 +718,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	specGen := NewSpecificationGenerator("unifi", sensitive)
 
 	// The measured-behaviour artifact, if the probes have written one.
 	// Missing means nothing measured: write contracts stay at their
@@ -953,8 +941,6 @@ func main() {
 		}
 		generatedResources[resource.StructName] = true
 
-		specGen.AddResource(resource)
-
 		// Capture the schema's validation patterns before the template
 		// renders them into comments, so they can be emitted as consumable
 		// Go alongside the structs.
@@ -1085,17 +1071,6 @@ const UnifiVersion = %q
 			"hand-written files reference resources whose schema was removed upstream; delete them (and their tests) to match: %s",
 			strings.Join(orphans, ", "),
 		))
-	}
-
-	if *generateSpec {
-		specOutputFile := *specOutputPath
-		if !filepath.IsAbs(specOutputFile) {
-			specOutputFile = filepath.Join(wd, specOutputFile)
-		}
-		if err := specGen.WriteSpecification(specOutputFile); err != nil {
-			panic(err)
-		}
-		fmt.Printf("Generated specification: %s\n", specOutputFile)
 	}
 
 	// A successful run leaves the tree consistent, so an input edit is

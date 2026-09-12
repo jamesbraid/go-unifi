@@ -73,10 +73,21 @@ func TestLengthBounds(t *testing.T) {
 	}{
 		{pattern: ".{1,128}", low: 1, high: 128, ok: true},
 		{pattern: ".{0,255}", low: 0, high: 255, ok: true},
+		{pattern: ".{0,128}", low: 0, high: 128, ok: true},
 		{pattern: "^.{1,64}$", low: 1, high: 64, ok: true},
 		// Constrains content as well as length: a length bound would lose
-		// the part that matters.
+		// the part that matters. A hex or colour pattern is the case that
+		// bites -- reading [0-9A-Fa-f]{32} as a 32..32 length bound accepts
+		// 32 characters the controller rejects.
 		{pattern: `^[^"' ]{1,32}$`},
+		{pattern: "[0-9A-Fa-f]{32}"},
+		{pattern: "[0-9A-Fa-f]{512}"},
+		{pattern: "^#(?:[0-9a-fA-F]{3}){1,2}$"},
+		// Only the two-bound form is a length rule. Neither of these occurs
+		// in the extracted schema, so nothing has to recognise them, and
+		// guessing a bound for the open-ended one would invent a maximum.
+		{pattern: ".{1,}"},
+		{pattern: ".{32}"},
 		{pattern: "auto|manual"},
 		{pattern: ""},
 	}

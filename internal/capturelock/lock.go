@@ -21,7 +21,7 @@ import (
 
 const FormatVersion = 1
 
-const generatorEntrypointDirective = "//go:generate go run ../cmd/fields/ -output-dir=../unifi/ -generate-spec -spec-output=../specification.json"
+const generatorEntrypointDirective = "//go:generate go run ../cmd/fields/ -output-dir=../unifi/"
 
 type Lock struct {
 	FormatVersion int        `json:"format_version"`

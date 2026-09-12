@@ -19,7 +19,6 @@ var requiredOutputs = []string{
 	"schemas/SOURCE",
 	"schemas/VERSION",
 	"schemas/capture.lock.json",
-	"specification.json",
 }
 
 // OutputDigest hashes every file generation produces under root: the

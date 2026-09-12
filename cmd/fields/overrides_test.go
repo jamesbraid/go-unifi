@@ -7,6 +7,10 @@ import (
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
+func ptr[T any](in T) *T {
+	return &in
+}
+
 // resourceWithFields builds a minimal ResourceInfo whose base type carries
 // the given wire-name -> FieldInfo entries.
 func resourceWithFields(structName string, fields map[string]*FieldInfo) *ResourceInfo {
