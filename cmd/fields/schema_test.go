@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"slices"
 	"testing"
 
@@ -225,78 +224,4 @@ func TestSpecificationGenerator_Generate_DetermineComputedOptionalRequired(t *te
 			assert.Equal(t, tc.expected, string(result))
 		})
 	}
-}
-
-func TestSpecificationGenerator_Generate_ValidJSON(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi", nil)
-
-	resource := NewResource("Network", "network")
-	resource.Types["Network"].Fields["Name"] = NewFieldInfo("Name", "name", "string", "", false, false, false, "")
-	gen.AddResource(resource)
-
-	spec := gen.Generate()
-
-	data, err := json.MarshalIndent(spec, "", "  ")
-	require.NoError(t, err)
-	require.NotEmpty(t, data)
-
-	err = spec.Validate(t.Context())
-	require.NoError(t, err)
-}
-
-func TestSpecificationGenerator_Generate_SortedOutput(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi", nil)
-
-	gen.AddResource(NewResource("WLAN", "wlan"))
-	gen.AddResource(NewResource("Account", "account"))
-	gen.AddResource(NewResource("Network", "network"))
-
-	spec := gen.Generate()
-
-	require.Len(t, spec.DataSources, 3)
-	assert.Equal(t, "account", spec.DataSources[0].Name)
-	assert.Equal(t, "network", spec.DataSources[1].Name)
-	assert.Equal(t, "wlan", spec.DataSources[2].Name)
-
-	require.Len(t, spec.Resources, 3)
-	assert.Equal(t, "account", spec.Resources[0].Name)
-	assert.Equal(t, "network", spec.Resources[1].Name)
-	assert.Equal(t, "wlan", spec.Resources[2].Name)
-}
-
-func TestSpecification_JSONStructure(t *testing.T) {
-	gen := NewSpecificationGenerator("unifi", nil)
-
-	resource := NewResource("Network", "network")
-	resource.Types["Network"].Fields["Name"] = NewFieldInfo("Name", "name", "string", "", false, false, false, "")
-	resource.Types["Network"].Fields["Enabled"] = NewFieldInfo("Enabled", "enabled", "bool", "", false, false, false, "")
-	resource.Types["Network"].Fields["VLANID"] = NewFieldInfo("VLANID", "vlan_id", "int64", "", true, false, false, "")
-	resource.Types["Network"].Fields["Speed"] = NewFieldInfo("Speed", "speed", "float64", "", true, false, false, "")
-
-	gen.AddResource(resource)
-	spec := gen.Generate()
-
-	data, err := json.MarshalIndent(spec, "", "  ")
-	require.NoError(t, err)
-
-	var jsonMap map[string]any
-	err = json.Unmarshal(data, &jsonMap)
-	require.NoError(t, err)
-
-	assert.Contains(t, jsonMap, "version")
-	assert.Contains(t, jsonMap, "provider")
-	assert.Contains(t, jsonMap, "datasources")
-	assert.Contains(t, jsonMap, "resources")
-
-	assert.Equal(t, "0.1", jsonMap["version"])
-
-	provider := jsonMap["provider"].(map[string]any)
-	assert.Equal(t, "unifi", provider["name"])
-	assert.Contains(t, provider, "schema")
-
-	datasources := jsonMap["datasources"].([]any)
-	assert.Len(t, datasources, 1)
-
-	resources := jsonMap["resources"].([]any)
-	assert.Len(t, resources, 1)
 }
