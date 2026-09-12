@@ -99,7 +99,7 @@ type FirewallPolicyDestination struct {
 	PortGroupID           string   `json:"port_group_id,omitempty"`
 	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|OBJECT
 	WebDomains            []string `json:"web_domains,omitempty"`
-	ZoneID                string   `json:"zone_id,omitempty"`
+	ZoneID                string   `json:"zone_id"`
 }
 
 func (dst *FirewallPolicyDestination) UnmarshalJSON(b []byte) error {
@@ -179,7 +179,7 @@ type FirewallPolicySource struct {
 	PortGroupID           string   `json:"port_group_id,omitempty"`
 	PortMatchingType      string   `json:"port_matching_type,omitempty"` // ANY|SPECIFIC|OBJECT
 	WebDomains            []string `json:"web_domains,omitempty"`
-	ZoneID                string   `json:"zone_id,omitempty"`
+	ZoneID                string   `json:"zone_id"`
 }
 
 func (dst *FirewallPolicySource) UnmarshalJSON(b []byte) error {

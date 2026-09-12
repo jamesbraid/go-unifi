@@ -40,39 +40,15 @@ func TestIntegrationFirewallPolicyEnumsMatchTheController(t *testing.T) {
 	s := c.NewSession(ctx, t)
 	path := "/v2/api/site/" + c.Site + "/firewall-policies"
 
-	for _, name := range []string{"enum-probe-src", "enum-probe-dst"} {
-		s.PostJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone", //nolint:errcheck
-			map[string]any{"name": name, "network_ids": []string{}})
-	}
-	zones, status, err := s.GetJSON(ctx, "/v2/api/site/"+c.Site+"/firewall/zone")
-	if err != nil || status != 200 {
-		t.Fatalf("list zones (HTTP %d): %v", status, err)
-	}
-	var zoneIDs []string
-	for _, z := range asSlice(zones) {
-		m, _ := z.(map[string]any)
-		if id, _ := m["_id"].(string); id != "" {
-			zoneIDs = append(zoneIDs, id)
-		}
-	}
-	if len(zoneIDs) == 0 {
+	src, dst := firewallZonePair(ctx, t, s, c.Site)
+	if src == "" {
 		t.Skip("no firewall zones to address a policy with")
 	}
-	src, dst := zoneIDs[0], zoneIDs[len(zoneIDs)-1]
 
 	n := 0
 	post := func(overrides map[string]any) (int, map[string]any) {
 		n++
-		payload := map[string]any{
-			"name": fmt.Sprintf("enum-probe-%d", n), "enabled": true,
-			"action": "ALLOW", "predefined": false, "index": 22000 + n,
-			"protocol": "all", "ip_version": "BOTH",
-			"connection_state_type": "ALL", "connection_states": []string{},
-			"source":      map[string]any{"zone_id": src, "matching_target": "ANY"},
-			"destination": map[string]any{"zone_id": dst, "matching_target": "ANY"},
-			"logging":     false, "create_allow_respond": true,
-			"schedule": map[string]any{"mode": "ALWAYS", "time_all_day": true, "repeat_on_days": []string{}},
-		}
+		payload := firewallPolicyProbeBase(fmt.Sprintf("enum-probe-%d", n), 22000+n, src, dst)
 		for k, v := range overrides {
 			payload[k] = v
 		}

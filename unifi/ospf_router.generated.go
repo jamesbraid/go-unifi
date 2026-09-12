@@ -34,7 +34,7 @@ type OSPFRouter struct {
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
 	AnnounceDefaultRoute                  bool                   `json:"announce_default_route"`
-	Areas                                 []OSPFRouterAreas      `json:"areas"`
+	Areas                                 []OSPFRouterAreas      `json:"areas,omitempty"`
 	Enabled                               bool                   `json:"enabled"`
 	Interfaces                            []OSPFRouterInterfaces `json:"interfaces,omitempty"`
 	RedistributeBgpRoutes                 bool                   `json:"redistribute_bgp_routes"`

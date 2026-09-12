@@ -20625,7 +20625,7 @@
                 {
                   "name": "zone_id",
                   "string": {
-                    "computed_optional_required": "computed_optional"
+                    "computed_optional_required": "optional"
                   }
                 }
               ]
@@ -20959,7 +20959,7 @@
                 {
                   "name": "zone_id",
                   "string": {
-                    "computed_optional_required": "computed_optional"
+                    "computed_optional_required": "optional"
                   }
                 }
               ]
@@ -26669,7 +26669,7 @@
           {
             "name": "areas",
             "list_nested": {
-              "computed_optional_required": "optional",
+              "computed_optional_required": "computed_optional",
               "nested_object": {
                 "attributes": [
                   {

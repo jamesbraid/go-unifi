@@ -111,7 +111,8 @@ type Coercion struct {
 }
 
 // WriteContract is the measured verb/path and required-field sets for a
-// resource's create and update.
+// resource's create and update. Nested fields are named by dotted path
+// ("source.zone_id"), like the ownership section names them.
 type WriteContract struct {
 	CreateVerb       string   `json:"create_verb"`
 	CreatePath       string   `json:"create_path"`
@@ -119,6 +120,11 @@ type WriteContract struct {
 	UpdatePath       string   `json:"update_path"`
 	RequiredOnCreate []string `json:"required_on_create,omitempty"`
 	RequiredOnUpdate []string `json:"required_on_update,omitempty"`
+
+	// MinItems: per list field, the measured smallest length a present list
+	// may carry. Distinct from RequiredOnCreate, which says whether the key
+	// may be omitted at all.
+	MinItems map[string]int `json:"min_items,omitempty"`
 }
 
 // Path is the artifact's location relative to the module root.

@@ -30,6 +30,10 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 				UpdateVerb: "PUT", UpdatePath: "rest/nat/{id}",
 				RequiredOnCreate: []string{"protocol", "source_filter"},
 			},
+			"OSPFRouter": {
+				CreateVerb: "POST", CreatePath: "rest/ospf",
+				MinItems: map[string]int{"areas[].network_ids": 1},
+			},
 		},
 	}
 	if err := Write(dir, want); err != nil {
@@ -44,6 +48,9 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 	if got.Writes["Nat"].CreatePath != "rest/nat" {
 		t.Errorf("write contract lost: %+v", got.Writes["Nat"])
+	}
+	if got.Writes["OSPFRouter"].MinItems["areas[].network_ids"] != 1 {
+		t.Errorf("min-items lost: %+v", got.Writes["OSPFRouter"])
 	}
 	if got.Coercions["SettingUsg"]["icmp_timeout"].Stored != "30" {
 		t.Errorf("coercion lost: %+v", got.Coercions)

@@ -320,7 +320,7 @@ func renderStoredValue(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// TestIntegrationWriteContract measures two write contracts the codegen
+// TestIntegrationWriteContract measures the write contracts the codegen
 // cannot guess from resource shape, into the artifact's Writes section:
 //
 //   - ContentFiltering: the generated create POSTs to the v2 collection and
@@ -330,6 +330,13 @@ func renderStoredValue(v any) string {
 //   - Nat: create works as generated, but three fields the struct marks
 //     optional must be present or the controller refuses the create. The
 //     probe records the measured required-on-create set.
+//   - FirewallPolicy: the jar marks source.zone_id and destination.zone_id
+//     @NotNull on the write DTO; the probe measures whether a create
+//     without each actually fails.
+//
+// OSPFRouter is measured by TestIntegrationOSPFRouterWriteContract, which
+// owns the artifact entry outright: two probes replacing the same key would
+// each erase the other's measured facts.
 func TestIntegrationWriteContract(t *testing.T) {
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -349,6 +356,7 @@ func TestIntegrationWriteContract(t *testing.T) {
 
 	cf := measureContentFilteringContract(ctx, t, s, c.Site)
 	nat := measureNatContract(ctx, t, s, c.Site)
+	fwp := measureFirewallPolicyContract(ctx, t, s, c.Site)
 
 	if behaviorWriteRequested() {
 		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
@@ -357,6 +365,7 @@ func TestIntegrationWriteContract(t *testing.T) {
 			}
 			a.Writes["ContentFiltering"] = cf
 			a.Writes["Nat"] = nat
+			a.Writes["FirewallPolicy"] = fwp
 		})
 		return
 	}
@@ -375,6 +384,7 @@ func TestIntegrationWriteContract(t *testing.T) {
 	}
 	compareWriteContract(t, "ContentFiltering", art.Writes, cf)
 	compareWriteContract(t, "Nat", art.Writes, nat)
+	compareWriteContract(t, "FirewallPolicy", art.Writes, fwp)
 }
 
 // measureContentFilteringContract finds the verb+path that creates a
@@ -528,6 +538,62 @@ func measureNatContract(ctx context.Context, t *testing.T, s *controllertest.Ses
 	}
 }
 
+// measureFirewallPolicyContract measures which fields a firewall-policy
+// create cannot omit. The jar marks source.zone_id and destination.zone_id
+// @NotNull on the write DTO; only what the controller actually rejects is
+// recorded, spelled by dotted path.
+func measureFirewallPolicyContract(ctx context.Context, t *testing.T, s *controllertest.Session, site string) behavior.WriteContract {
+	t.Helper()
+
+	src, dst := firewallZonePair(ctx, t, s, site)
+	if src == "" {
+		t.Fatal("no firewall zones; every policy create would fail for the wrong reason")
+	}
+	path := "/v2/api/site/" + site + "/firewall-policies"
+
+	// post creates a policy without the named side's zone_id (or the full
+	// body for ""), deleting whatever the controller stored.
+	n := 0
+	post := func(strip string) (int, map[string]any) {
+		n++
+		doc := firewallPolicyProbeBase(fmt.Sprintf("contract-probe-%d", n), 22400+n, src, dst)
+		if strip != "" {
+			delete(doc[strip].(map[string]any), "zone_id")
+		}
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		m, _ := body.(map[string]any)
+		if id, _ := m["_id"].(string); id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, m
+	}
+
+	if status, body := post(""); status/100 != 2 {
+		t.Fatalf("the known-good policy body was rejected (HTTP %d): %v\n\nNothing removed from a "+
+			"body that does not create can measure anything.", status, body)
+	}
+
+	var required []string
+	for _, side := range []string{"source", "destination"} {
+		status, m := post(side)
+		if status/100 == 2 {
+			t.Logf("policy create without %s.zone_id accepted (HTTP %d) -- not required", side, status)
+			continue
+		}
+		t.Logf("policy create without %s.zone_id rejected (HTTP %d, %s) -- required on create",
+			side, status, v2ErrCode(m))
+		required = append(required, side+".zone_id")
+	}
+
+	return behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/firewall-policies",
+		RequiredOnCreate: required,
+	}
+}
+
 // compareWriteContract checks one measured contract against the artifact.
 // Empty and nil required sets mean the same thing on the wire (omitempty),
 // so both sides normalize before comparing.
@@ -548,6 +614,9 @@ func compareWriteContract(t *testing.T, resource string, pinned map[string]behav
 			w.RequiredOnUpdate = nil
 		} else {
 			sort.Strings(w.RequiredOnUpdate)
+		}
+		if len(w.MinItems) == 0 {
+			w.MinItems = nil
 		}
 		return w
 	}
@@ -760,6 +829,14 @@ func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
 // The known-good body comes from the gateway feature sweep (cmd/fields):
 // ospf/router rejects an empty areas list and takes area_type as a
 // lowercase enum, and the areas have to name a real network.
+//
+// Below the top level, the jar puts @Size(min=1) on an area's network_ids.
+// The empty list and the absent key are measured separately, because
+// bean-style size validation skips a null and an absent list could slip
+// past @Size -- on 10.6.101 they converge, because the DTO materializes
+// the missing list as [] before the check runs. The length floor lands as
+// min_items, a distinct fact from required_on_create, which can only say
+// whether the key may be omitted at all.
 func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
 	if os.Getenv("UNIFI_TEST_URL") != "" {
 		t.Skip("mutating probe only runs against the disposable container")
@@ -830,6 +907,14 @@ func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
 	}
 	deleteRouter(id)
 
+	// The router has no by-id read: GET on the {id} path, which PUT and
+	// DELETE do serve, answers 405 at the route level, which is why the
+	// generated get filters the list instead.
+	if body, status, _ := s.GetJSON(ctx, path+"/000000000000000000000000"); status != 405 {
+		t.Errorf("GET %s/{id} answered HTTP %d (%v); the controller grew a by-id read the "+
+			"list-backed get routes around", path, status, body)
+	}
+
 	fields := make([]string, 0, len(base))
 	for f := range base {
 		fields = append(fields, f)
@@ -851,12 +936,56 @@ func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
 		t.Logf("OSPF create without %-32s rejected (HTTP %d): %v -- required on create", field, status, body)
 		required = append(required, field)
 	}
+
+	// The sweep above removes whole top-level keys and cannot see inside an
+	// area. An area with its network_ids emptied, then removed, measures
+	// the @Size floor and the absent key as the separate facts they are.
+	areaVariant := func(mutate func(area map[string]any)) map[string]any {
+		area := map[string]any{
+			"area_id":     "0.0.0.0",
+			"area_type":   "normal",
+			"name":        "probe-area",
+			"network_ids": []string{lanID},
+		}
+		mutate(area)
+		doc := clone(base)
+		doc["areas"] = []any{area}
+		return doc
+	}
+
+	var minItems map[string]int
+	if status, id, body := post(areaVariant(func(area map[string]any) {
+		area["network_ids"] = []string{}
+	})); status/100 == 2 {
+		if id != "" {
+			deleteRouter(id)
+		}
+		t.Logf("OSPF create with empty areas[].network_ids accepted (HTTP %d) -- no minimum", status)
+	} else {
+		t.Logf("OSPF create with empty areas[].network_ids rejected (HTTP %d, %s) -- one entry is "+
+			"the measured minimum", status, v2ErrCode(body))
+		minItems = map[string]int{"areas[].network_ids": 1}
+	}
+
+	if status, id, body := post(areaVariant(func(area map[string]any) {
+		delete(area, "network_ids")
+	})); status/100 == 2 {
+		if id != "" {
+			deleteRouter(id)
+		}
+		t.Logf("OSPF create with absent areas[].network_ids accepted (HTTP %d) -- not required", status)
+	} else {
+		t.Logf("OSPF create with absent areas[].network_ids rejected (HTTP %d, %s) -- required on "+
+			"create", status, v2ErrCode(body))
+		required = append(required, "areas[].network_ids")
+	}
 	sort.Strings(required)
 
 	contract := behavior.WriteContract{
 		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/ospf/router",
 		UpdateVerb: "PUT", UpdatePath: "v2/api/site/{site}/ospf/router/{id}",
 		RequiredOnCreate: required,
+		MinItems:         minItems,
 	}
 
 	if behaviorWriteRequested() {

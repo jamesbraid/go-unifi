@@ -17,7 +17,7 @@ import (
 // the files on disk yet.
 
 func TestWithRequiredOnCreate(t *testing.T) {
-	required := []string{"protocol", "source_filter"}
+	required := []string{"protocol", "source_filter", "source.zone_id"}
 
 	cases := []struct {
 		name          string
@@ -49,6 +49,20 @@ func TestWithRequiredOnCreate(t *testing.T) {
 			// The Go name IS in the required list here; the wire name is
 			// not. Matching on the Go name would flip this field.
 			field:         NewFieldInfo("protocol", "proto_col", "string", "", true, false, false, ""),
+			wantOmitEmpty: true,
+		},
+		{
+			// The artifact spells a nested field "source.zone_id"; the
+			// processor sees the bare leaf.
+			name:          "a dotted entry matches its leaf field",
+			field:         NewFieldInfo("ZoneID", "zone_id", "string", "", true, false, false, ""),
+			wantOmitEmpty: false,
+		},
+		{
+			// Without omitempty a nil slice marshals as null, which no
+			// probe has measured; a required array keeps its tag.
+			name:          "a required array field keeps omitempty",
+			field:         NewFieldInfo("Protocol", "protocol", "string", "", true, true, false, ""),
 			wantOmitEmpty: true,
 		},
 	}
