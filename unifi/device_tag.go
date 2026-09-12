@@ -8,12 +8,6 @@ import (
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
 
-// just to fix compile issues with the import.
-var (
-	_ fmt.Formatter
-	_ context.Context
-)
-
 // This is a v2 API object, manually coded.
 
 type DeviceTag struct {

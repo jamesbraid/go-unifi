@@ -1,4 +1,4 @@
-package unifi //
+package unifi
 
 import (
 	"bytes"
@@ -95,11 +95,8 @@ func New(ctx context.Context, cfg *Config) (*ApiClient, error) {
 	}
 	c.HTTPClient.Timeout = time.Duration(timeoutSeconds) * time.Second
 
-	if cfg.Logger != nil {
-		c.Logger = cfg.Logger
-	} else {
-		c.Logger = nil
-	}
+	// nil disables retryablehttp's default logger.
+	c.Logger = cfg.Logger
 
 	if cfg.RetryMax != nil {
 		c.RetryMax = *cfg.RetryMax
@@ -347,18 +344,9 @@ func (c *ApiClient) enableCloudConnector(ctx context.Context, hostIndex int) (st
 	// If explicit index provided, use it
 	if hostIndex >= 0 && hostIndex < len(hosts.Data) {
 		selectedHost = &hosts.Data[hostIndex]
-	} else {
-		// Default to first owner host
-		for i := range hosts.Data {
-			if hosts.Data[i].Owner {
-				selectedHost = &hosts.Data[i]
-				break
-			}
-		}
+	} else if selectedHost = FindOwnerHost(hosts); selectedHost == nil {
 		// Fallback to first host if no owner found
-		if selectedHost == nil {
-			selectedHost = &hosts.Data[0]
-		}
+		selectedHost = &hosts.Data[0]
 	}
 
 	c.setCloudConsoleID(selectedHost.ID)

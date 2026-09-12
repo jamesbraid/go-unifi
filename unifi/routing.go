@@ -1,17 +1,5 @@
 package unifi
 
-/*
-{
-    "name": "route1",
-    "enabled": true,
-    "static-route_network": "10.0.10.0/24",
-    "static-route_distance": "2",
-    "static-route_type": "nexthop-route",
-    "static-route_nexthop": "10.1.2.3",
-    "type": "static-route"
-}
-*/
-
 import (
 	"context"
 )

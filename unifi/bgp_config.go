@@ -1,6 +1,3 @@
-// Code generated from ace.jar fields *.json files
-// DO NOT EDIT.
-
 package unifi
 
 import (
@@ -8,13 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-)
-
-// just to fix compile issues with the import.
-var (
-	_ context.Context
-	_ fmt.Formatter
-	_ json.Marshaler
 )
 
 func (c *ApiClient) GetBGPConfig(ctx context.Context, site string) (*BGPConfig, error) {
