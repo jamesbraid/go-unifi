@@ -180,17 +180,12 @@ func (c *ApiClient) CreateDashboard(
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateDashboardFields(ctx context.Context, site string, d *Dashboard, fields ...string) (*Dashboard, error) {
-	return c.updateDashboardFields(ctx, site, d, fields)
-}
-
-// updateDashboardFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateDashboardFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateDashboardFields(
 	ctx context.Context,
 	site string,
 	d *Dashboard,
-	fields []string,
+	fields ...string,
 ) (*Dashboard, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {

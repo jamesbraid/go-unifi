@@ -73,17 +73,12 @@ func (dst *NetworkMembersGroup) UnmarshalJSON(b []byte) error {
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
-func (c *ApiClient) UpdateNetworkMembersGroupFields(ctx context.Context, site string, d *NetworkMembersGroup, fields ...string) (*NetworkMembersGroup, error) {
-	return c.updateNetworkMembersGroupFields(ctx, site, d, fields)
-}
-
-// updateNetworkMembersGroupFields writes only the named wire fields, leaving
-// every other field on the stored object alone. See maskedBody.
-func (c *ApiClient) updateNetworkMembersGroupFields(
+// See maskedBody for how the named fields become the request body.
+func (c *ApiClient) UpdateNetworkMembersGroupFields(
 	ctx context.Context,
 	site string,
 	d *NetworkMembersGroup,
-	fields []string,
+	fields ...string,
 ) (*NetworkMembersGroup, error) {
 	body, err := maskedBody(d, fields)
 	if err != nil {
