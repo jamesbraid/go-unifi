@@ -185,7 +185,7 @@ func New(ctx context.Context, cfg *Config) (*ApiClient, error) {
 		if cfg.HardwareID != "" {
 			_, err = client.enableCloudConnectorByHardwareID(ctx, cfg.HardwareID)
 		} else {
-			_, err = client.enableCloudConnector(ctx, -1)
+			_, err = client.enableCloudConnector(ctx)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("unable to enable cloud connector: %w", err)
@@ -319,12 +319,10 @@ func (c *ApiClient) setCloudConsoleID(consoleID string) {
 }
 
 // enableCloudConnector fetches available hosts and configures the client to use
-// the Cloud Connector API. Selection priority:
-// 1. If hostIndex >= 0: uses the host at that index
-// 2. If hostIndex < 0: defaults to the first host where owner=true
-// 3. Falls back to the first host if no owner found
+// the Cloud Connector API, taking the first host that claims owner=true and
+// falling back to the first host when none does.
 // Returns the selected console ID and any error encountered.
-func (c *ApiClient) enableCloudConnector(ctx context.Context, hostIndex int) (string, error) {
+func (c *ApiClient) enableCloudConnector(ctx context.Context) (string, error) {
 	hosts, err := c.getHosts(ctx)
 	if err != nil {
 		return "", err
@@ -334,13 +332,8 @@ func (c *ApiClient) enableCloudConnector(ctx context.Context, hostIndex int) (st
 		return "", errors.New("no hosts found in Site Manager API")
 	}
 
-	var selectedHost *UnifiHost
-
-	// If explicit index provided, use it
-	if hostIndex >= 0 && hostIndex < len(hosts.Data) {
-		selectedHost = &hosts.Data[hostIndex]
-	} else if selectedHost = findOwnerHost(hosts); selectedHost == nil {
-		// Fallback to first host if no owner found
+	selectedHost := findOwnerHost(hosts)
+	if selectedHost == nil {
 		selectedHost = &hosts.Data[0]
 	}
 
