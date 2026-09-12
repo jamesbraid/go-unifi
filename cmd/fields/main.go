@@ -12,7 +12,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -355,11 +354,6 @@ func cleanName(name string, reps []replacement) string {
 	return name
 }
 
-func usage() {
-	fmt.Printf("Usage: %s [OPTIONS]\n", path.Base(os.Args[0]))
-	flag.PrintDefaults()
-}
-
 func buildLockedSchemas(
 	schemasDir, fieldsDir, metadataDir, customDir string,
 	artifactPath string,
@@ -580,7 +574,6 @@ func fileExists(path string) bool {
 }
 
 func main() {
-	flag.Usage = usage
 	outputDirFlag := flag.String(
 		"output-dir",
 		"unifi",
@@ -625,7 +618,7 @@ func main() {
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fmt.Print("error: generation accepts no version argument; capture a new lock separately\n\n")
-		usage()
+		flag.Usage()
 		os.Exit(1)
 	}
 
@@ -749,7 +742,6 @@ func main() {
 
 	for _, fieldsFile := range fieldsFiles {
 		name := fieldsFile.Name()
-		ext := filepath.Ext(name)
 
 		switch name {
 		case "AuthenticationRequest.json", "Setting.json", "Wall.json":
@@ -760,7 +752,7 @@ func main() {
 			continue
 		}
 
-		name = name[:len(name)-len(ext)]
+		name = strings.TrimSuffix(name, ".json")
 
 		urlPath := strings.ToLower(name)
 		structName := cleanName(name, fileReps)
