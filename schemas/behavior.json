@@ -347,5 +347,17 @@
       "status": 400,
       "stored": false
     }
+  },
+  "replays": {
+    "Nat": {
+      "create": "REJECTED-400"
+    },
+    "Network": {
+      "create": "REJECTED-400",
+      "update": "IDEMPOTENT"
+    },
+    "WLAN": {
+      "create": "DUPLICATES"
+    }
   }
 }
