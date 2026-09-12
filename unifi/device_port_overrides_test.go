@@ -10,44 +10,6 @@ import (
 	"testing"
 )
 
-func TestOverlayKeyedEntriesKeepsWhatItWasNotAsked(t *testing.T) {
-	stored := []json.RawMessage{
-		json.RawMessage(`{"port_idx":1,"name":"uplink","poe_mode":"auto","eee_enabled":false,"unmodelled":"kept"}`),
-		json.RawMessage(`{"port_idx":2,"name":"desk","poe_mode":"auto"}`),
-	}
-	masked := []json.RawMessage{json.RawMessage(`{"port_idx":1,"poe_mode":"off"}`)}
-
-	merged, err := overlayKeyedEntries(stored, "port_idx", masked)
-	if err != nil {
-		t.Fatalf("overlayKeyedEntries: %v", err)
-	}
-	if len(merged) != 2 {
-		t.Fatalf("merged has %d entries, want 2; the untouched port was dropped", len(merged))
-	}
-
-	var first map[string]any
-	if err := json.Unmarshal(merged[0], &first); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	for wire, want := range map[string]any{
-		"port_idx": float64(1),
-		// the named member changed
-		"poe_mode": "off",
-		// and everything else in the entry survived, including a member
-		// this client does not model and one at its zero value
-		"name":        "uplink",
-		"eee_enabled": false,
-		"unmodelled":  "kept",
-	} {
-		if first[wire] != want {
-			t.Errorf("entry 1 %s = %v, want %v", wire, first[wire], want)
-		}
-	}
-	if string(merged[1]) != string(stored[1]) {
-		t.Errorf("the untouched entry changed:\n got %s\nwant %s", merged[1], stored[1])
-	}
-}
-
 func TestOverlayKeyedEntriesAddsAnUnknownKey(t *testing.T) {
 	stored := []json.RawMessage{json.RawMessage(`{"port_idx":1,"name":"uplink"}`)}
 	masked := []json.RawMessage{json.RawMessage(`{"port_idx":5,"poe_mode":"off"}`)}
@@ -139,8 +101,19 @@ func TestUpdateDevicePortOverridesSendsTheMergedArray(t *testing.T) {
 	if _, ok := entries[0]["qos_profile"]; !ok {
 		t.Error("port 1 lost qos_profile, a member this client does not model")
 	}
-	if entries[1]["name"] != "desk" {
-		t.Errorf("port 2 = %v; an untouched port must be resent verbatim", entries[1])
+	// An untouched port goes back exactly as it was stored, member for
+	// member -- not merely present with its name intact.
+	for wire, want := range map[string]any{
+		"port_idx": float64(2),
+		"name":     "desk",
+		"poe_mode": "auto",
+	} {
+		if entries[1][wire] != want {
+			t.Errorf("port 2 %s = %v, want %v; an untouched port must be resent verbatim", wire, entries[1][wire], want)
+		}
+	}
+	if len(entries[1]) != 3 {
+		t.Errorf("port 2 carries %d members (%v), want the three it was stored with", len(entries[1]), entries[1])
 	}
 }
 

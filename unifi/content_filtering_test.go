@@ -92,6 +92,16 @@ func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *
 // It requests the *second* fixture element deliberately: a regression that
 // unconditionally returns respBody[0] (ignoring the requested id) would still
 // pass a test that only ever asked for the first id.
+// newBasicAuthTestClient dials a fake controller with username/password auth.
+func newBasicAuthTestClient(t *testing.T, srv *httptest.Server) *ApiClient {
+	t.Helper()
+	c, err := New(context.Background(), &Config{BaseURL: srv.URL, Username: "admin", Password: "admin"})
+	if err != nil {
+		t.Fatalf("client init: %v", err)
+	}
+	return c
+}
+
 func TestGetContentFiltering_ReadsViaList(t *testing.T) {
 	const site = "default"
 	srv := contentFilteringTestServer(t, site, `[
@@ -106,7 +116,7 @@ func TestGetContentFiltering_ReadsViaList(t *testing.T) {
 		 "safe_search":["GOOGLE","YOUTUBE","BING"],
 		 "schedule":{"mode":"ALWAYS"}}
 	]`, nil)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	got, err := c.GetContentFiltering(context.Background(), site, "cccc0000000000000000c002")
 	if err != nil {
@@ -145,7 +155,7 @@ func TestGetContentFiltering_NotFound(t *testing.T) {
 		   "categories":[],"client_macs":[],"network_ids":[],
 		   "allow_list":[],"block_list":[],"safe_search":[],
 		   "schedule":{"mode":"ALWAYS"}}]`, nil)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	_, err := c.GetContentFiltering(context.Background(), site, "does-not-exist")
 	if !errors.As(err, new(*NotFoundError)) {
@@ -161,7 +171,7 @@ func TestCreateContentFiltering_PostsFullArrays(t *testing.T) {
 	const site = "default"
 	var posted ContentFiltering
 	srv := contentFilteringTestServer(t, site, `[]`, &posted)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	created, err := c.CreateContentFiltering(context.Background(), site, &ContentFiltering{
 		Name:       "kids devices",
@@ -210,7 +220,7 @@ func TestListContentFiltering_ReturnsAll(t *testing.T) {
 		 "safe_search":["GOOGLE","YOUTUBE","BING"],
 		 "schedule":{"mode":"ALWAYS"}}
 	]`, nil)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	got, err := c.ListContentFiltering(context.Background(), site)
 	if err != nil {
@@ -245,7 +255,7 @@ func TestListContentFiltering_ReturnsAll(t *testing.T) {
 func TestUpdateContentFiltering_RoundTrip(t *testing.T) {
 	const site = "default"
 	srv := contentFilteringTestServer(t, site, `[]`, nil)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	in := &ContentFiltering{
 		ID:         "cccc0000000000000000c001",
@@ -284,7 +294,7 @@ func TestUpdateContentFiltering_RoundTrip(t *testing.T) {
 func TestDeleteContentFiltering_Success(t *testing.T) {
 	const site = "default"
 	srv := contentFilteringTestServer(t, site, `[]`, nil)
-	c := newAPGroupTestClient(t, srv)
+	c := newBasicAuthTestClient(t, srv)
 
 	if err := c.DeleteContentFiltering(context.Background(), site, "cccc0000000000000000c001"); err != nil {
 		t.Fatalf("DeleteContentFiltering errored: %v", err)
