@@ -6,12 +6,6 @@ import (
 	"net/http"
 )
 
-// just to fix compile issues with the import.
-var (
-	_ fmt.Formatter
-	_ context.Context
-)
-
 type ClientInfoFingerprint struct {
 	ComputedDevId  *int64 `json:"computed_dev_id,omitempty"`
 	ComputedEngine *int64 `json:"computed_engine,omitempty"`
