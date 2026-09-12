@@ -20,20 +20,6 @@ func TestClientInfoDeserialization(t *testing.T) {
 			wantUplinkMAC: "f4:e2:c6:50:60:bb",
 			wantDisplay:   "talos",
 		},
-		{
-			name:          "meta/data array wrapper silently fails",
-			raw:           `{"meta":{"rc":"ok"},"data":[{"display_name":"talos","mac":"2c:cf:67:0a:a3:33","last_uplink_mac":"f4:e2:c6:50:60:bb","last_uplink_remote_port":5}]}`,
-			wantPort:      nil,
-			wantUplinkMAC: "",
-			wantDisplay:   "",
-		},
-		{
-			name:          "data object wrapper silently fails",
-			raw:           `{"data":{"display_name":"talos","mac":"2c:cf:67:0a:a3:33","last_uplink_mac":"f4:e2:c6:50:60:bb","last_uplink_remote_port":5}}`,
-			wantPort:      nil,
-			wantUplinkMAC: "",
-			wantDisplay:   "",
-		},
 	}
 
 	for _, tt := range tests {

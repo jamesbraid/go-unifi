@@ -53,28 +53,14 @@ func TestGetClientByMACIgnoresFormatting(t *testing.T) {
 			}
 		})
 	}
-}
 
-// TestGetClientByMACStillMisses checks the normalisation did not turn the
-// lookup into something that matches too much.
-func TestGetClientByMACStillMisses(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if handleNewStyleSetup(w, r) {
-			return
+	// And the normalisation did not turn the lookup into something that
+	// matches too much.
+	t.Run("absent", func(t *testing.T) {
+		if _, err := c.GetClientByMAC(context.Background(), "default", "11:22:33:44:55:66"); err == nil {
+			t.Error("expected NotFoundError for a MAC that is not present")
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[{"_id":"c1","mac":"aa:bb:cc:dd:ee:ff"}]}`))
-	}))
-	defer srv.Close()
-
-	c, err := New(context.Background(), &Config{BaseURL: srv.URL, APIKey: "test-key"})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	if _, err := c.GetClientByMAC(context.Background(), "default", "11:22:33:44:55:66"); err == nil {
-		t.Error("expected NotFoundError for a MAC that is not present")
-	}
+	})
 }
 
 // TestDeviceCommandsNormalizeMAC checks the MAC a command carries is

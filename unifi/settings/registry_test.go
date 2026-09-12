@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -120,20 +120,22 @@ func TestGetSettingKeyUsesTheRawSettingsOwnKey(t *testing.T) {
 func parseSettingsRegistry(t *testing.T) (types []string, keys map[string]string) {
 	t.Helper()
 
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", func(fi fs.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, 0)
+	entries, err := os.ReadDir(".")
 	if err != nil {
-		t.Fatalf("parse the settings package: %v", err)
-	}
-	pkg, ok := pkgs["settings"]
-	if !ok {
-		t.Fatal("no settings package found in .")
+		t.Fatalf("read the settings package directory: %v", err)
 	}
 
+	fset := token.NewFileSet()
 	keys = map[string]string{}
-	for _, file := range pkg.Files {
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.TypeSpec:
