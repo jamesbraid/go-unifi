@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/controllertest"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
@@ -146,18 +147,44 @@ func TestIntegrationDevicePortOverridePreference(t *testing.T) {
 			t.Logf("refused under both modes, not this mode's doing: %s (%s)", wire, detail)
 		}
 
+		const key = "port_overrides.setting_preference"
+		if behaviorWriteRequested() && !onUOSHarness() {
+			root, captured := capturedBehaviorVersion(t)
+			if live := controllerVersion(ctx, t, s); live != captured {
+				t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION "+
+					"says %s; recording would file the measurement against the wrong controller",
+					live, captured)
+			}
+			mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+				if a.Ownership == nil {
+					a.Ownership = map[string]map[string][]string{}
+				}
+				if a.Ownership["Device"] == nil {
+					a.Ownership["Device"] = map[string][]string{}
+				}
+				a.Ownership["Device"][key] = owned
+			})
+			return
+		}
+
 		recorded, err := fields.LoadPreferences()
 		if err != nil {
-			t.Fatalf("load overrides/fields.toml: %v", err)
+			t.Fatalf("load the recorded ownership: %v", err)
 		}
-		entry, ok := recorded["Device"]["port_overrides.setting_preference"]
+		entry, ok := recorded["Device"][key]
 		if !ok {
-			t.Fatalf("no ownership recorded for Device.port_overrides.setting_preference; measured %v", owned)
+			t.Fatalf("no ownership recorded for Device.%s; measured %v. Re-run with BEHAVIOR_WRITE=1 "+
+				"to record it in %s.", key, owned, behavior.Path)
+		}
+		// Same live gate as the sweep: the record holds one build's answer,
+		// and the UOS harness bundles an older Network app than the lock.
+		if live := controllerVersion(ctx, t, s); entry.Measured != "" && entry.Measured != live {
+			t.Skipf("recorded on %s, controller is %s; nothing to compare", entry.Measured, live)
 		}
 		if diff := comparePreference(entry.OwnsOn(onUOSHarness()), owned, manual); diff != "" {
-			t.Errorf("Device.port_overrides.setting_preference no longer matches overrides/fields.toml "+
-				"(harness: %s):\n%s\n\nThe controller moved or the table was wrong. Re-measure before "+
-				"editing it.", harnessName(), diff)
+			t.Errorf("Device.%s no longer matches the recorded measurement (harness: %s):\n%s\n\n"+
+				"The controller moved or the record was wrong. Re-measure (BEHAVIOR_WRITE=1) rather "+
+				"than editing by hand.", key, harnessName(), diff)
 		}
 	})
 

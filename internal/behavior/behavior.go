@@ -29,11 +29,24 @@ type Artifact struct {
 
 	// Ownership: per resource, per preference mode field, the wire names the
 	// controller silently manages when that mode is set -- accepted on write,
-	// stored as the controller's own value, never reported. The generator
-	// derives unifi/preference.generated.go from this; overrides/fields.toml
-	// keeps only what this map has no slot for (an unswept mode, the UniFi
-	// OS exclusions).
+	// stored as the controller's own value, never reported. Measured on the
+	// standalone controller; the generator derives
+	// unifi/preference.generated.go from this.
 	Ownership map[string]map[string][]string `json:"ownership,omitempty"`
+
+	// UOSPins: keyed like Ownership, the subset of a mode's owns the UniFi
+	// OS console stores its own value for under BOTH modes -- fields neither
+	// mode reaches inside UniFi OS. The ownership sweep records them when it
+	// runs on the UOS harness; the generator publishes them as
+	// Preference.UOSExcludes. A key absent here has no measured exclusions.
+	UOSPins map[string]map[string][]string `json:"uos_pins,omitempty"`
+
+	// UOSNetworkVersion names the Network build bundled by the UniFi OS
+	// harness the pins were measured on. UniFi OS Server trails the
+	// standalone .deb, so this legitimately differs from ControllerVersion
+	// -- which is why the pins carry their own stamp instead of borrowing
+	// the artifact's.
+	UOSNetworkVersion string `json:"uos_network_version,omitempty"`
 
 	// Discarded: per resource, wire names the controller accepts on create
 	// and does not store -- the round-trip probe's finding. Replaces the
@@ -135,6 +148,11 @@ func Load(root string) (Artifact, bool, error) {
 func Write(root string, a Artifact) error {
 	// sort slice values so an unordered probe result still diffs stably.
 	for _, byField := range a.Ownership {
+		for k := range byField {
+			sort.Strings(byField[k])
+		}
+	}
+	for _, byField := range a.UOSPins {
 		for k := range byField {
 			sort.Strings(byField[k])
 		}

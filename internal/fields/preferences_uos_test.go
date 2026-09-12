@@ -3,8 +3,6 @@ package fields
 import (
 	"slices"
 	"testing"
-
-	"github.com/BurntSushi/toml"
 )
 
 // TestOwnsOnSubtractsUOSExclusions pins the two answers one entry carries.
@@ -58,13 +56,13 @@ func TestOwnsOnWithoutExclusionsIsIdentical(t *testing.T) {
 }
 
 // TestSuperMgmtRetentionExclusionsAreRecorded reads the real record, so
-// neither the uos_excludes in fields.toml nor the owns in
-// schemas/behavior.json can be deleted without a failure. The exclusions are
-// the only reason the UOS integration leg passes.
+// neither the uos_pins nor the owns in schemas/behavior.json can be deleted
+// without a failure. The exclusions are the only reason the UOS integration
+// leg passes.
 func TestSuperMgmtRetentionExclusionsAreRecorded(t *testing.T) {
 	prefs, err := LoadPreferences()
 	if err != nil {
-		t.Fatalf("load overrides/fields.toml: %v", err)
+		t.Fatalf("load the recorded ownership: %v", err)
 	}
 
 	entry, ok := prefs["SettingSuperMgmt"]["data_retention_setting_preference"]
@@ -76,78 +74,12 @@ func TestSuperMgmtRetentionExclusionsAreRecorded(t *testing.T) {
 		"data_retention_time_in_hours_for_hourly_scale",
 	} {
 		if !slices.Contains(entry.UOSExcludes, wire) {
-			t.Errorf("%s is not in uos_excludes; UniFi OS pins it under both modes (measured: "+
+			t.Errorf("%s is not in uos_pins; UniFi OS pins it under both modes (measured: "+
 				"asking 1 stores 24), so the UOS integration leg will fail on it", wire)
 		}
 		if !slices.Contains(entry.Owns, wire) {
 			t.Errorf("%s left owns; the standalone controller does give it to manual mode, and "+
-				"an exclusion is only meaningful against a recorded ownership", wire)
+				"a pin is only meaningful against a recorded ownership", wire)
 		}
-	}
-}
-
-// TestDecodeRejectsMisspelledPreferenceProperty is the guard for the failure
-// mode TOML makes easy and quiet.
-//
-// A key no struct field claims is skipped, not rejected, so "onws" leaves
-// Owns empty while "measured" still decodes and every other check passes. An
-// empty Owns is a measured result in this table -- the mode was probed and
-// governs nothing -- so the typo publishes a real-looking claim that the mode
-// owns nothing at all.
-//
-// Exercises the same decode-and-inspect the loader does, on a fixture rather
-// than the real file, since the real file has to stay valid.
-func TestDecodeRejectsMisspelledPreferenceProperty(t *testing.T) {
-	const doc = `
-[Thing.preference.setting_preference]
-onws = ["igmp_snooping"]
-measured = "10.4.57"
-`
-	var file map[string]preferenceFile
-	md, err := toml.Decode(doc, &file)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	// The typo decodes clean and leaves a mode that owns nothing.
-	if got := file["Thing"].Preference["setting_preference"].Owns; len(got) != 0 {
-		t.Fatalf("expected the misspelling to leave owns empty, got %v", got)
-	}
-
-	var unknown []string
-	for _, key := range md.Undecoded() {
-		if len(key) == 4 && key[1] == "preference" {
-			unknown = append(unknown, key.String())
-		}
-	}
-	if len(unknown) != 1 || unknown[0] != "Thing.preference.setting_preference.onws" {
-		t.Errorf("the misspelled property was not reported as undecoded, got %v", unknown)
-	}
-}
-
-// TestDecodeAcceptsEveryRealPreferenceProperty keeps the check above from
-// rejecting the properties that do exist -- a guard that fails the whole
-// table would be worse than the typo it catches.
-func TestDecodeAcceptsEveryRealPreferenceProperty(t *testing.T) {
-	const doc = `
-[Thing.preference.setting_preference]
-owns = ["igmp_snooping"]
-uos_excludes = ["igmp_snooping"]
-measured = "10.4.57"
-`
-	var file map[string]preferenceFile
-	md, err := toml.Decode(doc, &file)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	for _, key := range md.Undecoded() {
-		if len(key) == 4 && key[1] == "preference" {
-			t.Errorf("%s is a real property but reads as unknown", key.String())
-		}
-	}
-
-	entry := file["Thing"].Preference["setting_preference"]
-	if len(entry.Owns) != 1 || len(entry.UOSExcludes) != 1 || entry.Measured == "" {
-		t.Errorf("a fully populated entry did not round-trip: %+v", entry)
 	}
 }

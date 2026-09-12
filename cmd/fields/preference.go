@@ -19,9 +19,7 @@ var (
 )
 
 // preferenceTables lazily loads the measured ownership tables: the ownership
-// section of schemas/behavior.json, merged with the residual
-// overrides/fields.toml entries the artifact cannot record (see
-// fields.LoadPreferences).
+// and uos_pins sections of schemas/behavior.json (see fields.LoadPreferences).
 func preferenceTables() map[string]map[string]fields.Preference {
 	preferenceTablesOnce.Do(func() {
 		tables, err := fields.LoadPreferences()
@@ -163,10 +161,8 @@ func (p Preference) OwnsOn(uos bool) []string {
 // prefix, so the site NTP document is "SettingNtp".
 //
 // Measured against a live controller by TestIntegrationPreferenceOwnership
-// and recorded in the ownership section of schemas/behavior.json, stamped
-// with the build it ran against. The residual [Resource.preference.<wire>]
-// entries in overrides/fields.toml carry only what the artifact cannot
-// record: a mode the sweep cannot reach, and the UniFi OS exclusions.
+// and recorded in schemas/behavior.json, which also stamps the builds the
+// two harnesses were measured on.
 var PreferenceOwnedFields = map[string][]Preference{
 %s}
 `, body.String())

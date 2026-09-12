@@ -47,13 +47,12 @@ The extracted schema says what fields exist. It does not say how the
 controller treats them. `overrides/` carries every deviation from the
 schema, each tied to evidence:
 
-- `overrides/fields.toml` — per-field pins: serialization shape, fields
-  upstream dropped that the controller still honors, and the residual
-  ownership facts the behaviour artifact has no slot for (a mode the sweep
-  cannot reach, plus the UniFi OS `uos_excludes`). Measured ownership itself
-  lives in the `ownership` section of `schemas/behavior.json`, written by an
-  integration test that creates the object twice and diffs what comes back;
-  the test fails when the controller stops agreeing with the record.
+- `overrides/fields.toml` — per-field pins: serialization shape and fields
+  upstream dropped that the controller still honors. Measured ownership
+  lives in the `ownership` and `uos_pins` sections of
+  `schemas/behavior.json`, written by integration tests that create the
+  object twice and diff what comes back; the tests fail when the controller
+  stops agreeing with the record.
 - `overrides/resources/*.json` — hand-written schemas for v2 API resources
   the field spec does not describe. The drift probe
   (`go test -tags integration ./cmd/fields -run TestIntegrationV2Drift`)
@@ -103,8 +102,9 @@ public publish point.
    regenerate.
 4. Re-measure ownership wherever the controller changed: run the ownership
    integration test (`unifi/preference_ownership_integration_test.go`) with
-   `BEHAVIOR_WRITE=1` on the standalone harness and review the
-   `schemas/behavior.json` diff it writes.
+   `BEHAVIOR_WRITE=1` on the standalone harness, then on the UniFi OS
+   harness (`UNIFI_TEST_HARNESS=uos`) for the `uos_pins` half, and review
+   the `schemas/behavior.json` diff it writes.
 5. Merge. **auto-release** tags the next minor unless apidiff found a
    break, in which case the version bump is a human decision.
 
