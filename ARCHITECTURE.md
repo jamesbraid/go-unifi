@@ -35,11 +35,10 @@ so git carries the lock, not the bytes. Anyone can re-run capture against
 the URL in `schemas/ARTIFACT` and verify the digest. CI verifies the lock
 without the bytes (`-verify-lock-only`) and independently recomputes the
 output digest (`cmd/rebuild-manifest`) against the accepted one. The
-`rebuild` workflow
-proves the whole pipeline reproduces from public inputs alone: on a stock
-runner, it fetches the locked artifact from its public URL, regenerates
-from scratch, and diffs the result against `schemas/GENERATED_SHA256` and
-the working tree.
+`rebuild` workflow proves the whole pipeline reproduces from public
+inputs alone: on a stock runner, it fetches the locked artifact from its
+public URL, regenerates from scratch, and diffs the result against the
+committed tree.
 
 ## Overrides and measured ownership
 
@@ -58,23 +57,31 @@ schema, each tied to evidence:
   (`go test -tags integration ./cmd/fields -run TestIntegrationV2Drift`)
   compares them against a live controller and fails on live-only fields.
 
-Both are generator inputs, digested into the lock. See
+Both are generator inputs, digested into the lock, and so is
+`schemas/behavior.json`: a re-measure moves the lock's input digest
+exactly like an override edit does, and lands with its regenerate. See
 `overrides/README.md` and COMPATIBILITY.md for the retention policy.
 
 ## CI model
 
-One workflow tree in `.github/workflows/`, no required secrets, every
-input public: the controller CDN, the sim controller images
-(`ghcr.io/jamesbraid/unifi-network`, built from
+Two CI systems, one per forge. A `.forgejo/workflows` directory would
+replace `.github/workflows` rather than add to it, so instead every job
+under `.github/workflows/` carries a `github.server_url` guard naming
+the one forge it belongs to, and `.woodpecker/checks.yml` runs the same
+gates on the canonical forge. Nothing here is portable to an arbitrary
+Actions-compatible forge: each job names its own.
+
+Every input the gates read is public: the controller CDN, the sim
+controller images (`ghcr.io/jamesbraid/unifi-network`, built from
 [jamesbraid/unifi-containers](https://github.com/jamesbraid/unifi-containers)),
 and the device emulator
 ([jamesbraid/unifi-emu](https://github.com/jamesbraid/unifi-emu)). The sim
 image's `admin`/`admin` credentials are part of the image contract, not
-secrets. Any fork can run the whole pipeline, and the same files run on
-any Actions-compatible forge. The PR-opening plumbing (capture) is
-GitHub-specific and wants a schema-bot app or PAT so its PRs trigger CI;
-the `github.server_url` guards pin tag and release publishing to the
-public publish point.
+secrets, so any fork can run the gates. Two workflows do need a
+credential: `capture`, whose PR-opening plumbing is GitHub-specific and
+wants a schema-bot app or PAT so its PRs trigger CI, and `renovate`,
+which fails loudly rather than quietly skipping when `RENOVATE_TOKEN` is
+missing.
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
@@ -84,7 +91,8 @@ public publish point.
 | `auto-release` | merge touching schemas/{VERSION,SOURCE,ARTIFACT} | apidiff, then tag the next minor |
 | `release` | tag push | goreleaser release notes naming the controller train |
 | `rebuild` | generator input or output changes, dispatch | from-scratch regenerate-and-diff on a stock runner |
-| `dependabot` | dependabot PRs | auto-approve and auto-merge pinned bumps |
+| `renovate` | nightly, dispatch | Renovate against the canonical forge; forge-only |
+| `.woodpecker/checks.yml` | PR, push to main, manual | the canonical forge's copy of the `ci` gates |
 
 ## Releasing for a new controller version
 
