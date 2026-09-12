@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type APGroup struct {
@@ -77,85 +76,24 @@ func (dst *APGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListAPGroup(
-	ctx context.Context,
-	site string,
-) ([]APGroup, error) {
-	var respBody []APGroup
+func (c *ApiClient) ListAPGroup(ctx context.Context, site string) ([]APGroup, error) {
+	return bareList[APGroup](ctx, c, fmt.Sprintf("v2/api/site/%s/apgroups", site))
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/apgroups", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetAPGroup(ctx context.Context, site string, id string) (*APGroup, error) {
+	stored, err := c.ListAPGroup(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *APGroup) string { return v.ID })
 }
 
-func (c *ApiClient) GetAPGroup(
-	ctx context.Context,
-	site string,
-	id string,
-) (*APGroup, error) {
-	respBody, err := c.ListAPGroup(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteAPGroup(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, id))
 }
 
-func (c *ApiClient) DeleteAPGroup(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateAPGroup(
-	ctx context.Context,
-	site string,
-	d *APGroup,
-) (*APGroup, error) {
-	var respBody APGroup
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/apgroups", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateAPGroup(ctx context.Context, site string, d *APGroup) (*APGroup, error) {
+	return bareOne[APGroup](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/apgroups", site), d)
 }
 
 // UpdateAPGroupFields writes only the named wire fields and leaves
@@ -163,46 +101,10 @@ func (c *ApiClient) CreateAPGroup(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateAPGroupFields(
-	ctx context.Context,
-	site string,
-	d *APGroup,
-	fields ...string,
-) (*APGroup, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody APGroup
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateAPGroupFields(ctx context.Context, site string, d *APGroup, fields ...string) (*APGroup, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateAPGroup(
-	ctx context.Context,
-	site string,
-	d *APGroup,
-) (*APGroup, error) {
-	var respBody APGroup
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateAPGroup(ctx context.Context, site string, d *APGroup) (*APGroup, error) {
+	return bareOne[APGroup](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/apgroups/%s", site, d.ID), d)
 }

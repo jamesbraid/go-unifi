@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type DNSRecord struct {
@@ -81,85 +80,24 @@ func (dst *DNSRecord) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListDNSRecord(
-	ctx context.Context,
-	site string,
-) ([]DNSRecord, error) {
-	var respBody []DNSRecord
+func (c *ApiClient) ListDNSRecord(ctx context.Context, site string) ([]DNSRecord, error) {
+	return bareList[DNSRecord](ctx, c, fmt.Sprintf("v2/api/site/%s/static-dns", site))
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/static-dns", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetDNSRecord(ctx context.Context, site string, id string) (*DNSRecord, error) {
+	stored, err := c.ListDNSRecord(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *DNSRecord) string { return v.ID })
 }
 
-func (c *ApiClient) GetDNSRecord(
-	ctx context.Context,
-	site string,
-	id string,
-) (*DNSRecord, error) {
-	respBody, err := c.ListDNSRecord(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteDNSRecord(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, id))
 }
 
-func (c *ApiClient) DeleteDNSRecord(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateDNSRecord(
-	ctx context.Context,
-	site string,
-	d *DNSRecord,
-) (*DNSRecord, error) {
-	var respBody DNSRecord
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/static-dns", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateDNSRecord(ctx context.Context, site string, d *DNSRecord) (*DNSRecord, error) {
+	return bareOne[DNSRecord](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/static-dns", site), d)
 }
 
 // UpdateDNSRecordFields writes only the named wire fields and leaves
@@ -167,46 +105,10 @@ func (c *ApiClient) CreateDNSRecord(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateDNSRecordFields(
-	ctx context.Context,
-	site string,
-	d *DNSRecord,
-	fields ...string,
-) (*DNSRecord, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody DNSRecord
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateDNSRecordFields(ctx context.Context, site string, d *DNSRecord, fields ...string) (*DNSRecord, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateDNSRecord(
-	ctx context.Context,
-	site string,
-	d *DNSRecord,
-) (*DNSRecord, error) {
-	var respBody DNSRecord
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateDNSRecord(ctx context.Context, site string, d *DNSRecord) (*DNSRecord, error) {
+	return bareOne[DNSRecord](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/static-dns/%s", site, d.ID), d)
 }

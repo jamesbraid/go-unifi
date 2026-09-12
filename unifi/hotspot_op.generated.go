@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type HotspotOp struct {
@@ -54,101 +53,20 @@ func (dst *HotspotOp) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListHotspotOp(
-	ctx context.Context,
-	site string,
-) ([]HotspotOp, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []HotspotOp `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/hotspotop", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListHotspotOp(ctx context.Context, site string) ([]HotspotOp, error) {
+	return envelopeList[HotspotOp](ctx, c, fmt.Sprintf("api/s/%s/rest/hotspotop", site))
 }
 
-func (c *ApiClient) GetHotspotOp(
-	ctx context.Context,
-	site string,
-	id string,
-) (*HotspotOp, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []HotspotOp `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetHotspotOp(ctx context.Context, site string, id string) (*HotspotOp, error) {
+	return envelopeOne[HotspotOp](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteHotspotOp(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteHotspotOp(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, id))
 }
 
-func (c *ApiClient) CreateHotspotOp(
-	ctx context.Context,
-	site string,
-	d *HotspotOp,
-) (*HotspotOp, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []HotspotOp `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/hotspotop", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateHotspotOp(ctx context.Context, site string, d *HotspotOp) (*HotspotOp, error) {
+	return envelopeOne[HotspotOp](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/hotspotop", site), d)
 }
 
 // UpdateHotspotOpFields writes only the named wire fields and leaves
@@ -156,71 +74,10 @@ func (c *ApiClient) CreateHotspotOp(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateHotspotOpFields(
-	ctx context.Context,
-	site string,
-	d *HotspotOp,
-	fields ...string,
-) (*HotspotOp, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []HotspotOp `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetHotspotOp(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateHotspotOpFields(ctx context.Context, site string, d *HotspotOp, fields ...string) (*HotspotOp, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, d.ID), d, fields, func() (*HotspotOp, error) { return c.GetHotspotOp(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateHotspotOp(
-	ctx context.Context,
-	site string,
-	d *HotspotOp,
-) (*HotspotOp, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []HotspotOp `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetHotspotOp(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateHotspotOp(ctx context.Context, site string, d *HotspotOp) (*HotspotOp, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/hotspotop/%s", site, d.ID), d, func() (*HotspotOp, error) { return c.GetHotspotOp(ctx, site, d.ID) })
 }

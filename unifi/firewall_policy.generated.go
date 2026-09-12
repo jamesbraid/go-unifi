@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type FirewallPolicy struct {
@@ -215,85 +214,24 @@ func (dst *FirewallPolicySource) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListFirewallPolicy(
-	ctx context.Context,
-	site string,
-) ([]FirewallPolicy, error) {
-	var respBody []FirewallPolicy
+func (c *ApiClient) ListFirewallPolicy(ctx context.Context, site string) ([]FirewallPolicy, error) {
+	return bareList[FirewallPolicy](ctx, c, fmt.Sprintf("v2/api/site/%s/firewall-policies", site))
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/firewall-policies", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetFirewallPolicy(ctx context.Context, site string, id string) (*FirewallPolicy, error) {
+	stored, err := c.ListFirewallPolicy(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *FirewallPolicy) string { return v.ID })
 }
 
-func (c *ApiClient) GetFirewallPolicy(
-	ctx context.Context,
-	site string,
-	id string,
-) (*FirewallPolicy, error) {
-	respBody, err := c.ListFirewallPolicy(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteFirewallPolicy(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, id))
 }
 
-func (c *ApiClient) DeleteFirewallPolicy(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateFirewallPolicy(
-	ctx context.Context,
-	site string,
-	d *FirewallPolicy,
-) (*FirewallPolicy, error) {
-	var respBody FirewallPolicy
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/firewall-policies", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateFirewallPolicy(ctx context.Context, site string, d *FirewallPolicy) (*FirewallPolicy, error) {
+	return bareOne[FirewallPolicy](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/firewall-policies", site), d)
 }
 
 // UpdateFirewallPolicyFields writes only the named wire fields and leaves
@@ -301,46 +239,10 @@ func (c *ApiClient) CreateFirewallPolicy(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateFirewallPolicyFields(
-	ctx context.Context,
-	site string,
-	d *FirewallPolicy,
-	fields ...string,
-) (*FirewallPolicy, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody FirewallPolicy
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateFirewallPolicyFields(ctx context.Context, site string, d *FirewallPolicy, fields ...string) (*FirewallPolicy, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateFirewallPolicy(
-	ctx context.Context,
-	site string,
-	d *FirewallPolicy,
-) (*FirewallPolicy, error) {
-	var respBody FirewallPolicy
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateFirewallPolicy(ctx context.Context, site string, d *FirewallPolicy) (*FirewallPolicy, error) {
+	return bareOne[FirewallPolicy](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/firewall-policies/%s", site, d.ID), d)
 }

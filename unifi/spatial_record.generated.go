@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type SpatialRecord struct {
@@ -96,101 +95,20 @@ func (dst *SpatialRecordPosition) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListSpatialRecord(
-	ctx context.Context,
-	site string,
-) ([]SpatialRecord, error) {
-	var respBody struct {
-		Meta meta            `json:"meta"`
-		Data []SpatialRecord `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListSpatialRecord(ctx context.Context, site string) ([]SpatialRecord, error) {
+	return envelopeList[SpatialRecord](ctx, c, fmt.Sprintf("api/s/%s/rest/spatialrecord", site))
 }
 
-func (c *ApiClient) GetSpatialRecord(
-	ctx context.Context,
-	site string,
-	id string,
-) (*SpatialRecord, error) {
-	var respBody struct {
-		Meta meta            `json:"meta"`
-		Data []SpatialRecord `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetSpatialRecord(ctx context.Context, site string, id string) (*SpatialRecord, error) {
+	return envelopeOne[SpatialRecord](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteSpatialRecord(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteSpatialRecord(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, id))
 }
 
-func (c *ApiClient) CreateSpatialRecord(
-	ctx context.Context,
-	site string,
-	d *SpatialRecord,
-) (*SpatialRecord, error) {
-	var respBody struct {
-		Meta meta            `json:"meta"`
-		Data []SpatialRecord `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateSpatialRecord(ctx context.Context, site string, d *SpatialRecord) (*SpatialRecord, error) {
+	return envelopeOne[SpatialRecord](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/spatialrecord", site), d)
 }
 
 // UpdateSpatialRecordFields writes only the named wire fields and leaves
@@ -198,71 +116,10 @@ func (c *ApiClient) CreateSpatialRecord(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateSpatialRecordFields(
-	ctx context.Context,
-	site string,
-	d *SpatialRecord,
-	fields ...string,
-) (*SpatialRecord, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta            `json:"meta"`
-		Data []SpatialRecord `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetSpatialRecord(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateSpatialRecordFields(ctx context.Context, site string, d *SpatialRecord, fields ...string) (*SpatialRecord, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, d.ID), d, fields, func() (*SpatialRecord, error) { return c.GetSpatialRecord(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateSpatialRecord(
-	ctx context.Context,
-	site string,
-	d *SpatialRecord,
-) (*SpatialRecord, error) {
-	var respBody struct {
-		Meta meta            `json:"meta"`
-		Data []SpatialRecord `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetSpatialRecord(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateSpatialRecord(ctx context.Context, site string, d *SpatialRecord) (*SpatialRecord, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/spatialrecord/%s", site, d.ID), d, func() (*SpatialRecord, error) { return c.GetSpatialRecord(ctx, site, d.ID) })
 }

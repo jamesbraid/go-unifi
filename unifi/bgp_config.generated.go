@@ -20,6 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
+	_ http.Client
 )
 
 type BGPConfig struct {
@@ -53,63 +54,18 @@ func (dst *BGPConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) GetBGPConfig(
-	ctx context.Context,
-	site string,
-) (*BGPConfig, error) {
-	var respBody []BGPConfig
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/bgp/config", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetBGPConfig(ctx context.Context, site string) (*BGPConfig, error) {
+	stored, err := bareList[BGPConfig](ctx, c, fmt.Sprintf("v2/api/site/%s/bgp/config", site))
 	if err != nil {
 		return nil, err
 	}
-	if len(respBody) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody[0]
-	return &d, nil
+	return onlyElement(stored)
 }
 
-func (c *ApiClient) DeleteBGPConfig(
-	ctx context.Context,
-	site string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/bgp/config", site),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteBGPConfig(ctx context.Context, site string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/bgp/config", site))
 }
 
-func (c *ApiClient) CreateBGPConfig(
-	ctx context.Context,
-	site string,
-	d *BGPConfig,
-) (*BGPConfig, error) {
-	var respBody BGPConfig
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/bgp/config", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateBGPConfig(ctx context.Context, site string, d *BGPConfig) (*BGPConfig, error) {
+	return bareOne[BGPConfig](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/bgp/config", site), d)
 }

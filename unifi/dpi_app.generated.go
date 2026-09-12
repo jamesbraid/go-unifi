@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type DpiApp struct {
@@ -92,101 +91,20 @@ func (dst *DpiApp) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListDpiApp(
-	ctx context.Context,
-	site string,
-) ([]DpiApp, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []DpiApp `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/dpiapp", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListDpiApp(ctx context.Context, site string) ([]DpiApp, error) {
+	return envelopeList[DpiApp](ctx, c, fmt.Sprintf("api/s/%s/rest/dpiapp", site))
 }
 
-func (c *ApiClient) GetDpiApp(
-	ctx context.Context,
-	site string,
-	id string,
-) (*DpiApp, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []DpiApp `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetDpiApp(ctx context.Context, site string, id string) (*DpiApp, error) {
+	return envelopeOne[DpiApp](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteDpiApp(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteDpiApp(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, id))
 }
 
-func (c *ApiClient) CreateDpiApp(
-	ctx context.Context,
-	site string,
-	d *DpiApp,
-) (*DpiApp, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []DpiApp `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/dpiapp", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateDpiApp(ctx context.Context, site string, d *DpiApp) (*DpiApp, error) {
+	return envelopeOne[DpiApp](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/dpiapp", site), d)
 }
 
 // UpdateDpiAppFields writes only the named wire fields and leaves
@@ -194,71 +112,10 @@ func (c *ApiClient) CreateDpiApp(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateDpiAppFields(
-	ctx context.Context,
-	site string,
-	d *DpiApp,
-	fields ...string,
-) (*DpiApp, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []DpiApp `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetDpiApp(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateDpiAppFields(ctx context.Context, site string, d *DpiApp, fields ...string) (*DpiApp, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, d.ID), d, fields, func() (*DpiApp, error) { return c.GetDpiApp(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateDpiApp(
-	ctx context.Context,
-	site string,
-	d *DpiApp,
-) (*DpiApp, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []DpiApp `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetDpiApp(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateDpiApp(ctx context.Context, site string, d *DpiApp) (*DpiApp, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/dpiapp/%s", site, d.ID), d, func() (*DpiApp, error) { return c.GetDpiApp(ctx, site, d.ID) })
 }

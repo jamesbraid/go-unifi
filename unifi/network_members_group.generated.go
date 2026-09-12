@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type NetworkMembersGroup struct {
@@ -74,26 +73,6 @@ func (dst *NetworkMembersGroup) UnmarshalJSON(b []byte) error {
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateNetworkMembersGroupFields(
-	ctx context.Context,
-	site string,
-	d *NetworkMembersGroup,
-	fields ...string,
-) (*NetworkMembersGroup, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody NetworkMembersGroup
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateNetworkMembersGroupFields(ctx context.Context, site string, d *NetworkMembersGroup, fields ...string) (*NetworkMembersGroup, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, d.ID), d, fields)
 }

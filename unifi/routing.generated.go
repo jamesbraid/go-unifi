@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Routing struct {
@@ -71,101 +70,20 @@ func (dst *Routing) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListRouting(
-	ctx context.Context,
-	site string,
-) ([]Routing, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Routing `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/routing", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListRouting(ctx context.Context, site string) ([]Routing, error) {
+	return envelopeList[Routing](ctx, c, fmt.Sprintf("api/s/%s/rest/routing", site))
 }
 
-func (c *ApiClient) GetRouting(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Routing, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Routing `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/routing/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetRouting(ctx context.Context, site string, id string) (*Routing, error) {
+	return envelopeOne[Routing](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/routing/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteRouting(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/routing/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteRouting(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/routing/%s", site, id))
 }
 
-func (c *ApiClient) CreateRouting(
-	ctx context.Context,
-	site string,
-	d *Routing,
-) (*Routing, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Routing `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/routing", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateRouting(ctx context.Context, site string, d *Routing) (*Routing, error) {
+	return envelopeOne[Routing](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/routing", site), d)
 }
 
 // UpdateRoutingFields writes only the named wire fields and leaves
@@ -173,71 +91,10 @@ func (c *ApiClient) CreateRouting(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateRoutingFields(
-	ctx context.Context,
-	site string,
-	d *Routing,
-	fields ...string,
-) (*Routing, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Routing `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/routing/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetRouting(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateRoutingFields(ctx context.Context, site string, d *Routing, fields ...string) (*Routing, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/routing/%s", site, d.ID), d, fields, func() (*Routing, error) { return c.GetRouting(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateRouting(
-	ctx context.Context,
-	site string,
-	d *Routing,
-) (*Routing, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Routing `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/routing/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetRouting(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateRouting(ctx context.Context, site string, d *Routing) (*Routing, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/routing/%s", site, d.ID), d, func() (*Routing, error) { return c.GetRouting(ctx, site, d.ID) })
 }

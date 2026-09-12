@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Client struct {
@@ -75,85 +74,16 @@ func (dst *Client) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listClient(
-	ctx context.Context,
-	site string,
-	query ...map[string]string,
-) ([]Client, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Client `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/user", site),
-		nil,
-		&respBody,
-		query...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) listClient(ctx context.Context, site string, query ...map[string]string) ([]Client, error) {
+	return envelopeList[Client](ctx, c, fmt.Sprintf("api/s/%s/rest/user", site), query...)
 }
 
-func (c *ApiClient) GetClient(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Client, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Client `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/user/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetClient(ctx context.Context, site string, id string) (*Client, error) {
+	return envelopeOne[Client](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/user/%s", site, id), nil)
 }
 
-func (c *ApiClient) CreateClient(
-	ctx context.Context,
-	site string,
-	d *Client,
-) (*Client, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Client `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/user", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateClient(ctx context.Context, site string, d *Client) (*Client, error) {
+	return envelopeOne[Client](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/user", site), d)
 }
 
 // UpdateClientFields writes only the named wire fields and leaves
@@ -161,71 +91,10 @@ func (c *ApiClient) CreateClient(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateClientFields(
-	ctx context.Context,
-	site string,
-	d *Client,
-	fields ...string,
-) (*Client, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Client `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/user/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetClient(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateClientFields(ctx context.Context, site string, d *Client, fields ...string) (*Client, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/user/%s", site, d.ID), d, fields, func() (*Client, error) { return c.GetClient(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateClient(
-	ctx context.Context,
-	site string,
-	d *Client,
-) (*Client, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Client `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/user/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetClient(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateClient(ctx context.Context, site string, d *Client) (*Client, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/user/%s", site, d.ID), d, func() (*Client, error) { return c.GetClient(ctx, site, d.ID) })
 }

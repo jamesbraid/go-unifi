@@ -79,10 +79,7 @@ import (
 	"net/http"
 	{{- end }}
 	"strconv"
-	{{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
-	"strings"
-	{{- end }}
-	
+
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
 
@@ -93,8 +90,8 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	{{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
-	_ strings.Builder
+	{{- if not .IsSetting }}
+	_ http.Client
 	{{- end }}
 )
 
@@ -188,165 +185,44 @@ func (dst *{{ $k }}) UnmarshalJSON(b []byte) error {
 
 {{- if not .IsSetting }}
 {{- if and (ne .StructName "BGPConfig") (.Emits "List") }}
-func (c *ApiClient) {{ .Method "List" }}(
-	ctx context.Context,
-	site string,
-{{- if not (.Exports "List") }}
-	query ...map[string]string,
-{{- end }}
-) ([]{{ .StructName }}, error) {
-{{- if .IsV2 }}
-	var respBody []{{ .StructName }}
-{{- else }}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []{{ .StructName }} `json:"data"`
-	}
-{{- end }}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ListResourcePath }}", site),
-		nil,
-		&respBody,
-{{- if not (.Exports "List") }}
-		query...,
-{{- end }}
-	)
-	if err != nil {
-		return nil, err
-	}
-
-{{- if .IsV2 }}
-	return respBody, nil
-{{- else }}
-	return respBody.Data, nil
-{{- end }}
+func (c *ApiClient) {{ .Method "List" }}(ctx context.Context, site string{{ if not (.Exports "List") }}, query ...map[string]string{{ end }}) ([]{{ .StructName }}, error) {
+	return {{ if .IsV2 }}bareList{{ else }}envelopeList{{ end }}[{{ .StructName }}](ctx, c, fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ListResourcePath }}", site){{ if not (.Exports "List") }}, query...{{ end }})
 }
 {{- end }}
 
 {{ if .Emits "Get" }}
-func (c *ApiClient) {{ .Method "Get" }}(
-	ctx context.Context,
-	site string,
-{{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
-	id string,
-{{- end }}
-) (*{{ .StructName }}, error) {
 {{- if and .IsV2 (ne .StructName "BGPConfig") }}
-	respBody, err := c.{{ .Method "List" }}(ctx, site)
+func (c *ApiClient) {{ .Method "Get" }}(ctx context.Context, site string, id string) (*{{ .StructName }}, error) {
+	stored, err := c.{{ .Method "List" }}(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
-{{- else }}
-	{{- if ne .StructName "BGPConfig" }}
-	var respBody struct {
-		Meta meta `json:"meta"`
-		Data []{{ .StructName }} `json:"data"`
-	}
-	{{- else }}
-	var respBody []{{ .StructName }}
-	{{- end }}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ResourcePath }}{{ if ne .StructName "BGPConfig" }}/%s{{ end }}", site{{ if ne .StructName "BGPConfig" }}, id{{ end }}),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	{{- if ne .StructName "BGPConfig" }}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	{{- else }}
-	if len(respBody) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody[0]
-	{{- end }}
-	return &d, nil
-{{- end }}
+	return findByID(stored, id, func(v *{{ .StructName }}) string { return v.ID })
 }
+{{- else if eq .StructName "BGPConfig" }}
+func (c *ApiClient) {{ .Method "Get" }}(ctx context.Context, site string) (*{{ .StructName }}, error) {
+	stored, err := bareList[{{ .StructName }}](ctx, c, fmt.Sprintf("v2/api/site/%s/{{ .ResourcePath }}", site))
+	if err != nil {
+		return nil, err
+	}
+	return onlyElement(stored)
+}
+{{- else }}
+func (c *ApiClient) {{ .Method "Get" }}(ctx context.Context, site string, id string) (*{{ .StructName }}, error) {
+	return envelopeOne[{{ .StructName }}](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/{{ if eq .StructName "Device" }}stat{{ else }}rest{{ end }}/{{ .ResourcePath }}/%s", site, id), nil)
+}
+{{- end }}
 {{- end }}
 
 {{ if .Emits "Delete" }}
-func (c *ApiClient) {{ .Method "Delete" }}(
-	ctx context.Context,
-	site string,
-{{- if and (not .IsSetting) (ne .StructName "BGPConfig") }}
-	id string,
-{{- end }}
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ResourcePath }}{{ if ne .StructName "BGPConfig" }}/%s{{ end }}", site{{ if ne .StructName "BGPConfig" }}, id{{ end }}),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) {{ .Method "Delete" }}(ctx context.Context, site string{{ if ne .StructName "BGPConfig" }}, id string{{ end }}) error {
+	return deleteResource(ctx, c, fmt.Sprintf("{{ if .IsV2 }}v2/{{ end }}api/s{{ if .IsV2 }}ite{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if not .IsV2 }}rest/{{ end }}{{ .ResourcePath }}{{ if ne .StructName "BGPConfig" }}/%s{{ end }}", site{{ if ne .StructName "BGPConfig" }}, id{{ end }}))
 }
 {{- end }}
 
 {{ if .Emits "Create" }}
-func (c *ApiClient) {{ .Method "Create" }}(
-	ctx context.Context,
-	site string,
-	d *{{ .StructName }},
-) (*{{ .StructName }}, error) {
-{{- if .IsV2 }}
-	var respBody {{ .StructName }}
-{{- else }}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []{{ .StructName }} `json:"data"`
-	}
-{{- end }}
-
-	err := c.do(
-		ctx,
-		{{ if eq .CreateMethod "PUT" }}http.MethodPut{{ else }}http.MethodPost{{ end }},
-		fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-{{ if .IsV2 }}
-	return &respBody, nil
-{{- else }}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
-{{- end }}
+func (c *ApiClient) {{ .Method "Create" }}(ctx context.Context, site string, d *{{ .StructName }}) (*{{ .StructName }}, error) {
+	return {{ if .IsV2 }}bareOne{{ else }}envelopeOne{{ end }}[{{ .StructName }}](ctx, c, {{ if eq .CreateMethod "PUT" }}http.MethodPut{{ else }}http.MethodPost{{ end }}, fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}", site), d)
 }
 {{- end }}
 
@@ -356,94 +232,21 @@ func (c *ApiClient) {{ .Method "Create" }}(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) Update{{ .StructName }}Fields(
-	ctx context.Context,
-	site string,
-	d *{{ .StructName }},
-	fields ...string,
-) (*{{ .StructName }}, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
+func (c *ApiClient) Update{{ .StructName }}Fields(ctx context.Context, site string, d *{{ .StructName }}, fields ...string) (*{{ .StructName }}, error) {
 {{- if .IsV2 }}
-	var respBody {{ .StructName }}
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/{{ .ResourcePath }}/%s", site, d.ID), d, fields)
 {{- else }}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []{{ .StructName }} `json:"data"`
-	}
-{{- end }}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-{{ if .IsV2 }}
-	return &respBody, nil
-{{- else }}
-	if len(respBody.Data) == 0 {
-		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }}
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/{{ .ResourcePath }}/%s", site, d.ID), d, fields, func() (*{{ .StructName }}, error) { return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }} })
 {{- end }}
 }
 {{- end }}
 
 {{ if and (ne .StructName "BGPConfig") (.Emits "Update") }}
-func (c *ApiClient) {{ .Method "Update" }}(
-	ctx context.Context,
-	site string,
-	d *{{ .StructName }},
-) (*{{ .StructName }}, error) {
+func (c *ApiClient) {{ .Method "Update" }}(ctx context.Context, site string, d *{{ .StructName }}) (*{{ .StructName }}, error) {
 {{- if .IsV2 }}
-	var respBody {{ .StructName }}
+	return bareOne[{{ .StructName }}](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/{{ .ResourcePath }}/%s", site, d.ID), d)
 {{- else }}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []{{ .StructName }} `json:"data"`
-	}
-{{- end }}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-{{ if .IsV2 }}
-	return &respBody, nil
-{{- else }}
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	{{- if eq .StructName "Device" }}
-	// Re-read through rereadDevice, not by id: the device read endpoint is
-	// stat/device/{mac}, so passing the database id answers 404 and turns a
-	// successful write into a NotFound. See that function for why the MAC
-	// cannot simply be used unconditionally.
-	{{- end }}
-	if len(respBody.Data) == 0 {
-		return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }}
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/{{ .ResourcePath }}/%s", site, d.ID), d, func() (*{{ .StructName }}, error) { return c.{{ if eq .StructName "Device" }}rereadDevice(ctx, site, d){{ else }}{{ .Method "Get" }}(ctx, site, d.ID){{ end }} })
 {{- end }}
 }
 {{- end }}

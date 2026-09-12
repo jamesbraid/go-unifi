@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Dashboard struct {
@@ -79,101 +78,20 @@ func (dst *DashboardModules) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListDashboard(
-	ctx context.Context,
-	site string,
-) ([]Dashboard, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []Dashboard `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/dashboard", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListDashboard(ctx context.Context, site string) ([]Dashboard, error) {
+	return envelopeList[Dashboard](ctx, c, fmt.Sprintf("api/s/%s/rest/dashboard", site))
 }
 
-func (c *ApiClient) GetDashboard(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Dashboard, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []Dashboard `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetDashboard(ctx context.Context, site string, id string) (*Dashboard, error) {
+	return envelopeOne[Dashboard](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteDashboard(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteDashboard(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, id))
 }
 
-func (c *ApiClient) CreateDashboard(
-	ctx context.Context,
-	site string,
-	d *Dashboard,
-) (*Dashboard, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []Dashboard `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/dashboard", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateDashboard(ctx context.Context, site string, d *Dashboard) (*Dashboard, error) {
+	return envelopeOne[Dashboard](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/dashboard", site), d)
 }
 
 // UpdateDashboardFields writes only the named wire fields and leaves
@@ -181,71 +99,10 @@ func (c *ApiClient) CreateDashboard(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateDashboardFields(
-	ctx context.Context,
-	site string,
-	d *Dashboard,
-	fields ...string,
-) (*Dashboard, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []Dashboard `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetDashboard(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateDashboardFields(ctx context.Context, site string, d *Dashboard, fields ...string) (*Dashboard, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, d.ID), d, fields, func() (*Dashboard, error) { return c.GetDashboard(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateDashboard(
-	ctx context.Context,
-	site string,
-	d *Dashboard,
-) (*Dashboard, error) {
-	var respBody struct {
-		Meta meta        `json:"meta"`
-		Data []Dashboard `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetDashboard(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateDashboard(ctx context.Context, site string, d *Dashboard) (*Dashboard, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/dashboard/%s", site, d.ID), d, func() (*Dashboard, error) { return c.GetDashboard(ctx, site, d.ID) })
 }

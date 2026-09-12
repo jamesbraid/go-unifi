@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type FirewallRule struct {
@@ -95,101 +94,20 @@ func (dst *FirewallRule) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListFirewallRule(
-	ctx context.Context,
-	site string,
-) ([]FirewallRule, error) {
-	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []FirewallRule `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/firewallrule", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListFirewallRule(ctx context.Context, site string) ([]FirewallRule, error) {
+	return envelopeList[FirewallRule](ctx, c, fmt.Sprintf("api/s/%s/rest/firewallrule", site))
 }
 
-func (c *ApiClient) GetFirewallRule(
-	ctx context.Context,
-	site string,
-	id string,
-) (*FirewallRule, error) {
-	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []FirewallRule `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetFirewallRule(ctx context.Context, site string, id string) (*FirewallRule, error) {
+	return envelopeOne[FirewallRule](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteFirewallRule(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteFirewallRule(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, id))
 }
 
-func (c *ApiClient) CreateFirewallRule(
-	ctx context.Context,
-	site string,
-	d *FirewallRule,
-) (*FirewallRule, error) {
-	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []FirewallRule `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/firewallrule", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateFirewallRule(ctx context.Context, site string, d *FirewallRule) (*FirewallRule, error) {
+	return envelopeOne[FirewallRule](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/firewallrule", site), d)
 }
 
 // UpdateFirewallRuleFields writes only the named wire fields and leaves
@@ -197,71 +115,10 @@ func (c *ApiClient) CreateFirewallRule(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateFirewallRuleFields(
-	ctx context.Context,
-	site string,
-	d *FirewallRule,
-	fields ...string,
-) (*FirewallRule, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []FirewallRule `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetFirewallRule(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateFirewallRuleFields(ctx context.Context, site string, d *FirewallRule, fields ...string) (*FirewallRule, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, d.ID), d, fields, func() (*FirewallRule, error) { return c.GetFirewallRule(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateFirewallRule(
-	ctx context.Context,
-	site string,
-	d *FirewallRule,
-) (*FirewallRule, error) {
-	var respBody struct {
-		Meta meta           `json:"meta"`
-		Data []FirewallRule `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetFirewallRule(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateFirewallRule(ctx context.Context, site string, d *FirewallRule) (*FirewallRule, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/firewallrule/%s", site, d.ID), d, func() (*FirewallRule, error) { return c.GetFirewallRule(ctx, site, d.ID) })
 }

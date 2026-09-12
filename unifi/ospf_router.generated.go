@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type OSPFRouter struct {
@@ -110,85 +109,24 @@ func (dst *OSPFRouterInterfaces) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListOSPFRouter(
-	ctx context.Context,
-	site string,
-) ([]OSPFRouter, error) {
-	var respBody []OSPFRouter
+func (c *ApiClient) ListOSPFRouter(ctx context.Context, site string) ([]OSPFRouter, error) {
+	return bareList[OSPFRouter](ctx, c, fmt.Sprintf("v2/api/site/%s/ospf/router", site))
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/ospf/router", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetOSPFRouter(ctx context.Context, site string, id string) (*OSPFRouter, error) {
+	stored, err := c.ListOSPFRouter(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *OSPFRouter) string { return v.ID })
 }
 
-func (c *ApiClient) GetOSPFRouter(
-	ctx context.Context,
-	site string,
-	id string,
-) (*OSPFRouter, error) {
-	respBody, err := c.ListOSPFRouter(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteOSPFRouter(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, id))
 }
 
-func (c *ApiClient) DeleteOSPFRouter(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateOSPFRouter(
-	ctx context.Context,
-	site string,
-	d *OSPFRouter,
-) (*OSPFRouter, error) {
-	var respBody OSPFRouter
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/ospf/router", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateOSPFRouter(ctx context.Context, site string, d *OSPFRouter) (*OSPFRouter, error) {
+	return bareOne[OSPFRouter](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/ospf/router", site), d)
 }
 
 // UpdateOSPFRouterFields writes only the named wire fields and leaves
@@ -196,46 +134,10 @@ func (c *ApiClient) CreateOSPFRouter(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateOSPFRouterFields(
-	ctx context.Context,
-	site string,
-	d *OSPFRouter,
-	fields ...string,
-) (*OSPFRouter, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody OSPFRouter
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateOSPFRouterFields(ctx context.Context, site string, d *OSPFRouter, fields ...string) (*OSPFRouter, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateOSPFRouter(
-	ctx context.Context,
-	site string,
-	d *OSPFRouter,
-) (*OSPFRouter, error) {
-	var respBody OSPFRouter
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateOSPFRouter(ctx context.Context, site string, d *OSPFRouter) (*OSPFRouter, error) {
+	return bareOne[OSPFRouter](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/ospf/router/%s", site, d.ID), d)
 }
