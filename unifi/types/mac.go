@@ -1,40 +1,6 @@
 package types
 
-import (
-	"encoding/json"
-	"strings"
-)
-
-// MAC is a MAC address field, normalised on decode to the lowercase
-// colon-separated form the controller's own schema requires
-// (^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$).
-//
-// Callers compare MACs with == -- against a value they were given, against
-// one they typed, against one read back from a different endpoint. That only
-// works if every MAC the SDK hands out has the same shape, and the
-// controller is not consistent about it. Decoding through this type makes
-// the read side canonical; the write side is deliberately untouched, since
-// rewriting a caller's MAC on the way out would make the SDK accept input
-// the controller itself refuses.
-type MAC string
-
-func (m *MAC) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 || string(data) == "null" {
-		return nil
-	}
-
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	*m = MAC(NormalizeMAC(s))
-	return nil
-}
-
-// String returns the normalised address.
-func (m MAC) String() string {
-	return string(m)
-}
+import "strings"
 
 // NormalizeMAC rewrites a MAC address to lowercase colon-separated form,
 // accepting the separators seen in the wild: colons, hyphens, Cisco-style
@@ -82,23 +48,4 @@ func NormalizeMAC(s string) string {
 		out.WriteString(digits[i : i+2])
 	}
 	return out.String()
-}
-
-// MACString converts a decoded MAC back to a plain string. Generated code
-// stopped decoding through MAC when read-side normalization was reverted;
-// the helpers stay for callers that normalize explicitly.
-func MACString(m MAC) string {
-	return string(m)
-}
-
-// MACStrings is MACString over a slice, for generated []string fields.
-func MACStrings(m []MAC) []string {
-	if m == nil {
-		return nil
-	}
-	out := make([]string, len(m))
-	for i, v := range m {
-		out[i] = string(v)
-	}
-	return out
 }

@@ -318,11 +318,6 @@ func (c *ApiClient) setCloudConsoleID(consoleID string) {
 	}
 }
 
-// GetCloudConsoleID returns the currently configured cloud console ID.
-func (c *ApiClient) GetCloudConsoleID() string {
-	return c.cloudConsoleID
-}
-
 // enableCloudConnector fetches available hosts and configures the client to use
 // the Cloud Connector API. Selection priority:
 // 1. If hostIndex >= 0: uses the host at that index
@@ -344,7 +339,7 @@ func (c *ApiClient) enableCloudConnector(ctx context.Context, hostIndex int) (st
 	// If explicit index provided, use it
 	if hostIndex >= 0 && hostIndex < len(hosts.Data) {
 		selectedHost = &hosts.Data[hostIndex]
-	} else if selectedHost = FindOwnerHost(hosts); selectedHost == nil {
+	} else if selectedHost = findOwnerHost(hosts); selectedHost == nil {
 		// Fallback to first host if no owner found
 		selectedHost = &hosts.Data[0]
 	}
@@ -362,7 +357,7 @@ func (c *ApiClient) enableCloudConnectorByHardwareID(ctx context.Context, hardwa
 		return "", err
 	}
 
-	host := FindHostByHardwareID(hosts, hardwareID)
+	host := findHostByHardwareID(hosts, hardwareID)
 	if host == nil {
 		return "", fmt.Errorf("no host found with hardware ID: %s", hardwareID)
 	}
@@ -371,9 +366,9 @@ func (c *ApiClient) enableCloudConnectorByHardwareID(ctx context.Context, hardwa
 	return host.ID, nil
 }
 
-// FindHostByHardwareID searches a host list for a specific hardware ID.
+// findHostByHardwareID searches a host list for a specific hardware ID.
 // Returns nil if not found.
-func FindHostByHardwareID(hostList *UnifiHostList, hardwareID string) *UnifiHost {
+func findHostByHardwareID(hostList *UnifiHostList, hardwareID string) *UnifiHost {
 	if hostList == nil {
 		return nil
 	}
@@ -386,9 +381,9 @@ func FindHostByHardwareID(hostList *UnifiHostList, hardwareID string) *UnifiHost
 	return nil
 }
 
-// FindOwnerHost returns the first host where owner=true.
+// findOwnerHost returns the first host where owner=true.
 // Returns nil if no owner host found.
-func FindOwnerHost(hostList *UnifiHostList) *UnifiHost {
+func findOwnerHost(hostList *UnifiHostList) *UnifiHost {
 	if hostList == nil {
 		return nil
 	}
