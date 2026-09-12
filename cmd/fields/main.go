@@ -279,11 +279,12 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 
 	// REST paths that differ from the schema name come from
 	// overrides/fields.toml.
-	if override, ok := resourceOverrides()[structName]; ok && override.Path != "" {
+	override := resourceOverrides()[structName]
+	if override.Path != "" {
 		resource.ResourcePath = override.Path
 	}
 	resource.ListResourcePath = resource.ResourcePath
-	if override, ok := resourceOverrides()[structName]; ok && override.ListPath != "" {
+	if override.ListPath != "" {
 		resource.ListResourcePath = override.ListPath
 	}
 
@@ -762,10 +763,8 @@ func main() {
 
 		// For settings, create a cleaner filename without "setting_" prefix
 		goFile := strcase.ToSnake(structName) + ".generated.go"
-		if after, ok0 := strings.CutPrefix(structName, "Setting"); ok0 {
-			// Remove "Setting" prefix for the file name
-			cleanStructName := after
-			goFile = strcase.ToSnake(cleanStructName) + ".generated.go"
+		if after, ok := strings.CutPrefix(structName, "Setting"); ok {
+			goFile = strcase.ToSnake(after) + ".generated.go"
 		}
 		fieldsFilePath := filepath.Join(fieldsDir, fieldsFile.Name())
 		b, err := os.ReadFile(fieldsFilePath)
@@ -919,15 +918,6 @@ func main() {
 				case "LastSeen":
 					f.FieldType = fields.Int
 					f.IsPointer = true
-				}
-				return nil
-			}
-		case "WLAN":
-			resource.FieldProcessor = func(name string, f *FieldInfo) error {
-				switch name {
-				case "ScheduleWithDuration":
-					// always send schedule, so we can empty it if we want to
-					f.OmitEmpty = false
 				}
 				return nil
 			}
@@ -1172,10 +1162,6 @@ const UnifiVersion = %q
 
 func (r *ResourceInfo) IsSetting() bool {
 	return strings.HasPrefix(r.StructName, "Setting")
-}
-
-func (r *ResourceInfo) IsDevice() bool {
-	return r.StructName == "Device"
 }
 
 func (r *ResourceInfo) IsV2() bool {

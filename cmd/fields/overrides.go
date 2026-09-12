@@ -191,7 +191,6 @@ func (r *ResourceInfo) applyOverrideToType(typeName string, override resourceOve
 				f.CustomUnmarshalType = fo.UnmarshalType
 			}
 			if fo.UnmarshalFunc != "" {
-				f.ReadOnly = fo.ReadOnly
 				f.CustomUnmarshalFunc = fo.UnmarshalFunc
 			}
 			if fo.Doc != "" {
