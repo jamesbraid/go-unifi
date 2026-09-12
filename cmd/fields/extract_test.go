@@ -151,7 +151,7 @@ func runExtraction(t *testing.T, artifact []byte) (fieldsDir, metadataDir string
 
 	networkVersion, err := readNetworkVersion(arts.aceJar)
 	require.NoError(t, err)
-	require.Equal(t, "10.4.57", networkVersion.String())
+	require.Equal(t, "10.4.57", networkVersion)
 
 	defsJar, err := resolveDefsJar(arts, workDir)
 	require.NoError(t, err)

@@ -19,7 +19,6 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/capturelock"
@@ -359,27 +358,27 @@ func buildLockedSchemas(
 	artifactPath string,
 	expectedNetworkVersion string,
 	expectedSnapshots *capturelock.Snapshots,
-) (*version.Version, capturelock.Snapshots, error) {
+) (string, capturelock.Snapshots, error) {
 	tmpRoot := filepath.Join(filepath.Dir(schemasDir), ".tmp")
 	if err := os.MkdirAll(tmpRoot, 0o755); err != nil {
-		return nil, capturelock.Snapshots{}, err
+		return "", capturelock.Snapshots{}, err
 	}
 	workDir, err := os.MkdirTemp(tmpRoot, "schema-run-")
 	if err != nil {
-		return nil, capturelock.Snapshots{}, err
+		return "", capturelock.Snapshots{}, err
 	}
 	defer os.RemoveAll(workDir)
 
 	arts, err := extractArtifacts(artifactPath, workDir)
 	if err != nil {
-		return nil, capturelock.Snapshots{}, err
+		return "", capturelock.Snapshots{}, err
 	}
 	networkVersion, err := readNetworkVersion(arts.aceJar)
 	if err != nil {
-		return nil, capturelock.Snapshots{}, fmt.Errorf("unable to determine UniFi Network version: %w", err)
+		return "", capturelock.Snapshots{}, fmt.Errorf("unable to determine UniFi Network version: %w", err)
 	}
-	if expectedNetworkVersion != "" && networkVersion.String() != expectedNetworkVersion {
-		return nil, capturelock.Snapshots{}, fmt.Errorf(
+	if expectedNetworkVersion != "" && networkVersion != expectedNetworkVersion {
+		return "", capturelock.Snapshots{}, fmt.Errorf(
 			"artifact reports UniFi Network %s, lock requires %s",
 			networkVersion,
 			expectedNetworkVersion,
@@ -388,20 +387,20 @@ func buildLockedSchemas(
 
 	defsJar, err := resolveDefsJar(arts, workDir)
 	if err != nil {
-		return nil, capturelock.Snapshots{}, err
+		return "", capturelock.Snapshots{}, err
 	}
 	stagingFields := filepath.Join(workDir, "fields")
 	stagingMetadata := filepath.Join(workDir, "metadata")
 	if err := extractSchemas(defsJar, stagingFields, stagingMetadata, customDir); err != nil {
-		return nil, capturelock.Snapshots{}, err
+		return "", capturelock.Snapshots{}, err
 	}
 	structuralDigest, fieldDocuments, err := capturelock.DigestSnapshot(stagingFields)
 	if err != nil {
-		return nil, capturelock.Snapshots{}, fmt.Errorf("digest structural snapshot: %w", err)
+		return "", capturelock.Snapshots{}, fmt.Errorf("digest structural snapshot: %w", err)
 	}
 	sensitivityDigest, err := capturelock.DigestFile(filepath.Join(stagingMetadata, "sensitive_metadata.json"))
 	if err != nil {
-		return nil, capturelock.Snapshots{}, fmt.Errorf("digest sensitivity snapshot: %w", err)
+		return "", capturelock.Snapshots{}, fmt.Errorf("digest sensitivity snapshot: %w", err)
 	}
 	snapshots := capturelock.Snapshots{
 		StructuralSHA256:  structuralDigest,
@@ -410,14 +409,14 @@ func buildLockedSchemas(
 	}
 	if expectedSnapshots != nil {
 		if structuralDigest != expectedSnapshots.StructuralSHA256 {
-			return nil, capturelock.Snapshots{}, fmt.Errorf(
+			return "", capturelock.Snapshots{}, fmt.Errorf(
 				"structural snapshot SHA-256 is %s, lock requires %s",
 				structuralDigest,
 				expectedSnapshots.StructuralSHA256,
 			)
 		}
 		if sensitivityDigest != expectedSnapshots.SensitivitySHA256 {
-			return nil, capturelock.Snapshots{}, fmt.Errorf(
+			return "", capturelock.Snapshots{}, fmt.Errorf(
 				"sensitivity snapshot SHA-256 is %s, lock requires %s",
 				sensitivityDigest,
 				expectedSnapshots.SensitivitySHA256,
@@ -430,7 +429,7 @@ func buildLockedSchemas(
 		// these per-document entries without ever seeing the tree, so this is
 		// the only place that disagreement is visible at all.
 		if err := verifyFieldDocuments(expectedSnapshots.FieldDocuments, fieldDocuments); err != nil {
-			return nil, capturelock.Snapshots{}, err
+			return "", capturelock.Snapshots{}, err
 		}
 	}
 
@@ -439,10 +438,10 @@ func buildLockedSchemas(
 		{stagingMetadata, metadataDir},
 	} {
 		if err := os.RemoveAll(swap.to); err != nil {
-			return nil, capturelock.Snapshots{}, err
+			return "", capturelock.Snapshots{}, err
 		}
 		if err := os.Rename(swap.from, swap.to); err != nil {
-			return nil, capturelock.Snapshots{}, err
+			return "", capturelock.Snapshots{}, err
 		}
 	}
 	return networkVersion, snapshots, nil
@@ -686,7 +685,7 @@ func main() {
 	}
 	if *snapshotOutput != "" {
 		if err := capturelock.WriteInspectionFile(*snapshotOutput, capturelock.Inspection{
-			NetworkVersion: unifiVersion.String(),
+			NetworkVersion: unifiVersion,
 			Snapshots:      snapshots,
 		}); err != nil {
 			panic(err)

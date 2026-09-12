@@ -18,7 +18,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hashicorp/go-version"
 	"github.com/iancoleman/strcase"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 	"pault.ag/go/debian/deb"
@@ -307,19 +306,24 @@ func resolveDefsJar(a *artifacts, workDir string) (string, error) {
 	return "", errors.New("unable to locate api field definitions in ace.jar")
 }
 
-var productVersionRe = regexp.MustCompile(`(?m)^version=(.+)$`)
+// The capture restricts the value to dotted numerals rather than taking the
+// rest of the line. Capture writes this string into a draft lock with nothing
+// to compare it against, so a reworded or truncated property has to be
+// rejected here or it becomes the pinned version. The neighbouring
+// app-unifi.version carries a build suffix; the line anchor keeps it out.
+var productVersionRe = regexp.MustCompile(`(?m)^version=[ \t]*(\d+(?:\.\d+)*)[ \t\r]*$`)
 
 // readNetworkVersion reads the UniFi Network application version from
 // product.properties inside ace.jar (at the root of the thin launcher jar,
 // under BOOT-INF/classes in the Spring Boot fat jar).
-func readNetworkVersion(aceJar string) (*version.Version, error) {
+func readNetworkVersion(aceJar string) (string, error) {
 	if aceJar == "" {
-		return nil, errors.New("no ace.jar available")
+		return "", errors.New("no ace.jar available")
 	}
 
 	zr, err := zip.OpenReader(aceJar)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open ace.jar: %w", err)
+		return "", fmt.Errorf("unable to open ace.jar: %w", err)
 	}
 	defer zr.Close()
 
@@ -331,12 +335,12 @@ func readNetworkVersion(aceJar string) (*version.Version, error) {
 
 		m := productVersionRe.FindSubmatch(props)
 		if m == nil {
-			return nil, fmt.Errorf("no version property in %s", name)
+			return "", fmt.Errorf("no dotted-numeral version property in %s", name)
 		}
-		return version.NewVersion(strings.TrimSpace(string(m[1])))
+		return string(m[1]), nil
 	}
 
-	return nil, errors.New("product.properties not found in ace.jar")
+	return "", errors.New("product.properties not found in ace.jar")
 }
 
 // extractSchemas writes the api/fields definitions into fieldsDir and the
