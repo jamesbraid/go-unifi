@@ -20,14 +20,7 @@ import (
 // a statement about one controller generation, and measuring it against the
 // wrong one attributes the answer to a release that never produced it.
 func TestDefaultImageMatchesTheCapturedVersion(t *testing.T) {
-	raw, err := os.ReadFile("../../schemas/VERSION")
-	if err != nil {
-		t.Fatalf("read the captured version: %v", err)
-	}
-	version := strings.TrimSpace(string(raw))
-	if version == "" {
-		t.Fatal("schemas/VERSION is empty; this check would pass against anything")
-	}
+	version := capturedVersion(t)
 
 	want := "ghcr.io/jamesbraid/unifi-network:" + version + "-sim"
 	if defaultImage != want {
@@ -37,4 +30,21 @@ func TestDefaultImageMatchesTheCapturedVersion(t *testing.T) {
 			"a local measurement attributed to the wrong generation is the failure "+
 			"this guards.", defaultImage, want, version)
 	}
+}
+
+// capturedVersion reads schemas/VERSION, the controller build the schemas were
+// captured from. Both harness defaults have to boot it, so both the pin check
+// here and the UOS boot assertion read it from the marker rather than from a
+// constant that can be forgotten.
+func capturedVersion(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("../../schemas/VERSION")
+	if err != nil {
+		t.Fatalf("read the captured version: %v", err)
+	}
+	version := strings.TrimSpace(string(raw))
+	if version == "" {
+		t.Fatal("schemas/VERSION is empty; this check would pass against anything")
+	}
+	return version
 }
