@@ -888,17 +888,11 @@ func TestIntegrationOSPFRouterWriteContract(t *testing.T) {
 // what an OSPF area can safely name.
 func defaultLANNetworkID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
 	t.Helper()
-	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/rest/networkconf")
-	if err != nil || status != 200 {
-		t.Fatalf("list networkconf: status %d, %v", status, err)
+	nets, err := listNetworks(ctx, s, site)
+	if err != nil {
+		t.Fatalf("list networkconf: %v", err)
 	}
-	m, _ := body.(map[string]any)
-	items, _ := m["data"].([]any)
-	for _, item := range items {
-		obj, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, obj := range nets {
 		if purpose, _ := obj["purpose"].(string); purpose == PurposeCorporate {
 			if id, _ := obj["_id"].(string); id != "" {
 				return id

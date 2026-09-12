@@ -334,20 +334,11 @@ func seedVLANNetwork(ctx context.Context, t *testing.T, s *controllertest.Sessio
 // firstCorporateNetworkID returns the site's default LAN network id.
 func firstCorporateNetworkID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
 	t.Helper()
-	body, status, err := s.GetJSON(ctx, "/api/s/"+site+"/rest/networkconf")
-	if err != nil || status != 200 {
-		t.Fatalf("list networks: status=%d err=%v", status, err)
+	nets, err := listNetworks(ctx, s, site)
+	if err != nil {
+		t.Fatalf("list networks: %v", err)
 	}
-	envelope, ok := body.(map[string]any)
-	if !ok {
-		t.Fatalf("list networks: unexpected body shape %T", body)
-	}
-	data, _ := envelope["data"].([]any)
-	for _, item := range data {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, m := range nets {
 		if m["purpose"] == PurposeCorporate {
 			if id, ok := m["_id"].(string); ok {
 				return id
