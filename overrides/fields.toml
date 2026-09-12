@@ -227,20 +227,6 @@ type = "bool"
 omitempty = true
 pointer = true
 
-[Network.field.ip_aliases]
-add = true
-name = "IPAliases"
-type = "string"
-omitempty = true
-array = true
-
-[Network.field.dhcp_relay_servers]
-add = true
-name = "DHCPRelayServers"
-type = "string"
-omitempty = true
-array = true
-
 # The schema defines this since 10.x (in which case only the rename applies
 # and the schema's validation is kept); the add covers older controllers.
 # The rename undoes cleanName's IPVersion->Version rewrite, which is meant
