@@ -39,8 +39,8 @@ type Preference struct {
 
 	// UOSExcludes lists entries of Owns that do NOT hold when the Network
 	// app runs inside UniFi OS, because the console owns the field outright
-	// and neither mode reaches it. The artifact's uos_pins section, stamped
-	// with the build the UOS harness bundled (its uos_network_version).
+	// and neither mode reaches it. The artifact's uos_pins section, measured
+	// on the same controller build as Owns.
 	//
 	// Only ever a subset of Owns. A field UOS pins is still owned by the
 	// mode on standalone, and that measurement stays recorded rather than
@@ -70,7 +70,7 @@ func (p Preference) OwnsOn(uos bool) []string {
 // mode's key -- the mode's wire name, or a dotted path when the mode sits
 // inside a sub-object ("port_overrides.setting_preference").
 //
-// The probes write both sections under BEHAVIOR_WRITE=1 and stamp the builds
+// The probes write both sections under BEHAVIOR_WRITE=1 and stamp the build
 // they ran against. A uos_pins entry for a mode the ownership section does
 // not cover is a keying mistake and errors, so the two sections cannot drift
 // apart in silence; pins naming unowned fields are caught downstream by the

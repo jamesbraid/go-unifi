@@ -208,9 +208,8 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 
 	// BEHAVIOR_WRITE=1 re-measures the artifact. The standalone harness
 	// records each mode's owns; the UOS harness records uos_pins -- the
-	// subset of those owns the console holds under BOTH modes -- stamped
-	// with the Network build the harness actually bundles, because UniFi
-	// OS Server trails the standalone .deb.
+	// subset of those owns the console holds under BOTH modes. Both run the
+	// captured Network build, so both halves answer to the same stamp.
 	root, captured := capturedBehaviorVersion(t)
 	writeArtifact := os.Getenv("BEHAVIOR_WRITE") == "1"
 
@@ -223,13 +222,9 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 	var measurements []measuredOwnership
 
 	live := controllerVersion(ctx, t, s)
-	if writeArtifact && !onUOSHarness() && live != captured {
+	if writeArtifact && live != captured {
 		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
 			"recording would file the measurement against the wrong controller", live, captured)
-	}
-	artifact, _, err := behavior.Load(root)
-	if err != nil {
-		t.Fatalf("load %s: %v", behavior.Path, err)
 	}
 
 	deps := probeDeps{
@@ -289,10 +284,7 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 			if onUOSHarness() {
 				// The console's pins: fields the mode owns on standalone
 				// that this harness refused under BOTH modes -- whatever
-				// the mode said, the console kept its own value. The pins
-				// carry the UOS harness's own build stamp, so they compare
-				// and record here even while UniFi OS Server bundles an
-				// older Network app than the lock.
+				// the mode said, the console kept its own value.
 				pins := []string{}
 				for wire := range manual {
 					if _, both := auto[wire]; !both {
@@ -306,11 +298,12 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 				switch {
 				case writeArtifact:
 					measurements = append(measurements, measuredOwnership{probe.resource, probe.key(), pins})
-				case artifact.UOSNetworkVersion == "":
-					t.Logf("no uos_pins recorded; BEHAVIOR_WRITE=1 on this harness records them")
-				case artifact.UOSNetworkVersion != live:
-					t.Logf("uos_pins were measured on %s, this harness bundles %s; not comparing them",
-						artifact.UOSNetworkVersion, live)
+				case entry.Measured != "" && entry.Measured != live:
+					// Same rule as the owns comparison below, and it has to
+					// be applied before the pins are judged: a pin set from
+					// another build says nothing about this one.
+					t.Logf("uos_pins were measured on %s, this controller is %s; not comparing them",
+						entry.Measured, live)
 				case !slices.Equal(entry.UOSExcludes, pins):
 					t.Errorf("%s.%s console pins moved: recorded %v, measured %v. Re-measure with "+
 						"BEHAVIOR_WRITE=1 on the UOS harness rather than editing by hand.",
@@ -343,7 +336,6 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 			target := &a.Ownership
 			if onUOSHarness() {
 				target = &a.UOSPins
-				a.UOSNetworkVersion = live
 			}
 			if *target == nil {
 				*target = map[string]map[string][]string{}

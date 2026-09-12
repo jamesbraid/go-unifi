@@ -41,13 +41,6 @@ type Artifact struct {
 	// Preference.UOSExcludes. A key absent here has no measured exclusions.
 	UOSPins map[string]map[string][]string `json:"uos_pins,omitempty"`
 
-	// UOSNetworkVersion names the Network build bundled by the UniFi OS
-	// harness the pins were measured on. UniFi OS Server trails the
-	// standalone .deb, so this legitimately differs from ControllerVersion
-	// -- which is why the pins carry their own stamp instead of borrowing
-	// the artifact's.
-	UOSNetworkVersion string `json:"uos_network_version,omitempty"`
-
 	// Discarded: per resource, wire names the controller accepts on create
 	// and does not store -- the round-trip probe's finding. Replaces the
 	// wantDiscarded baselines.

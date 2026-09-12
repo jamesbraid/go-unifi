@@ -37,15 +37,17 @@ func TestIntegrationControllerBoots(t *testing.T) {
 	runningVersion := sysinfoVersion(wrapped)
 	t.Logf("controller version: %q", runningVersion)
 
-	// The UOS arm carries its own expectation in code rather than from the
-	// environment: its bundled Network app is not schemas/VERSION, and an
-	// expectation nobody sets is what let this arm run two releases behind
-	// while reporting green.
-	if strings.EqualFold(os.Getenv("UNIFI_TEST_HARNESS"), "uos") && os.Getenv("UNIFI_TEST_IMAGE") == "" {
-		if runningVersion != uosNetworkVersion {
-			t.Errorf("UOS image %s should bundle Network %s but the controller reports %q; "+
-				"bump uosDefaultImage and uosNetworkVersion together",
-				uosDefaultImage, uosNetworkVersion, runningVersion)
+	// The UOS arm carries its expectation in code rather than from the
+	// environment, because CI sets UNIFI_TEST_EXPECT_VERSION on the standalone
+	// leg only, and an expectation nobody sets is what let this arm run two
+	// Network releases behind while reporting green. The expectation is the
+	// captured version: the UOS image installs the pinned Network app with the
+	// product's own updater, so both harnesses boot what schemas/VERSION names.
+	if strings.EqualFold(os.Getenv("UNIFI_TEST_HARNESS"), "uos") && os.Getenv("UNIFI_UOS_IMAGE") == "" {
+		if want := capturedVersion(t); runningVersion != want {
+			t.Errorf("UOS image %s should bundle Network %s (schemas/VERSION) but the controller "+
+				"reports %q; bump uosDefaultImage to an image built against the captured version",
+				uosDefaultImage, want, runningVersion)
 		}
 	}
 
