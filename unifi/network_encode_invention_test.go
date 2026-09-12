@@ -76,7 +76,7 @@ func isZeroJSON(v any) bool {
 // never fires -- it only fires when the caller left the field nil, which is
 // the case that ships broken. This test is that case.
 func TestNetworkEncoderInventsNothing(t *testing.T) {
-	for _, purpose := range networkEncoderPurposes {
+	for _, purpose := range NetworkPurposes {
 		t.Run(purpose, func(t *testing.T) {
 			data, err := json.Marshal(&Network{Purpose: purpose})
 			if err != nil {
