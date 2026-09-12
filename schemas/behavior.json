@@ -333,5 +333,19 @@
         "router_id"
       ]
     }
+  },
+  "rejected_creates": {
+    "FirewallZone": {
+      "status": 404,
+      "stored": true
+    },
+    "Nat": {
+      "status": 500,
+      "stored": false
+    },
+    "Network": {
+      "status": 400,
+      "stored": false
+    }
   }
 }
