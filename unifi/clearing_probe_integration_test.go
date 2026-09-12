@@ -268,24 +268,14 @@ func clearingProbeResources(t *testing.T, ctx context.Context, s *controllertest
 				"name": "clear-wlan", "enabled": true,
 				"security": "wpapsk", "x_passphrase": "probe-passphrase",
 				"wpa_mode": "wpa2", "wpa_enc": "ccmp",
-				"usergroup_id": firstUserGroupID(ctx, t, s, site),
-				"wlangroup_id": firstWLANGroupID(ctx, t, s, site),
+				// The stock usergroup and wlangroup: a WLAN must reference
+				// both before the controller will create it.
+				"usergroup_id": firstObjectID(ctx, t, s, site, "usergroup"),
+				"wlangroup_id": firstObjectID(ctx, t, s, site, "wlangroup"),
 				"ap_group_ids": []string{requiredAPGroupID(ctx, t, s, site)},
 			},
 		},
 	}
-}
-
-// firstUserGroupID and firstWLANGroupID resolve the stock objects a WLAN must
-// reference before the controller will create it.
-func firstUserGroupID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
-	t.Helper()
-	return firstObjectID(ctx, t, s, site, "usergroup")
-}
-
-func firstWLANGroupID(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
-	t.Helper()
-	return firstObjectID(ctx, t, s, site, "wlangroup")
 }
 
 // requiredAPGroupID resolves the site's default AP group. Creating a WLAN
