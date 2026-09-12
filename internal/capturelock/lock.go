@@ -4,6 +4,7 @@ package capturelock
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -89,19 +90,8 @@ func LoadDraftFile(filename string) (Lock, error) {
 }
 
 func loadFile(filename string, requireInspection bool) (Lock, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return Lock{}, fmt.Errorf("open capture lock: %w", err)
-	}
-	defer f.Close()
-
-	decoder := json.NewDecoder(bufio.NewReader(f))
-	decoder.DisallowUnknownFields()
 	var lock Lock
-	if err := decoder.Decode(&lock); err != nil {
-		return Lock{}, fmt.Errorf("decode capture lock: %w", err)
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
+	if err := decodeStrictJSONFile(filename, "capture lock", &lock); err != nil {
 		return Lock{}, err
 	}
 	if err := lock.validate(requireInspection); err != nil {
@@ -110,16 +100,29 @@ func loadFile(filename string, requireInspection bool) (Lock, error) {
 	return lock, nil
 }
 
-func ensureJSONEOF(decoder *json.Decoder) error {
+// decodeStrictJSONFile decodes filename into v, rejecting unknown fields and
+// anything after the first JSON value.
+func decodeStrictJSONFile(filename, what string, v any) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", what, err)
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(bufio.NewReader(f))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(v); err != nil {
+		return fmt.Errorf("decode %s: %w", what, err)
+	}
 	var extra any
-	err := decoder.Decode(&extra)
+	err = decoder.Decode(&extra)
 	if errors.Is(err, io.EOF) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("decode capture lock trailer: %w", err)
+		return fmt.Errorf("decode %s trailer: %w", what, err)
 	}
-	return errors.New("capture lock contains more than one JSON value")
+	return fmt.Errorf("%s contains more than one JSON value", what)
 }
 
 func (l Lock) Validate() error {
@@ -145,31 +148,26 @@ func (l Lock) validate(requireInspection bool) error {
 	if l.Source.ByteSize <= 0 {
 		return errors.New("source.byte_size must be positive")
 	}
-	digests := map[string]string{
+	for name, value := range map[string]string{
 		"source.sha256":                  l.Source.SHA256,
 		"inputs.extraction_rules_sha256": l.Inputs.ExtractionRulesSHA256,
 		"inputs.generator_inputs_sha256": l.Inputs.GeneratorInputsSHA256,
+	} {
+		if !validSHA256(value) {
+			return fmt.Errorf("%s must be 64 lowercase hexadecimal characters", name)
+		}
 	}
 	if requireInspection {
 		if strings.TrimSpace(l.Controller.NetworkVersion) == "" {
 			return errors.New("controller.network_version is required")
 		}
-		digests["snapshots.structural_sha256"] = l.Snapshots.StructuralSHA256
-		digests["snapshots.sensitivity_sha256"] = l.Snapshots.SensitivitySHA256
-		if len(l.Snapshots.FieldDocuments) == 0 {
-			return errors.New("snapshots.field_documents is required")
+		if err := validateSnapshots(l.Snapshots); err != nil {
+			return err
 		}
-	}
-	for name, value := range l.Snapshots.FieldDocuments {
-		if err := validSnapshotMemberName(name); err != nil {
-			return fmt.Errorf("snapshots.field_documents key %q %w", name, err)
-		}
-		digests["snapshots.field_documents."+name] = value
-	}
-	for name, value := range digests {
-		if !validSHA256(value) {
-			return fmt.Errorf("%s must be 64 lowercase hexadecimal characters", name)
-		}
+	} else if err := validateFieldDocuments(l.Snapshots.FieldDocuments); err != nil {
+		// A draft has no snapshots yet, but any field documents it does
+		// carry still have to be well formed.
+		return err
 	}
 	if _, err := time.Parse(time.RFC3339, l.CapturedAt); err != nil {
 		return fmt.Errorf("captured_at must be RFC3339: %w", err)
@@ -216,18 +214,8 @@ func WriteDraftFile(filename string, lock Lock) error {
 }
 
 func LoadInspectionFile(filename string) (Inspection, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return Inspection{}, fmt.Errorf("open capture inspection: %w", err)
-	}
-	defer f.Close()
-	decoder := json.NewDecoder(bufio.NewReader(f))
-	decoder.DisallowUnknownFields()
 	var inspection Inspection
-	if err := decoder.Decode(&inspection); err != nil {
-		return Inspection{}, fmt.Errorf("decode capture inspection: %w", err)
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
+	if err := decodeStrictJSONFile(filename, "capture inspection", &inspection); err != nil {
 		return Inspection{}, err
 	}
 	if err := inspection.Validate(); err != nil {
@@ -240,27 +228,33 @@ func WriteInspectionFile(filename string, inspection Inspection) error {
 	if err := inspection.Validate(); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(inspection, "", "  ")
-	if err != nil {
-		return err
-	}
-	return writeAtomic(filename, append(data, '\n'), 0o644)
+	return writeJSONFile(filename, inspection)
 }
 
 func (i Inspection) Validate() error {
 	if strings.TrimSpace(i.NetworkVersion) == "" {
 		return errors.New("network_version is required")
 	}
-	if !validSHA256(i.Snapshots.StructuralSHA256) {
+	return validateSnapshots(i.Snapshots)
+}
+
+// validateSnapshots checks the complete digest set an inspected snapshot
+// tree must carry.
+func validateSnapshots(s Snapshots) error {
+	if !validSHA256(s.StructuralSHA256) {
 		return errors.New("snapshots.structural_sha256 must be 64 lowercase hexadecimal characters")
 	}
-	if !validSHA256(i.Snapshots.SensitivitySHA256) {
+	if !validSHA256(s.SensitivitySHA256) {
 		return errors.New("snapshots.sensitivity_sha256 must be 64 lowercase hexadecimal characters")
 	}
-	if len(i.Snapshots.FieldDocuments) == 0 {
+	if len(s.FieldDocuments) == 0 {
 		return errors.New("snapshots.field_documents is required")
 	}
-	for name, value := range i.Snapshots.FieldDocuments {
+	return validateFieldDocuments(s.FieldDocuments)
+}
+
+func validateFieldDocuments(docs map[string]string) error {
+	for name, value := range docs {
 		if err := validSnapshotMemberName(name); err != nil {
 			return fmt.Errorf("snapshots.field_documents key %q %w", name, err)
 		}
@@ -275,12 +269,17 @@ func writeFile(filename string, lock Lock, requireInspection bool) error {
 	if err := lock.validate(requireInspection); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(lock, "", "  ")
+	return writeJSONFile(filename, lock)
+}
+
+// writeJSONFile writes v atomically in the canonical form both lock-adjacent
+// files use: two-space indented, newline terminated.
+func writeJSONFile(filename string, v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encode capture lock: %w", err)
+		return err
 	}
-	data = append(data, '\n')
-	return writeAtomic(filename, data, 0o644)
+	return writeAtomic(filename, append(data, '\n'), 0o644)
 }
 
 func ResolveArtifact(contentStore string, lock Lock) (string, error) {
@@ -339,8 +338,7 @@ func DigestFile(filename string) (string, error) {
 // records for a snapshot: the whole-tree digest, and each document's own
 // digest keyed by its tree-relative slash path.
 //
-// One traversal produces both, and DigestTree is this function with the
-// per-document map discarded, so the two values cannot come to describe
+// One traversal produces both, so the two values cannot come to describe
 // different files. That is the point rather than an optimisation. The lock
 // pins the tree while anything that pins a single document out of it reads
 // from this same map; if the map could omit a file the tree digest covered,
@@ -409,13 +407,6 @@ func DigestSnapshot(root string) (string, map[string]string, error) {
 	return hex.EncodeToString(h.Sum(nil)), documents, nil
 }
 
-// DigestTree returns the whole-tree digest alone, as the capture lock's
-// structural snapshot records it.
-func DigestTree(root string) (string, error) {
-	tree, _, err := DigestSnapshot(root)
-	return tree, err
-}
-
 func StoreArtifact(sourceFilename, contentStore string) (StoredArtifact, error) {
 	stat, err := os.Stat(sourceFilename)
 	if err != nil {
@@ -461,24 +452,7 @@ func StoreArtifact(sourceFilename, contentStore string) (StoredArtifact, error) 
 		return StoredArtifact{}, err
 	}
 	defer source.Close()
-	tmp, err := os.CreateTemp(filepath.Dir(destination), ".artifact-*")
-	if err != nil {
-		return StoredArtifact{}, err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return StoredArtifact{}, err
-	}
-	if _, err := io.Copy(tmp, source); err != nil {
-		tmp.Close()
-		return StoredArtifact{}, err
-	}
-	if err := tmp.Close(); err != nil {
-		return StoredArtifact{}, err
-	}
-	if err := os.Rename(tmpName, destination); err != nil {
+	if err := writeAtomicFrom(destination, source, 0o600); err != nil {
 		return StoredArtifact{}, err
 	}
 	return stored, nil
@@ -642,6 +616,12 @@ func writeAtomic(filename string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
+	return writeAtomicFrom(filename, bytes.NewReader(data), mode)
+}
+
+// writeAtomicFrom copies src to a temp file beside filename and renames it
+// into place, so a reader never sees a partial write.
+func writeAtomicFrom(filename string, src io.Reader, mode os.FileMode) error {
 	tmp, err := os.CreateTemp(filepath.Dir(filename), ".capture-lock-*")
 	if err != nil {
 		return err
@@ -652,7 +632,7 @@ func writeAtomic(filename string, data []byte, mode os.FileMode) error {
 		tmp.Close()
 		return err
 	}
-	if _, err := tmp.Write(data); err != nil {
+	if _, err := io.Copy(tmp, src); err != nil {
 		tmp.Close()
 		return err
 	}

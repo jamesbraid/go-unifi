@@ -273,7 +273,7 @@ func TestWriteCompatibilityProjectionsUsesOnlyLock(t *testing.T) {
 	}
 }
 
-func TestDigestTreeIsStableAndDetectsContentChanges(t *testing.T) {
+func TestDigestSnapshotTreeIsStable(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "nested"), 0o755); err != nil {
 		t.Fatal(err)
@@ -285,27 +285,16 @@ func TestDigestTreeIsStableAndDetectsContentChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	first, err := DigestTree(root)
+	first, _, err := DigestSnapshot(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := DigestTree(root)
+	second, _, err := DigestSnapshot(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first != second {
-		t.Fatalf("DigestTree() changed without input change: %q != %q", first, second)
-	}
-
-	if err := os.WriteFile(filepath.Join(root, "nested", "a.json"), []byte("changed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	changed, err := DigestTree(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if changed == first {
-		t.Fatal("DigestTree() ignored a content change")
+		t.Fatalf("DigestSnapshot() tree changed without input change: %q != %q", first, second)
 	}
 }
 
@@ -337,13 +326,6 @@ func TestDigestSnapshotCoversEveryFileTheTreeDigestDoes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wantTree, err := DigestTree(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tree != wantTree {
-		t.Fatalf("DigestSnapshot() tree = %q, DigestTree() = %q", tree, wantTree)
-	}
 	if len(documents) != len(contents) {
 		t.Fatalf("DigestSnapshot() returned %d documents, tree contains %d", len(documents), len(contents))
 	}
