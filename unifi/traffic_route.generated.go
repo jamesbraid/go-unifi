@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type TrafficRoute struct {
@@ -207,85 +206,24 @@ func (dst *TrafficRouteTargetDevices) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListTrafficRoute(
-	ctx context.Context,
-	site string,
-) ([]TrafficRoute, error) {
-	var respBody []TrafficRoute
+func (c *ApiClient) ListTrafficRoute(ctx context.Context, site string) ([]TrafficRoute, error) {
+	return bareList[TrafficRoute](ctx, c, fmt.Sprintf("v2/api/site/%s/trafficroutes", site))
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/trafficroutes", site),
-		nil,
-		&respBody,
-	)
+func (c *ApiClient) GetTrafficRoute(ctx context.Context, site string, id string) (*TrafficRoute, error) {
+	stored, err := c.ListTrafficRoute(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *TrafficRoute) string { return v.ID })
 }
 
-func (c *ApiClient) GetTrafficRoute(
-	ctx context.Context,
-	site string,
-	id string,
-) (*TrafficRoute, error) {
-	respBody, err := c.ListTrafficRoute(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteTrafficRoute(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, id))
 }
 
-func (c *ApiClient) DeleteTrafficRoute(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateTrafficRoute(
-	ctx context.Context,
-	site string,
-	d *TrafficRoute,
-) (*TrafficRoute, error) {
-	var respBody TrafficRoute
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/trafficroutes", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateTrafficRoute(ctx context.Context, site string, d *TrafficRoute) (*TrafficRoute, error) {
+	return bareOne[TrafficRoute](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/trafficroutes", site), d)
 }
 
 // UpdateTrafficRouteFields writes only the named wire fields and leaves
@@ -293,46 +231,10 @@ func (c *ApiClient) CreateTrafficRoute(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateTrafficRouteFields(
-	ctx context.Context,
-	site string,
-	d *TrafficRoute,
-	fields ...string,
-) (*TrafficRoute, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody TrafficRoute
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateTrafficRouteFields(ctx context.Context, site string, d *TrafficRoute, fields ...string) (*TrafficRoute, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateTrafficRoute(
-	ctx context.Context,
-	site string,
-	d *TrafficRoute,
-) (*TrafficRoute, error) {
-	var respBody TrafficRoute
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateTrafficRoute(ctx context.Context, site string, d *TrafficRoute) (*TrafficRoute, error) {
+	return bareOne[TrafficRoute](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/trafficroutes/%s", site, d.ID), d)
 }

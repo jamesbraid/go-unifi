@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Nat struct {
@@ -161,87 +160,24 @@ func (dst *NatSourceFilter) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listNat(
-	ctx context.Context,
-	site string,
-	query ...map[string]string,
-) ([]Nat, error) {
-	var respBody []Nat
+func (c *ApiClient) listNat(ctx context.Context, site string, query ...map[string]string) ([]Nat, error) {
+	return bareList[Nat](ctx, c, fmt.Sprintf("v2/api/site/%s/nat", site), query...)
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/nat", site),
-		nil,
-		&respBody,
-		query...,
-	)
+func (c *ApiClient) GetNat(ctx context.Context, site string, id string) (*Nat, error) {
+	stored, err := c.listNat(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *Nat) string { return v.ID })
 }
 
-func (c *ApiClient) GetNat(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Nat, error) {
-	respBody, err := c.listNat(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteNat(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/nat/%s", site, id))
 }
 
-func (c *ApiClient) DeleteNat(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/nat/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateNat(
-	ctx context.Context,
-	site string,
-	d *Nat,
-) (*Nat, error) {
-	var respBody Nat
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/nat", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateNat(ctx context.Context, site string, d *Nat) (*Nat, error) {
+	return bareOne[Nat](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/nat", site), d)
 }
 
 // UpdateNatFields writes only the named wire fields and leaves
@@ -249,46 +185,10 @@ func (c *ApiClient) CreateNat(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateNatFields(
-	ctx context.Context,
-	site string,
-	d *Nat,
-	fields ...string,
-) (*Nat, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody Nat
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/nat/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateNatFields(ctx context.Context, site string, d *Nat, fields ...string) (*Nat, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/nat/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateNat(
-	ctx context.Context,
-	site string,
-	d *Nat,
-) (*Nat, error) {
-	var respBody Nat
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/nat/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateNat(ctx context.Context, site string, d *Nat) (*Nat, error) {
+	return bareOne[Nat](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/nat/%s", site, d.ID), d)
 }

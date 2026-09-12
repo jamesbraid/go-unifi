@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Network struct {
@@ -807,85 +806,16 @@ func (dst *NetworkWANProviderCapabilities) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listNetwork(
-	ctx context.Context,
-	site string,
-	query ...map[string]string,
-) ([]Network, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Network `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/networkconf", site),
-		nil,
-		&respBody,
-		query...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) listNetwork(ctx context.Context, site string, query ...map[string]string) ([]Network, error) {
+	return envelopeList[Network](ctx, c, fmt.Sprintf("api/s/%s/rest/networkconf", site), query...)
 }
 
-func (c *ApiClient) GetNetwork(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Network, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Network `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) GetNetwork(ctx context.Context, site string, id string) (*Network, error) {
+	return envelopeOne[Network](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, id), nil)
 }
 
-func (c *ApiClient) CreateNetwork(
-	ctx context.Context,
-	site string,
-	d *Network,
-) (*Network, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Network `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/rest/networkconf", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateNetwork(ctx context.Context, site string, d *Network) (*Network, error) {
+	return envelopeOne[Network](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/rest/networkconf", site), d)
 }
 
 // UpdateNetworkFields writes only the named wire fields and leaves
@@ -893,71 +823,10 @@ func (c *ApiClient) CreateNetwork(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateNetworkFields(
-	ctx context.Context,
-	site string,
-	d *Network,
-	fields ...string,
-) (*Network, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Network `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.GetNetwork(ctx, site, d.ID)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateNetworkFields(ctx context.Context, site string, d *Network, fields ...string) (*Network, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, d.ID), d, fields, func() (*Network, error) { return c.GetNetwork(ctx, site, d.ID) })
 }
 
-func (c *ApiClient) UpdateNetwork(
-	ctx context.Context,
-	site string,
-	d *Network,
-) (*Network, error) {
-	var respBody struct {
-		Meta meta      `json:"meta"`
-		Data []Network `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	if len(respBody.Data) == 0 {
-		return c.GetNetwork(ctx, site, d.ID)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) UpdateNetwork(ctx context.Context, site string, d *Network) (*Network, error) {
+	return envelopeUpdate(ctx, c, fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, d.ID), d, func() (*Network, error) { return c.GetNetwork(ctx, site, d.ID) })
 }

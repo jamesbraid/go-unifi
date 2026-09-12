@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type ContentFiltering struct {
@@ -80,87 +79,24 @@ func (dst *ContentFilteringSchedule) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listContentFiltering(
-	ctx context.Context,
-	site string,
-	query ...map[string]string,
-) ([]ContentFiltering, error) {
-	var respBody []ContentFiltering
+func (c *ApiClient) listContentFiltering(ctx context.Context, site string, query ...map[string]string) ([]ContentFiltering, error) {
+	return bareList[ContentFiltering](ctx, c, fmt.Sprintf("v2/api/site/%s/content-filtering", site), query...)
+}
 
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/content-filtering", site),
-		nil,
-		&respBody,
-		query...,
-	)
+func (c *ApiClient) GetContentFiltering(ctx context.Context, site string, id string) (*ContentFiltering, error) {
+	stored, err := c.listContentFiltering(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	return respBody, nil
+	return findByID(stored, id, func(v *ContentFiltering) string { return v.ID })
 }
 
-func (c *ApiClient) GetContentFiltering(
-	ctx context.Context,
-	site string,
-	id string,
-) (*ContentFiltering, error) {
-	respBody, err := c.listContentFiltering(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
+func (c *ApiClient) DeleteContentFiltering(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, id))
 }
 
-func (c *ApiClient) DeleteContentFiltering(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) CreateContentFiltering(
-	ctx context.Context,
-	site string,
-	d *ContentFiltering,
-) (*ContentFiltering, error) {
-	var respBody ContentFiltering
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/content-filtering", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) CreateContentFiltering(ctx context.Context, site string, d *ContentFiltering) (*ContentFiltering, error) {
+	return bareOne[ContentFiltering](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/content-filtering", site), d)
 }
 
 // UpdateContentFilteringFields writes only the named wire fields and leaves
@@ -168,46 +104,10 @@ func (c *ApiClient) CreateContentFiltering(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateContentFilteringFields(
-	ctx context.Context,
-	site string,
-	d *ContentFiltering,
-	fields ...string,
-) (*ContentFiltering, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody ContentFiltering
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateContentFilteringFields(ctx context.Context, site string, d *ContentFiltering, fields ...string) (*ContentFiltering, error) {
+	return bareMasked(ctx, c, fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, d.ID), d, fields)
 }
 
-func (c *ApiClient) UpdateContentFiltering(
-	ctx context.Context,
-	site string,
-	d *ContentFiltering,
-) (*ContentFiltering, error) {
-	var respBody ContentFiltering
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
+func (c *ApiClient) UpdateContentFiltering(ctx context.Context, site string, d *ContentFiltering) (*ContentFiltering, error) {
+	return bareOne[ContentFiltering](ctx, c, http.MethodPut, fmt.Sprintf("v2/api/site/%s/content-filtering/%s", site, d.ID), d)
 }

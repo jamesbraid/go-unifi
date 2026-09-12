@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
@@ -21,7 +20,7 @@ var (
 	_ json.Marshaler
 	_ types.Number
 	_ strconv.NumError
-	_ strings.Builder
+	_ http.Client
 )
 
 type Device struct {
@@ -1570,101 +1569,20 @@ func (dst *DeviceVideoInfo) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) ListDevice(
-	ctx context.Context,
-	site string,
-) ([]Device, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Device `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/stat/device", site),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody.Data, nil
+func (c *ApiClient) ListDevice(ctx context.Context, site string) ([]Device, error) {
+	return envelopeList[Device](ctx, c, fmt.Sprintf("api/s/%s/stat/device", site))
 }
 
-func (c *ApiClient) getDevice(
-	ctx context.Context,
-	site string,
-	id string,
-) (*Device, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Device `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("api/s/%s/stat/device/%s", site, id),
-		nil,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	d := respBody.Data[0]
-	return &d, nil
+func (c *ApiClient) getDevice(ctx context.Context, site string, id string) (*Device, error) {
+	return envelopeOne[Device](ctx, c, http.MethodGet, fmt.Sprintf("api/s/%s/stat/device/%s", site, id), nil)
 }
 
-func (c *ApiClient) DeleteDevice(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/stat/device/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
+func (c *ApiClient) DeleteDevice(ctx context.Context, site string, id string) error {
+	return deleteResource(ctx, c, fmt.Sprintf("api/s/%s/stat/device/%s", site, id))
 }
 
-func (c *ApiClient) CreateDevice(
-	ctx context.Context,
-	site string,
-	d *Device,
-) (*Device, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Device `json:"data"`
-	}
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("api/s/%s/stat/device", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
-	return &res, nil
+func (c *ApiClient) CreateDevice(ctx context.Context, site string, d *Device) (*Device, error) {
+	return envelopeOne[Device](ctx, c, http.MethodPost, fmt.Sprintf("api/s/%s/stat/device", site), d)
 }
 
 // UpdateDeviceFields writes only the named wire fields and leaves
@@ -1672,36 +1590,6 @@ func (c *ApiClient) CreateDevice(
 // of the object rather than all of it: an unnamed field keeps its stored
 // value, where a full write would assert this struct's zero value for it.
 // See maskedBody for how the named fields become the request body.
-func (c *ApiClient) UpdateDeviceFields(
-	ctx context.Context,
-	site string,
-	d *Device,
-	fields ...string,
-) (*Device, error) {
-	body, err := maskedBody(d, fields)
-	if err != nil {
-		return nil, err
-	}
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Device `json:"data"`
-	}
-	if err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/device/%s", site, d.ID),
-		body,
-		&respBody,
-	); err != nil {
-		return nil, err
-	}
-
-	if len(respBody.Data) == 0 {
-		return c.rereadDevice(ctx, site, d)
-	}
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-	res := respBody.Data[0]
-	return &res, nil
+func (c *ApiClient) UpdateDeviceFields(ctx context.Context, site string, d *Device, fields ...string) (*Device, error) {
+	return envelopeMasked(ctx, c, fmt.Sprintf("api/s/%s/rest/device/%s", site, d.ID), d, fields, func() (*Device, error) { return c.rereadDevice(ctx, site, d) })
 }
