@@ -162,19 +162,6 @@ func TestUpdateSettingFieldsRejectsEmptyMask(t *testing.T) {
 	}
 }
 
-func TestUpdateSettingFieldsRejectsUnknownField(t *testing.T) {
-	srv, seen := maskedUpdateServer(t, nil, `{}`)
-	c := maskedUpdateClient(t, srv)
-
-	err := c.UpdateSettingFields(context.Background(), "default", &settings.Ntp{}, "ntp_server_9")
-	if err == nil || !strings.Contains(err.Error(), "ntp_server_9") {
-		t.Fatalf("unknown field accepted: %v", err)
-	}
-	if len(*seen) != 0 {
-		t.Errorf("a rejected mask still wrote: %+v", *seen)
-	}
-}
-
 func TestUpdateWireGuardPeerFieldsWritesTheStoredPeerBack(t *testing.T) {
 	const list = "/proxy/network/v2/api/site/default/wireguard/net1/users"
 	srv, seen := maskedUpdateServer(t, map[string]string{

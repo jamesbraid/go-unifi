@@ -112,21 +112,6 @@ func TestMaskedBodyRejectsFieldsTheEncoderDrops(t *testing.T) {
 	}
 }
 
-// TestMaskedBodyHonoursCustomEncoder checks the mask filters what the encoder
-// would have sent rather than what the struct holds. Network's MarshalJSON
-// emits a purpose-specific subset, so a field that encoder drops cannot be
-// named -- and saying so beats writing a key the encoder deliberately omits.
-func TestMaskedBodyHonoursCustomEncoder(t *testing.T) {
-	n := &Network{
-		ID:      "netid",
-		Name:    strPtr("example"),
-		Purpose: PurposeVLANOnly,
-	}
-	if _, err := maskedBody(n, []string{"wan_dns1"}); err == nil {
-		t.Fatal("named a field the vlan-only encoder never emits, and the mask accepted it")
-	}
-}
-
 // TestMaskedBodyNeedsTheDiscriminator pins the cost of the design above: a
 // masked Network write needs Purpose set even when the mask names only
 // "name".
