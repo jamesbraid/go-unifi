@@ -52,10 +52,9 @@ func (dst *MediaFile) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listMediaFile(
+func (c *ApiClient) ListMediaFile(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]MediaFile, error) {
 	var respBody struct {
 		Meta meta        `json:"meta"`
@@ -68,7 +67,6 @@ func (c *ApiClient) listMediaFile(
 		fmt.Sprintf("api/s/%s/rest/mediafile", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -76,7 +74,7 @@ func (c *ApiClient) listMediaFile(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getMediaFile(
+func (c *ApiClient) GetMediaFile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -103,7 +101,7 @@ func (c *ApiClient) getMediaFile(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteMediaFile(
+func (c *ApiClient) DeleteMediaFile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -121,7 +119,7 @@ func (c *ApiClient) deleteMediaFile(
 	return nil
 }
 
-func (c *ApiClient) createMediaFile(
+func (c *ApiClient) CreateMediaFile(
 	ctx context.Context,
 	site string,
 	d *MediaFile,
@@ -186,7 +184,7 @@ func (c *ApiClient) updateMediaFileFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getMediaFile(ctx, site, d.ID)
+		return c.GetMediaFile(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -195,7 +193,7 @@ func (c *ApiClient) updateMediaFileFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateMediaFile(
+func (c *ApiClient) UpdateMediaFile(
 	ctx context.Context,
 	site string,
 	d *MediaFile,
@@ -218,7 +216,7 @@ func (c *ApiClient) updateMediaFile(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getMediaFile(ctx, site, d.ID)
+		return c.GetMediaFile(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

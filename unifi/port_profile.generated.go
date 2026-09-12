@@ -404,10 +404,9 @@ func (dst *PortProfileQOSProfile) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listPortProfile(
+func (c *ApiClient) ListPortProfile(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]PortProfile, error) {
 	var respBody struct {
 		Meta meta          `json:"meta"`
@@ -420,7 +419,6 @@ func (c *ApiClient) listPortProfile(
 		fmt.Sprintf("api/s/%s/rest/portconf", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -428,7 +426,7 @@ func (c *ApiClient) listPortProfile(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getPortProfile(
+func (c *ApiClient) GetPortProfile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -455,7 +453,7 @@ func (c *ApiClient) getPortProfile(
 	return &d, nil
 }
 
-func (c *ApiClient) deletePortProfile(
+func (c *ApiClient) DeletePortProfile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -473,7 +471,7 @@ func (c *ApiClient) deletePortProfile(
 	return nil
 }
 
-func (c *ApiClient) createPortProfile(
+func (c *ApiClient) CreatePortProfile(
 	ctx context.Context,
 	site string,
 	d *PortProfile,
@@ -538,7 +536,7 @@ func (c *ApiClient) updatePortProfileFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getPortProfile(ctx, site, d.ID)
+		return c.GetPortProfile(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -547,7 +545,7 @@ func (c *ApiClient) updatePortProfileFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updatePortProfile(
+func (c *ApiClient) UpdatePortProfile(
 	ctx context.Context,
 	site string,
 	d *PortProfile,
@@ -570,7 +568,7 @@ func (c *ApiClient) updatePortProfile(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getPortProfile(ctx, site, d.ID)
+		return c.GetPortProfile(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

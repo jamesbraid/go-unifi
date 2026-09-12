@@ -796,10 +796,9 @@ func (dst *WLANVenueName) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listWLAN(
+func (c *ApiClient) ListWLAN(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]WLAN, error) {
 	var respBody struct {
 		Meta meta   `json:"meta"`
@@ -812,7 +811,6 @@ func (c *ApiClient) listWLAN(
 		fmt.Sprintf("api/s/%s/rest/wlanconf", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -820,7 +818,7 @@ func (c *ApiClient) listWLAN(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getWLAN(
+func (c *ApiClient) GetWLAN(
 	ctx context.Context,
 	site string,
 	id string,
@@ -847,7 +845,7 @@ func (c *ApiClient) getWLAN(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteWLAN(
+func (c *ApiClient) DeleteWLAN(
 	ctx context.Context,
 	site string,
 	id string,
@@ -865,7 +863,7 @@ func (c *ApiClient) deleteWLAN(
 	return nil
 }
 
-func (c *ApiClient) createWLAN(
+func (c *ApiClient) CreateWLAN(
 	ctx context.Context,
 	site string,
 	d *WLAN,
@@ -930,7 +928,7 @@ func (c *ApiClient) updateWLANFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getWLAN(ctx, site, d.ID)
+		return c.GetWLAN(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -939,7 +937,7 @@ func (c *ApiClient) updateWLANFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateWLAN(
+func (c *ApiClient) UpdateWLAN(
 	ctx context.Context,
 	site string,
 	d *WLAN,
@@ -962,7 +960,7 @@ func (c *ApiClient) updateWLAN(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getWLAN(ctx, site, d.ID)
+		return c.GetWLAN(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

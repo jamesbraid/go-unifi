@@ -66,10 +66,9 @@ func (dst *DHCPOption) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDHCPOption(
+func (c *ApiClient) ListDHCPOption(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]DHCPOption, error) {
 	var respBody struct {
 		Meta meta         `json:"meta"`
@@ -82,7 +81,6 @@ func (c *ApiClient) listDHCPOption(
 		fmt.Sprintf("api/s/%s/rest/dhcpoption", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -90,7 +88,7 @@ func (c *ApiClient) listDHCPOption(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getDHCPOption(
+func (c *ApiClient) GetDHCPOption(
 	ctx context.Context,
 	site string,
 	id string,
@@ -117,7 +115,7 @@ func (c *ApiClient) getDHCPOption(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDHCPOption(
+func (c *ApiClient) DeleteDHCPOption(
 	ctx context.Context,
 	site string,
 	id string,
@@ -135,7 +133,7 @@ func (c *ApiClient) deleteDHCPOption(
 	return nil
 }
 
-func (c *ApiClient) createDHCPOption(
+func (c *ApiClient) CreateDHCPOption(
 	ctx context.Context,
 	site string,
 	d *DHCPOption,
@@ -200,7 +198,7 @@ func (c *ApiClient) updateDHCPOptionFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDHCPOption(ctx, site, d.ID)
+		return c.GetDHCPOption(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -209,7 +207,7 @@ func (c *ApiClient) updateDHCPOptionFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateDHCPOption(
+func (c *ApiClient) UpdateDHCPOption(
 	ctx context.Context,
 	site string,
 	d *DHCPOption,
@@ -232,7 +230,7 @@ func (c *ApiClient) updateDHCPOption(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getDHCPOption(ctx, site, d.ID)
+		return c.GetDHCPOption(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

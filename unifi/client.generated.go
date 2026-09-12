@@ -99,7 +99,7 @@ func (c *ApiClient) listClient(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getClient(
+func (c *ApiClient) GetClient(
 	ctx context.Context,
 	site string,
 	id string,
@@ -126,25 +126,7 @@ func (c *ApiClient) getClient(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteClient(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/user/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) createClient(
+func (c *ApiClient) CreateClient(
 	ctx context.Context,
 	site string,
 	d *Client,
@@ -209,7 +191,7 @@ func (c *ApiClient) updateClientFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getClient(ctx, site, d.ID)
+		return c.GetClient(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -218,7 +200,7 @@ func (c *ApiClient) updateClientFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateClient(
+func (c *ApiClient) UpdateClient(
 	ctx context.Context,
 	site string,
 	d *Client,
@@ -241,7 +223,7 @@ func (c *ApiClient) updateClient(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getClient(ctx, site, d.ID)
+		return c.GetClient(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

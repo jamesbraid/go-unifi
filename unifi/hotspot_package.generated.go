@@ -135,10 +135,9 @@ func (dst *HotspotPackage) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listHotspotPackage(
+func (c *ApiClient) ListHotspotPackage(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]HotspotPackage, error) {
 	var respBody struct {
 		Meta meta             `json:"meta"`
@@ -151,7 +150,6 @@ func (c *ApiClient) listHotspotPackage(
 		fmt.Sprintf("api/s/%s/rest/hotspotpackage", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -159,7 +157,7 @@ func (c *ApiClient) listHotspotPackage(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getHotspotPackage(
+func (c *ApiClient) GetHotspotPackage(
 	ctx context.Context,
 	site string,
 	id string,
@@ -186,7 +184,7 @@ func (c *ApiClient) getHotspotPackage(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteHotspotPackage(
+func (c *ApiClient) DeleteHotspotPackage(
 	ctx context.Context,
 	site string,
 	id string,
@@ -204,7 +202,7 @@ func (c *ApiClient) deleteHotspotPackage(
 	return nil
 }
 
-func (c *ApiClient) createHotspotPackage(
+func (c *ApiClient) CreateHotspotPackage(
 	ctx context.Context,
 	site string,
 	d *HotspotPackage,
@@ -269,7 +267,7 @@ func (c *ApiClient) updateHotspotPackageFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getHotspotPackage(ctx, site, d.ID)
+		return c.GetHotspotPackage(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -278,7 +276,7 @@ func (c *ApiClient) updateHotspotPackageFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateHotspotPackage(
+func (c *ApiClient) UpdateHotspotPackage(
 	ctx context.Context,
 	site string,
 	d *HotspotPackage,
@@ -301,7 +299,7 @@ func (c *ApiClient) updateHotspotPackage(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getHotspotPackage(ctx, site, d.ID)
+		return c.GetHotspotPackage(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

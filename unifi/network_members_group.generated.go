@@ -69,89 +69,6 @@ func (dst *NetworkMembersGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	query ...map[string]string,
-) ([]NetworkMembersGroup, error) {
-	var respBody []NetworkMembersGroup
-
-	err := c.do(
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("v2/api/site/%s/network-members-groups", site),
-		nil,
-		&respBody,
-		query...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return respBody, nil
-}
-
-func (c *ApiClient) getNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	id string,
-) (*NetworkMembersGroup, error) {
-	respBody, err := c.listNetworkMembersGroup(ctx, site)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(respBody) == 0 {
-		return nil, &NotFoundError{}
-	}
-
-	for _, val := range respBody {
-		if val.ID == id {
-			return &val, nil
-		}
-	}
-
-	return nil, &NotFoundError{}
-}
-
-func (c *ApiClient) deleteNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) createNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	d *NetworkMembersGroup,
-) (*NetworkMembersGroup, error) {
-	var respBody NetworkMembersGroup
-
-	err := c.do(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("v2/api/site/%s/network-members-group", site),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
-}
-
 // UpdateNetworkMembersGroupFields writes only the named wire fields and leaves
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored
@@ -180,26 +97,6 @@ func (c *ApiClient) updateNetworkMembersGroupFields(
 		body,
 		&respBody,
 	); err != nil {
-		return nil, err
-	}
-
-	return &respBody, nil
-}
-
-func (c *ApiClient) updateNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	d *NetworkMembersGroup,
-) (*NetworkMembersGroup, error) {
-	var respBody NetworkMembersGroup
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("v2/api/site/%s/network-members-group/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
 		return nil, err
 	}
 

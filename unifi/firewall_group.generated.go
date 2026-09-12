@@ -58,10 +58,9 @@ func (dst *FirewallGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listFirewallGroup(
+func (c *ApiClient) ListFirewallGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]FirewallGroup, error) {
 	var respBody struct {
 		Meta meta            `json:"meta"`
@@ -74,7 +73,6 @@ func (c *ApiClient) listFirewallGroup(
 		fmt.Sprintf("api/s/%s/rest/firewallgroup", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -82,7 +80,7 @@ func (c *ApiClient) listFirewallGroup(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getFirewallGroup(
+func (c *ApiClient) GetFirewallGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -109,7 +107,7 @@ func (c *ApiClient) getFirewallGroup(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteFirewallGroup(
+func (c *ApiClient) DeleteFirewallGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -127,7 +125,7 @@ func (c *ApiClient) deleteFirewallGroup(
 	return nil
 }
 
-func (c *ApiClient) createFirewallGroup(
+func (c *ApiClient) CreateFirewallGroup(
 	ctx context.Context,
 	site string,
 	d *FirewallGroup,
@@ -192,7 +190,7 @@ func (c *ApiClient) updateFirewallGroupFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getFirewallGroup(ctx, site, d.ID)
+		return c.GetFirewallGroup(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -201,7 +199,7 @@ func (c *ApiClient) updateFirewallGroupFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateFirewallGroup(
+func (c *ApiClient) UpdateFirewallGroup(
 	ctx context.Context,
 	site string,
 	d *FirewallGroup,
@@ -224,7 +222,7 @@ func (c *ApiClient) updateFirewallGroup(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getFirewallGroup(ctx, site, d.ID)
+		return c.GetFirewallGroup(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

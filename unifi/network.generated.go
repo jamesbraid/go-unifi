@@ -831,7 +831,7 @@ func (c *ApiClient) listNetwork(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getNetwork(
+func (c *ApiClient) GetNetwork(
 	ctx context.Context,
 	site string,
 	id string,
@@ -858,25 +858,7 @@ func (c *ApiClient) getNetwork(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteNetwork(
-	ctx context.Context,
-	site string,
-	id string,
-) error {
-	err := c.do(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("api/s/%s/rest/networkconf/%s", site, id),
-		struct{}{},
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *ApiClient) createNetwork(
+func (c *ApiClient) CreateNetwork(
 	ctx context.Context,
 	site string,
 	d *Network,
@@ -941,7 +923,7 @@ func (c *ApiClient) updateNetworkFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getNetwork(ctx, site, d.ID)
+		return c.GetNetwork(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -950,7 +932,7 @@ func (c *ApiClient) updateNetworkFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateNetwork(
+func (c *ApiClient) UpdateNetwork(
 	ctx context.Context,
 	site string,
 	d *Network,
@@ -973,7 +955,7 @@ func (c *ApiClient) updateNetwork(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getNetwork(ctx, site, d.ID)
+		return c.GetNetwork(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

@@ -182,7 +182,7 @@ func (c *ApiClient) listNat(
 	return respBody, nil
 }
 
-func (c *ApiClient) getNat(
+func (c *ApiClient) GetNat(
 	ctx context.Context,
 	site string,
 	id string,
@@ -205,7 +205,7 @@ func (c *ApiClient) getNat(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteNat(
+func (c *ApiClient) DeleteNat(
 	ctx context.Context,
 	site string,
 	id string,
@@ -223,7 +223,7 @@ func (c *ApiClient) deleteNat(
 	return nil
 }
 
-func (c *ApiClient) createNat(
+func (c *ApiClient) CreateNat(
 	ctx context.Context,
 	site string,
 	d *Nat,
@@ -278,7 +278,7 @@ func (c *ApiClient) updateNatFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateNat(
+func (c *ApiClient) UpdateNat(
 	ctx context.Context,
 	site string,
 	d *Nat,

@@ -73,10 +73,9 @@ func (dst *ClientGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listClientGroup(
+func (c *ApiClient) ListClientGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]ClientGroup, error) {
 	var respBody struct {
 		Meta meta          `json:"meta"`
@@ -89,7 +88,6 @@ func (c *ApiClient) listClientGroup(
 		fmt.Sprintf("api/s/%s/rest/usergroup", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -97,7 +95,7 @@ func (c *ApiClient) listClientGroup(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getClientGroup(
+func (c *ApiClient) GetClientGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -124,7 +122,7 @@ func (c *ApiClient) getClientGroup(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteClientGroup(
+func (c *ApiClient) DeleteClientGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -142,7 +140,7 @@ func (c *ApiClient) deleteClientGroup(
 	return nil
 }
 
-func (c *ApiClient) createClientGroup(
+func (c *ApiClient) CreateClientGroup(
 	ctx context.Context,
 	site string,
 	d *ClientGroup,
@@ -207,7 +205,7 @@ func (c *ApiClient) updateClientGroupFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getClientGroup(ctx, site, d.ID)
+		return c.GetClientGroup(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -216,7 +214,7 @@ func (c *ApiClient) updateClientGroupFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateClientGroup(
+func (c *ApiClient) UpdateClientGroup(
 	ctx context.Context,
 	site string,
 	d *ClientGroup,
@@ -239,7 +237,7 @@ func (c *ApiClient) updateClientGroup(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getClientGroup(ctx, site, d.ID)
+		return c.GetClientGroup(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

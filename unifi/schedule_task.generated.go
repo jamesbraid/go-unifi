@@ -76,10 +76,9 @@ func (dst *ScheduleTaskUpgradeTargets) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listScheduleTask(
+func (c *ApiClient) ListScheduleTask(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]ScheduleTask, error) {
 	var respBody struct {
 		Meta meta           `json:"meta"`
@@ -92,7 +91,6 @@ func (c *ApiClient) listScheduleTask(
 		fmt.Sprintf("api/s/%s/rest/scheduletask", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -100,7 +98,7 @@ func (c *ApiClient) listScheduleTask(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getScheduleTask(
+func (c *ApiClient) GetScheduleTask(
 	ctx context.Context,
 	site string,
 	id string,
@@ -127,7 +125,7 @@ func (c *ApiClient) getScheduleTask(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteScheduleTask(
+func (c *ApiClient) DeleteScheduleTask(
 	ctx context.Context,
 	site string,
 	id string,
@@ -145,7 +143,7 @@ func (c *ApiClient) deleteScheduleTask(
 	return nil
 }
 
-func (c *ApiClient) createScheduleTask(
+func (c *ApiClient) CreateScheduleTask(
 	ctx context.Context,
 	site string,
 	d *ScheduleTask,
@@ -210,7 +208,7 @@ func (c *ApiClient) updateScheduleTaskFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getScheduleTask(ctx, site, d.ID)
+		return c.GetScheduleTask(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -219,7 +217,7 @@ func (c *ApiClient) updateScheduleTaskFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateScheduleTask(
+func (c *ApiClient) UpdateScheduleTask(
 	ctx context.Context,
 	site string,
 	d *ScheduleTask,
@@ -242,7 +240,7 @@ func (c *ApiClient) updateScheduleTask(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getScheduleTask(ctx, site, d.ID)
+		return c.GetScheduleTask(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

@@ -89,10 +89,9 @@ func (dst *Account) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listAccount(
+func (c *ApiClient) ListAccount(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]Account, error) {
 	var respBody struct {
 		Meta meta      `json:"meta"`
@@ -105,7 +104,6 @@ func (c *ApiClient) listAccount(
 		fmt.Sprintf("api/s/%s/rest/account", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -113,7 +111,7 @@ func (c *ApiClient) listAccount(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getAccount(
+func (c *ApiClient) GetAccount(
 	ctx context.Context,
 	site string,
 	id string,
@@ -140,7 +138,7 @@ func (c *ApiClient) getAccount(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteAccount(
+func (c *ApiClient) DeleteAccount(
 	ctx context.Context,
 	site string,
 	id string,
@@ -158,7 +156,7 @@ func (c *ApiClient) deleteAccount(
 	return nil
 }
 
-func (c *ApiClient) createAccount(
+func (c *ApiClient) CreateAccount(
 	ctx context.Context,
 	site string,
 	d *Account,
@@ -223,7 +221,7 @@ func (c *ApiClient) updateAccountFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getAccount(ctx, site, d.ID)
+		return c.GetAccount(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -232,7 +230,7 @@ func (c *ApiClient) updateAccountFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateAccount(
+func (c *ApiClient) UpdateAccount(
 	ctx context.Context,
 	site string,
 	d *Account,
@@ -255,7 +253,7 @@ func (c *ApiClient) updateAccount(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getAccount(ctx, site, d.ID)
+		return c.GetAccount(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

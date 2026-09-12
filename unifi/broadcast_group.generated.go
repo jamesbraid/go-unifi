@@ -53,10 +53,9 @@ func (dst *BroadcastGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listBroadcastGroup(
+func (c *ApiClient) ListBroadcastGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]BroadcastGroup, error) {
 	var respBody struct {
 		Meta meta             `json:"meta"`
@@ -69,7 +68,6 @@ func (c *ApiClient) listBroadcastGroup(
 		fmt.Sprintf("api/s/%s/rest/broadcastgroup", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -77,7 +75,7 @@ func (c *ApiClient) listBroadcastGroup(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getBroadcastGroup(
+func (c *ApiClient) GetBroadcastGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -104,7 +102,7 @@ func (c *ApiClient) getBroadcastGroup(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteBroadcastGroup(
+func (c *ApiClient) DeleteBroadcastGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -122,7 +120,7 @@ func (c *ApiClient) deleteBroadcastGroup(
 	return nil
 }
 
-func (c *ApiClient) createBroadcastGroup(
+func (c *ApiClient) CreateBroadcastGroup(
 	ctx context.Context,
 	site string,
 	d *BroadcastGroup,
@@ -187,7 +185,7 @@ func (c *ApiClient) updateBroadcastGroupFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getBroadcastGroup(ctx, site, d.ID)
+		return c.GetBroadcastGroup(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -196,7 +194,7 @@ func (c *ApiClient) updateBroadcastGroupFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateBroadcastGroup(
+func (c *ApiClient) UpdateBroadcastGroup(
 	ctx context.Context,
 	site string,
 	d *BroadcastGroup,
@@ -219,7 +217,7 @@ func (c *ApiClient) updateBroadcastGroup(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getBroadcastGroup(ctx, site, d.ID)
+		return c.GetBroadcastGroup(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

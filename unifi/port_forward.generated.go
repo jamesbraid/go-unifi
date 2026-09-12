@@ -86,10 +86,9 @@ func (dst *PortForwardDestinationIPs) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listPortForward(
+func (c *ApiClient) ListPortForward(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]PortForward, error) {
 	var respBody struct {
 		Meta meta          `json:"meta"`
@@ -102,7 +101,6 @@ func (c *ApiClient) listPortForward(
 		fmt.Sprintf("api/s/%s/rest/portforward", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -110,7 +108,7 @@ func (c *ApiClient) listPortForward(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getPortForward(
+func (c *ApiClient) GetPortForward(
 	ctx context.Context,
 	site string,
 	id string,
@@ -137,7 +135,7 @@ func (c *ApiClient) getPortForward(
 	return &d, nil
 }
 
-func (c *ApiClient) deletePortForward(
+func (c *ApiClient) DeletePortForward(
 	ctx context.Context,
 	site string,
 	id string,
@@ -155,7 +153,7 @@ func (c *ApiClient) deletePortForward(
 	return nil
 }
 
-func (c *ApiClient) createPortForward(
+func (c *ApiClient) CreatePortForward(
 	ctx context.Context,
 	site string,
 	d *PortForward,
@@ -220,7 +218,7 @@ func (c *ApiClient) updatePortForwardFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getPortForward(ctx, site, d.ID)
+		return c.GetPortForward(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -229,7 +227,7 @@ func (c *ApiClient) updatePortForwardFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updatePortForward(
+func (c *ApiClient) UpdatePortForward(
 	ctx context.Context,
 	site string,
 	d *PortForward,
@@ -252,7 +250,7 @@ func (c *ApiClient) updatePortForward(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getPortForward(ctx, site, d.ID)
+		return c.GetPortForward(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

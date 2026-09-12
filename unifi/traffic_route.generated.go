@@ -207,10 +207,9 @@ func (dst *TrafficRouteTargetDevices) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listTrafficRoute(
+func (c *ApiClient) ListTrafficRoute(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]TrafficRoute, error) {
 	var respBody []TrafficRoute
 
@@ -220,7 +219,6 @@ func (c *ApiClient) listTrafficRoute(
 		fmt.Sprintf("v2/api/site/%s/trafficroutes", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -228,12 +226,12 @@ func (c *ApiClient) listTrafficRoute(
 	return respBody, nil
 }
 
-func (c *ApiClient) getTrafficRoute(
+func (c *ApiClient) GetTrafficRoute(
 	ctx context.Context,
 	site string,
 	id string,
 ) (*TrafficRoute, error) {
-	respBody, err := c.listTrafficRoute(ctx, site)
+	respBody, err := c.ListTrafficRoute(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +249,7 @@ func (c *ApiClient) getTrafficRoute(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteTrafficRoute(
+func (c *ApiClient) DeleteTrafficRoute(
 	ctx context.Context,
 	site string,
 	id string,
@@ -269,7 +267,7 @@ func (c *ApiClient) deleteTrafficRoute(
 	return nil
 }
 
-func (c *ApiClient) createTrafficRoute(
+func (c *ApiClient) CreateTrafficRoute(
 	ctx context.Context,
 	site string,
 	d *TrafficRoute,
@@ -324,7 +322,7 @@ func (c *ApiClient) updateTrafficRouteFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateTrafficRoute(
+func (c *ApiClient) UpdateTrafficRoute(
 	ctx context.Context,
 	site string,
 	d *TrafficRoute,

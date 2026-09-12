@@ -92,10 +92,9 @@ func (dst *DpiApp) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDpiApp(
+func (c *ApiClient) ListDpiApp(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]DpiApp, error) {
 	var respBody struct {
 		Meta meta     `json:"meta"`
@@ -108,7 +107,6 @@ func (c *ApiClient) listDpiApp(
 		fmt.Sprintf("api/s/%s/rest/dpiapp", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -116,7 +114,7 @@ func (c *ApiClient) listDpiApp(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getDpiApp(
+func (c *ApiClient) GetDpiApp(
 	ctx context.Context,
 	site string,
 	id string,
@@ -143,7 +141,7 @@ func (c *ApiClient) getDpiApp(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDpiApp(
+func (c *ApiClient) DeleteDpiApp(
 	ctx context.Context,
 	site string,
 	id string,
@@ -161,7 +159,7 @@ func (c *ApiClient) deleteDpiApp(
 	return nil
 }
 
-func (c *ApiClient) createDpiApp(
+func (c *ApiClient) CreateDpiApp(
 	ctx context.Context,
 	site string,
 	d *DpiApp,
@@ -226,7 +224,7 @@ func (c *ApiClient) updateDpiAppFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDpiApp(ctx, site, d.ID)
+		return c.GetDpiApp(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -235,7 +233,7 @@ func (c *ApiClient) updateDpiAppFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateDpiApp(
+func (c *ApiClient) UpdateDpiApp(
 	ctx context.Context,
 	site string,
 	d *DpiApp,
@@ -258,7 +256,7 @@ func (c *ApiClient) updateDpiApp(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getDpiApp(ctx, site, d.ID)
+		return c.GetDpiApp(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

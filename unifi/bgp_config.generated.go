@@ -53,7 +53,7 @@ func (dst *BGPConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) getBGPConfig(
+func (c *ApiClient) GetBGPConfig(
 	ctx context.Context,
 	site string,
 ) (*BGPConfig, error) {
@@ -76,7 +76,7 @@ func (c *ApiClient) getBGPConfig(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteBGPConfig(
+func (c *ApiClient) DeleteBGPConfig(
 	ctx context.Context,
 	site string,
 ) error {
@@ -93,7 +93,7 @@ func (c *ApiClient) deleteBGPConfig(
 	return nil
 }
 
-func (c *ApiClient) createBGPConfig(
+func (c *ApiClient) CreateBGPConfig(
 	ctx context.Context,
 	site string,
 	d *BGPConfig,

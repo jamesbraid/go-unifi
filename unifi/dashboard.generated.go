@@ -79,10 +79,9 @@ func (dst *DashboardModules) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDashboard(
+func (c *ApiClient) ListDashboard(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]Dashboard, error) {
 	var respBody struct {
 		Meta meta        `json:"meta"`
@@ -95,7 +94,6 @@ func (c *ApiClient) listDashboard(
 		fmt.Sprintf("api/s/%s/rest/dashboard", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -103,7 +101,7 @@ func (c *ApiClient) listDashboard(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getDashboard(
+func (c *ApiClient) GetDashboard(
 	ctx context.Context,
 	site string,
 	id string,
@@ -130,7 +128,7 @@ func (c *ApiClient) getDashboard(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDashboard(
+func (c *ApiClient) DeleteDashboard(
 	ctx context.Context,
 	site string,
 	id string,
@@ -148,7 +146,7 @@ func (c *ApiClient) deleteDashboard(
 	return nil
 }
 
-func (c *ApiClient) createDashboard(
+func (c *ApiClient) CreateDashboard(
 	ctx context.Context,
 	site string,
 	d *Dashboard,
@@ -213,7 +211,7 @@ func (c *ApiClient) updateDashboardFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getDashboard(ctx, site, d.ID)
+		return c.GetDashboard(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -222,7 +220,7 @@ func (c *ApiClient) updateDashboardFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateDashboard(
+func (c *ApiClient) UpdateDashboard(
 	ctx context.Context,
 	site string,
 	d *Dashboard,
@@ -245,7 +243,7 @@ func (c *ApiClient) updateDashboard(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getDashboard(ctx, site, d.ID)
+		return c.GetDashboard(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

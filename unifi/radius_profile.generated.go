@@ -163,10 +163,9 @@ func (dst *RADIUSProfileCaCrts) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listRADIUSProfile(
+func (c *ApiClient) ListRADIUSProfile(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]RADIUSProfile, error) {
 	var respBody struct {
 		Meta meta            `json:"meta"`
@@ -179,7 +178,6 @@ func (c *ApiClient) listRADIUSProfile(
 		fmt.Sprintf("api/s/%s/rest/radiusprofile", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -187,7 +185,7 @@ func (c *ApiClient) listRADIUSProfile(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getRADIUSProfile(
+func (c *ApiClient) GetRADIUSProfile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -214,7 +212,7 @@ func (c *ApiClient) getRADIUSProfile(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteRADIUSProfile(
+func (c *ApiClient) DeleteRADIUSProfile(
 	ctx context.Context,
 	site string,
 	id string,
@@ -232,7 +230,7 @@ func (c *ApiClient) deleteRADIUSProfile(
 	return nil
 }
 
-func (c *ApiClient) createRADIUSProfile(
+func (c *ApiClient) CreateRADIUSProfile(
 	ctx context.Context,
 	site string,
 	d *RADIUSProfile,
@@ -297,7 +295,7 @@ func (c *ApiClient) updateRADIUSProfileFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getRADIUSProfile(ctx, site, d.ID)
+		return c.GetRADIUSProfile(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -306,7 +304,7 @@ func (c *ApiClient) updateRADIUSProfileFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateRADIUSProfile(
+func (c *ApiClient) UpdateRADIUSProfile(
 	ctx context.Context,
 	site string,
 	d *RADIUSProfile,
@@ -329,7 +327,7 @@ func (c *ApiClient) updateRADIUSProfile(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getRADIUSProfile(ctx, site, d.ID)
+		return c.GetRADIUSProfile(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {

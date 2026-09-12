@@ -164,9 +164,9 @@ func TestApplyWriteContract(t *testing.T) {
 
 // createFunc cuts the create method out of generated code, so an assertion
 // about its verb cannot be satisfied by the PUT that update always issues.
-func createFunc(t *testing.T, code string, structName string) string {
+func createFunc(t *testing.T, code string, resource *ResourceInfo) string {
 	t.Helper()
-	marker := "func (c *ApiClient) create" + structName + "("
+	marker := "func (c *ApiClient) " + resource.Method("Create") + "("
 	start := strings.Index(code, marker)
 	if start < 0 {
 		t.Fatalf("generated code has no %s", marker)
@@ -185,11 +185,11 @@ func createFunc(t *testing.T, code string, structName string) string {
 func TestGeneratedCreateVerb(t *testing.T) {
 	t.Run("defaults to POST", func(t *testing.T) {
 		resource := NewResource("Network", "networkconf")
-		code, err := resource.generateCode(false)
+		code, err := resource.generateCode()
 		if err != nil {
 			t.Fatal(err)
 		}
-		create := createFunc(t, code, "Network")
+		create := createFunc(t, code, resource)
 		if !strings.Contains(create, "http.MethodPost") {
 			t.Error("create does not issue POST by default")
 		}
@@ -201,11 +201,11 @@ func TestGeneratedCreateVerb(t *testing.T) {
 	t.Run("a measured PUT contract switches the verb", func(t *testing.T) {
 		resource := NewResource("Network", "networkconf")
 		resource.CreateMethod = "PUT"
-		code, err := resource.generateCode(false)
+		code, err := resource.generateCode()
 		if err != nil {
 			t.Fatal(err)
 		}
-		create := createFunc(t, code, "Network")
+		create := createFunc(t, code, resource)
 		if !strings.Contains(create, "http.MethodPut") {
 			t.Error("create ignores the measured PUT contract")
 		}

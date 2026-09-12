@@ -77,10 +77,9 @@ func (dst *APGroup) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listAPGroup(
+func (c *ApiClient) ListAPGroup(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]APGroup, error) {
 	var respBody []APGroup
 
@@ -90,7 +89,6 @@ func (c *ApiClient) listAPGroup(
 		fmt.Sprintf("v2/api/site/%s/apgroups", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -98,12 +96,12 @@ func (c *ApiClient) listAPGroup(
 	return respBody, nil
 }
 
-func (c *ApiClient) getAPGroup(
+func (c *ApiClient) GetAPGroup(
 	ctx context.Context,
 	site string,
 	id string,
 ) (*APGroup, error) {
-	respBody, err := c.listAPGroup(ctx, site)
+	respBody, err := c.ListAPGroup(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +119,7 @@ func (c *ApiClient) getAPGroup(
 	return nil, &NotFoundError{}
 }
 
-func (c *ApiClient) deleteAPGroup(
+func (c *ApiClient) DeleteAPGroup(
 	ctx context.Context,
 	site string,
 	id string,
@@ -139,7 +137,7 @@ func (c *ApiClient) deleteAPGroup(
 	return nil
 }
 
-func (c *ApiClient) createAPGroup(
+func (c *ApiClient) CreateAPGroup(
 	ctx context.Context,
 	site string,
 	d *APGroup,
@@ -194,7 +192,7 @@ func (c *ApiClient) updateAPGroupFields(
 	return &respBody, nil
 }
 
-func (c *ApiClient) updateAPGroup(
+func (c *ApiClient) UpdateAPGroup(
 	ctx context.Context,
 	site string,
 	d *APGroup,

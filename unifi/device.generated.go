@@ -1570,10 +1570,9 @@ func (dst *DeviceVideoInfo) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listDevice(
+func (c *ApiClient) ListDevice(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]Device, error) {
 	var respBody struct {
 		Meta meta     `json:"meta"`
@@ -1586,7 +1585,6 @@ func (c *ApiClient) listDevice(
 		fmt.Sprintf("api/s/%s/stat/device", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -1621,7 +1619,7 @@ func (c *ApiClient) getDevice(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteDevice(
+func (c *ApiClient) DeleteDevice(
 	ctx context.Context,
 	site string,
 	id string,
@@ -1639,7 +1637,7 @@ func (c *ApiClient) deleteDevice(
 	return nil
 }
 
-func (c *ApiClient) createDevice(
+func (c *ApiClient) CreateDevice(
 	ctx context.Context,
 	site string,
 	d *Device,
@@ -1710,44 +1708,5 @@ func (c *ApiClient) updateDeviceFields(
 		return nil, &NotFoundError{}
 	}
 	res := respBody.Data[0]
-	return &res, nil
-}
-
-func (c *ApiClient) updateDevice(
-	ctx context.Context,
-	site string,
-	d *Device,
-) (*Device, error) {
-	var respBody struct {
-		Meta meta     `json:"meta"`
-		Data []Device `json:"data"`
-	}
-	err := c.do(
-		ctx,
-		http.MethodPut,
-		fmt.Sprintf("api/s/%s/rest/device/%s", site, d.ID),
-		d,
-		&respBody,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// UDM SE API returns empty data array on successful PUT.
-	// In that case, fetch the updated resource via GET.
-	// Re-read through rereadDevice, not by id: the device read endpoint is
-	// stat/device/{mac}, so passing the database id answers 404 and turns a
-	// successful write into a NotFound. See that function for why the MAC
-	// cannot simply be used unconditionally.
-	if len(respBody.Data) == 0 {
-		return c.rereadDevice(ctx, site, d)
-	}
-
-	if len(respBody.Data) != 1 {
-		return nil, &NotFoundError{}
-	}
-
-	res := respBody.Data[0]
-
 	return &res, nil
 }

@@ -96,10 +96,9 @@ func (dst *SpatialRecordPosition) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (c *ApiClient) listSpatialRecord(
+func (c *ApiClient) ListSpatialRecord(
 	ctx context.Context,
 	site string,
-	query ...map[string]string,
 ) ([]SpatialRecord, error) {
 	var respBody struct {
 		Meta meta            `json:"meta"`
@@ -112,7 +111,6 @@ func (c *ApiClient) listSpatialRecord(
 		fmt.Sprintf("api/s/%s/rest/spatialrecord", site),
 		nil,
 		&respBody,
-		query...,
 	)
 	if err != nil {
 		return nil, err
@@ -120,7 +118,7 @@ func (c *ApiClient) listSpatialRecord(
 	return respBody.Data, nil
 }
 
-func (c *ApiClient) getSpatialRecord(
+func (c *ApiClient) GetSpatialRecord(
 	ctx context.Context,
 	site string,
 	id string,
@@ -147,7 +145,7 @@ func (c *ApiClient) getSpatialRecord(
 	return &d, nil
 }
 
-func (c *ApiClient) deleteSpatialRecord(
+func (c *ApiClient) DeleteSpatialRecord(
 	ctx context.Context,
 	site string,
 	id string,
@@ -165,7 +163,7 @@ func (c *ApiClient) deleteSpatialRecord(
 	return nil
 }
 
-func (c *ApiClient) createSpatialRecord(
+func (c *ApiClient) CreateSpatialRecord(
 	ctx context.Context,
 	site string,
 	d *SpatialRecord,
@@ -230,7 +228,7 @@ func (c *ApiClient) updateSpatialRecordFields(
 	}
 
 	if len(respBody.Data) == 0 {
-		return c.getSpatialRecord(ctx, site, d.ID)
+		return c.GetSpatialRecord(ctx, site, d.ID)
 	}
 	if len(respBody.Data) != 1 {
 		return nil, &NotFoundError{}
@@ -239,7 +237,7 @@ func (c *ApiClient) updateSpatialRecordFields(
 	return &res, nil
 }
 
-func (c *ApiClient) updateSpatialRecord(
+func (c *ApiClient) UpdateSpatialRecord(
 	ctx context.Context,
 	site string,
 	d *SpatialRecord,
@@ -262,7 +260,7 @@ func (c *ApiClient) updateSpatialRecord(
 	// UDM SE API returns empty data array on successful PUT.
 	// In that case, fetch the updated resource via GET.
 	if len(respBody.Data) == 0 {
-		return c.getSpatialRecord(ctx, site, d.ID)
+		return c.GetSpatialRecord(ctx, site, d.ID)
 	}
 
 	if len(respBody.Data) != 1 {
