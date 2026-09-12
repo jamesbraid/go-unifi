@@ -50,9 +50,15 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 // struct) so a read-modify-write round trip preserves them; omitting them made
 // every PUT on a guarded network fail, not just creates.
 func (n *Network) marshalCorporate() ([]byte, error) {
-	// Calculate DHCP range defaults if needed
+	// Derive DHCP range defaults from ip_subnet only for a create, which is
+	// the only write without an _id yet. The controller rejects a corporate
+	// create without a range, so inventing one there is load-bearing. On an
+	// update the same derivation put a range the caller never set and the
+	// controller never stored on the wire -- under a masked update it
+	// replaced the caller's value for a named dhcpd_start/stop, and a masked
+	// write must carry exactly what the mask names.
 	var defaultStart, defaultEnd string
-	if n.IPSubnet != nil {
+	if n.ID == "" && n.IPSubnet != nil {
 		var err error
 		defaultStart, defaultEnd, err = dhcpRange(*n.IPSubnet)
 		if err != nil {
@@ -358,8 +364,10 @@ func (n *Network) marshalVLANOnly() ([]byte, error) {
 // (ipv6_single_network_interface, single_network_lan) is NOT emitted here: it
 // was not part of the guest probe and is corporate-specific ipv6 addressing.
 func (n *Network) marshalGuest() ([]byte, error) {
+	// Create-only, same reasoning as marshalCorporate: an update must not
+	// carry a derived range the caller never set.
 	var defaultStart, defaultEnd string
-	if n.IPSubnet != nil {
+	if n.ID == "" && n.IPSubnet != nil {
 		var err error
 		defaultStart, defaultEnd, err = dhcpRange(*n.IPSubnet)
 		if err != nil {

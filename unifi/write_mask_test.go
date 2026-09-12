@@ -162,3 +162,55 @@ func TestMaskedBodyNeedsTheDiscriminator(t *testing.T) {
 		t.Errorf("purpose was needed to encode, but it was not named and must not be written: %s", body)
 	}
 }
+
+// TestMaskedBodyDoesNotInventDHCPRange pins the masked path against the
+// encoder's create-time DHCP range derivation. A masked write sends exactly
+// the fields the mask names: with ip_subnet in hand the encoder used to
+// derive dhcpd_start/stop on every marshal, so naming the field handed the
+// controller a derived range in place of the caller's value. Unnamed, the
+// range must not appear at all.
+func TestMaskedBodyDoesNotInventDHCPRange(t *testing.T) {
+	n := &Network{
+		ID:       "netid",
+		Purpose:  PurposeCorporate,
+		Name:     strPtr("example"),
+		IPSubnet: strPtr("192.168.1.0/24"),
+	}
+
+	// Mask does not name the range: it stays off the wire.
+	body, err := maskedBody(n, []string{"name"})
+	if err != nil {
+		t.Fatalf("maskedBody: %v", err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, wire := range []string{"dhcpd_start", "dhcpd_stop"} {
+		if _, ok := got[wire]; ok {
+			t.Errorf("%s reached the wire without being named: %s", wire, body)
+		}
+	}
+
+	// Mask names the range but the caller set no value. The old derivation
+	// silently substituted a range computed from ip_subnet here. There is no
+	// honest value to send instead -- the encoder never writes "" for
+	// dhcpd_start (the controller rejects it; see the clearing rules in
+	// network_encode_empty_test.go) -- so the mask refuses the name rather
+	// than inventing one.
+	if _, err := maskedBody(n, []string{"dhcpd_start", "dhcpd_stop"}); err == nil {
+		t.Error("named an unset dhcpd_start and the mask accepted it; the old behaviour was to invent a range")
+	}
+
+	// Mask names the range and the caller set it: the caller's value goes out.
+	n.DHCPDStart = strPtr("192.168.1.100")
+	n.DHCPDStop = strPtr("192.168.1.200")
+	body, err = maskedBody(n, []string{"dhcpd_start", "dhcpd_stop"})
+	if err != nil {
+		t.Fatalf("maskedBody: %v", err)
+	}
+	got = decodeObject(t, body)
+	if string(got["dhcpd_start"]) != `"192.168.1.100"` || string(got["dhcpd_stop"]) != `"192.168.1.200"` {
+		t.Errorf("named range came out as %s-%s, want the caller's values", got["dhcpd_start"], got["dhcpd_stop"])
+	}
+}
