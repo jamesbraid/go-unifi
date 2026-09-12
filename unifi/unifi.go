@@ -119,6 +119,28 @@ func New(ctx context.Context, cfg *Config) (*ApiClient, error) {
 			}
 			return true, nil
 		}
+		// A POST the controller has seen must never be replayed. Measured on
+		// 10.6.101: a create the controller rejects with a 500 can still
+		// persist the document, so each transport-level replay of a failed
+		// create can seed another copy. PUT stays retryable because on this
+		// API it is a full-document replace — a replay rewrites the same
+		// document — and GET/DELETE are idempotent by nature.
+		if requestMethod(ctx, resp) == http.MethodPost {
+			if resp != nil {
+				return false, nil
+			}
+			// Transport error, no response. retryablehttp cannot say whether
+			// the request body went out before the failure — a timeout or a
+			// reset can arrive after the controller processed the create, and
+			// replaying then is as unsafe as replaying a 500. The one error
+			// that proves the request never left is a dial failure, so only
+			// that case keeps the default retry behaviour.
+			var opErr *net.OpError
+			if errors.As(err, &opErr) && opErr.Op == "dial" {
+				return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+			}
+			return false, nil
+		}
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 
@@ -624,6 +646,23 @@ func (c *ApiClient) do(
 	return c.doRequest(ctx, method, relativeURL, reqBody, respBody, query...)
 }
 
+// ctxKeyRequestMethod carries the request's HTTP method to CheckRetry, which
+// receives no request when the transport fails before producing a response.
+type ctxKeyRequestMethod struct{}
+
+// requestMethod recovers the in-flight request's method inside CheckRetry.
+// With a response in hand the request rides along on it; on a transport error
+// there is none, so doRequest plants the method in the context instead.
+func requestMethod(ctx context.Context, resp *http.Response) string {
+	if resp != nil && resp.Request != nil {
+		return resp.Request.Method
+	}
+	if method, ok := ctx.Value(ctxKeyRequestMethod{}).(string); ok {
+		return method
+	}
+	return ""
+}
+
 // doRequest performs the actual HTTP request. It is separated from do so that
 // login can call it directly without triggering login-check recursion.
 func (c *ApiClient) doRequest(
@@ -633,6 +672,11 @@ func (c *ApiClient) doRequest(
 	respBody any,
 	query ...map[string]string,
 ) error {
+	// CheckRetry (see New) must know the method even when the transport
+	// returns no response, and the context is the only channel that reaches
+	// it there.
+	ctx = context.WithValue(ctx, ctxKeyRequestMethod{}, method)
+
 	var (
 		reqReader io.Reader
 		err       error
