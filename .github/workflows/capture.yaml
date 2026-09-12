@@ -330,16 +330,14 @@ jobs:
           echo "$sha  $store/sha256/$sha" | sha256sum --check -
           echo "GO_UNIFI_CONTENT_STORE=$store" >> "$GITHUB_ENV"
 
-      # behavior.json is a generator input, so the re-measurement re-locks
-      # first (generation refuses a tree whose input digests mismatch the
-      # lock), regenerates, and re-digests the output.
-      - name: Re-lock and regenerate
+      # behavior.json is a generator input, so the re-measurement has to be
+      # regenerated from before it is committed. Generation re-stamps the
+      # lock's input digests and GENERATED_SHA256 itself; it deliberately
+      # does not pre-check them, because that would refuse exactly the runs
+      # that exist to move them.
+      - name: Regenerate
         id: regen
-        run: |
-          set -euo pipefail
-          go run ./cmd/relock
-          go generate ./...
-          go run ./cmd/rebuild-manifest -root=. > schemas/GENERATED_SHA256
+        run: go generate ./...
 
       - name: Push the re-measurement
         id: push
@@ -376,7 +374,7 @@ jobs:
             body="**Behaviour re-measurement failed**: the recording probes went red against \`${IMAGE}\`; see the capture run."
           elif [ "${{ steps.push.outcome }}" = success ]; then
             # The push proves the whole chain landed: it only runs after the
-            # fetch/relock/regenerate steps succeed.
+            # fetch and regenerate steps succeed.
             body="Behaviour re-measured: schemas/behavior.json on this PR was recorded against \`${IMAGE}\`."
           elif [ "${{ steps.record.outcome }}" = success ]; then
             body="**Behaviour re-measurement did not land**: recording succeeded but a later step failed; see the capture run."
