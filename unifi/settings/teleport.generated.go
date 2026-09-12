@@ -4,21 +4,8 @@
 package settings
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
-
-	"github.com/ubiquiti-community/go-unifi/unifi/types"
-)
-
-// just to fix compile issues with the import.
-var (
-	_ context.Context
-	_ fmt.Formatter
-	_ json.Marshaler
-	_ types.Number
-	_ strconv.NumError
 )
 
 type Teleport struct {
