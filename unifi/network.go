@@ -18,11 +18,7 @@ func (c *ApiClient) DeleteNetwork(ctx context.Context, site, id, name string) er
 	return nil
 }
 
-func (c *ApiClient) ListNetwork(ctx context.Context, site string, params ...[]struct {
-	key string
-	val string
-},
-) ([]Network, error) {
+func (c *ApiClient) ListNetwork(ctx context.Context, site string) ([]Network, error) {
 	return c.listNetwork(ctx, site)
 }
 

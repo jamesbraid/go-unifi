@@ -81,9 +81,38 @@ Four kinds of drift, four different answers:
   keeping its `block|allow` values — same values, new field name, new
   setting.
 
+## Removals we chose, not upstream
+
+The four cases above are upstream's doing. We also drop our own surface
+when nothing uses it: a type left behind by a reverted design, a helper
+that never needed to be part of the contract, a parameter the
+implementation ignores. These are still breaking changes and ship like any
+other here, in a documented minor under the review discipline below.
+
+They need one thing upstream drift does not. The whole justification is
+that the surface is unused, so every known consumer is searched before the
+removal lands, and the commit names what was searched.
+
+Gone this way so far, with the successor where there is one:
+
+- `Options` — never read by anything. `Config` configures a client.
+- `FindOwnerHost`, `FindHostByHardwareID` — unexported. Each has exactly
+  one caller, inside the SDK, and neither belonged in the contract.
+- `(*ApiClient).GetCloudConsoleID` — no successor. The console ID is
+  selected once at construction, from `Config.CloudConnector` and
+  `Config.HardwareID`.
+- `types.MAC`, `types.MACString`, `types.MACStrings` — no successor and no
+  loss. They existed to normalise MACs on decode, and that was reverted so
+  a field holds what the controller sent. `types.NormalizeMAC` survives.
+  It is what the lookup helpers call.
+- `ListNetwork`'s trailing `params ...[]struct{key, val string}` — the body
+  ignored it, and its unexported fields made a non-empty argument
+  impossible to build from outside the package. Call
+  `ListNetwork(ctx, site)`.
+
 ## Versioning honesty
 
-Semantic versioning here tracks the **Go API**, with one deliberate,
+Semantic versioning here tracks the **Go API**, with a deliberate,
 long-standing deviation: **controller-forced breaking changes ship in minor
 releases**, prominently documented. Strictly-semver majors would burn a
 major version per controller train (constant `/vN` import-path churn),
