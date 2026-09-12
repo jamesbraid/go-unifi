@@ -3,7 +3,6 @@ package controllertest
 import (
 	"context"
 	"testing"
-	"time"
 )
 
 // GatewayModel is the emulated model string for the modern, BGP-capable
@@ -42,31 +41,8 @@ func AdoptGateway(ctx context.Context, t *testing.T, c *Controller, s *Session) 
 	}
 	mac := devices[0].MAC
 
-	// Wait for the gateway to inform in as pending before adopting. A couple
-	// of inform cycles land the doc; 2m is the ceiling for an inform going
-	// nowhere. It must not already be adopted — nobody has adopted it yet, and
-	// a spontaneously adopted doc would mean the MAC collided with something.
-	deadline := time.Now().Add(2 * time.Minute)
-	for {
-		d, ok, err := deviceByMAC(ctx, s, c.Site, mac)
-		if err != nil {
-			t.Fatalf("poll stat/device for %s: %v", mac, err)
-		}
-		if ok {
-			if d.Adopted {
-				t.Fatalf("gateway %s appeared already adopted: %+v", mac, d)
-			}
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("gateway %s never appeared in stat/device", mac)
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("waiting for %s to appear: %v", mac, ctx.Err())
-		case <-time.After(2 * time.Second):
-		}
-	}
+	// Wait for the gateway to inform in as pending before adopting.
+	awaitPendingDevice(ctx, t, c, s, mac)
 
 	// Drive the controller-side adopt; AdoptDevice blocks until state=1 &&
 	// adopted. That is the whole verdict now: the device's own state machine
