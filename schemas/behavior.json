@@ -1,6 +1,9 @@
 {
   "controller_version": "10.6.101",
   "ownership": {
+    "Device": {
+      "port_overrides.setting_preference": []
+    },
     "FirewallRule": {
       "setting_preference": [
         "state_established",
@@ -111,6 +114,47 @@
       ]
     }
   },
+  "uos_pins": {
+    "FirewallRule": {
+      "setting_preference": []
+    },
+    "Nat": {
+      "setting_preference": []
+    },
+    "Network": {
+      "ipv6_setting_preference": [],
+      "setting_preference": [],
+      "wan_dns_preference": [],
+      "wan_ipv6_dns_preference": []
+    },
+    "PortProfile": {
+      "setting_preference": []
+    },
+    "SettingDashboard": {
+      "layout_preference": []
+    },
+    "SettingNtp": {
+      "setting_preference": []
+    },
+    "SettingRadioAi": {
+      "setting_preference": []
+    },
+    "SettingSuperMgmt": {
+      "data_retention_setting_preference": [
+        "data_retention_time_in_hours_for_5minutes_scale",
+        "data_retention_time_in_hours_for_hourly_scale"
+      ]
+    },
+    "SettingUsg": {
+      "dns_verification.setting_preference": [],
+      "timeout_setting_preference": []
+    },
+    "WLAN": {
+      "minrate_setting_preference": [],
+      "setting_preference": []
+    }
+  },
+  "uos_network_version": "10.5.67",
   "discarded": {
     "DevicePortOverrides": [],
     "Network": [

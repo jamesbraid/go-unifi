@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -186,14 +186,12 @@ var networkPreferenceProbes = []preferenceProbe{
 //	Device.setting_preference        nested in port_overrides
 //
 // It needs an adopted device to write against, which this sweep does not
-// have. TestIntegrationDevicePortOverridePreference measures it on the
-// adopted-device harness, and its answer lives as a residual entry in
-// overrides/fields.toml, because only this sweep writes the artifact.
+// have. TestIntegrationDevicePortOverridePreference adopts one and records
+// its entry into the same artifact section.
 
 // TestIntegrationPreferenceOwnership measures what each auto|manual mode
-// field takes over, and checks the answer against the recorded ownership:
-// schemas/behavior.json merged with the residual overrides/fields.toml
-// entries, which is exactly what the generator ships.
+// field takes over, and checks the answer against the recorded ownership in
+// schemas/behavior.json, which is exactly what the generator ships.
 //
 // A mode field with no entry recorded is reported, and re-running on the
 // standalone harness with BEHAVIOR_WRITE=1 records it, so adding a resource
@@ -210,12 +208,13 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 		t.Fatalf("load the recorded ownership: %v", err)
 	}
 
-	// BEHAVIOR_WRITE=1 re-measures the artifact -- standalone harness only,
-	// because the artifact records the standalone controller's answers and
-	// UniFi OS pins fields it does not (those land in uos_excludes in
-	// overrides/fields.toml instead).
-	root := fields.ModuleRoot()
-	writeArtifact := os.Getenv("BEHAVIOR_WRITE") == "1" && !onUOSHarness()
+	// BEHAVIOR_WRITE=1 re-measures the artifact. The standalone harness
+	// records each mode's owns; the UOS harness records uos_pins -- the
+	// subset of those owns the console holds under BOTH modes -- stamped
+	// with the Network build the harness actually bundles, because UniFi
+	// OS Server trails the standalone .deb.
+	root, captured := capturedBehaviorVersion(t)
+	writeArtifact := os.Getenv("BEHAVIOR_WRITE") == "1"
 
 	// Collected inside the subtests and written once after the loop.
 	// Subtests run sequentially, so plain appends are safe.
@@ -229,6 +228,13 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 	defer cancel()
 	c := controllertest.StartForHarness(ctx, t)
 	s := c.NewSession(ctx, t)
+
+	live := controllerVersion(ctx, t, s)
+	if writeArtifact && !onUOSHarness() && live != captured {
+		t.Fatalf("BEHAVIOR_WRITE=1 but the booted controller reports %s while schemas/VERSION says %s; "+
+			"recording would file the measurement against the wrong controller", live, captured)
+	}
+	artifact, _ := loadBehaviorArtifact(t)
 
 	deps := probeDeps{
 		apGroupID:    firstAPGroupID(ctx, t, s, c.Site),
@@ -270,32 +276,58 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 				t.Logf("refused under MANUAL only, which is the mode inverted: %s (%s)", wire, detail)
 			}
 
-			if writeArtifact {
+			if writeArtifact && !onUOSHarness() {
 				measurements = append(measurements, measuredOwnership{probe.resource, probe.key(), owned})
 			}
 
 			entry, ok := recorded[probe.resource][probe.key()]
 			if !ok {
 				t.Errorf("no ownership recorded for %s.%s. Measured %d field(s) on %s; re-run on the "+
-					"standalone harness with BEHAVIOR_WRITE=1 to record it in %s. Then run the UniFi OS "+
-					"harness before trusting that as the whole answer: UniFi OS pins fields the "+
-					"standalone controller leaves to manual mode, and anything it pins belongs in "+
-					"uos_excludes in overrides/fields.toml.",
+					"standalone harness with BEHAVIOR_WRITE=1 to record it in %s, then on the UniFi OS "+
+					"harness for the uos_pins half: UniFi OS pins fields the standalone controller "+
+					"leaves to manual mode.",
 					probe.resource, probe.key(), len(owned), harnessName(), behavior.Path)
 				return
 			}
 
-			// Ownership is a property of the product, not just the Network
-			// build: UniFi OS pins some fields the standalone controller
-			// leaves to manual mode, and reports the same version while
-			// doing it. Compare against the answer for the harness actually
-			// under test.
+			if onUOSHarness() {
+				// The console's pins: fields the mode owns on standalone
+				// that this harness refused under BOTH modes -- whatever
+				// the mode said, the console kept its own value. The pins
+				// carry the UOS harness's own build stamp, so they compare
+				// and record here even while UniFi OS Server bundles an
+				// older Network app than the lock.
+				pins := []string{}
+				for wire := range manual {
+					if _, both := auto[wire]; !both {
+						continue
+					}
+					if slices.Contains(entry.Owns, wire) {
+						pins = append(pins, wire)
+					}
+				}
+				sort.Strings(pins)
+				switch {
+				case writeArtifact:
+					measurements = append(measurements, measuredOwnership{probe.resource, probe.key(), pins})
+				case artifact.UOSNetworkVersion == "":
+					t.Logf("no uos_pins recorded; BEHAVIOR_WRITE=1 on this harness records them")
+				case artifact.UOSNetworkVersion != live:
+					t.Logf("uos_pins were measured on %s, this harness bundles %s; not comparing them",
+						artifact.UOSNetworkVersion, live)
+				case !slices.Equal(entry.UOSExcludes, pins):
+					t.Errorf("%s.%s console pins moved: recorded %v, measured %v. Re-measure with "+
+						"BEHAVIOR_WRITE=1 on the UOS harness rather than editing by hand.",
+						probe.resource, probe.key(), entry.UOSExcludes, pins)
+				}
+			}
+
 			// The record holds one controller version's answer. Comparing a
 			// different build against it is a category error -- it is how a
 			// 10.5.67-bundling UOS run filed a 10.6.101 behaviour change as
 			// platform difference. The live version decides, so this is a
 			// live-observation skip, not a baked-in one.
-			if live := controllerVersion(ctx, t, s); entry.Measured != "" && entry.Measured != live {
+			if entry.Measured != "" && entry.Measured != live {
 				t.Skipf("recorded on %s, controller is %s; nothing to compare", entry.Measured, live)
 			}
 			want := entry.OwnsOn(onUOSHarness())
@@ -309,33 +341,25 @@ func TestIntegrationPreferenceOwnership(t *testing.T) {
 	}
 
 	if writeArtifact {
-		if root == "" {
-			t.Fatal("BEHAVIOR_WRITE=1 but no enclosing go.mod to anchor " + behavior.Path)
-		}
-		// Load-then-merge so the other sections survive: this probe only
-		// speaks for ownership.
-		a, _, err := behavior.Load(root)
-		if err != nil {
-			t.Fatalf("load %s before merging: %v", behavior.Path, err)
-		}
-		version, err := os.ReadFile(filepath.Join(root, "schemas", "VERSION"))
-		if err != nil {
-			t.Fatalf("read schemas/VERSION: %v", err)
-		}
-		a.ControllerVersion = strings.TrimSpace(string(version))
-		if a.Ownership == nil {
-			a.Ownership = map[string]map[string][]string{}
-		}
-		for _, m := range measurements {
-			if a.Ownership[m.resource] == nil {
-				a.Ownership[m.resource] = map[string][]string{}
+		// Load-then-merge (mergeBehaviorArtifact) so the other sections
+		// survive: this probe only speaks for ownership and uos_pins.
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			target := &a.Ownership
+			if onUOSHarness() {
+				target = &a.UOSPins
+				a.UOSNetworkVersion = live
 			}
-			a.Ownership[m.resource][m.key] = m.owned
-		}
-		if err := behavior.Write(root, a); err != nil {
-			t.Fatalf("write %s: %v", behavior.Path, err)
-		}
-		t.Logf("merged %d ownership measurement(s) into %s", len(measurements), filepath.Join(root, behavior.Path))
+			if *target == nil {
+				*target = map[string]map[string][]string{}
+			}
+			for _, m := range measurements {
+				if (*target)[m.resource] == nil {
+					(*target)[m.resource] = map[string][]string{}
+				}
+				(*target)[m.resource][m.key] = m.owned
+			}
+		})
+		t.Logf("merged %d %s measurement(s)", len(measurements), harnessName())
 	}
 }
 
@@ -491,7 +515,7 @@ func comparePreference(recorded, measured []string, refusedUnderManual map[strin
 		if detail, refused := refusedUnderManual[wire]; refused {
 			fmt.Fprintf(&b, "  - %s (the table says the mode owns this, but the controller refused it "+
 				"under BOTH modes: %s. Not the mode's doing -- some other rule reaches this field "+
-				"now, so it belongs in uos_excludes or out of owns)\n", wire, detail)
+				"now, so it belongs in uos_pins or out of owns)\n", wire, detail)
 			continue
 		}
 		fmt.Fprintf(&b, "  - %s (the table says the controller owns this; it stored what was asked)\n", wire)

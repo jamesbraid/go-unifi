@@ -297,18 +297,11 @@ owns = ["stp_port_mode"]
 		"the nested table swallowed owns, so the entry would govern nothing")
 }
 
-// TestApplyOverridesPreferenceProvenance covers the two rules that keep an
-// ownership entry meaningful rather than merely well-formed.
-//
-// measured is what separates a current measurement from a stale one, and
-// nothing else notices when it goes: a misspelled key decodes to empty
-// without error, and the generated file does not carry the value, so an
-// entry can lose its provenance without changing a byte of output.
-//
-// uos_excludes is a claim about a field the mode owns elsewhere. Naming one
-// that is not owned describes nothing, and would mean the table or the
-// generator had drifted apart.
-func TestApplyOverridesPreferenceProvenance(t *testing.T) {
+// TestApplyOverridesPreferenceUOSPins covers the rule that keeps a console
+// pin meaningful: it is a claim about a field the mode owns elsewhere, so
+// one naming an unowned field describes nothing and would mean the artifact
+// sections had drifted apart.
+func TestApplyOverridesPreferenceUOSPins(t *testing.T) {
 	fieldsOf := func() map[string]*FieldInfo {
 		return map[string]*FieldInfo{
 			"SettingPreference": NewFieldInfo("SettingPreference", "setting_preference", "string", "", true, false, true, ""),
@@ -323,34 +316,7 @@ func TestApplyOverridesPreferenceProvenance(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "measured recorded",
-			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"igmp_snooping"}, Measured: "10.4.57"},
-			},
-		},
-		{
-			name: "measured missing",
-			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"igmp_snooping"}},
-			},
-			wantErr: "no measured build",
-		},
-		{
-			// What a misspelled `measured` key decodes to.
-			name: "measured blank",
-			pref: map[string]fields.Preference{
-				"setting_preference": {Owns: []string{"igmp_snooping"}, Measured: "  "},
-			},
-			wantErr: "no measured build",
-		},
-		{
-			name: "an empty owns set still needs provenance",
-			pref: map[string]fields.Preference{
-				"setting_preference": {Measured: "10.4.57"},
-			},
-		},
-		{
-			name: "uos exclusion of an owned field",
+			name: "uos pin of an owned field",
 			pref: map[string]fields.Preference{
 				"setting_preference": {
 					Owns:        []string{"igmp_snooping", "multicast_enhance_enabled"},
@@ -360,7 +326,7 @@ func TestApplyOverridesPreferenceProvenance(t *testing.T) {
 			},
 		},
 		{
-			name: "uos exclusion of a field the mode does not own",
+			name: "uos pin of a field the mode does not own",
 			pref: map[string]fields.Preference{
 				"setting_preference": {
 					Owns:        []string{"igmp_snooping"},
@@ -368,7 +334,7 @@ func TestApplyOverridesPreferenceProvenance(t *testing.T) {
 					Measured:    "10.4.57",
 				},
 			},
-			wantErr: `uos_excludes names "multicast_enhance_enabled", which is not in owns`,
+			wantErr: `uos_pins names "multicast_enhance_enabled", which is not in owns`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

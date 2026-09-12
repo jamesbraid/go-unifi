@@ -10,56 +10,12 @@ override-layer story):
   validation string.
 - `fields.toml` — declarative per-resource REST paths and per-field
   overrides (shape pins, renames, wire retags, envelope removals, and
-  `add = true` compat fields), plus the `preference` tables described
-  below. See its header comment for semantics.
+  `add = true` compat fields). See its header comment for semantics.
 
-## Preference tables
-
-`[Resource.preference.<wire>]` carries the residual ownership facts for an
-`auto|manual` mode field. While the mode is `auto` the controller owns a
-block of sibling fields: it accepts a payload that sets them, answers
-`rc: ok`, stores its own values, and reports nothing. A caller finds out
-from the next read, from a downstream diff, or not at all.
-
-The extracted schema describes none of this. Each validator stands alone, and
-an `auto|manual` field looks like any other two-value enum, so ownership has
-to be measured: write the same object twice, once under each mode, and
-compare each write against what it asked for.
-`TestIntegrationPreferenceOwnership` does that against a live controller
-and, under `BEHAVIOR_WRITE=1` on the standalone harness, records the answer
-in the `ownership` section of `schemas/behavior.json` — which is what the
-generator reads. An entry here carries only what that artifact has no slot
-for: a mode the sweep cannot reach (`Device`'s needs an adopted device), and
-`uos_excludes`, because the artifact records the standalone harness alone.
-An entry that repeats a measurement the artifact covers fails generation.
-
-Re-run the sweep rather than recording `owns` by hand. It finds fields that
-reading the encoder cannot: `setting_preference` owns eleven on 10.6.101,
-several of them not `*_enabled` toggles, which is why earlier counts stopped
-at six.
-
-### Nested modes
-
-Not every mode sits on its resource. `Device.setting_preference` lives inside
-`port_overrides`, the gateway's inside `dns_verification`. Address those with
-a dotted path, and **quote the key**:
-
-```toml
-[Device.preference."port_overrides.setting_preference"]
-owns = []
-measured = "10.4.57"
-```
-
-(The measured answer here really is "owns nothing": the port override
-mode exists, and every field it might own stays caller-controlled.)
-
-TOML accepts an unquoted dotted key. It reads the key as nested tables,
-decodes cleanly, and yields an entry that governs nothing — the silent
-failure these tables document, one layer up.
-
-`owns` stays relative to the object holding the mode, because a mode governs
-its own object. `port_overrides` is an array whose elements each carry a
-mode, so no single sibling path exists to write.
+Preference ownership (`auto|manual` modes) lives entirely in the
+`ownership` and `uos_pins` sections of `schemas/behavior.json`, written by
+`TestIntegrationPreferenceOwnership` (and the device port-override probe)
+under `BEHAVIOR_WRITE=1` on each harness — never here, never by hand.
 
 ## Provenance
 

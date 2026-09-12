@@ -1,5 +1,5 @@
 # Declarative resource and field overrides, applied on top of the extracted
-# schema. Four kinds of entry:
+# schema. Three kinds of entry:
 #
 #   [Resource]                REST path when it differs from the lowercased
 #                             schema file name
@@ -9,28 +9,10 @@
 #                             schema does not (or no longer does) define;
 #                             ignored when the schema defines the field, so
 #                             the schema's validation wins when it exists
-#   [Resource.preference.<wire>]
-#                             residual ownership facts for an auto|manual
-#                             mode field. The measurements themselves live in
-#                             the ownership section of schemas/behavior.json,
-#                             written by TestIntegrationPreferenceOwnership
-#                             under BEHAVIOR_WRITE=1; an entry here carries
-#                             only what that artifact cannot -- a mode the
-#                             sweep does not reach, or the uos_excludes for
-#                             one it does. Every name is checked against the
-#                             generated struct, so a typo fails generation
-#                             instead of quietly owning nothing.
 #
-# A mode nested in a sub-object takes a dotted path, and the key MUST be
-# quoted:
-#
-#   [Device.preference."port_overrides.setting_preference"]
-#
-# TOML accepts an unquoted dotted key: it reads the key as nested tables and
-# decodes to a different entry, one that owns nothing. Names in owns stay
-# relative to the object holding the mode, because a mode governs its own
-# object; an array container carries one mode per element, so no sibling path
-# exists to write.
+# Preference ownership is not overridden here: every auto|manual measurement
+# lives in the ownership and uos_pins sections of schemas/behavior.json,
+# written by the probes under BEHAVIOR_WRITE=1.
 #
 # Field entries are applied AFTER the resource's FieldProcessor, so they
 # always win. Anything conditional on the schema-derived type, pattern-based
@@ -263,33 +245,6 @@ nil_as_empty = true
 # of schemas/behavior.json (re-measure with BEHAVIOR_WRITE=1 on the standalone
 # harness); the generator reads the artifact, so nothing here repeats it. The
 # two entries below carry the facts the artifact has no slot for.
-
-# Not in schemas/behavior.json: the ownership sweep cannot reach a mode that
-# needs an adopted device to write against, so this one was measured by
-# TestIntegrationDevicePortOverridePreference against an adopted UXGENT and
-# recorded here. Owns nothing: every field of an override survived auto, so
-# the mode carries the enum without acting on it. A switch with more port
-# shapes may differ. The key is quoted because an unquoted dotted key decodes
-# as nested tables into an entry that owns nothing.
-[Device.preference."port_overrides.setting_preference"]
-owns = []
-measured = "10.6.101"
-
-# The artifact records the standalone controller's answers alone, so the
-# UniFi OS half of this mode lives here (owns is in the artifact): inside
-# UniFi OS the console owns the two short-scale retention windows outright.
-# 5minutes is pinned to 24 and hourly to 168 under BOTH modes -- asking for
-# 1 hour stores 24, so they are fixed values rather than ceilings. Retention
-# is console-wide storage policy on UOS, which is why the Network app does
-# not get to set it. measured names the Network build the UOS harness
-# bundled; it must match the artifact's controller_version, or generation
-# refuses the exclusions as stale.
-[SettingSuperMgmt.preference.data_retention_setting_preference]
-uos_excludes = [
-  "data_retention_time_in_hours_for_5minutes_scale",
-  "data_retention_time_in_hours_for_hourly_scale",
-]
-measured = "10.6.101"
 
 # Deprecated: removed from the 10.x schema along with the maps feature, but
 # they are plain device-object properties; retained so existing consumers
