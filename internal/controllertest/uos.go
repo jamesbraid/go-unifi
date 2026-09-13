@@ -73,7 +73,13 @@ const (
 	// reports schemas/VERSION just as the standalone image does. Bump it
 	// alongside the captured version; TestIntegrationControllerBoots fails
 	// when the two part company.
-	uosDefaultImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.40-sim"
+	//
+	// The trailing marker is what makes the pin visible to Renovate; see
+	// renovate.json for the manager that reads it. A bump that lands here
+	// with a different bundled Network app turns that boot assertion red,
+	// which is the point: a stale pin nobody watches fails silently, a
+	// wrong one fails loudly.
+	uosDefaultImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.42-sim" // renovate: datasource=docker
 
 	// uosNetworkPort is where UOS_NETWORK_DIRECT (default in the -sim tags)
 	// proxies the bundled Network Application API, bypassing UOS SSO. Plain
@@ -85,7 +91,13 @@ const (
 	// simulation. It has NO UOS_NETWORK_DIRECT, so its Network API is reached
 	// only through the console proxy on 443: SSO login at /api/auth/login, a
 	// CSRF header on writes, and every Network path under /proxy/network.
-	uosSeededImage = "ghcr.io/jamesbraid/unifi-os-server:seeded"
+	//
+	// Pinned to a release rather than the floating :seeded tag it used to
+	// carry. A floating tag cannot freeze, but it cannot reproduce either:
+	// the verdicts this image produces are recorded as facts about a named
+	// build, and two runs of the same commit have to measure the same one.
+	// Renovate keeps it moving instead.
+	uosSeededImage = "ghcr.io/jamesbraid/unifi-os-server:5.1.42-seeded" // renovate: datasource=docker
 
 	// uosConsolePort is the console's HTTPS port, which fronts both SSO and
 	// the proxied Network API on the seeded image.
