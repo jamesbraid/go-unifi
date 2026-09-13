@@ -12,5 +12,26 @@
     "postUpdateOptions": [
       "gomodTidy"
     ]
-  }
+  },
+  "packageRules": [
+    {
+      "description": "golangci-lint refuses a module that targets a newer Go than the toolchain its own binary was built with, and this repository pins the linter twice -- as an action input on the mirror, as a step image on the forge. Bumping the toolchain on its own is what broke the lint job on 2026-09-04: a golangci-lint built with Go 1.27 had been out since 2026-08-19, and Renovate had no reason to offer it in the same pull request. Group all three so they land together or not at all. Both pins resolve to the same package name under different datasources (github-releases for the action input, docker for the step image), so one rule reaches both.",
+      "matchPackageNames": [
+        "golangci/golangci-lint"
+      ],
+      "groupName": "golangci-lint and the Go toolchain",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "The go.mod toolchain directive, joined to the group above. separateMajorMinor defaults to true and takes priority over grouping, so it has to be off in every rule of the group or a major bump splits back out into its own pull request.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
+      "groupName": "golangci-lint and the Go toolchain",
+      "separateMajorMinor": false
+    }
+  ]
 }
