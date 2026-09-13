@@ -15062,12 +15062,6 @@
           "omit_empty": false
         },
         {
-          "wire": "mdns_enabled",
-          "go_name": "MdnsEnabled",
-          "go_type": "bool",
-          "omit_empty": false
-        },
-        {
           "wire": "mss_clamp",
           "go_name": "MssClamp",
           "go_type": "string",

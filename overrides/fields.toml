@@ -225,11 +225,16 @@ validation = "v4|v6"
 omitempty = true
 pointer = true
 
-# Removed from the 10.x schema (mDNS moved to the site-level "mdns"
-# setting); retained for backwards compatibility.
+# Absent from the 10.x schema -- mDNS moved to the site-level "mdns"
+# setting -- but the network object never stopped carrying it. Measured
+# on 10.6.101: a networkconf create with mdns_enabled true stores it and
+# reads it back, and TestIntegrationV1Drift names it as unmodelled the
+# moment this pin is dropped. So this is not a compatibility shim; the
+# published schema is simply silent about a field the controller honors,
+# and the encoder's corporate and vlan-only purposes send it.
 [Network.field.mdns_enabled]
 add = true
-doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
+doc = "Multicast DNS on this network. The controller stores and returns it (measured on 10.6.101) but publishes no schema for it, so it carries no validation."
 name = "MdnsEnabled"
 type = "bool"
 
@@ -301,13 +306,6 @@ omitempty = true
 # inexpressible, which is a smaller loss than every write failing.
 [WLAN.field.schedule_with_duration]
 omitempty = true
-
-# Removed in v7, retained for backwards compatibility.
-[SettingUsg.field.mdns_enabled]
-add = true
-doc = "Deprecated: removed in UniFi Network 7; retained for backwards compatibility."
-name = "MdnsEnabled"
-type = "bool"
 
 # querier_addresses changed wire shape in 10.x: pre-10.x controllers (and
 # databases upgraded from them) carry an array of address strings, 10.x an

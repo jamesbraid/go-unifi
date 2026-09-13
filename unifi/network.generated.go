@@ -150,7 +150,7 @@ type Network struct {
 	LteLanEnabled                 bool                         `json:"lte_lan_enabled"`
 	MACOverride                   string                       `json:"mac_override"` // (^$|^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$)
 	MACOverrideEnabled            bool                         `json:"mac_override_enabled"`
-	// Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility.
+	// Multicast DNS on this network. The controller stores and returns it (measured on 10.6.101) but publishes no schema for it, so it carries no validation.
 	MdnsEnabled                                   bool                            `json:"mdns_enabled"`
 	MssClamp                                      *string                         `json:"mss_clamp,omitempty"`          // auto|custom|disabled
 	MssClampIPV6                                  *string                         `json:"mss_clamp_ipv6,omitempty"`     // auto|custom|disabled

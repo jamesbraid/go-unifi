@@ -126,6 +126,13 @@ Gone this way so far, with the successor where there is one:
   10.6.101 — a WLAN create that never mentions it succeeds, and a create
   that names a real WLAN group is accepted with rc: ok and comes back
   without the key.
+- `settings.Usg.MdnsEnabled` — pinned when Network 7 removed it. The
+  successor is the site-level `mdns` setting. Measured on 10.6.101 —
+  `get/setting/usg` returns 34 keys and none of them is `mdns_enabled`,
+  and a `set/setting/usg` write of it is accepted with rc: ok and does
+  not come back. `Network.MdnsEnabled` is a different field and stays:
+  the same measurement finds the controller storing and returning it on
+  a network.
 
 ## Versioning honesty
 
