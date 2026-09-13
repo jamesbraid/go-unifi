@@ -18,7 +18,7 @@ when:
 # has to be recent enough to honour the toolchain line.
 steps:
   generated:
-    image: golang:1.26
+    image: golang:1.27
     commands:
       # The lock's input digests cover the generator, the overrides and the
       # extraction rules, so this fails when a change to any of them was not
@@ -36,7 +36,7 @@ steps:
         fi
 
   test:
-    image: golang:1.26
+    image: golang:1.27
     commands:
       - go build ./...
       - go test ./...
