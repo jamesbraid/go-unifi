@@ -28,25 +28,38 @@ import (
 // derived from the tree they describe, so the baseline is the previous
 // release's own code rather than a recorded file somebody accepted.
 
-// floorDirs are the generated packages, each with the qualifier its type names
-// need. Dashboard and FieldConstraint are declared in both, so a bare
-// "Dashboard.is_public" cannot say which package's field moved -- and the one
-// that exists today is unifi's, with settings.Dashboard inert only by luck.
+// floorDirs are the packages whose structs reach the wire, each with the
+// qualifier its type names need. Dashboard, FieldConstraint and Setting are
+// declared in both, so a bare "Dashboard.is_public" cannot say which package's
+// field moved -- and the one that exists today is unifi's, with
+// settings.Dashboard inert only by luck.
 var floorDirs = []struct{ dir, prefix string }{
 	{"unifi", ""},
 	{"unifi/settings", "settings."},
 }
 
-// generatedFloor returns package-qualified "Type.wire_name" for every field in
-// root's generated code carrying a json tag without omitempty.
+// declaredFloor returns package-qualified "Type.wire_name" for every field of
+// every exported struct in root's wire packages carrying a json tag without
+// omitempty.
+//
+// Hand-written types count, and for a long time they were missed: scanning
+// only *.generated.go put 29 fields outside the gate by construction, which
+// is not the same as having judged them safe. settings.BaseSetting.key is the
+// sharpest of them -- every settings struct embeds it and it has no
+// omitempty, so it rides every settings write -- and Site, Cmd, WireGuardPeer
+// and ValidationError are on the wire exactly like generated ones.
+//
+// Unexported types are left out. They are response envelopes and internal
+// request wrappers no caller can reach, so a field moving there changes this
+// client's own plumbing rather than a contract a consumer writes against.
 //
 // The files are parsed rather than reflected over so the set stays complete on
 // its own. Reflection needs a list of types to walk, and that list would want
 // updating at exactly the moment it is easiest to forget: when a regeneration
 // introduces a resource.
-func generatedFloor(root string) ([]string, error) {
+func declaredFloor(root string) ([]string, error) {
 	var out []string
-	found := false
+	generated := false
 	for _, pkg := range floorDirs {
 		entries, err := os.ReadDir(filepath.Join(root, pkg.dir))
 		if os.IsNotExist(err) {
@@ -56,11 +69,17 @@ func generatedFloor(root string) ([]string, error) {
 			return nil, err
 		}
 		for _, entry := range entries {
-			if !strings.HasSuffix(entry.Name(), ".generated.go") {
+			name := entry.Name()
+			if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 				continue
 			}
-			found = true
-			path := filepath.Join(root, pkg.dir, entry.Name())
+			// Generated code still has to be present. A tree that was never
+			// generated would otherwise measure its hand-written fields alone
+			// and report the whole generated surface as removed.
+			if strings.HasSuffix(name, ".generated.go") {
+				generated = true
+			}
+			path := filepath.Join(root, pkg.dir, name)
 			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 			if err != nil {
 				return nil, fmt.Errorf("parse %s: %w", path, err)
@@ -68,6 +87,9 @@ func generatedFloor(root string) ([]string, error) {
 			ast.Inspect(file, func(n ast.Node) bool {
 				spec, ok := n.(*ast.TypeSpec)
 				if !ok {
+					return true
+				}
+				if !spec.Name.IsExported() {
 					return true
 				}
 				structType, ok := spec.Type.(*ast.StructType)
@@ -83,7 +105,7 @@ func generatedFloor(root string) ([]string, error) {
 			})
 		}
 	}
-	if !found {
+	if !generated {
 		return nil, fmt.Errorf("no generated code under %s", root)
 	}
 	sort.Strings(out)
@@ -141,7 +163,7 @@ func structTag(tag, key string) string {
 // purposeFloorProgram prints what each Network purpose encoder sends for an
 // object the caller left alone, as "purpose wire_name" pairs.
 //
-// generatedFloor says nothing about Network. Its encoders are hand-written,
+// declaredFloor says nothing about Network. Its encoders are hand-written,
 // dispatch on purpose, and apply their own emission rules on top of the
 // generated tags, so a field's contract there can differ from the one the
 // struct declares. That gap let a real change through: remote_vpn_subnets lost
