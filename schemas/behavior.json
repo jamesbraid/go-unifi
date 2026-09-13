@@ -156,6 +156,7 @@
   },
   "discarded": {
     "DevicePortOverrides": [],
+    "HotspotPackage": [],
     "Network": [
       "dhcpd_dns_enabled",
       "dhcpd_gateway_enabled",
@@ -168,6 +169,20 @@
     ]
   },
   "empty": {
+    "hotspotpackage": {
+      "charged_as": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "currency": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "nat": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -346,6 +361,7 @@
     }
   },
   "coercions": {
+    "HotspotPackage": {},
     "SettingUsg": {}
   },
   "writes": {
@@ -368,6 +384,15 @@
       "required_on_create": [
         "destination.zone_id",
         "source.zone_id"
+      ]
+    },
+    "HotspotPackage": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/hotspotpackage",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/hotspotpackage/{id}",
+      "required_on_create": [
+        "trial_duration_minutes"
       ]
     },
     "Nat": {

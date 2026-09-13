@@ -8,5 +8,6 @@ package unifi
 // here is one the controller rewrites in silence: what was written is not
 // what a read returns, and nothing in the response says so.
 var FieldCoercionFloors = map[string]map[string]string{
-	"SettingUsg": {},
+	"HotspotPackage": {},
+	"SettingUsg":     {},
 }
