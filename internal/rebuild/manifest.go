@@ -19,10 +19,11 @@ var requiredOutputs = []string{
 	"schemas/SOURCE",
 	"schemas/VERSION",
 	"schemas/capture.lock.json",
+	"wirecontract/wire_contract.json",
 }
 
 // OutputDigest hashes every file generation produces under root: the
-// provenance projections, the lock, specification.json, and the generated Go.
+// provenance projections, the lock, the wire contract, and the generated Go.
 // Each file contributes its tree-relative path, its size and its own digest,
 // so a rename or a truncation moves the result as surely as an edit does.
 func OutputDigest(root string) (string, error) {

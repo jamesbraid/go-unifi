@@ -22,13 +22,14 @@ func completeFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	for name, content := range map[string]string{
-		"schemas/capture.lock.json":     "lock\n",
-		"schemas/VERSION":               "10.4.57\n",
-		"schemas/SOURCE":                "source\n",
-		"schemas/ARTIFACT":              "artifact\n",
-		"unifi/a.generated.go":          "package unifi\n",
-		"unifi/settings/b.generated.go": "package settings\n",
-		"unifi/hand_written.go":         "ignored\n",
+		"schemas/capture.lock.json":       "lock\n",
+		"schemas/VERSION":                 "10.4.57\n",
+		"schemas/SOURCE":                  "source\n",
+		"schemas/ARTIFACT":                "artifact\n",
+		"wirecontract/wire_contract.json": "{}\n",
+		"unifi/a.generated.go":            "package unifi\n",
+		"unifi/settings/b.generated.go":   "package settings\n",
+		"unifi/hand_written.go":           "ignored\n",
 	} {
 		writeFixture(t, root, name, content)
 	}

@@ -477,8 +477,13 @@ func ComputeInputDigests(moduleRoot string) (Inputs, error) {
 		generatorFiles = append(generatorFiles, "schemas/behavior.json")
 	}
 
+	// wirecontract/ carries the second generate directive and the artifact's
+	// published layout, so editing either moves this digest as an override edit
+	// does. Its own .json output is not a .go file and is skipped below.
 	for _, dir := range []string{
 		"cmd/fields",
+		"cmd/wirecontract",
+		"wirecontract",
 		"internal/behavior",
 		"internal/capturelock",
 		"internal/fields",
