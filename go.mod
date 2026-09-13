@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/iancoleman/strcase v0.3.0
 	github.com/klauspost/compress v1.20.0
-	github.com/moby/moby/api v1.54.2
+	github.com/moby/moby/api v1.56.0
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/ulikunitz/xz v0.5.16
