@@ -155,6 +155,7 @@
     }
   },
   "discarded": {
+    "DNSRecord": [],
     "DevicePortOverrides": [],
     "DeviceRadioTable": [
       "dfs"
@@ -387,6 +388,40 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "static-dns": {
+      "enabled": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "key": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "port": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "priority": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "record_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "ttl": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "value": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "weight": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "trafficroutes": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -470,6 +505,17 @@
         "categories",
         "name",
         "schedule"
+      ]
+    },
+    "DNSRecord": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/static-dns",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/static-dns/{id}",
+      "required_on_create": [
+        "key",
+        "record_type",
+        "value"
       ]
     },
     "DeviceRadioTable": {
