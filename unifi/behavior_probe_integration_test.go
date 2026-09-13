@@ -2855,3 +2855,510 @@ func trafficRouteEmptyTargetKeys(
 		}
 	}
 }
+
+// TestIntegrationPortForwardWriteContract measures the port-forward
+// collection, which no section of the artifact described: the SDK has
+// shipped a client for it since the schema was captured and nothing had ever
+// written one.
+//
+// It owns three artifact entries outright -- the write contract, the discard
+// list and the clearing semantics -- because a second probe replacing any of
+// them would erase what this one measured.
+//
+// Three findings are worth reading before the code.
+//
+// Nothing is required on create. A POST carrying {} is answered 200 with a
+// document holding an id and nothing else. The field-by-field sweep and the
+// empty body are both here because they are different claims: the sweep says
+// no single field is load-bearing, the empty body says there is no
+// at-least-one-of rule the sweep would miss.
+//
+// Two fields do draw a refusal in that sweep, and neither is recorded,
+// because both refusals are about another field in the same body:
+// src_limiting_type is refused as missing only while src_limiting_enabled is
+// true, and src_firewall_group_id only while the type is "firewall_group".
+// required_on_create cannot say "when", so filing them flat would publish
+// them as rules a caller not limiting its source has to obey -- and would
+// tell the generator to drop omitempty from src_limiting_type, putting ""
+// into every create for the field's own pattern to refuse. Both conditions
+// are measured below by relaxing the other field and watching the create
+// succeed, which is what earns the drop.
+//
+// And omitting a key on update PRESERVES the stored value, as it does on
+// firewallgroup. TestIntegrationClearingSemantics still asserts OMIT-CLEARS
+// for networkconf, portconf and wlanconf and calls a merge the thing that
+// would break the encoder's empty-string rule; those verdicts were read off
+// the write's own response, which is what storedEmptySemantics exists to
+// avoid. The verdict here is taken twice from different write shapes -- a
+// full document with one key removed, and a body naming one field and
+// nothing else -- so it does not rest on one request's quirk.
+//
+// One rewrite is measured and deliberately NOT recorded. Asking for
+// src_limiting_type "firewall_group" stores "firewall_group" when src is
+// "any" or absent, and stores "ip" when src carries an address -- the
+// address wins. The coercion map is keyed by field alone and has no way to
+// say "when src is set", so an entry there would read as "the controller
+// always rewrites this", which is false and would tell a caller to stop
+// sending a value the controller does honour. It is asserted below instead.
+func TestIntegrationPortForwardWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	path := "/api/s/" + c.Site + "/rest/portforward"
+
+	// The list has to be served before anything else here means what it
+	// looks like: a 404 collection would make every verdict below "the route
+	// is absent" wearing another status code's clothes.
+	if body, status, err := s.GetJSON(ctx, path); status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v %v); the collection is not served, so no verb below "+
+			"measures the write contract", path, status, body, err)
+	}
+
+	groupID := portForwardSourceGroup(ctx, t, s, c.Site)
+
+	// A rule carrying one value of every kind the struct has: the address
+	// and port pair on each side, the interface selection in both its
+	// spellings, the two booleans, and source limiting by firewall group.
+	// src stays "any" because an address in it overrides the asked
+	// src_limiting_type, which would measure the override rather than the
+	// round trip; the override is measured on its own below.
+	base := func(name, dstPort string) map[string]any {
+		return map[string]any{
+			"name": name, "enabled": true, "log": true,
+			"dst_port": dstPort, "fwd": "192.168.1.51", "fwd_port": "81",
+			"proto": "tcp", "pfwd_interface": "wan", "destination_ip": "any",
+			"destination_ips":       []any{map[string]any{"destination_ip": "any", "interface": "wan"}},
+			"src":                   "any",
+			"src_limiting_enabled":  true,
+			"src_limiting_type":     "firewall_group",
+			"src_firewall_group_id": groupID,
+		}
+	}
+
+	post := func(doc map[string]any) (int, any, string) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		stored := firstData(t, body)
+		// A v1 rejection echoes the offending document under data rather
+		// than a stored one, so only a 2xx carrying an id created anything.
+		id := ""
+		if status/100 == 2 {
+			id = objectID(stored)
+		}
+		return status, body, id
+	}
+	// read returns the STORED document, not the create response: a v1
+	// collection answering 200 says it stored something, not that it stored
+	// what was asked.
+	read := func(id string) map[string]any {
+		body, status, err := s.GetJSON(ctx, path+"/"+id)
+		if status != 200 {
+			t.Fatalf("GET %s/%s answered HTTP %d (%v %v); the generated read uses that path",
+				path, id, status, body, err)
+		}
+		return firstData(t, body)
+	}
+
+	asked := base("port-forward-probe", "7001")
+	status, body, id := post(asked)
+	if status/100 != 2 || id == "" {
+		t.Fatalf("the known-good port forward was rejected (HTTP %d, %s): %v\n\nNothing removed from "+
+			"a body that does not create can measure anything.", status, v1ErrCode(body), body)
+	}
+	stored := read(id)
+
+	// What the controller kept, changed and dropped, read from the stored
+	// document. A CHANGED field is a rewrite and a DROPPED one was accepted
+	// and never persisted; only the drops are recorded, because telling a
+	// caller to stop sending a field the controller does keep is worse than
+	// saying nothing.
+	dropped := []string{}
+	for _, r := range probe.Classify(asked, stored) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-24s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			t.Errorf("CHANGED %-24s (%s) -- the round-trip body was chosen so nothing in it is "+
+				"rewritten; a rewrite here is a fact this probe does not record anywhere", r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("port forward round trip: %d asked, %d dropped", len(asked), len(dropped))
+
+	// Why the classification above is the measurement and the 200 is not:
+	// this collection accepts a key it does not recognise and stores the
+	// document without it, so a create answering 200 says nothing on its own
+	// about what reached the database.
+	unknownKeyStripped(ctx, t, s, path, base("port-forward-unknown-key", "7002"))
+
+	updateVerb, updatePath := measurePortForwardUpdate(ctx, t, s, path, id, stored)
+
+	required := portForwardRequiredOnCreate(ctx, t, s, path, base, post, read)
+	portForwardSourceLimiting(ctx, t, s, path, base, post, read)
+
+	measured := portForwardClearing(ctx, t, s, path, id, stored, func() map[string]any { return read(id) })
+
+	if _, delStatus, err := s.DeleteJSON(ctx, path+"/"+id); delStatus/100 != 2 {
+		t.Errorf("delete %s/%s answered HTTP %d (%v)", path, id, delStatus, err)
+	}
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "api/s/{site}/rest/portforward",
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: required,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			// Replace, not merge: the probe writes the same body every run,
+			// so a field that stopped being dropped, or stopped being
+			// swept, has to leave the artifact rather than linger as a fact
+			// nothing re-measures. Nothing else writes these keys.
+			a.Writes["PortForward"] = contract
+			a.Discarded["PortForward"] = dropped
+			a.Empty["portforward"] = measured
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the port forward", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "PortForward", art.Writes, contract)
+	if pinned, has := art.Discarded["PortForward"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("PortForward discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+	compareEmptySemantics(t, "portforward", art.Empty["portforward"], measured)
+}
+
+// portForwardSourceGroup seeds an address group for a rule to limit its
+// source by, and returns its id. Source limiting by firewall group is the
+// only way to get a value into src_firewall_group_id, and a rule naming a
+// well-formed but nonexistent id measures the rejection rather than the
+// field.
+func portForwardSourceGroup(ctx context.Context, t *testing.T, s *controllertest.Session, site string) string {
+	t.Helper()
+	groups := "/api/s/" + site + "/rest/firewallgroup"
+	body, status, err := s.PostJSON(ctx, groups, map[string]any{
+		"name": "port-forward-probe-src", "group_type": "address-group",
+		"group_members": []string{"192.0.2.0/24"},
+	})
+	id := objectID(firstData(t, body))
+	if status/100 != 2 || id == "" {
+		t.Fatalf("seeding a source address group failed (HTTP %d, %v %v); every rule below would "+
+			"limit its source by an id the site does not have", status, body, err)
+	}
+	t.Cleanup(func() {
+		s.DeleteJSON(context.WithoutCancel(ctx), groups+"/"+id) //nolint:errcheck
+	})
+	return id
+}
+
+// measurePortForwardUpdate confirms the generic v1 by-id verbs on a rule the
+// caller already created: the read the generated client uses, and the write
+// it uses. Neither had ever been exercised.
+func measurePortForwardUpdate(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path, id string, stored map[string]any,
+) (verb, rel string) {
+	t.Helper()
+	edited := clone(stored)
+	edited["name"] = "port-forward-probe-updated"
+	after, status, err := s.PutJSON(ctx, path+"/"+id, edited)
+	if status/100 != 2 {
+		t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+			path, id, status, after, err)
+		return "", ""
+	}
+	if got, _ := firstData(t, after)["name"].(string); got != "port-forward-probe-updated" {
+		t.Errorf("PUT %s/%s answered 200 but the name reads back %q; the write did not take, so the "+
+			"clearing verdicts below would be measuring a no-op", path, id, got)
+	}
+	t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, status)
+	// Put the seeded name back so the clearing sweep starts from the
+	// document the round trip classified.
+	s.PutJSON(ctx, path+"/"+id, stored) //nolint:errcheck
+	return "PUT", "api/s/{site}/rest/portforward/{id}"
+}
+
+// portForwardRequiredOnCreate removes each field of the known-good body in
+// turn, and then sends nothing at all. The empty body is not redundant: the
+// one-at-a-time sweep cannot see an at-least-one-of rule, because every
+// other field is still there to satisfy it.
+func portForwardRequiredOnCreate(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path string,
+	base func(string, string) map[string]any,
+	post func(map[string]any) (int, any, string),
+	read func(string) map[string]any,
+) []string {
+	t.Helper()
+
+	fields := make([]string, 0, len(base("", "")))
+	for f := range base("", "") {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var required []string
+	for i, field := range fields {
+		doc := base(fmt.Sprintf("port-forward-probe-%d", i), strconv.Itoa(7100+i))
+		delete(doc, field)
+		status, body, id := post(doc)
+		if status/100 == 2 {
+			if id != "" {
+				s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+			}
+			t.Logf("port forward create without %-24s accepted (HTTP %d) -- not required", field, status)
+			continue
+		}
+		t.Logf("port forward create without %-24s rejected (HTTP %d, %s) -- required on create",
+			field, status, v1ErrCode(body))
+		required = append(required, field)
+	}
+	sort.Strings(required)
+
+	// Both refusals the sweep finds are about a second field in the same
+	// body, so each is re-measured with that field relaxed. A create that
+	// then succeeds says the requirement was the condition's, not the
+	// resource's, and the entry is dropped -- the same treatment content
+	// filtering's network_ids gets, and for the same reason: a conditional
+	// requirement filed flat is published as a rule callers outside the
+	// condition do not have to obey.
+	for i, cond := range []struct {
+		field, when string
+		relax       func(map[string]any)
+	}{
+		{
+			field: "src_limiting_type",
+			when:  "src_limiting_enabled is true",
+			relax: func(d map[string]any) {
+				delete(d, "src_limiting_enabled")
+				delete(d, "src_limiting_type")
+				delete(d, "src_firewall_group_id")
+			},
+		},
+		{
+			field: "src_firewall_group_id",
+			when:  `src_limiting_type is "firewall_group"`,
+			relax: func(d map[string]any) {
+				d["src"] = "192.0.2.0/24"
+				d["src_limiting_type"] = "ip"
+				delete(d, "src_firewall_group_id")
+			},
+		},
+	} {
+		if !slices.Contains(required, cond.field) {
+			continue
+		}
+		doc := base("port-forward-probe-cond-"+cond.field, strconv.Itoa(7300+i))
+		cond.relax(doc)
+		status, body, id := post(doc)
+		if status/100 != 2 {
+			t.Logf("%s stays required: a create relaxing %s is refused too (HTTP %d, %s)",
+				cond.field, cond.when, status, v1ErrCode(body))
+			continue
+		}
+		if id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		required = slices.DeleteFunc(required, func(f string) bool { return f == cond.field })
+		t.Logf("LOUD: %s is refused as missing only while %s; a create outside that condition is "+
+			"accepted (HTTP %d), so it is not recorded as required on create", cond.field, cond.when, status)
+	}
+
+	status, body, id := post(map[string]any{})
+	if status/100 != 2 || id == "" {
+		t.Logf("a port forward create carrying {} is refused (HTTP %d, %s); something in the body is "+
+			"load-bearing after all, and the sweep above did not find it", status, v1ErrCode(body))
+		return required
+	}
+	empty := read(id)
+	s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	delete(empty, "_id")
+	delete(empty, "site_id")
+	if len(empty) != 0 {
+		t.Errorf("a port forward create carrying {} stored %v besides its id; the controller is "+
+			"filling in defaults this probe has not measured", empty)
+	}
+	t.Logf("LOUD: a port forward create carrying {} is accepted (HTTP %d) and stores a document with "+
+		"an id and nothing else. Nothing is required on create.", status)
+	return required
+}
+
+// portForwardSourceLimiting measures the two cross-field rules the source
+// limiting fields obey, neither of which required_on_create nor the coercion
+// map can express: a rule limiting by address must carry one, and an address
+// in src overrides the limiting type the caller asked for.
+func portForwardSourceLimiting(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path string,
+	base func(string, string) map[string]any,
+	post func(map[string]any) (int, any, string),
+	read func(string) map[string]any,
+) {
+	t.Helper()
+
+	byAddress := base("port-forward-probe-src-ip", "7201")
+	byAddress["src_limiting_type"] = "ip"
+	delete(byAddress, "src_firewall_group_id")
+	status, body, id := post(byAddress)
+	if status/100 == 2 {
+		if id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		t.Errorf("a rule limiting its source by address while src is %q was accepted (HTTP %d); the "+
+			"controller was measured refusing it, and the known-good body above relies on that",
+			byAddress["src"], status)
+	} else {
+		t.Logf("source limiting by address with src=%q rejected (HTTP %d, %s) -- the address is not "+
+			"optional once the type asks for one", byAddress["src"], status, v1ErrCode(body))
+	}
+
+	override := base("port-forward-probe-src-override", "7202")
+	override["src"] = "192.0.2.0/24"
+	status, body, id = post(override)
+	if status/100 != 2 || id == "" {
+		t.Fatalf("a rule carrying an address in src was rejected (HTTP %d, %s): %v", status, v1ErrCode(body), body)
+	}
+	got, _ := read(id)["src_limiting_type"].(string)
+	s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	if got == override["src_limiting_type"] {
+		t.Logf("LOUD: src_limiting_type now survives as %q alongside an address in src. The rewrite "+
+			"this probe declines to record because it is conditional is gone; it can be recorded flat.", got)
+		return
+	}
+	if got != "ip" {
+		t.Errorf("asked src_limiting_type %q with an address in src and the controller stored %q; it "+
+			"was measured storing \"ip\", and neither value is what was asked",
+			override["src_limiting_type"], got)
+		return
+	}
+	t.Logf("an address in src overrides src_limiting_type %q to %q -- a rewrite conditional on another "+
+		"field, which is why it is asserted here and not recorded", override["src_limiting_type"], got)
+}
+
+// portForwardClearing measures, for every field the seeded rule stored a
+// value in, what an emptied field and an absent key do on update. The empty
+// form is the field's own: "" for a string, [] for a list.
+//
+// storedEmptySemantics does the reading, and it matters more here than
+// anywhere else it is used: this collection answers a write that changed
+// nothing with an empty data array, so a verdict taken from the write's own
+// response scores every preserved field as cleared. That answer is measured
+// below rather than carried over from the collections it was first seen on,
+// so a controller that starts echoing the document is noticed.
+func portForwardClearing(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path, id string,
+	stored map[string]any, read func() map[string]any,
+) map[string]behavior.EmptySemantics {
+	t.Helper()
+
+	// Only fields the seed populated: with nothing stored, clearing and
+	// ignoring are the same observation.
+	var fields []struct {
+		wire  string
+		blank any
+	}
+	for k, v := range stored {
+		if k == "_id" || k == "site_id" || blankValue(v) {
+			continue
+		}
+		switch v.(type) {
+		case string:
+			fields = append(fields, struct {
+				wire  string
+				blank any
+			}{k, ""})
+		case []any:
+			fields = append(fields, struct {
+				wire  string
+				blank any
+			}{k, []any{}})
+		}
+	}
+	sort.Slice(fields, func(i, j int) bool { return fields[i].wire < fields[j].wire })
+
+	put := func(doc map[string]any) int {
+		body, status, err := s.PutJSON(ctx, path+"/"+id, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s/%s: %v", path, id, err)
+		}
+		if status/100 != 2 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT %s/%s -> HTTP %d: %s", path, id, status, v1ErrCode(body))
+		}
+		return status
+	}
+
+	if body, status, _ := s.PutJSON(ctx, path+"/"+id, clone(stored)); status/100 != 2 {
+		t.Fatalf("re-writing the stored document was refused (HTTP %d); the sweep below has no way "+
+			"to reset between arms", status)
+	} else if firstData(t, body) == nil {
+		t.Logf("a PUT that changes nothing answers HTTP 200 carrying no document, as the other v1 "+
+			"collections do; every verdict below is read back from %s/%s", path, id)
+	} else {
+		t.Logf("a PUT that changes nothing now echoes the document; the verdicts below still read it "+
+			"back from %s/%s", path, id)
+	}
+
+	measured := map[string]behavior.EmptySemantics{}
+	for _, f := range fields {
+		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, stored, put, read)
+	}
+	var summary []string
+	for _, f := range slices.Sorted(maps.Keys(measured)) {
+		summary = append(summary, fmt.Sprintf("%-24s %-16s %s", f, measured[f].Empty, measured[f].Omit))
+	}
+	t.Logf("port forward clearing semantics (%d fields):\n  %s", len(summary), strings.Join(summary, "\n  "))
+
+	// The merge, taken a second time from a write shape the sweep never
+	// sends: a body naming one field and nothing else. If this collection
+	// replaced, everything but the name would be gone.
+	renamed := "port-forward-probe-merge"
+	if put(map[string]any{"name": renamed}) == 200 {
+		after := read()
+		if got, _ := after["name"].(string); got != renamed {
+			t.Errorf("a PUT naming only the name answered 200 and the name reads back %q; the write "+
+				"did not take, so it proves nothing about the keys it left out", got)
+		}
+		for _, f := range fields {
+			if f.wire == "name" {
+				continue
+			}
+			if !jsonEqual(after[f.wire], stored[f.wire]) {
+				t.Errorf("a PUT naming only the name left %s as %v, not the stored %v; this "+
+					"collection replaces after all and the OMIT-KEEPS verdicts above are wrong",
+					f.wire, after[f.wire], stored[f.wire])
+			}
+		}
+		t.Logf("LOUD: a PUT naming only name kept all %d other stored fields, so this collection "+
+			"merges like firewallgroup rather than replacing.", len(fields)-1)
+	} else {
+		t.Error("a PUT naming only the name was refused; the OMIT-KEEPS verdicts above then rest " +
+			"on one write shape alone")
+	}
+	put(clone(stored)) // reset
+
+	return measured
+}
