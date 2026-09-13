@@ -65,9 +65,16 @@ jobs:
           # fail an unrelated PR on a rule that did not exist when it opened.
           # Must stay >= the go.mod toolchain: golangci-lint refuses a module
           # whose target Go version is newer than the one its binary was built
-          # with. renovate.json groups this with the toolchain and with the
-          # .woodpecker pin so all three move in one pull request.
-          version: v2.13.2
+          # with.
+          #
+          # Renovate reads the action's own ref above but not the inputs
+          # handed to it, so this line is invisible to it without an opt-in.
+          # The trailing marker is that opt-in: it puts the pin under a custom
+          # manager in renovate.json, which is what lets one rule there group
+          # it with the toolchain and the .woodpecker image into a single pull
+          # request. Delete the marker and this pin quietly stops moving with
+          # the other two.
+          version: v2.13.2 # renovate: datasource=github-releases depName=golangci/golangci-lint
           args: --timeout=10m
 
   test:
