@@ -24,6 +24,16 @@
       "matchStrings": [
         "\"(?<depName>[^\"]+):(?<currentValue>[^\":]+)\"[ \\t]*// renovate: datasource=(?<datasource>[a-z-]+)"
       ]
+    },
+    {
+      "description": "Versions pinned as an input to a workflow action, opted in with a trailing `# renovate:` marker. The github-actions manager reads the action's own ref and nothing else, so a version passed to it in `with:` is invisible without this. The marker has to name the dep as well as the datasource: unlike the harness constants, the value on the line is a bare version with nothing to derive a name from.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "(?<currentValue>\\S+)[ \\t]+# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)"
+      ]
     }
   ],
   "packageRules": [
