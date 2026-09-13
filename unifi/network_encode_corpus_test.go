@@ -22,8 +22,9 @@ const networkEncodeCorpusPath = "testdata/network_encode_corpus.txt"
 // create-only DHCP range, the vlan_enabled inference, the WAN ipv6_enabled
 // synthesis, the empty-pointer handling).
 //
-// TestNetworkPurposeWireShape pins which keys a zero object sends;
-// TestGeneratedWriteShape pins the generated types. Neither pins the full
+// cmd/apidiff compares which keys a zero object sends per purpose, and the
+// generated types' always-serialized set, against the last release. Neither
+// pins the full
 // output -- key order, derived values, what a populated pointer does -- so a
 // restructuring of the encoder could shift bytes without either noticing.
 // This golden holds the whole surface still: any change to what any purpose

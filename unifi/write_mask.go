@@ -15,8 +15,9 @@ var identityFields = []string{"_id", "id", "site_id"}
 
 // maskedBody renders d as a write carrying only the named wire fields.
 //
-// The generated structs declare 374 bools without omitempty (pinned by
-// TestGeneratedWriteShape), so a full write asserts false for every toggle
+// The generated structs declare 374 bools without omitempty (cmd/apidiff
+// compares that set against the last release), so a full write asserts
+// false for every toggle
 // the caller left alone, and the controller stores false. A key the payload
 // omits keeps its stored value instead -- TestIntegrationPartialWriteMerges
 // pins that -- so naming the fields you mean is enough to leave the rest

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -37,34 +35,57 @@ func TestWireSectionRendering(t *testing.T) {
 	}
 }
 
-// TestBaselineLinesTellsMissingFromEmpty covers the distinction the
-// wire-surface report rests on.
+// TestWireFloorsMeasureTheRealTree is the positive control for both floors.
 //
-// A release that predates a baseline has no record of what its wire surface
-// was. Treating that as an empty record would report the whole of the new
-// baseline as additions the first time one is introduced, burying whatever
-// really moved. Treating it as "not recorded" says nothing, which is the
-// truth.
-func TestBaselineLinesTellsMissingFromEmpty(t *testing.T) {
-	dir := t.TempDir()
-
-	if _, recorded, err := baselineLines(filepath.Join(dir, "absent.txt")); err != nil || recorded {
-		t.Errorf("a missing baseline reported recorded=%v err=%v, want false and no error", recorded, err)
-	}
-
-	empty := filepath.Join(dir, "empty.txt")
-	if err := os.WriteFile(empty, []byte("\n\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	lines, recorded, err := baselineLines(empty)
+// Nothing else here reads the repository: a floor that silently returned
+// nothing would make every comparison empty, and apidiff would report "no
+// wire-surface changes" forever -- indistinguishable from a clean release,
+// and the exact failure the floors exist to prevent. The assertions are
+// structural rather than a recorded count, so a regeneration that legitimately
+// moves the floor does not need anybody to re-accept a number.
+func TestWireFloorsMeasureTheRealTree(t *testing.T) {
+	generated, err := generatedFloor("../..")
 	if err != nil {
-		t.Fatalf("baselineLines: %v", err)
+		t.Fatalf("generatedFloor: %v", err)
 	}
-	if !recorded {
-		t.Error("a file that exists but holds no entries reported recorded=false")
+	if len(generated) < 100 {
+		t.Fatalf("read %d always-serialized fields; the scanner is not working", len(generated))
 	}
-	if len(lines) != 0 {
-		t.Errorf("lines = %q, want none", lines)
+	if !slices.Contains(generated, "WLAN.roaming_assistant_na_enabled") {
+		t.Error("WLAN.roaming_assistant_na_enabled missing; keys are not Type.wire_name")
+	}
+	if !slices.ContainsFunc(generated, func(key string) bool {
+		return strings.HasPrefix(key, "settings.")
+	}) {
+		t.Error("no settings. keys; the settings package is unscanned, or unqualified and colliding with unifi's")
+	}
+
+	purposes, err := purposeFloor("../..")
+	if err != nil {
+		t.Fatalf("purposeFloor: %v", err)
+	}
+	// The DHCP-guard slots ride every corporate write: the controller rejects
+	// a write that omits dhcpd_ip_1 on a guarded network.
+	if !slices.Contains(purposes, "corporate dhcpd_ip_1") {
+		t.Errorf("corporate dhcpd_ip_1 missing from %d purpose entries; the encoder is not being measured", len(purposes))
+	}
+	if !slices.ContainsFunc(purposes, func(pair string) bool {
+		return strings.HasPrefix(pair, "site-vpn ")
+	}) {
+		t.Error("no site-vpn entries; only one purpose is being encoded")
+	}
+}
+
+// TestGeneratedFloorRejectsATreeWithNoGeneratedCode pins the distinction the
+// report rests on.
+//
+// A baseline that cannot be measured has no floor to compare against, which
+// is not the same as a floor that did not move. wireSurfaceDelta skips that
+// half and says why; treating it as an empty floor instead would report every
+// entry as removed and bury whatever really changed.
+func TestGeneratedFloorRejectsATreeWithNoGeneratedCode(t *testing.T) {
+	if _, err := generatedFloor(t.TempDir()); err == nil {
+		t.Error("generatedFloor(empty tree) returned no error; an unmeasurable tree reads as an empty floor")
 	}
 }
 

@@ -1,8 +1,11 @@
-// Command apidiff compares the working tree's public Go API against the
-// latest release tag and reports the incompatibilities that matter for
-// release gating. The baseline is extracted from the local tag via git
-// archive rather than the module proxy: the proxy may not yet serve (or may
-// have cached a 404 for) a tag that auto-release pushed recently.
+// Command apidiff compares the working tree against the latest release tag
+// and reports the changes that matter for release gating: the public Go API,
+// the wire surface the marshalers assert, and the published validator
+// patterns. The baseline is extracted from the local tag via git archive
+// rather than the module proxy: the proxy may not yet serve (or may have
+// cached a 404 for) a tag that auto-release pushed recently. Every
+// comparison reads that same extracted tree, so nothing here rests on a
+// recorded file a human accepted.
 //
 // cmd/ holds main packages, which are not importable API, so
 // incompatibilities there are ignored. UnifiVersion names the controller
@@ -10,8 +13,9 @@
 // value is not drift.
 //
 // Output: the filtered incompatibilities on stdout, one per line. When
-// GITHUB_OUTPUT is set, `base`, `breaking`, and a markdown `summary`
-// suitable for a PR body are appended for the calling workflow.
+// GITHUB_OUTPUT is set, `base`, `breaking`, `wire_changed`,
+// `validators_changed`, and a markdown `summary` suitable for a PR body are
+// appended for the calling workflow.
 package main
 
 import (
@@ -64,7 +68,7 @@ func run(stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		wireAdded, wireRemoved, err = wireSurfaceDelta(baseTree)
+		wireAdded, wireRemoved, err = wireSurfaceDelta(stderr, base, baseTree)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
@@ -176,65 +180,42 @@ func filterIncompatibilities(lines []string) []string {
 	return kept
 }
 
-// wireBaselinePath records every field the generated marshalers send
-// unconditionally; a diff of it between releases is the wire-surface
-// change apidiff's compile-time view cannot see (struct tags are not API
-// to the type checker, but omitempty is a wire contract).
-const wireBaselinePath = "unifi/testdata/always_serialized_fields.txt"
-
-// purposeBaselinePath records what each Network purpose encoder sends for an
-// object the caller left alone.
-//
-// The generated marshalers are covered by wireBaselinePath, which is read
-// from struct tags. Network's encoders are hand-written and re-declare their
-// own tags, so a change there is invisible to that baseline: dropping
-// omitempty from remote_vpn_subnets put the key on every site-to-site write
-// and this tool reported no wire-surface change at all. Both files are
-// compared so that neither half of the encoder can move quietly.
-const purposeBaselinePath = "unifi/testdata/purpose_wire_shape.txt"
-
-func wireSurfaceDelta(baseTree string) (added, removed []string, err error) {
-	for _, path := range []string{wireBaselinePath, purposeBaselinePath} {
-		baseLines, recorded, err := baselineLines(filepath.Join(baseTree, path))
-		if err != nil {
-			return nil, nil, err
-		}
-		// A baseline the release being compared against never had says
-		// nothing about what moved since. Reporting its whole contents as
-		// additions would bury the real ones the first time a baseline is
-		// introduced.
-		if !recorded {
-			continue
-		}
-		currentLines, _, err := baselineLines(path)
-		if err != nil {
-			return nil, nil, err
-		}
-		fileAdded, fileRemoved := wireDelta(baseLines, currentLines)
-		added = append(added, fileAdded...)
-		removed = append(removed, fileRemoved...)
-	}
-	return added, removed, nil
+// wireFloors are the two halves of the wire surface, each derived from the
+// tree it describes. Their line shapes differ -- "Type.wire_name" against
+// "purpose wire_name" -- so a combined report still says which half moved.
+var wireFloors = []struct {
+	name string
+	of   func(root string) ([]string, error)
+}{
+	{"always-serialized field", generatedFloor},
+	{"Network purpose encoder", purposeFloor},
 }
 
-// baselineLines reads a wire baseline, reporting whether the file was there
-// at all: a release that predates a baseline has no record to compare
-// against, which is different from a record that is empty.
-func baselineLines(path string) ([]string, bool, error) {
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	var lines []string
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
+// wireSurfaceDelta compares the wire floors of the baseline tree against the
+// working tree. Both sides are measured the same way from source, so what
+// the comparison rests on is the previous release's own code rather than a
+// file somebody accepted by hand.
+func wireSurfaceDelta(stderr io.Writer, base, baseTree string) (added, removed []string, err error) {
+	for _, floor := range wireFloors {
+		baseLines, err := floor.of(baseTree)
+		if err != nil {
+			// A baseline this cannot measure -- a tag predating the package,
+			// or one whose encoder no longer builds here -- has no floor to
+			// compare against, which is not the same as a floor that did not
+			// move. Say so, and still compare the other half: reporting a
+			// whole floor as new would bury whatever really moved.
+			fmt.Fprintf(stderr, "no %s floor in %s, skipping that comparison: %v\n", floor.name, orNone(base), err)
+			continue
 		}
+		currentLines, err := floor.of(".")
+		if err != nil {
+			return nil, nil, fmt.Errorf("measure the %s floor in the working tree: %w", floor.name, err)
+		}
+		floorAdded, floorRemoved := wireDelta(baseLines, currentLines)
+		added = append(added, floorAdded...)
+		removed = append(removed, floorRemoved...)
 	}
-	return lines, true, nil
+	return added, removed, nil
 }
 
 func wireDelta(base, current []string) (added, removed []string) {

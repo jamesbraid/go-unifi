@@ -90,8 +90,9 @@ jobs:
         run: echo "CONTROLLER_VERSION=$(cat schemas/VERSION)" >> "$GITHUB_ENV"
 
       # The release notes carry both diff surfaces: apidiff for the Go API
-      # and the always-serialized baseline for the wire. A previous tag may
-      # not exist in a fresh history; say so instead of failing.
+      # and the always-serialized field set for the wire, each measured
+      # against the previous tag's own tree. A previous tag may not exist in
+      # a fresh history; say so instead of failing.
       - name: Summarize API and wire changes
         run: |
           set -eu
