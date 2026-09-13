@@ -48,8 +48,10 @@ steps:
 
   lint:
     # Pinned to the version the mirror pins, so the two forges cannot disagree
-    # about which lint decided a diff.
-    image: golangci/golangci-lint:v2.12.2
+    # about which lint decided a diff. renovate.json groups the two pins with
+    # the Go toolchain, so a bump arrives as one pull request rather than two
+    # that can half-land.
+    image: golangci/golangci-lint:v2.13.2
     commands:
       - golangci-lint run --timeout=10m
 
