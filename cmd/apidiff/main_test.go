@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -44,20 +46,29 @@ func TestWireSectionRendering(t *testing.T) {
 // structural rather than a recorded count, so a regeneration that legitimately
 // moves the floor does not need anybody to re-accept a number.
 func TestWireFloorsMeasureTheRealTree(t *testing.T) {
-	generated, err := generatedFloor("../..")
+	declared, err := declaredFloor("../..")
 	if err != nil {
-		t.Fatalf("generatedFloor: %v", err)
+		t.Fatalf("declaredFloor: %v", err)
 	}
-	if len(generated) < 100 {
-		t.Fatalf("read %d always-serialized fields; the scanner is not working", len(generated))
+	if len(declared) < 100 {
+		t.Fatalf("read %d always-serialized fields; the scanner is not working", len(declared))
 	}
-	if !slices.Contains(generated, "WLAN.roaming_assistant_na_enabled") {
+	if !slices.Contains(declared, "WLAN.roaming_assistant_na_enabled") {
 		t.Error("WLAN.roaming_assistant_na_enabled missing; keys are not Type.wire_name")
 	}
-	if !slices.ContainsFunc(generated, func(key string) bool {
+	if !slices.ContainsFunc(declared, func(key string) bool {
 		return strings.HasPrefix(key, "settings.")
 	}) {
 		t.Error("no settings. keys; the settings package is unscanned, or unqualified and colliding with unifi's")
+	}
+	// Hand-written types are on the wire like any other. settings.BaseSetting
+	// is embedded by every settings struct and its key has no omitempty, so it
+	// rides every settings write; a scan narrowed back to *.generated.go would
+	// drop it and 28 others out of the gate without failing anything else.
+	for _, handWritten := range []string{"settings.BaseSetting.key", "Site.name", "WireGuardPeer.public_key"} {
+		if !slices.Contains(declared, handWritten) {
+			t.Errorf("%s missing; the floor covers generated code only", handWritten)
+		}
 	}
 
 	purposes, err := purposeFloor("../..")
@@ -76,16 +87,32 @@ func TestWireFloorsMeasureTheRealTree(t *testing.T) {
 	}
 }
 
-// TestGeneratedFloorRejectsATreeWithNoGeneratedCode pins the distinction the
+// TestDeclaredFloorRejectsATreeWithNoGeneratedCode pins the distinction the
 // report rests on.
 //
 // A baseline that cannot be measured has no floor to compare against, which
 // is not the same as a floor that did not move. wireSurfaceDelta skips that
 // half and says why; treating it as an empty floor instead would report every
 // entry as removed and bury whatever really changed.
-func TestGeneratedFloorRejectsATreeWithNoGeneratedCode(t *testing.T) {
-	if _, err := generatedFloor(t.TempDir()); err == nil {
-		t.Error("generatedFloor(empty tree) returned no error; an unmeasurable tree reads as an empty floor")
+//
+// Hand-written files alone are not a floor either. Now that they are scanned,
+// an ungenerated tree parses far enough to produce a short answer, and that
+// answer would read as the generated surface having been deleted.
+func TestDeclaredFloorRejectsATreeWithNoGeneratedCode(t *testing.T) {
+	if _, err := declaredFloor(t.TempDir()); err == nil {
+		t.Error("declaredFloor(empty tree) returned no error; an unmeasurable tree reads as an empty floor")
+	}
+
+	handWrittenOnly := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(handWrittenOnly, "unifi"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := "package unifi\n\ntype Site struct {\n\tName string `json:\"name\"`\n}\n"
+	if err := os.WriteFile(filepath.Join(handWrittenOnly, "unifi", "site.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := declaredFloor(handWrittenOnly); err == nil {
+		t.Error("declaredFloor(hand-written only) returned no error; an ungenerated tree reads as a floor")
 	}
 }
 

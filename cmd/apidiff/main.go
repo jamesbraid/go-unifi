@@ -187,7 +187,7 @@ var wireFloors = []struct {
 	name string
 	of   func(root string) ([]string, error)
 }{
-	{"always-serialized field", generatedFloor},
+	{"always-serialized field", declaredFloor},
 	{"Network purpose encoder", purposeFloor},
 }
 
