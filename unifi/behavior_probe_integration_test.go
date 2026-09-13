@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,12 @@ import (
 // file a measurement against a version the capture did not pin, and the
 // comparison skips rather than report drift between two different
 // controllers (the UOS harness bundles an older Network app than the lock).
+//
+// A v2 endpoint binds the body to a Jackson DTO with no unknown-property
+// tolerance, so an unrecognised key draws a 400 naming the key. That is
+// what makes a v2 sweep readable: an accepted create took the body as
+// sent, so a field whose removal is accepted really is optional.
+// unknownKeyRejected asserts it rather than assuming it.
 
 // behaviorWriteRequested reports whether this run records into the artifact
 // rather than comparing against it.
@@ -327,10 +334,11 @@ func renderStoredValue(v any) string {
 // TestIntegrationWriteContract measures the write contracts the codegen
 // cannot guess from resource shape, into the artifact's Writes section:
 //
-//   - ContentFiltering: the generated create POSTs to the v2 collection and
-//     the controller answers 405 -- route exists, verb wrong (the ROADMAP
-//     finding, measured on 10.6.101). The probe records the verb+path that
-//     actually creates, or the rejection itself as an honest unknown.
+//   - ContentFiltering: the collection path answers 405 to POST because it
+//     is mapped for GET alone; creates go to a /create sub-path. The probe
+//     measures which verb and path actually create, so the generated client
+//     follows the controller rather than the collection-POST convention the
+//     other v2 resources happen to use.
 //   - Nat: create works as generated, but three fields the struct marks
 //     optional must be present or the controller refuses the create. The
 //     probe records the measured required-on-create set.
@@ -379,82 +387,229 @@ func TestIntegrationWriteContract(t *testing.T) {
 	compareWriteContract(t, "FirewallPolicy", art.Writes, fwp)
 }
 
-// measureContentFilteringContract finds the verb+path that creates a
-// content-filtering object. The generated POST is expected to answer 405;
-// the probe then tries PUT with the same minimal body, then PUT with a shape
-// discovered from the collection, and records whatever succeeds. Nothing
-// succeeding is itself the finding, recorded as the rejection.
+// measureContentFilteringContract measures the verb and path that create a
+// content-filtering rule, and which fields the create cannot omit.
+//
+// The 405 this endpoint answers to a collection POST was read once as the
+// product feature-gating creates. It is not: the controller maps
+// /content-filtering for GET alone and puts the create on a /create
+// sub-path, so a POST to the collection matches the path, finds no handler
+// for the verb, and draws Spring's 405. The jar's own route table for
+// 10.6.101 is
+//
+//	GET    /api/site/{siteName}/content-filtering
+//	POST   /api/site/{siteName}/content-filtering/create
+//	PUT    /api/site/{siteName}/content-filtering/{id}
+//	DELETE /api/site/{siteName}/content-filtering/{id}
+//	GET    /api/site/{siteName}/content-filtering/categories
+//
+// (com.ubnt.net.l.k, served under the /v2 context path). The probe measures
+// that rather than trusting it, and asserts the collection POST is still
+// 405 so a controller that grows one is noticed instead of silently
+// leaving the generated client on the longer path.
 func measureContentFilteringContract(ctx context.Context, t *testing.T, s *controllertest.Session, site string) behavior.WriteContract {
 	t.Helper()
 
-	const relPath = "v2/api/site/{site}/content-filtering"
-	path := "/v2/api/site/" + site + "/content-filtering"
-	minimal := map[string]any{"name": "probe", "enabled": false}
+	const (
+		createRel = "v2/api/site/{site}/content-filtering/create"
+		updateRel = "v2/api/site/{site}/content-filtering/{id}"
+	)
+	base := "/v2/api/site/" + site + "/content-filtering"
 
-	deleteCreated := func(body any) {
-		if id := objectID(firstData(t, body)); id != "" {
-			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
-		}
+	// The list has to be served before anything else here means what it
+	// looks like: a 404 collection would make every verdict below "the
+	// route is absent" wearing another status code's clothes.
+	if body, status, err := s.GetJSON(ctx, base); status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v %v); the collection is not served, so no verb below "+
+			"measures the write contract", base, status, body, err)
 	}
-	try := func(verb string, doc map[string]any) (int, any) {
-		var (
-			body   any
-			status int
-			err    error
-		)
-		switch verb {
-		case "POST":
-			body, status, err = s.PostJSON(ctx, path, doc)
-		case "PUT":
-			body, status, err = s.PutJSON(ctx, path, doc)
-		}
+
+	post := func(path string, doc map[string]any) (int, map[string]any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
 		if status == 0 {
 			t.Fatalf("transport to %s: %v", path, err)
 		}
-		t.Logf("%s %s -> HTTP %d: %v", verb, path, status, body)
-		return status, body
+		stored := firstData(t, body)
+		if id := objectID(stored); id != "" {
+			s.DeleteJSON(ctx, base+"/"+id) //nolint:errcheck
+		}
+		return status, stored
 	}
 
-	postStatus, postBody := try("POST", minimal)
-	if postStatus/100 == 2 {
-		// The 405 belief is stale; the measured truth wins.
-		deleteCreated(postBody)
-		return behavior.WriteContract{CreateVerb: "POST", CreatePath: relPath}
+	minimal := map[string]any{"name": "probe", "enabled": false}
+	if status, _ := post(base, minimal); status != 405 {
+		t.Errorf("POST %s answered HTTP %d, not the 405 a GET-only path gives; the controller's "+
+			"route table changed and the create path below may no longer be the right one", base, status)
 	}
 
-	putStatus, putBody := try("PUT", minimal)
-	if putStatus/100 == 2 {
-		deleteCreated(putBody)
-		return behavior.WriteContract{CreateVerb: "PUT", CreatePath: relPath}
+	lanID := defaultLANNetworkID(ctx, t, s, site)
+	if lanID == "" {
+		t.Fatal("no corporate network on the site; a rule naming no network would fail for the wrong reason")
+	}
+	// Smallest body the DTO's own constraints admit: name and categories are
+	// @NotEmpty, schedule is @NotNull, and the service refuses a rule that
+	// addresses neither a network nor a client.
+	good := func(name string) map[string]any {
+		return map[string]any{
+			"name": name, "enabled": true,
+			"categories":  []string{"ADULT"},
+			"network_ids": []string{lanID},
+			"client_macs": []string{},
+			"allow_list":  []string{},
+			"block_list":  []string{},
+			"safe_search": []string{},
+			"schedule":    map[string]any{"mode": "ALWAYS"},
+		}
 	}
 
-	// The minimal body may be what PUT refuses, not the verb: discover the
-	// object shape from the collection and retry with it.
-	listBody, listStatus, err := s.GetJSON(ctx, path)
-	if err != nil || listStatus != 200 {
-		t.Logf("GET %s -> HTTP %d: %v (no shape to discover)", path, listStatus, err)
-	} else if template := firstData(t, listBody); template != nil {
-		doc := clone(template)
-		delete(doc, "_id")
-		delete(doc, "site_id")
-		doc["name"] = "probe"
-		doc["enabled"] = false
-		shapedStatus, shapedBody := try("PUT", doc)
-		if shapedStatus/100 == 2 {
-			deleteCreated(shapedBody)
-			return behavior.WriteContract{CreateVerb: "PUT", CreatePath: relPath}
+	status, created := post(base+"/create", good("contract-probe"))
+	if status/100 != 2 {
+		t.Fatalf("the known-good body was rejected at %s/create (HTTP %d): %v\n\nNothing removed from "+
+			"a body that does not create can measure anything.", base, status, created)
+	}
+	t.Logf("POST %s/create -> HTTP %d; that is the create", base, status)
+
+	// Settles what a 2xx from the sweep below means: on v2 the controller
+	// binds the body strictly, so an accepted create took the body as sent.
+	unknownKeyRejected(ctx, t, s, base+"/create", good("contract-probe-unknown-key"))
+
+	// The update path the generated client already uses, confirmed rather
+	// than assumed: the artifact recorded no update contract at all while
+	// the create was believed impossible.
+	updateVerb, updatePath := "", ""
+	body, updStatus, err := s.PostJSON(ctx, base+"/create", good("contract-probe-update"))
+	if updStatus/100 != 2 {
+		t.Fatalf("seeding a rule to update failed (HTTP %d): %v %v", updStatus, body, err)
+	}
+	seeded := firstData(t, body)
+	if id := objectID(seeded); id != "" {
+		defer s.DeleteJSON(ctx, base+"/"+id) //nolint:errcheck
+		edited := clone(seeded)
+		edited["name"] = "contract-probe-updated"
+		after, putStatus, err := s.PutJSON(ctx, base+"/"+id, edited)
+		if putStatus/100 == 2 {
+			updateVerb, updatePath = "PUT", updateRel
+			t.Logf("PUT %s/{id} -> HTTP %d; that is the update", base, putStatus)
+		} else {
+			t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+				base, id, putStatus, after, err)
 		}
 	} else {
-		t.Logf("GET %s returned an empty collection; no shape to discover", path)
+		t.Errorf("the seeded rule carries no id, so the update path cannot be measured: %v", seeded)
 	}
 
-	// The honest unknown: no verb this probe knows creates the object. The
-	// artifact records the measured rejection so the codegen stops assuming
-	// POST works, without inventing a verb nothing measured.
-	verdict := fmt.Sprintf("POST-REJECTED-%d", postStatus)
-	t.Logf("LOUD: no verb creates content-filtering here (POST %d, PUT %d); recording %q as the contract",
-		postStatus, putStatus, verdict)
-	return behavior.WriteContract{CreateVerb: verdict, CreatePath: relPath}
+	fields := make([]string, 0, len(good("")))
+	for f := range good("") {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var required []string
+	for i, field := range fields {
+		doc := good(fmt.Sprintf("contract-probe-%d", i))
+		delete(doc, field)
+		status, stored := post(base+"/create", doc)
+		if status/100 == 2 {
+			t.Logf("content-filtering create without %-12s accepted (HTTP %d) -- not required", field, status)
+			continue
+		}
+		t.Logf("content-filtering create without %-12s rejected (HTTP %d, %s) -- required on create",
+			field, status, v2Rejection(stored))
+		required = append(required, field)
+	}
+
+	// network_ids and client_macs are one requirement, not two: the service
+	// refuses a rule that addresses neither. The sweep above empties
+	// client_macs, so removing network_ids leaves nothing addressed and
+	// reads as "network_ids is required" -- which would be published as a
+	// rule a caller addressing clients does not have to obey. Measure the
+	// other half and drop the entry when clients satisfy it.
+	byClient := good("contract-probe-macs")
+	delete(byClient, "network_ids")
+	byClient["client_macs"] = []string{"00:11:22:33:44:55"}
+	if status, stored := post(base+"/create", byClient); status/100 == 2 {
+		required = slices.DeleteFunc(required, func(f string) bool { return f == "network_ids" })
+		t.Logf("LOUD: a rule naming client_macs and no network_ids creates (HTTP %d); network_ids is "+
+			"not required on its own, so it is not recorded as such", status)
+	} else {
+		t.Logf("a rule naming client_macs and no network_ids is rejected too (HTTP %d, %s)",
+			status, v2Rejection(stored))
+	}
+	sort.Strings(required)
+
+	return behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: createRel,
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: required,
+	}
+}
+
+// probeUnknownKey is the wire name no controller schema claims, sent to find
+// out what the endpoint does with a key it does not recognise.
+const probeUnknownKey = "go_unifi_unknown_probe_key"
+
+// unknownKeyRejected asserts that a v2 endpoint refuses a body carrying an
+// unrecognised key, and refuses it by name. Without that, a v2 create
+// answering 200 would prove no more than a v1 one does, and the
+// required-on-create sweeps that read a 200 as "the field is optional" would
+// be reading a stripped payload instead of an accepted one.
+func unknownKeyRejected(ctx context.Context, t *testing.T, s *controllertest.Session, path string, doc map[string]any) {
+	t.Helper()
+	payload := clone(doc)
+	payload[probeUnknownKey] = "x"
+	body, status, err := s.PostJSON(ctx, path, payload)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	if status/100 == 2 {
+		if id := objectID(firstData(t, body)); id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		t.Errorf("POST %s accepted an unrecognised key (HTTP %d); v2 was measured rejecting one, and "+
+			"the sweeps here read a 2xx as the controller having taken the body as sent", path, status)
+		return
+	}
+	reason := v2Rejection(body)
+	if !strings.Contains(reason, probeUnknownKey) {
+		t.Errorf("POST %s refused an unrecognised key with %q, which does not name it; the rejection "+
+			"may be about something else entirely", path, reason)
+		return
+	}
+	t.Logf("v2 %s refuses an unrecognised key by name (HTTP %d) -- an accepted v2 body was taken as sent",
+		path, status)
+}
+
+// v2Rejection names why a v2 write was refused, in one line.
+//
+// Bean validation answers with a Spring paragraph under "message" that
+// repeats the obfuscated handler's signature and then every failing
+// constraint; v2ErrCode has no case for it and falls back to printing the
+// whole envelope, which buries the one fact a reader wants. Pull the failing
+// fields and their constraints out of it, and leave every other shape to
+// v2ErrCode.
+func v2Rejection(body any) string {
+	if m, ok := body.(map[string]any); ok {
+		if msg, _ := m["message"].(string); msg != "" {
+			if fields := beanValidationFailures(msg); fields != "" {
+				return fields
+			}
+		}
+	}
+	return v2ErrCode(body)
+}
+
+// beanValidationFailureRe matches one field error inside Spring's
+// bean-validation message: the field's path and the constraint that fired.
+var beanValidationFailureRe = regexp.MustCompile(`on field '([^']+)': [^;]*; codes \[([A-Za-z]+)\.`)
+
+// beanValidationFailures renders the field errors as "field NotEmpty" pairs,
+// or "" when the message is not a bean-validation one.
+func beanValidationFailures(msg string) string {
+	var out []string
+	for _, m := range beanValidationFailureRe.FindAllStringSubmatch(msg, -1) {
+		out = append(out, m[1]+" "+m[2])
+	}
+	return strings.Join(out, ", ")
 }
 
 // measureNatContract verifies the known-good NAT create and measures which

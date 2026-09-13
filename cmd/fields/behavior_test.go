@@ -296,4 +296,60 @@ func TestRenderCoercionsFile(t *testing.T) {
 	}
 }
 
+func TestCreatePathSegment(t *testing.T) {
+	for _, tc := range []struct{ path, want string }{
+		{"v2/api/site/{site}/content-filtering/create", "content-filtering/create"},
+		{"v2/api/site/{site}/nat", "nat"},
+		{"v2/api/site/{site}/ospf/router", "ospf/router"},
+		{"api/s/{site}/rest/hotspotpackage", "hotspotpackage"},
+		// Neither shape: an unmeasured resource, and a verdict the old
+		// artifact recorded in the path's place. Both must change nothing.
+		{"", ""},
+		{"POST-REJECTED-405", ""},
+		{"api/s/{site}/stat/device", ""},
+	} {
+		if got := createPathSegment(tc.path); got != tc.want {
+			t.Errorf("createPathSegment(%q) = %q, want %q", tc.path, got, tc.want)
+		}
+	}
+}
+
+// A create endpoint that is not the collection has to reach the generated
+// client, or the SDK keeps writing to a path the controller answers 405 to
+// -- which is exactly what shipped for content filtering.
+func TestGeneratedCreatePath(t *testing.T) {
+	t.Run("defaults to the resource path", func(t *testing.T) {
+		resource := NewResource("ContentFiltering", "content-filtering")
+		applyWriteContract(resource, behavior.WriteContract{})
+		code, err := resource.generateCode("content_filtering.generated.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		create := createFunc(t, code, resource)
+		if !strings.Contains(create, `v2/api/site/%s/content-filtering"`) {
+			t.Errorf("create does not post to the collection by default:\n%s", create)
+		}
+	})
+
+	t.Run("a measured sub-path moves the create", func(t *testing.T) {
+		resource := NewResource("ContentFiltering", "content-filtering")
+		applyWriteContract(resource, behavior.WriteContract{
+			CreateVerb: "POST", CreatePath: "v2/api/site/{site}/content-filtering/create",
+		})
+		code, err := resource.generateCode("content_filtering.generated.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		create := createFunc(t, code, resource)
+		if !strings.Contains(create, `v2/api/site/%s/content-filtering/create"`) {
+			t.Errorf("create ignores the measured create path:\n%s", create)
+		}
+		// Only the create moves: update and delete stay on the collection's
+		// own paths, which the same measurement recorded separately.
+		if strings.Contains(code, `v2/api/site/%s/content-filtering/create/%s"`) {
+			t.Error("the create sub-path leaked into a by-id path")
+		}
+	})
+}
+
 var errNotMeasured = errors.New("not measured")
