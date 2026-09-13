@@ -2045,10 +2045,16 @@ func storedEmptySemantics(
 }
 
 // blankValue reports whether a stored value is the empty form of its field:
-// absent, JSON null, the empty string or the empty list. The controller
-// spells a cleared field all four ways depending on the collection --
-// firewallgroup drops the key, trafficroutes stores null for a string and []
-// for a list -- and they all mean the same thing to a caller.
+// absent, JSON null, the empty string, the empty list, false, or zero. The
+// controller spells a cleared field every one of those ways depending on the
+// collection -- firewallgroup drops the key, trafficroutes stores null for a
+// string and [] for a list, static-dns binds its numbers and its boolean to a
+// fresh object and stores 0 and false -- and they all mean the same thing to
+// a caller.
+//
+// The cost of covering the last two is that a field already sitting at zero
+// cannot be told from one that was cleared, which is why
+// storedEmptySemantics refuses a seed that does not carry a value.
 func blankValue(v any) bool {
 	switch t := v.(type) {
 	case nil:
@@ -2057,6 +2063,10 @@ func blankValue(v any) bool {
 		return t == ""
 	case []any:
 		return len(t) == 0
+	case bool:
+		return !t
+	case float64:
+		return t == 0
 	}
 	return false
 }
@@ -3359,6 +3369,456 @@ func portForwardClearing(
 			"on one write shape alone")
 	}
 	put(clone(stored)) // reset
+
+	return measured
+}
+
+// TestIntegrationDNSRecordWriteContract measures the static DNS collection,
+// which no section of the artifact described: the SDK has shipped a client
+// for it since the schema was captured and nothing had ever written one.
+//
+// It owns three artifact entries outright -- the write contract, the discard
+// list and the clearing semantics -- because a second probe replacing any of
+// them would erase what this one measured.
+//
+// The collection is v2, so an accepted body was taken as sent and the
+// verdicts below can be read off the status where a v1 probe would have to
+// re-read. The create path is measured rather than assumed: content
+// filtering serves its create from a /create sub-path and answers 405 on the
+// collection, so "POST the collection" is a convention, not a rule, and the
+// probe checks both spellings. There is no by-id read at all -- GET on the
+// {id} path is 405 -- which is why the generated Get filters the list.
+//
+// What needed care is the record type. The controller validates a record
+// against the type it declares and refuses the numeric parameters that type
+// has no use for, so a requirement measured on one type is not a requirement
+// of the resource. The sweep therefore runs on four types -- A, SRV, MX and
+// TXT, which admit four different parameter sets -- and the set is recorded
+// only because all four agreed on it. Which parameters each type refuses is
+// measured too, and logged rather than recorded: required_on_create can say
+// a key must be present, never that a value must be absent.
+//
+// The refusal is on the value, not the key: zero is accepted in a slot a
+// type refuses and 7 is not. That is what makes the recorded set safe to
+// feed the generator, which drops omitempty from a required field: the
+// parameters a type refuses stay optional, so their zero values keep
+// vanishing from the request rather than turning every write into a
+// rejection.
+func TestIntegrationDNSRecordWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	path := "/v2/api/site/" + c.Site + "/static-dns"
+
+	// The list has to be served before anything else here means what it
+	// looks like, and it is also the only read this resource has.
+	if body, status, err := s.GetJSON(ctx, path); status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v %v); the collection is not served, so no verb below "+
+			"measures the write contract", path, status, body, err)
+	}
+
+	post := func(doc map[string]any) (int, any, string) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		// A missing record_type draws a non-JSON HTTP 500 from this
+		// endpoint; the status is the measurement, so ErrNotJSON is not
+		// fatal here.
+		if err != nil {
+			t.Logf("POST %s -> HTTP %d (%v)", path, status, err)
+		}
+		id := ""
+		if status/100 == 2 {
+			id = objectID(firstData(t, body))
+		}
+		return status, body, id
+	}
+	stored := func(id string) map[string]any {
+		body, status, err := s.GetJSON(ctx, path)
+		if status != 200 {
+			t.Fatalf("GET %s answered HTTP %d (%v)", path, status, err)
+		}
+		for _, entry := range asSlice(body) {
+			if m, _ := entry.(map[string]any); m != nil && objectID(m) == id {
+				return m
+			}
+		}
+		return nil
+	}
+
+	// One body per record type, each carrying every parameter that type
+	// admits. SRV is the richest -- it is the only type that admits all four
+	// of port, priority, weight and ttl -- so it is what the round trip and
+	// the clearing sweep run against. Its key has to name a service and a
+	// protocol: the controller refuses one whose first label does not start
+	// with an underscore.
+	branches := []dnsRecordBranch{
+		{"A", func(suffix string) map[string]any {
+			return map[string]any{
+				"enabled": true, "record_type": "A", "ttl": 3600,
+				"key": "a" + suffix + ".dns-probe.example.com", "value": "192.0.2.10",
+			}
+		}},
+		{"SRV", func(suffix string) map[string]any {
+			return map[string]any{
+				"enabled": true, "record_type": "SRV", "ttl": 3600,
+				"key": "_sip._tcp.s" + suffix + ".dns-probe.example.com", "value": "srv.example.com",
+				"port": 5060, "priority": 10, "weight": 20,
+			}
+		}},
+		{"MX", func(suffix string) map[string]any {
+			return map[string]any{
+				"enabled": true, "record_type": "MX",
+				"key": "mx" + suffix + ".dns-probe.example.com", "value": "mail.example.com",
+				"priority": 10,
+			}
+		}},
+		{"TXT", func(suffix string) map[string]any {
+			return map[string]any{
+				"enabled": true, "record_type": "TXT",
+				"key": "txt" + suffix + ".dns-probe.example.com", "value": "probe",
+			}
+		}},
+	}
+	srv := branches[1].body
+
+	asked := srv("-roundtrip")
+	status, body, id := post(asked)
+	if status/100 != 2 || id == "" {
+		t.Fatalf("the known-good SRV record was rejected (HTTP %d, %s): %v\n\nNothing removed from a "+
+			"body that does not create can measure anything.", status, v2Rejection(body), body)
+	}
+	t.Logf("POST %s -> HTTP %d; that is the create", path, status)
+
+	dropped := []string{}
+	for _, r := range probe.Classify(asked, stored(id)) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-16s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			t.Errorf("CHANGED %-16s (%s) -- a rewrite here is a fact this probe records nowhere",
+				r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("static DNS round trip: %d asked, %d dropped", len(asked), len(dropped))
+
+	// Settles what a 2xx from the sweeps below means: on v2 the controller
+	// binds the body strictly, so an accepted create took the body as sent.
+	unknownKeyRejected(ctx, t, s, path, srv("-unknown-key"))
+
+	// The trap content filtering set: a collection that serves GET alone and
+	// creates from a sub-path answers 405 to a collection POST. The
+	// collection POST above created, so the sub-path must not also exist --
+	// two create routes would leave the generated client on an arbitrary one.
+	for _, sub := range []string{"/create", "/add"} {
+		body, subStatus, err := s.PostJSON(ctx, path+sub, srv("-subpath"))
+		if subStatus/100 == 2 {
+			if subID := objectID(firstData(t, body)); subID != "" {
+				s.DeleteJSON(ctx, path+"/"+subID) //nolint:errcheck
+			}
+			t.Errorf("POST %s%s also creates (HTTP %d); the controller grew a second create route and "+
+				"the generated client writes to the collection", path, sub, subStatus)
+			continue
+		}
+		t.Logf("POST %s%s -> HTTP %d (%v) -- the collection is the only create", path, sub, subStatus, err)
+	}
+
+	// There is no by-id read; the generated Get filters the list because of
+	// it. A controller that grows one would leave that detour unnoticed.
+	if body, getStatus, _ := s.GetJSON(ctx, path+"/"+id); getStatus != 405 {
+		t.Errorf("GET %s/{id} answered HTTP %d (%v); the controller grew a by-id read the list-backed "+
+			"get routes around", path, getStatus, body)
+	}
+
+	updateVerb, updatePath := "", ""
+	edited := clone(stored(id))
+	edited["value"] = "srv2.example.com"
+	after, putStatus, err := s.PutJSON(ctx, path+"/"+id, edited)
+	if putStatus/100 != 2 {
+		t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+			path, id, putStatus, after, err)
+	} else {
+		updateVerb, updatePath = "PUT", "v2/api/site/{site}/static-dns/{id}"
+		t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, putStatus)
+	}
+	s.PutJSON(ctx, path+"/"+id, clone(stored(id))) //nolint:errcheck
+
+	required := dnsRecordRequiredOnCreate(ctx, t, s, path, branches, post)
+	dnsRecordTypeParameters(ctx, t, s, path, branches, post)
+
+	measured := dnsRecordClearing(ctx, t, s, path, id, stored(id), func() map[string]any { return stored(id) })
+
+	if body, delStatus, err := s.DeleteJSON(ctx, path+"/"+id); delStatus/100 != 2 {
+		t.Errorf("delete %s/%s answered HTTP %d (%v %v)", path, id, delStatus, body, err)
+	}
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/static-dns",
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: required,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			// Replace, not merge: the probe writes the same body every run,
+			// so a field that stopped being dropped, or stopped being
+			// swept, has to leave the artifact rather than linger as a fact
+			// nothing re-measures. Nothing else writes these keys.
+			a.Writes["DNSRecord"] = contract
+			a.Discarded["DNSRecord"] = dropped
+			a.Empty["static-dns"] = measured
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the static DNS record", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "DNSRecord", art.Writes, contract)
+	if pinned, has := art.Discarded["DNSRecord"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("DNSRecord discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+	compareEmptySemantics(t, "static-dns", art.Empty["static-dns"], measured)
+}
+
+// dnsRecordRequiredOnCreate sweeps each record type's own known-good body and
+// returns the requirement they all share.
+//
+// Running it once would measure one type's rules and publish them as the
+// resource's. Running it on three types that admit three different parameter
+// sets, and refusing to record anything the three disagree about, is what
+// makes the recorded set a fact about static DNS rather than about A records.
+func dnsRecordRequiredOnCreate(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path string,
+	branches []dnsRecordBranch,
+	post func(map[string]any) (int, any, string),
+) []string {
+	t.Helper()
+
+	perType := map[string][]string{}
+	for _, branch := range branches {
+		fields := make([]string, 0, len(branch.body("")))
+		for f := range branch.body("") {
+			fields = append(fields, f)
+		}
+		sort.Strings(fields)
+
+		var required []string
+		for i, field := range fields {
+			doc := branch.body(fmt.Sprintf("-req-%s-%d", strings.ToLower(branch.recordType), i))
+			delete(doc, field)
+			status, body, id := post(doc)
+			if status/100 == 2 {
+				if id != "" {
+					s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+				}
+				t.Logf("%-3s create without %-12s accepted (HTTP %d) -- not required",
+					branch.recordType, field, status)
+				continue
+			}
+			t.Logf("%-3s create without %-12s rejected (HTTP %d, %s) -- required on create",
+				branch.recordType, field, status, v2Rejection(body))
+			required = append(required, field)
+			// A 500 is a crash, not a considered rejection, and a crash can
+			// still have written. Nothing else here would notice.
+			if status == 500 {
+				if key, _ := doc["key"].(string); key != "" && dnsRecordByKey(ctx, t, s, path, key) != "" {
+					t.Errorf("%s create without %s answered HTTP 500 and stored the record anyway; a "+
+						"caller that retries the create would file a second copy",
+						branch.recordType, field)
+				} else {
+					t.Logf("    the HTTP 500 stored nothing, so the create is a refusal and not a " +
+						"half-completed write")
+				}
+			}
+		}
+		perType[branch.recordType] = required
+	}
+
+	first := branches[0].recordType
+	shared := perType[first]
+	for _, branch := range branches[1:] {
+		if reflect.DeepEqual(perType[branch.recordType], shared) {
+			continue
+		}
+		t.Errorf("the required-on-create set depends on the record type: %s needs %v and %s needs %v.\n\n"+
+			"Only what every type needs can be recorded as the resource's requirement -- a set "+
+			"measured on one type would be published as a rule the others do not obey. Record "+
+			"nothing until the condition is understood.",
+			first, shared, branch.recordType, perType[branch.recordType])
+		return nil
+	}
+	t.Logf("required on create, agreed by %v: %v", dnsRecordTypeNames(branches), shared)
+	return shared
+}
+
+// dnsRecordBranch is one record type and the fullest body that type admits.
+type dnsRecordBranch struct {
+	recordType string
+	body       func(suffix string) map[string]any
+}
+
+// dnsRecordTypeNames lists the record types a sweep covered, for the log.
+func dnsRecordTypeNames(branches []dnsRecordBranch) []string {
+	out := make([]string, 0, len(branches))
+	for _, b := range branches {
+		out = append(out, b.recordType)
+	}
+	return out
+}
+
+// dnsRecordByKey returns the id of the record with the given key, or "".
+func dnsRecordByKey(ctx context.Context, t *testing.T, s *controllertest.Session, path, key string) string {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, path)
+	if status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v)", path, status, err)
+	}
+	for _, entry := range asSlice(body) {
+		if m, _ := entry.(map[string]any); m != nil {
+			if k, _ := m["key"].(string); k == key {
+				return objectID(m)
+			}
+		}
+	}
+	return ""
+}
+
+// dnsRecordTypeParameters measures which of the four numeric parameters each
+// record type refuses, by adding to that type's known-good body every one it
+// does not already carry.
+//
+// The refused sets are what scopes the recorded requirement: they are the
+// reason the required-on-create sweep runs on four types rather than one, and
+// they are logged rather than recorded because required_on_create can only
+// say a key must be present, never that a value must be absent.
+//
+// The invariant the recorded contract rests on is measured alongside them: a
+// parameter refused with a value is accepted with zero. The generator drops
+// omitempty from a field the artifact records as required, so a zero reaches
+// the wire; if zero were refused in these slots, a caller writing an A record
+// through the generated client would be rejected by the controller.
+func dnsRecordTypeParameters(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path string,
+	branches []dnsRecordBranch,
+	post func(map[string]any) (int, any, string),
+) {
+	t.Helper()
+
+	create := func(doc map[string]any) (int, any) {
+		status, body, id := post(doc)
+		if id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, body
+	}
+
+	refusals := 0
+	for _, branch := range branches {
+		var refused []string
+		for i, param := range []string{"port", "priority", "ttl", "weight"} {
+			if _, carried := branch.body("")[param]; carried {
+				continue
+			}
+			suffix := fmt.Sprintf("-param-%s-%d", strings.ToLower(branch.recordType), i)
+			valued := branch.body(suffix)
+			valued[param] = 7
+			status, body := create(valued)
+			if status/100 == 2 {
+				continue
+			}
+			refused = append(refused, param)
+			refusals++
+			t.Logf("%-3s carrying %-8s = 7 rejected (HTTP %d, %s)",
+				branch.recordType, param, status, v2Rejection(body))
+
+			zeroed := branch.body(suffix + "-zero")
+			zeroed[param] = 0
+			if status, body := create(zeroed); status/100 != 2 {
+				t.Errorf("a %s record carrying %s=0 was rejected (HTTP %d, %s); the refusal is on the "+
+					"key rather than the value, so a required field losing omitempty would send a zero "+
+					"into a slot the type refuses", branch.recordType, param, status, v2Rejection(body))
+			}
+		}
+		t.Logf("%-3s refuses a value in: %v", branch.recordType, refused)
+	}
+
+	if refusals == 0 {
+		t.Errorf("no record type refused any of port, priority, ttl or weight; the per-type parameter "+
+			"rule the recorded contract is scoped by no longer holds, and the sweep across %v is "+
+			"measuring the same thing four times", dnsRecordTypeNames(branches))
+	}
+}
+
+// dnsRecordClearing measures, for every field the seeded record stored a
+// value in, what an emptied field and an absent key do on update.
+//
+// Every field is swept, not the strings alone, because this is where the
+// full-replace question is answered and it is answered per field: the
+// controller binds the body to a fresh object, so a key the payload leaves
+// out arrives at the Java field's default rather than at what was stored. The
+// blank written is "" for all of them, numeric fields included -- that is
+// what the clearing vocabulary means by empty, and the controller coerces it
+// during binding rather than refusing it.
+func dnsRecordClearing(
+	ctx context.Context, t *testing.T, s *controllertest.Session, path, id string,
+	stored map[string]any, read func() map[string]any,
+) map[string]behavior.EmptySemantics {
+	t.Helper()
+
+	var fields []string
+	for k, v := range stored {
+		if k == "_id" || k == "site_id" || blankValue(v) {
+			continue
+		}
+		fields = append(fields, k)
+	}
+	sort.Strings(fields)
+
+	put := func(doc map[string]any) int {
+		body, status, err := s.PutJSON(ctx, path+"/"+id, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s/%s: %v", path, id, err)
+		}
+		if status/100 != 2 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT %s/%s -> HTTP %d: %s", path, id, status, v2Rejection(body))
+		}
+		return status
+	}
+
+	measured := map[string]behavior.EmptySemantics{}
+	for _, field := range fields {
+		measured[field] = storedEmptySemantics(t, field, "", stored, put, read)
+	}
+	var summary []string
+	for _, f := range slices.Sorted(maps.Keys(measured)) {
+		summary = append(summary, fmt.Sprintf("%-12s %-16s %s", f, measured[f].Empty, measured[f].Omit))
+	}
+	t.Logf("static DNS clearing semantics (%d fields):\n  %s", len(summary), strings.Join(summary, "\n  "))
 
 	return measured
 }
