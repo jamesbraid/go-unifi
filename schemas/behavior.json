@@ -170,7 +170,8 @@
       "domain_name",
       "igmp_snooping",
       "upnp_lan_enabled"
-    ]
+    ],
+    "TrafficRoute": []
   },
   "empty": {
     "DeviceRadioTable": {
@@ -339,6 +340,16 @@
         "omit": "OMIT-CLEARS"
       }
     },
+    "trafficroutes": {
+      "description": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "next_hop": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "wlanconf": {
       "ap_group_mode": {
         "empty": "EMPTY-REJECTED",
@@ -476,6 +487,22 @@
       "min_items": {
         "areas[].network_ids": 1
       }
+    },
+    "TrafficRoute": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/trafficroutes",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/trafficroutes/{id}",
+      "required_on_create": [
+        "matching_target",
+        "network_id",
+        "target_devices"
+      ],
+      "required_on_update": [
+        "matching_target",
+        "network_id",
+        "target_devices"
+      ]
     }
   },
   "rejected_creates": {

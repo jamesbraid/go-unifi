@@ -10218,13 +10218,13 @@
           "wire": "matching_target",
           "go_name": "MatchingTarget",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "network_id",
           "go_name": "NetworkID",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "next_hop",
@@ -10366,7 +10366,7 @@
           "wire": "network_id",
           "go_name": "NetworkID",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "type",
@@ -25518,6 +25518,35 @@
       },
       "uos_pins": {
         "setting_preference": []
+      }
+    },
+    "unifi.TrafficRoute": {
+      "discarded": [],
+      "empty": {
+        "description": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        },
+        "next_hop": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/trafficroutes",
+        "update_verb": "PUT",
+        "update_path": "v2/api/site/{site}/trafficroutes/{id}",
+        "required_on_create": [
+          "matching_target",
+          "network_id",
+          "target_devices"
+        ],
+        "required_on_update": [
+          "matching_target",
+          "network_id",
+          "target_devices"
+        ]
       }
     },
     "unifi.WLAN": {

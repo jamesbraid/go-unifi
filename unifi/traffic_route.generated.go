@@ -27,8 +27,8 @@ type TrafficRoute struct {
 	IPAddresses       []TrafficRouteIPAddresses   `json:"ip_addresses,omitempty"`
 	IPRanges          []TrafficRouteIPRanges      `json:"ip_ranges,omitempty"`
 	KillSwitchEnabled bool                        `json:"kill_switch_enabled"`
-	MatchingTarget    string                      `json:"matching_target,omitempty"` // DOMAIN|IP|INTERNET|REGION
-	NetworkID         string                      `json:"network_id,omitempty"`
+	MatchingTarget    string                      `json:"matching_target"` // DOMAIN|IP|INTERNET|REGION
+	NetworkID         string                      `json:"network_id"`
 	NextHop           string                      `json:"next_hop,omitempty"`
 	Regions           []string                    `json:"regions,omitempty"`
 	TargetDevices     []TrafficRouteTargetDevices `json:"target_devices,omitempty"`
@@ -175,7 +175,7 @@ func (dst *TrafficRoutePortRanges) UnmarshalJSON(b []byte) error {
 
 type TrafficRouteTargetDevices struct {
 	ClientMAC string `json:"client_mac,omitempty"`
-	NetworkID string `json:"network_id,omitempty"`
+	NetworkID string `json:"network_id"`
 	Type      string `json:"type,omitempty"` // ALL_CLIENTS|CLIENT|NETWORK
 }
 

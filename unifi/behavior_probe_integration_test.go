@@ -49,11 +49,15 @@ import (
 //     re-reads and classifies rather than trusting the status.
 //   - v2 (v2/api/site/{site}/...) binds the body to a Jackson DTO with no
 //     unknown-property tolerance, so an unrecognised key is a 400 naming the
-//     key.
+//     key. Not every v2 collection does: trafficroutes accepts one and
+//     stores the document without it, exactly as v1 does (measured by
+//     TestIntegrationTrafficRouteWriteContract), so the generation alone
+//     does not settle what a 2xx proves.
 //
 // Both halves are asserted where they are relied on -- unknownKeyStripped
-// for v1, unknownKeyRejected for v2 -- so the distinction stays a
-// measurement rather than a remembered claim.
+// for v1, unknownKeyRejected for v2, and the measurement in the traffic
+// route probe for the collection that splits the difference -- so the
+// distinction stays a measurement rather than a remembered claim.
 
 // behaviorWriteRequested reports whether this run records into the artifact
 // rather than comparing against it.
@@ -2390,6 +2394,464 @@ func compareEmptySemantics(t *testing.T, section string, pinned, got map[string]
 			t.Errorf("%s.%s: artifact pins empty=%s omit=%s, measured empty=%s omit=%s; "+
 				"re-measure with BEHAVIOR_WRITE=1 once the change is understood",
 				section, f, want.Empty, want.Omit, got[f].Empty, got[f].Omit)
+		}
+	}
+}
+
+// TestIntegrationTrafficRouteWriteContract measures the traffic route, the
+// other resource the artifact said nothing about, and the one whose API
+// generation had to be established before any of it could be read.
+//
+// It owns three artifact entries outright -- the write contract, the discard
+// list and the empty/omit semantics -- because a second probe replacing any of
+// them would erase what this one measured.
+//
+// The collection is v2 (v2/api/site/{site}/trafficroutes), and two of its
+// answers are not what the generation predicts:
+//
+//   - it tolerates an unrecognised key. The v2 collections this file relies on
+//     bind the body to a Jackson DTO that refuses one by name, which is what
+//     lets their sweeps read a 2xx as "the controller took the body as sent".
+//     This one answers 201 and stores the document without the key, exactly as
+//     a v1 collection does, so every verdict here re-reads the collection.
+//   - there is no by-id GET: the path answers 405, which is why the generated
+//     GetTrafficRoute lists and filters instead.
+//
+// What the update does is the half that matters to a caller. The PUT binds the
+// whole document: every field a payload leaves out comes back at its type's
+// zero value -- null for a string, false for a bool, [] for a list -- and the
+// four the DTO validates are refused outright. It is the opposite of the
+// firewall group's merging PUT, and neither could be guessed from the resource
+// shape.
+//
+// required_on_create is measured as the set no branch can do without. The
+// destination filters are conditional and are asserted rather than recorded:
+// matching_target selects which filter list has to be non-empty, and a flat
+// list naming any of them would tell a caller addressing IPs to send domains.
+func TestIntegrationTrafficRouteWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	// A route sends one network's traffic out of another, so both have to
+	// exist: the demo site ships a LAN and no WAN.
+	wanID := seedTrafficRouteWAN(ctx, t, s, c.Site)
+	lanID := firstNetworkIDForPurpose(ctx, t, s, c.Site, PurposeCorporate)
+	path := "/v2/api/site/" + c.Site + "/trafficroutes"
+
+	// One route carrying a value of every kind the struct has: the three
+	// destination filter lists and the region list, the ports and port ranges
+	// inside a filter, the two free-text strings and both bools. It matches on
+	// IP so that no single filter list is the one matching_target requires,
+	// which is what lets the omission sweeps below say something about each of
+	// them.
+	base := func(description string) map[string]any {
+		return map[string]any{
+			"description":         description,
+			"enabled":             true,
+			"network_id":          wanID,
+			"kill_switch_enabled": true,
+			"matching_target":     "IP",
+			"next_hop":            "192.0.2.1",
+			"domains": []any{map[string]any{
+				"domain":      "example.com",
+				"ports":       []any{8080},
+				"port_ranges": []any{map[string]any{"port_start": 100, "port_stop": 200}},
+			}},
+			"ip_addresses": []any{map[string]any{
+				"ip_or_subnet": "192.0.2.0/24", "ip_version": "v4", "ports": []any{443},
+			}},
+			"ip_ranges": []any{map[string]any{
+				"ip_start": "198.51.100.10", "ip_stop": "198.51.100.20", "ip_version": "v4",
+			}},
+			"regions":        []any{"US"},
+			"target_devices": []any{map[string]any{"type": "NETWORK", "network_id": lanID}},
+		}
+	}
+
+	// storedRoute reads one route back out of the collection. There is no
+	// by-id GET (measured below), so the listing is the only stored document
+	// there is.
+	storedRoute := func(id string) map[string]any {
+		body, status, err := s.GetJSON(ctx, path)
+		if err != nil || status != 200 {
+			t.Fatalf("GET %s answered HTTP %d (%v); the generated list reads that path", path, status, err)
+		}
+		for _, r := range asSlice(body) {
+			if m, _ := r.(map[string]any); m != nil && objectID(m) == id {
+				return m
+			}
+		}
+		return nil
+	}
+
+	// post creates, reads the document back out of the collection and deletes
+	// it again. The read-back is the whole discipline of this probe in one
+	// place: the collection tolerates keys it does not know, so the response
+	// to a create is not evidence that what was sent is what was stored.
+	post := func(doc map[string]any) (int, any, map[string]any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		id := objectID(firstData(t, body))
+		if id == "" || status/100 != 2 {
+			return status, body, nil
+		}
+		created := storedRoute(id)
+		s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		return status, body, created
+	}
+
+	asked := base("traffic-route-probe")
+	body, status, err := s.PostJSON(ctx, path, asked)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	if status/100 != 2 {
+		t.Fatalf("the known-good traffic route was rejected (HTTP %d, %s)\n\nNothing removed from a "+
+			"body that does not create can measure anything.", status, v2Rejection(body))
+	}
+	id := objectID(firstData(t, body))
+	if id == "" {
+		t.Fatalf("the created route carries no id, so nothing below can re-read it: %v", body)
+	}
+	defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	t.Logf("POST %s -> HTTP %d; that is the create", path, status)
+
+	stored := storedRoute(id)
+	if stored == nil {
+		t.Fatalf("the route created at %s is not in the collection; nothing below can be measured", path)
+	}
+
+	dropped := []string{}
+	for _, r := range probe.Classify(asked, stored) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-20s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			t.Logf("CHANGED %-20s (%s) -- stored, not discarded", r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("traffic route round trip: %d asked, %d dropped", len(asked), len(dropped))
+
+	// The generation's own assumption, measured rather than carried over: this
+	// v2 collection does NOT reject an unrecognised key, so a 2xx from the
+	// sweeps below says the controller stored something, not that it stored
+	// what was asked -- which is why each of them re-reads.
+	unknown := base("traffic-route-unknown-key")
+	unknown[probeUnknownKey] = "x"
+	unknownStatus, unknownBody, unknownStored := post(unknown)
+	switch {
+	case unknownStatus/100 != 2:
+		t.Errorf("POST %s refused an unrecognised key (HTTP %d, %s); it was measured accepting one, "+
+			"and a collection that now rejects makes every write stricter than the SDK assumes",
+			path, unknownStatus, v2Rejection(unknownBody))
+	case unknownStored == nil:
+		t.Errorf("POST %s accepted an unrecognised key and the route is not in the collection: %v",
+			path, unknownBody)
+	default:
+		if echoed, ok := unknownStored[probeUnknownKey]; ok {
+			t.Errorf("POST %s stored the unrecognised key %q as %v; it was measured dropping it",
+				path, probeUnknownKey, echoed)
+		}
+		t.Logf("LOUD: v2 %s accepts an unrecognised key and stores the document without it (HTTP %d). "+
+			"The other v2 collections here refuse one by name; this one behaves like a v1 rest "+
+			"collection, so a 2xx does not mean the body was taken as sent.", path, unknownStatus)
+	}
+
+	// No by-id GET. The generated client lists and filters because of this;
+	// a controller that grows the route should be noticed rather than leave
+	// the client on the longer path forever.
+	if got, getStatus, _ := s.GetJSON(ctx, path+"/"+id); getStatus != 405 {
+		t.Errorf("GET %s/{id} answered HTTP %d (%v), not the 405 it was measured giving; "+
+			"GetTrafficRoute lists and filters because that route does not exist", path, getStatus, got)
+	}
+
+	// The update, confirmed rather than assumed, and confirmed against the
+	// stored document: a rename that the collection does not report is not an
+	// update.
+	updateVerb, updatePath := "", ""
+	renamed := clone(stored)
+	renamed["description"] = "traffic-route-probe-renamed"
+	after, putStatus, err := s.PutJSON(ctx, path+"/"+id, renamed)
+	if putStatus/100 != 2 {
+		t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+			path, id, putStatus, after, err)
+	} else if got, _ := storedRoute(id)["description"].(string); got != "traffic-route-probe-renamed" {
+		t.Errorf("PUT %s/{id} answered HTTP %d but the collection still reports description %q; "+
+			"the write was accepted and not stored", path, putStatus, got)
+	} else {
+		updateVerb, updatePath = "PUT", "v2/api/site/{site}/trafficroutes/{id}"
+		t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, putStatus)
+	}
+	s.PutJSON(ctx, path+"/"+id, clone(stored)) //nolint:errcheck // back to the seeded description
+
+	fields := make([]string, 0, len(asked))
+	for f := range asked {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var requiredOnCreate []string
+	for i, field := range fields {
+		doc := base(fmt.Sprintf("traffic-route-probe-%d", i))
+		delete(doc, field)
+		status, body, created := post(doc)
+		if status/100 != 2 {
+			t.Logf("traffic route create without %-20s rejected (HTTP %d, %s) -- required on create",
+				field, status, v2Rejection(body))
+			requiredOnCreate = append(requiredOnCreate, field)
+			continue
+		}
+		// The DTO filled its own default in; naming what the collection then
+		// holds says what a caller who omits the field actually gets.
+		t.Logf("traffic route create without %-20s accepted (HTTP %d), stored %v -- not required",
+			field, status, created[field])
+	}
+	sort.Strings(requiredOnCreate)
+
+	put := func(doc map[string]any) int {
+		body, status, err := s.PutJSON(ctx, path+"/"+id, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s/%s: %v", path, id, err)
+		}
+		if status/100 != 2 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT %s/%s -> HTTP %d: %s", path, id, status, v2Rejection(body))
+		}
+		return status
+	}
+	var requiredOnUpdate []string
+	for _, field := range fields {
+		doc := clone(stored)
+		delete(doc, field)
+		if status := put(doc); status/100 != 2 {
+			requiredOnUpdate = append(requiredOnUpdate, field)
+			t.Logf("traffic route update without %-20s rejected (HTTP %d) -- required on update", field, status)
+		} else {
+			t.Logf("traffic route update without %-20s accepted, stored %v",
+				field, storedRoute(id)[field])
+		}
+		put(clone(stored)) // reset
+	}
+	sort.Strings(requiredOnUpdate)
+
+	trafficRouteMatchingBranches(ctx, t, s, path, wanID, lanID)
+	trafficRouteEmptyTargetKeys(ctx, t, s, path, wanID, lanID)
+
+	// The empty/omit half, for the two fields whose verdict does not depend on
+	// which filter matching_target selects. The filter lists are conditional --
+	// see trafficRouteMatchingBranches -- so recording an emptied one would
+	// pin a verdict that only holds for the branch this seed happens to be in.
+	measured := map[string]behavior.EmptySemantics{}
+	for _, field := range []string{"description", "next_hop"} {
+		measured[field] = storedEmptySemantics(t, field, "", stored, put, func() map[string]any {
+			return storedRoute(id)
+		})
+	}
+	var summary []string
+	for _, f := range slices.Sorted(maps.Keys(measured)) {
+		summary = append(summary, fmt.Sprintf("%-16s %-16s %s", f, measured[f].Empty, measured[f].Omit))
+	}
+	t.Logf("traffic route empty-vs-absent semantics:\n  %s", strings.Join(summary, "\n  "))
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/trafficroutes",
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: requiredOnCreate,
+		RequiredOnUpdate: requiredOnUpdate,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			// Replace, not merge: the probe writes the same bodies every run,
+			// so a field that stopped being dropped -- or stopped being
+			// measured at all -- has to leave the artifact rather than linger
+			// as a fact nothing re-measures.
+			a.Writes["TrafficRoute"] = contract
+			a.Discarded["TrafficRoute"] = dropped
+			a.Empty["trafficroutes"] = measured
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the traffic route", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "TrafficRoute", art.Writes, contract)
+	if pinned, has := art.Discarded["TrafficRoute"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("TrafficRoute discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+	compareEmptySemantics(t, "trafficroutes", art.Empty["trafficroutes"], measured)
+}
+
+// trafficRouteMatchingBranches measures the requirement required_on_create
+// cannot hold: which destination filter a route must carry depends on
+// matching_target, so the filter lists are individually optional and
+// collectively not.
+//
+// Each row is a route addressed at one target with that target's own filter
+// list left out, and the error the controller answered. The INTERNET row is
+// the control: it names no filter list and creates, which is what says the
+// other three refusals are about the selector rather than about a route
+// needing a filter at all.
+//
+// The sibling probe in traffic_route_matching_integration_test.go measures the
+// other direction -- that a route may carry filter lists the selector does not
+// name -- so nothing here repeats it.
+func trafficRouteMatchingBranches(
+	ctx context.Context,
+	t *testing.T,
+	s *controllertest.Session,
+	path, wanID, lanID string,
+) {
+	t.Helper()
+
+	for _, tc := range []struct {
+		target, filter, want string
+	}{
+		{"DOMAIN", "domains", "api.err.MissingDomain"},
+		{"IP", "ip_addresses", "api.err.MissingIpAddressesOrIpRanges"},
+		{"REGION", "regions", "api.err.MissingRegion"},
+		{"INTERNET", "", ""},
+	} {
+		doc := map[string]any{
+			"description":     "traffic-route-branch-" + tc.target,
+			"enabled":         true,
+			"network_id":      wanID,
+			"matching_target": tc.target,
+			"target_devices":  []any{map[string]any{"type": "NETWORK", "network_id": lanID}},
+		}
+		switch tc.filter {
+		case "domains":
+			doc["regions"] = []any{"US"}
+		case "ip_addresses":
+			doc["domains"] = []any{map[string]any{"domain": "example.com"}}
+		case "regions":
+			doc["domains"] = []any{map[string]any{"domain": "example.com"}}
+		}
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if id := objectID(firstData(t, body)); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		if tc.want == "" {
+			if status/100 != 2 {
+				t.Errorf("a route matching %s and naming no filter list was refused (HTTP %d, %s); "+
+					"the filter requirements below are then not about the selector",
+					tc.target, status, v2Rejection(body))
+			} else {
+				t.Logf("matching %-8s with no filter list at all creates (HTTP %d)", tc.target, status)
+			}
+			continue
+		}
+		got := v2Rejection(body)
+		if status/100 == 2 {
+			t.Errorf("a route matching %s without %s was accepted (HTTP %d); the filter list the "+
+				"selector names was measured being required", tc.target, tc.filter, status)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("a route matching %s without %s was refused with %q, not %q; the requirement "+
+				"is still there but its reason changed", tc.target, tc.filter, got, tc.want)
+			continue
+		}
+		t.Logf("matching %-8s without %-12s -> %s", tc.target, tc.filter, got)
+	}
+}
+
+// trafficRouteEmptyTargetKeys measures what an empty string does inside a
+// target device, because recording network_id as required on create reaches
+// further than the field it names.
+//
+// The generator drops omitempty from every field whose wire name a resource's
+// required-on-create set holds, matched on the leaf (see withRequiredOnCreate),
+// so recording the route's own network_id also flips
+// target_devices[].network_id: the shipped client now sends "network_id": ""
+// inside a target device that names a client, or all of them. That is only
+// safe if the controller takes it.
+//
+// It does, and the neighbouring key is why the question is worth a
+// measurement rather than an assumption: an empty client_mac in the same
+// object is refused ("must be valid mac Address"), so the same flip on that
+// field would break every route the SDK writes. The two are asserted together
+// so a controller that starts validating network_id the same way is caught
+// here rather than in a caller.
+func trafficRouteEmptyTargetKeys(
+	ctx context.Context,
+	t *testing.T,
+	s *controllertest.Session,
+	path, wanID, lanID string,
+) {
+	t.Helper()
+
+	route := func(description string, target map[string]any) map[string]any {
+		return map[string]any{
+			"description": description, "enabled": true,
+			"network_id": wanID, "kill_switch_enabled": false,
+			"matching_target": "INTERNET",
+			"target_devices":  []any{target},
+		}
+	}
+
+	for _, tc := range []struct {
+		what   string
+		target map[string]any
+		accept bool
+	}{
+		{"all clients, empty network_id", map[string]any{
+			"type": "ALL_CLIENTS", "network_id": "",
+		}, true},
+		{"one client, empty network_id", map[string]any{
+			"type": "CLIENT", "client_mac": "00:11:22:33:44:55", "network_id": "",
+		}, true},
+		{"a network, empty client_mac", map[string]any{
+			"type": "NETWORK", "network_id": lanID, "client_mac": "",
+		}, false},
+	} {
+		body, status, err := s.PostJSON(ctx, path, route("traffic-route-target-probe", tc.target))
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if id := objectID(firstData(t, body)); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		switch {
+		case tc.accept && status/100 != 2:
+			t.Errorf("a target device with %s was refused (HTTP %d, %s); the generated client sends "+
+				"that shape for every target device since network_id was recorded required on create",
+				tc.what, status, v2Rejection(body))
+		case !tc.accept && status/100 == 2:
+			t.Errorf("a target device with %s was accepted (HTTP %d); it was measured being refused, "+
+				"and that refusal is why an empty member is not safe to send blindly", tc.what, status)
+		case tc.accept:
+			t.Logf("target device with %-30s accepted (HTTP %d)", tc.what, status)
+		default:
+			t.Logf("target device with %-30s refused (HTTP %d, %s)", tc.what, status, v2Rejection(body))
 		}
 	}
 }
