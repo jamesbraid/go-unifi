@@ -125,7 +125,11 @@ type ResourceInfo struct {
 	// rare resource whose list endpoint differs from the one every other
 	// verb uses. Defaults to ResourcePath.
 	ListResourcePath string
-	Collection       string
+	// CreateResourcePath is the path the generated Create writes to, for the
+	// resource whose create endpoint is not the collection. Defaults to
+	// ResourcePath and is otherwise taken from the measured write contract.
+	CreateResourcePath string
+	Collection         string
 	// CreateMethod is the HTTP verb the generated Create issues. POST unless
 	// the measured write contract (schemas/behavior.json) recorded the
 	// controller accepting creates only over PUT.
@@ -281,6 +285,7 @@ func NewResource(structName string, resourcePath string) *ResourceInfo {
 		resource.ResourcePath = override.Path
 	}
 	resource.ListResourcePath = resource.ResourcePath
+	resource.CreateResourcePath = resource.ResourcePath
 	if override.ListPath != "" {
 		resource.ListResourcePath = override.ListPath
 	}

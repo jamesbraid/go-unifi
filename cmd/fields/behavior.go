@@ -29,6 +29,30 @@ func applyWriteContract(r *ResourceInfo, w behavior.WriteContract) {
 	if w.CreateVerb == "PUT" {
 		r.CreateMethod = "PUT"
 	}
+	if segment := createPathSegment(w.CreatePath); segment != "" {
+		r.CreateResourcePath = segment
+	}
+}
+
+// createPathSegment reduces a measured create path to the part the template
+// renders after the site, so a resource whose create endpoint is not its
+// collection is generated against what the probe measured rather than
+// against the collection-POST convention the other resources happen to
+// share. Content filtering is that resource: the controller maps the
+// collection for GET alone and serves creates from a /create sub-path.
+//
+// Both wire prefixes are recognised because the artifact records the whole
+// path a probe used, and v1 and v2 resources spell it differently. A path
+// in neither shape returns "" and changes nothing: the artifact is a
+// measurement, and a shape this cannot read is one nobody has taught the
+// template to emit.
+func createPathSegment(path string) string {
+	for _, prefix := range []string{"v2/api/site/{site}/", "api/s/{site}/rest/"} {
+		if rest, ok := strings.CutPrefix(path, prefix); ok {
+			return rest
+		}
+	}
+	return ""
 }
 
 // withRequiredOnCreate drops the omitempty tag from the fields the

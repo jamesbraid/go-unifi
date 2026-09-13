@@ -15,9 +15,13 @@ import (
 // serving the content-filtering collection at v2/.../content-filtering as a
 // bare JSON array, and is method-aware so it can also exercise
 // update/delete against the same collection, mirroring natTestServer:
-//   - GET    {listPath}     -> the fixture array (list/get-via-list)
-//   - POST   {listPath}     -> echoes the decoded body back with an _id
-//     assigned, the way the controller answers a create
+//   - GET    {listPath}        -> the fixture array (list/get-via-list)
+//   - POST   {listPath}/create -> echoes the decoded body back with an _id
+//     assigned, the way the controller answers a create. The create is the
+//     one verb this collection does not serve on the collection path: the
+//     controller maps {listPath} for GET alone (measured on 10.6.101, and
+//     the jar's route table agrees), so a POST there answers 405 here too
+//     and a client that regresses to it fails rather than passing quietly.
 //   - PUT    {listPath}/id  -> echoes the decoded body back as the updated
 //     policy, matching updateContentFiltering's single-object response
 //     decode; rejects a bare-collection PUT or an id mismatch
@@ -43,6 +47,12 @@ func contentFilteringTestServer(t *testing.T, site, listJSON string, gotCreate *
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(listJSON))
 		case r.Method == http.MethodPost && r.URL.Path == listPath:
+			// What the real controller answers: the collection is mapped
+			// for GET, so the verb has no handler.
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte("<html><body>405 Not Allowed</body></html>"))
+		case r.Method == http.MethodPost && r.URL.Path == listPath+"/create":
 			body, _ := io.ReadAll(r.Body)
 			if gotCreate != nil {
 				if err := json.Unmarshal(body, gotCreate); err != nil {

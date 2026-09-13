@@ -24,7 +24,7 @@ type ContentFiltering struct {
 	Categories []string                  `json:"categories"`
 	ClientMACs []string                  `json:"client_macs"`
 	Enabled    bool                      `json:"enabled"`
-	Name       string                    `json:"name,omitempty"`
+	Name       string                    `json:"name"`
 	NetworkIDs []string                  `json:"network_ids"`
 	SafeSearch []string                  `json:"safe_search"`
 	Schedule   *ContentFilteringSchedule `json:"schedule,omitempty"`
@@ -83,7 +83,7 @@ func (c *ApiClient) DeleteContentFiltering(ctx context.Context, site string, id 
 }
 
 func (c *ApiClient) CreateContentFiltering(ctx context.Context, site string, d *ContentFiltering) (*ContentFiltering, error) {
-	return bareOne[ContentFiltering](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/content-filtering", site), d)
+	return bareOne[ContentFiltering](ctx, c, http.MethodPost, fmt.Sprintf("v2/api/site/%s/content-filtering/create", site), d)
 }
 
 // UpdateContentFilteringFields writes only the named wire fields and leaves

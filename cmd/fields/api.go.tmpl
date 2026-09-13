@@ -213,7 +213,7 @@ func (c *ApiClient) {{ .Method "Delete" }}(ctx context.Context, site string{{ if
 
 {{ if .Emits "Create" }}
 func (c *ApiClient) {{ .Method "Create" }}(ctx context.Context, site string, d *{{ .StructName }}) (*{{ .StructName }}, error) {
-	return {{ if .IsV2 }}bareOne{{ else }}envelopeOne{{ end }}[{{ .StructName }}](ctx, c, {{ if eq .CreateMethod "PUT" }}http.MethodPut{{ else }}http.MethodPost{{ end }}, fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if .IsV2 }}{{ else }}rest/{{ end }}{{ .ResourcePath }}", site), d)
+	return {{ if .IsV2 }}bareOne{{ else }}envelopeOne{{ end }}[{{ .StructName }}](ctx, c, {{ if eq .CreateMethod "PUT" }}http.MethodPut{{ else }}http.MethodPost{{ end }}, fmt.Sprintf("{{ if .IsV2 }}v2/api/site{{ else }}api/s{{ end }}/%s/{{ if eq .StructName "Device" }}stat/{{ else if .IsV2 }}{{ else }}rest/{{ end }}{{ .CreateResourcePath }}", site), d)
 }
 {{- end }}
 

@@ -70,8 +70,13 @@ schema, each tied to evidence:
 
 Both are generator inputs, digested into the lock, and so is
 `schemas/behavior.json`: a re-measure moves the lock's input digest
-exactly like an override edit does, and lands with its regenerate. See
-`overrides/README.md` and COMPATIBILITY.md for the retention policy.
+exactly like an override edit does, and lands with its regenerate. Its
+`writes` section decides real client code — the verb a create issues, the
+path it writes to, and which fields lose `omitempty` because the
+controller refuses a create without them — so a measured endpoint that
+does not follow the usual shape is corrected by re-measuring it, not by
+hand-editing the generated file. See `overrides/README.md` and
+COMPATIBILITY.md for the retention policy.
 
 ## CI model
 

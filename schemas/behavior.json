@@ -350,10 +350,15 @@
   },
   "writes": {
     "ContentFiltering": {
-      "create_verb": "POST-REJECTED-405",
-      "create_path": "v2/api/site/{site}/content-filtering",
-      "update_verb": "",
-      "update_path": ""
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/content-filtering/create",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/content-filtering/{id}",
+      "required_on_create": [
+        "categories",
+        "name",
+        "schedule"
+      ]
     },
     "FirewallPolicy": {
       "create_verb": "POST",
