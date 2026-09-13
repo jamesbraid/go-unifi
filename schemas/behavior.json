@@ -171,6 +171,7 @@
       "igmp_snooping",
       "upnp_lan_enabled"
     ],
+    "PortForward": [],
     "TrafficRoute": []
   },
   "empty": {
@@ -340,6 +341,52 @@
         "omit": "OMIT-CLEARS"
       }
     },
+    "portforward": {
+      "destination_ip": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "destination_ips": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "dst_port": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "fwd": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "fwd_port": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "pfwd_interface": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "proto": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "src": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "src_firewall_group_id": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "src_limiting_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "trafficroutes": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -487,6 +534,12 @@
       "min_items": {
         "areas[].network_ids": 1
       }
+    },
+    "PortForward": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/portforward",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/portforward/{id}"
     },
     "TrafficRoute": {
       "create_verb": "POST",
