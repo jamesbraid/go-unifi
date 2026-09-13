@@ -16,9 +16,11 @@ func TestFilterIncompatibilities(t *testing.T) {
 		"",
 		"- ./unifi/settings: Ips.Suppression: removed",
 	})
+	// Sorted, so the settings line leads: '/' sorts below ':'. The input
+	// deliberately arrives in the other order.
 	want := []string{
-		"- ./unifi: HeatMap: removed",
 		"- ./unifi/settings: Ips.Suppression: removed",
+		"- ./unifi: HeatMap: removed",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("filterIncompatibilities() = %q, want %q", got, want)

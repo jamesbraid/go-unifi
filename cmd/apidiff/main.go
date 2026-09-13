@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -177,6 +178,10 @@ func filterIncompatibilities(lines []string) []string {
 		}
 		kept = append(kept, line)
 	}
+	// apidiff emits in map order, so two runs on an unchanged tree
+	// disagree. This text is rewritten into a PR body in place and into
+	// the release notes, where the churn reads as a real change.
+	sort.Strings(kept)
 	return kept
 }
 
