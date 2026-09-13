@@ -23,16 +23,17 @@ metadata/          extracted sensitivity input (gitignored)
 Do not edit `VERSION`, `SOURCE`, or `ARTIFACT`. Generation rewrites them from
 the lock.
 
-`GENERATED_SHA256` covers generated Go, the lock, and the three compatibility
-projections. It does not hash itself.
+`GENERATED_SHA256` covers generated Go, the lock, the three compatibility
+projections, and `wirecontract/wire_contract.json`. It does not hash itself.
 
 ## What the input digest covers
 
-The lock's generator-input digest covers the generator itself
-(`cmd/fields`, `internal/behavior`, `internal/capturelock`,
-`internal/fields`), `overrides/`, the generate directive in
-`unifi/unifi.go`, and `behavior.json` -- so a re-measure moves the digest
-exactly like an override edit does. Deliberately not digested:
+The lock's generator-input digest covers the generators themselves
+(`cmd/fields`, `cmd/wirecontract`, `internal/behavior`,
+`internal/capturelock`, `internal/fields`), `overrides/`, both generate
+directives (`unifi/unifi.go` and `wirecontract/wirecontract.go`, the latter
+also carrying the published artifact layout), and `behavior.json` -- so a
+re-measure moves the digest exactly like an override edit does. Deliberately not digested:
 `go.mod`/`go.sum`, because a dependency bump changes nothing the
 generator reads, and the other hand-written `unifi/` files, which
 only steer name-collision avoidance -- covering them would force a lock

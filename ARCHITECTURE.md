@@ -15,9 +15,10 @@ controller artifact (.deb from Ubiquiti's CDN)
 schemas/capture.lock.json — artifact digest, extracted-schema digests,
         │                   generator-input digests
         ▼
-        │  go generate ./...  (cmd/fields, offline)
+        │  go generate ./...  (cmd/fields, then cmd/wirecontract; offline)
         ▼
 unifi/*.generated.go
+wirecontract/wire_contract.json — the published wire contract
 schemas/GENERATED_SHA256 — digest of everything generated
 ```
 
@@ -29,6 +30,16 @@ downloads, and never looks up "latest". A successful run re-stamps the
 lock's input digests and `schemas/GENERATED_SHA256`, so `go generate`
 leaves the tree consistent. A dependency bump touches nothing but
 go.mod/go.sum; the `rebuild` workflow is what proves dep-caused drift.
+
+`cmd/wirecontract` runs second, over the tree `cmd/fields` just wrote, and
+records `wirecontract/wire_contract.json`: every wire object, its fields in
+declaration order with their Go declarations and omitempty, the generated
+constraint tables re-serialized, and the measured behaviour from
+`schemas/behavior.json` rekeyed onto the same type keys. It runs second
+because the constraint tables are read as Go values rather than re-derived,
+which is what keeps the artifact and the tables consumers already use from
+drifting apart. Package `wirecontract` embeds the result, so a consumer
+imports it instead of walking this SDK's source.
 
 The artifact comes from Ubiquiti's public CDN but cannot be redistributed,
 so git carries the lock, not the bytes. Anyone can re-run capture against
