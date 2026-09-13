@@ -24,7 +24,7 @@ Four kinds of drift, four different answers:
 
 - **Upstream drops a *field* the controller still tolerates** → we retain
   it, generated from an explicit pin in `overrides/fields.toml` with a
-  deprecation note (e.g. `Network.MdnsEnabled`, `Device.X`/`Device.Y`).
+  deprecation note (e.g. `Network.MdnsEnabled`).
   Pins are reviewed each controller train and sunset when they stop being
   harmless. A pin requires a live measurement that the controller still
   honors the field; when it does not, the removal stands. PortProfile's
@@ -86,12 +86,17 @@ Four kinds of drift, four different answers:
 The four cases above are upstream's doing. We also drop our own surface
 when nothing uses it: a type left behind by a reverted design, a helper
 that never needed to be part of the contract, a parameter the
-implementation ignores. These are still breaking changes and ship like any
-other here, in a documented minor under the review discipline below.
+implementation ignores. A retained pin that has stopped working belongs
+here too — we chose to add it, so dropping it is our call, not upstream's.
+These are still breaking changes and ship like any other here, in a
+documented minor under the review discipline below.
 
-They need one thing upstream drift does not. The whole justification is
-that the surface is unused, so every known consumer is searched before the
-removal lands, and the commit names what was searched.
+They need one thing upstream drift does not. For unused surface the whole
+justification is that nothing calls it, so every known consumer is searched
+before the removal lands, and the commit names what was searched. For a
+sunset pin the justification is the opposite direction: the controller
+itself no longer honors the field, and the commit names the measurement
+that showed it.
 
 Gone this way so far, with the successor where there is one:
 
@@ -109,6 +114,18 @@ Gone this way so far, with the successor where there is one:
   ignored it, and its unexported fields made a non-empty argument
   impossible to build from outside the package. Call
   `ListNetwork(ctx, site)`.
+- `Device.X`, `Device.Y`, `Device.MapID`, `Device.HeightInMeters` — the
+  map-placement properties, pinned when 10.x dropped them from the schema
+  along with the maps feature. No successor: placing a device on a floor
+  plan is not something this API does any more. Measured on 10.6.101 —
+  a `rest/device` write carrying all four is accepted with rc: ok and
+  stores none of them, and a freshly adopted device returns none of them
+  either.
+- `WLAN.WLANGroupID` — pinned when Network 6 removed it. The successor is
+  `WLAN.ApGroupIDs`; AP groups are how a WLAN is scoped now. Measured on
+  10.6.101 — a WLAN create that never mentions it succeeds, and a create
+  that names a real WLAN group is accepted with rc: ok and comes back
+  without the key.
 
 ## Versioning honesty
 

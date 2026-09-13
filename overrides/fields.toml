@@ -240,37 +240,6 @@ type = "bool"
 [Device.field.port_overrides]
 nil_as_empty = true
 
-# Deprecated: removed from the 10.x schema along with the maps feature, but
-# they are plain device-object properties; retained so existing consumers
-# keep compiling. Review for sunset next controller train.
-[Device.field.x]
-add = true
-doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
-name = "X"
-type = "float64"
-omitempty = true
-
-[Device.field.y]
-add = true
-doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
-name = "Y"
-type = "float64"
-omitempty = true
-
-[Device.field.map_id]
-add = true
-doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
-name = "MapID"
-type = "string"
-omitempty = true
-
-[Device.field.heightInMeters]
-add = true
-doc = "Deprecated: removed from the UniFi Network 10.x schema; retained for backwards compatibility."
-name = "HeightInMeters"
-type = "float64"
-omitempty = true
-
 # Device state and identity fields the ace.jar schema does not describe.
 [Device.field.port_table]
 add = true
@@ -318,14 +287,6 @@ omitempty = true
 add = true
 name = "LastIP"
 doc = "The client's most recent IP, reported by the controller on /rest/user. Read-only: the controller publishes no schema for it, so it carries no validation."
-type = "string"
-omitempty = true
-
-# Removed in v6, retained for backwards compatibility.
-[WLAN.field.wlangroup_id]
-add = true
-doc = "Deprecated: removed in UniFi Network 6; retained for backwards compatibility."
-name = "WLANGroupID"
 type = "string"
 omitempty = true
 

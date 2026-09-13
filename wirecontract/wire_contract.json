@@ -1895,12 +1895,6 @@
           "omit_empty": true
         },
         {
-          "wire": "heightInMeters",
-          "go_name": "HeightInMeters",
-          "go_type": "float64",
-          "omit_empty": true
-        },
-        {
           "wire": "hostname",
           "go_name": "Hostname",
           "go_type": "string",
@@ -2095,12 +2089,6 @@
         {
           "wire": "lte_username",
           "go_name": "LteUsername",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "map_id",
-          "go_name": "MapID",
           "go_type": "string",
           "omit_empty": true
         },
@@ -2360,18 +2348,6 @@
           "wire": "volume",
           "go_name": "Volume",
           "go_type": "*int64",
-          "omit_empty": true
-        },
-        {
-          "wire": "x",
-          "go_name": "X",
-          "go_type": "float64",
-          "omit_empty": true
-        },
-        {
-          "wire": "y",
-          "go_name": "Y",
-          "go_type": "float64",
           "omit_empty": true
         }
       ]
@@ -11123,12 +11099,6 @@
           "wire": "wlan_bands",
           "go_name": "WLANBands",
           "go_type": "[]string",
-          "omit_empty": true
-        },
-        {
-          "wire": "wlangroup_id",
-          "go_name": "WLANGroupID",
-          "go_type": "string",
           "omit_empty": true
         },
         {
