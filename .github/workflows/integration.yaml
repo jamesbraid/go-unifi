@@ -94,7 +94,7 @@ jobs:
       - name: Install unifi-emu-herder
         id: herder
         if: github.event_name != 'pull_request' || steps.filter.outputs.integration == 'true'
-        uses: jamesbraid/unifi-emu/.github/actions/install-herder@cc65d6b07ece7f5776335b2e5bab3f2b6bf9fa59 # v0.5.3
+        uses: jamesbraid/unifi-emu/.github/actions/install-herder@1b46032f010b92e305d2aea969028a46b3d2abc5 # v0.5.5
 
       # The suite is identical; only the harness env differs. Standalone pins
       # the -sim tag from schemas/VERSION -- a missing tag fails the pull
