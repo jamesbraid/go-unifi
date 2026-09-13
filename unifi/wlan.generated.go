@@ -117,15 +117,13 @@ type WLAN struct {
 	WEPIDX                      *int64                     `json:"wep_idx,omitempty"`    // [1-4]
 	WLANBand                    string                     `json:"wlan_band,omitempty"`  // 2g|5g|both
 	WLANBands                   []string                   `json:"wlan_bands,omitempty"` // 2g|5g|6g
-	// Deprecated: removed in UniFi Network 6; retained for backwards compatibility.
-	WLANGroupID     string `json:"wlangroup_id,omitempty"`
-	WPA3Enhanced192 bool   `json:"wpa3_enhanced_192"`
-	WPA3FastRoaming bool   `json:"wpa3_fast_roaming"`
-	WPA3Support     bool   `json:"wpa3_support"`
-	WPA3Transition  bool   `json:"wpa3_transition"`
-	WPAEnc          string `json:"wpa_enc,omitempty"`        // auto|ccmp|gcmp|ccmp-256|gcmp-256
-	WPAMode         string `json:"wpa_mode,omitempty"`       // auto|wpa1|wpa2
-	WPAPskRADIUS    string `json:"wpa_psk_radius,omitempty"` // disabled|optional|required
+	WPA3Enhanced192             bool                       `json:"wpa3_enhanced_192"`
+	WPA3FastRoaming             bool                       `json:"wpa3_fast_roaming"`
+	WPA3Support                 bool                       `json:"wpa3_support"`
+	WPA3Transition              bool                       `json:"wpa3_transition"`
+	WPAEnc                      string                     `json:"wpa_enc,omitempty"`        // auto|ccmp|gcmp|ccmp-256|gcmp-256
+	WPAMode                     string                     `json:"wpa_mode,omitempty"`       // auto|wpa1|wpa2
+	WPAPskRADIUS                string                     `json:"wpa_psk_radius,omitempty"` // disabled|optional|required
 }
 
 func (dst *WLAN) UnmarshalJSON(b []byte) error {

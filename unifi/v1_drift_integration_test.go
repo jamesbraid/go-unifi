@@ -182,7 +182,6 @@ var v1DriftProbes = []struct {
 				"name": "drift-probe", "enabled": true, "security": "wpapsk",
 				"x_passphrase": "probe-passphrase", "wpa_mode": "wpa2", "wpa_enc": "ccmp",
 				"usergroup_id": firstObjectID(ctx, t, s, c.Site, "usergroup"),
-				"wlangroup_id": firstObjectID(ctx, t, s, c.Site, "wlangroup"),
 				"ap_group_ids": []string{requiredAPGroupID(ctx, t, s, c.Site)},
 			}
 		}},

@@ -251,10 +251,11 @@ func clearingProbeResources(t *testing.T, ctx context.Context, s *controllertest
 				"name": "clear-wlan", "enabled": true,
 				"security": "wpapsk", "x_passphrase": "probe-passphrase",
 				"wpa_mode": "wpa2", "wpa_enc": "ccmp",
-				// The stock usergroup and wlangroup: a WLAN must reference
-				// both before the controller will create it.
+				// The stock usergroup: a WLAN must reference one before the
+				// controller will create it. wlangroup_id used to be seeded
+				// beside it on the same belief; 10.6.101 creates the WLAN
+				// without it, and drops the key when it is sent.
 				"usergroup_id": firstObjectID(ctx, t, s, site, "usergroup"),
-				"wlangroup_id": firstObjectID(ctx, t, s, site, "wlangroup"),
 				"ap_group_ids": []string{requiredAPGroupID(ctx, t, s, site)},
 			},
 		},
