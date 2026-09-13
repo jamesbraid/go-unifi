@@ -1,6 +1,6 @@
 module github.com/ubiquiti-community/go-unifi
 
-go 1.25.0
+go 1.26.0
 
 toolchain go1.27.1
 
@@ -13,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/ulikunitz/xz v0.5.16
-	golang.org/x/tools v0.41.0
+	golang.org/x/tools v0.50.0
 	pault.ag/go/debian v0.21.0
 )
 
@@ -69,9 +69,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	pault.ag/go/topsort v0.1.1 // indirect
 )
 
