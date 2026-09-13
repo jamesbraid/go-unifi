@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -1976,5 +1977,419 @@ func TestIntegrationDeviceRadioTableWrites(t *testing.T) {
 	if pinned, has := art.Discarded["DeviceRadioTable"]; has && !reflect.DeepEqual(pinned, dropped) {
 		t.Errorf("DeviceRadioTable discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
 			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+}
+
+// storedEmptySemantics measures what writing a field as blank and leaving its
+// key out do to one field of one stored object, in the clearing probe's
+// vocabulary.
+//
+// Every verdict is read off a re-read of the stored document, never off the
+// write's own response, and that is the whole point of the helper. The v1 rest
+// PUT answers a write that changed nothing with an empty data array (measured
+// on firewallgroup, portconf and networkconf), so a probe that reads a field
+// out of the response sees "" for a field the controller did not touch and
+// files it as cleared.
+//
+// blank is the field's empty form as it goes on the wire -- "" for a string,
+// []any{} for a list. seed is the stored document to measure against and to
+// restore between the two halves; it must carry a value for field, or CLEARS
+// and KEEPS are the same observation.
+func storedEmptySemantics(
+	t *testing.T,
+	field string,
+	blank any,
+	seed map[string]any,
+	put func(map[string]any) int,
+	read func() map[string]any,
+) behavior.EmptySemantics {
+	t.Helper()
+
+	original := seed[field]
+	if blankValue(original) {
+		t.Errorf("%s is empty in the seed document, so clearing it measures nothing", field)
+	}
+
+	classify := func(prefix string, status int) string {
+		if status/100 != 2 {
+			return prefix + "-REJECTED"
+		}
+		switch got := read()[field]; {
+		case blankValue(got):
+			return prefix + "-CLEARS"
+		case jsonEqual(got, original):
+			if prefix == "EMPTY" {
+				return "EMPTY-IGNORED"
+			}
+			return "OMIT-KEEPS"
+		default:
+			return fmt.Sprintf("%s-REPLACED-%v", prefix, got)
+		}
+	}
+
+	doc := clone(seed)
+	doc[field] = blank
+	empty := classify("EMPTY", put(doc))
+	put(clone(seed)) // reset
+
+	doc = clone(seed)
+	delete(doc, field)
+	omit := classify("OMIT", put(doc))
+	put(clone(seed)) // reset
+
+	return behavior.EmptySemantics{Empty: empty, Omit: omit}
+}
+
+// blankValue reports whether a stored value is the empty form of its field:
+// absent, JSON null, the empty string or the empty list. The controller
+// spells a cleared field all four ways depending on the collection --
+// firewallgroup drops the key, trafficroutes stores null for a string and []
+// for a list -- and they all mean the same thing to a caller.
+func blankValue(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case string:
+		return t == ""
+	case []any:
+		return len(t) == 0
+	}
+	return false
+}
+
+// TestIntegrationFirewallGroupWriteContract measures the firewall group, which
+// no section of the artifact described: the SDK has shipped a client for the
+// collection since the schema was captured and no probe had ever written one.
+//
+// It owns three artifact entries outright -- the write contract, the discard
+// list and the empty/omit semantics -- because a second probe replacing any of
+// them would erase what this one measured.
+//
+// The resource is a v1 rest collection, so the verbs and paths are the generic
+// ones; they are confirmed here rather than assumed, and the rest is measured:
+//
+//   - which fields a create cannot omit. The struct marks all seven optional
+//     and the controller refuses a body without name or group_type, each with
+//     its own error code.
+//   - the two branches the collection keeps apart, keyed on source. A static
+//     group -- source "static", or absent, which is how the controller stores
+//     a group that never named one -- is refused if it carries url or
+//     update_interval_seconds. Those two fields belong to the dynamic branch,
+//     which this controller refuses outright for every group type, so nothing
+//     about them is recorded; see the loud log below.
+//   - what "" and an absent key do. This is where the collection parts company
+//     with the rest of the tree: its PUT merges, so leaving a key out preserves
+//     the stored value rather than clearing it.
+func TestIntegrationFirewallGroupWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	path := "/api/s/" + c.Site + "/rest/firewallgroup"
+
+	// A static address group carrying one value of every kind the branch
+	// admits: the name and type the create needs, two members, the free-text
+	// description and the source selector.
+	base := func(name string) map[string]any {
+		return map[string]any{
+			"name":          name,
+			"group_type":    "address-group",
+			"group_members": []any{"192.0.2.10", "198.51.100.0/24"},
+			"description":   "firewall-group probe",
+			"source":        "static",
+		}
+	}
+
+	// post creates and deletes again, for the sweeps that only care whether
+	// the controller took the body at all.
+	post := func(doc map[string]any) (int, any, map[string]any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		// A v1 rejection echoes the offending document under data rather
+		// than a stored one, so only a 2xx carrying an id created anything.
+		created := firstData(t, body)
+		if id := objectID(created); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, body, created
+	}
+
+	asked := base("firewall-group-probe")
+	body, status, err := s.PostJSON(ctx, path, asked)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	if status/100 != 2 {
+		t.Fatalf("the known-good firewall group was rejected (HTTP %d, %s): %v\n\nNothing removed "+
+			"from a body that does not create can measure anything.", status, v1ErrCode(body), firstData(t, body))
+	}
+	id := objectID(firstData(t, body))
+	if id == "" {
+		t.Fatalf("the created group carries no id, so nothing below can re-read it: %v", body)
+	}
+	defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+
+	// The stored document, read back from the collection. Every verdict below
+	// comes from here rather than from a write's response: the create's
+	// response happens to echo the document, the update's does not, and a
+	// discard is only a discard if the collection is missing the field.
+	read := func() map[string]any {
+		got, status, err := s.GetJSON(ctx, path+"/"+id)
+		if err != nil || status != 200 {
+			t.Fatalf("GET %s/%s answered HTTP %d (%v); the generated read uses that path",
+				path, id, status, err)
+		}
+		return firstData(t, got)
+	}
+	stored := read()
+
+	// What the controller kept, changed and dropped. A CHANGED field is a
+	// coercion -- the controller stored something other than what was written
+	// -- and a DROPPED one was accepted and never persisted.
+	dropped := []string{}
+	for _, r := range probe.Classify(asked, stored) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-16s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			t.Logf("CHANGED %-16s (%s) -- stored, not discarded", r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("firewall group round trip: %d asked, %d dropped", len(asked), len(dropped))
+
+	// Why the classification above is the measurement and the 200 is not:
+	// this collection accepts a key it does not recognise and stores the
+	// document without it.
+	unknownKeyStripped(ctx, t, s, path, base("firewall-group-unknown-key"))
+
+	// The generic v1 verbs, confirmed rather than assumed. read() has already
+	// exercised the by-id GET; this is the collection the generated list reads.
+	if listBody, listStatus, err := s.GetJSON(ctx, path); listStatus != 200 {
+		t.Errorf("GET %s answered HTTP %d (%v %v); the generated list reads that path",
+			path, listStatus, listBody, err)
+	}
+	updateVerb, updatePath := "", ""
+	renamed := clone(stored)
+	renamed["name"] = "firewall-group-probe-renamed"
+	after, putStatus, err := s.PutJSON(ctx, path+"/"+id, renamed)
+	if putStatus/100 != 2 {
+		t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+			path, id, putStatus, after, err)
+	} else if got, _ := read()["name"].(string); got != "firewall-group-probe-renamed" {
+		t.Errorf("PUT %s/{id} answered HTTP %d but the collection still reports name %q; the write "+
+			"was accepted and not stored", path, putStatus, got)
+	} else {
+		updateVerb, updatePath = "PUT", "api/s/{site}/rest/firewallgroup/{id}"
+		t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, putStatus)
+	}
+	s.PutJSON(ctx, path+"/"+id, clone(stored)) //nolint:errcheck // back to the seeded name
+
+	fields := make([]string, 0, len(asked))
+	for f := range asked {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var required []string
+	for i, field := range fields {
+		doc := base(fmt.Sprintf("firewall-group-probe-%d", i))
+		delete(doc, field)
+		status, body, _ := post(doc)
+		if status/100 == 2 {
+			t.Logf("firewall group create without %-14s accepted (HTTP %d) -- not required", field, status)
+			continue
+		}
+		t.Logf("firewall group create without %-14s rejected (HTTP %d, %s) -- required on create",
+			field, status, v1ErrCode(body))
+		required = append(required, field)
+	}
+	sort.Strings(required)
+
+	firewallGroupSourceBranches(ctx, t, s, path, base)
+
+	// The empty/omit half. The seed is the stored document, so each field has
+	// a value to lose, and the helper restores it between the two halves.
+	put := func(doc map[string]any) int {
+		body, status, err := s.PutJSON(ctx, path+"/"+id, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s/%s: %v", path, id, err)
+		}
+		if status/100 != 2 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT %s/%s -> HTTP %d: %s", path, id, status, v1ErrCode(body))
+		}
+		return status
+	}
+	measured := map[string]behavior.EmptySemantics{}
+	for _, f := range []struct {
+		wire  string
+		blank any
+	}{
+		{"description", ""},
+		{"group_members", []any{}},
+		{"group_type", ""},
+		{"name", ""},
+		{"source", ""},
+	} {
+		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, stored, put, read)
+	}
+	var summary []string
+	for _, f := range slices.Sorted(maps.Keys(measured)) {
+		summary = append(summary, fmt.Sprintf("%-16s %-16s %s", f, measured[f].Empty, measured[f].Omit))
+	}
+	t.Logf("firewall group empty-vs-absent semantics:\n  %s", strings.Join(summary, "\n  "))
+
+	// The finding that makes this collection worth its own entry: the v1 PUT
+	// merges, so a partial write leaves the rest of the group alone. The
+	// artifact records the opposite for every other v1 collection, which is
+	// worth knowing before reading these verdicts as the odd ones out: those
+	// were read off the PUT's own response, and this collection was measured
+	// answering a no-op write with an empty data array. See
+	// storedEmptySemantics.
+	for _, f := range slices.Sorted(maps.Keys(measured)) {
+		if measured[f].Omit != "OMIT-KEEPS" {
+			t.Logf("LOUD: %s now answers an omitted %s with %s rather than OMIT-KEEPS; the merge this "+
+				"collection was measured doing no longer holds for every field", path, f, measured[f].Omit)
+		}
+	}
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "api/s/{site}/rest/firewallgroup",
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: required,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			// Replace, not merge: the probe writes the same bodies every run,
+			// so a field that stopped being dropped -- or stopped being
+			// measured at all -- has to leave the artifact rather than linger
+			// as a fact nothing re-measures.
+			a.Writes["FirewallGroup"] = contract
+			a.Discarded["FirewallGroup"] = dropped
+			a.Empty["firewallgroup"] = measured
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the firewall group", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "FirewallGroup", art.Writes, contract)
+	if pinned, has := art.Discarded["FirewallGroup"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("FirewallGroup discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+	compareEmptySemantics(t, "firewallgroup", art.Empty["firewallgroup"], measured)
+}
+
+// firewallGroupSourceBranches measures the sanitizer's static/dynamic split and
+// deliberately records nothing about it.
+//
+// url and update_interval_seconds are the dynamic branch's fields: a static
+// group carrying either is refused by name, and required_on_create has no way
+// to say "refused when present". The dynamic branch itself is refused outright
+// on this controller for every group type the schema names, with a bare
+// api.err.FirewallGroupDynamicSourceUnsupported and no further detail, so no
+// required-on-create set for it could be established. Writing one anyway would
+// publish a shape nothing here observed the controller accept.
+func firewallGroupSourceBranches(
+	ctx context.Context,
+	t *testing.T,
+	s *controllertest.Session,
+	path string,
+	base func(string) map[string]any,
+) {
+	t.Helper()
+
+	post := func(doc map[string]any) (int, any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if id := objectID(firstData(t, body)); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, body
+	}
+
+	for _, f := range []struct{ wire, value string }{
+		{"url", "https://example.com/list.txt"},
+		{"update_interval_seconds", "3600"},
+	} {
+		doc := base("firewall-group-static-" + f.wire)
+		doc[f.wire] = f.value
+		if status, body := post(doc); status/100 == 2 {
+			t.Errorf("a static firewall group carrying %s was accepted (HTTP %d); the field was "+
+				"measured belonging to the dynamic branch alone", f.wire, status)
+		} else {
+			t.Logf("static group carrying %-24s rejected (HTTP %d, %s)", f.wire, status, v1ErrCode(body))
+		}
+	}
+
+	for _, groupType := range []string{"address-group", "port-group", "ipv6-address-group", "domain-group"} {
+		doc := base("firewall-group-dynamic-" + groupType)
+		doc["group_type"] = groupType
+		doc["group_members"] = []any{}
+		doc["source"] = "dynamic"
+		doc["url"] = "https://example.com/list.txt"
+		doc["update_interval_seconds"] = "3600"
+		status, body := post(doc)
+		if status/100 == 2 {
+			t.Logf("LOUD: a dynamic %s now creates (HTTP %d). The artifact records nothing for the "+
+				"dynamic branch because nothing could measure it; it can be measured now.", groupType, status)
+			continue
+		}
+		t.Logf("LOUD: the dynamic branch stays unmeasured for %-18s -- HTTP %d %q, no further detail, "+
+			"so url and update_interval_seconds have no measured contract",
+			groupType, status, v1ErrCode(body))
+	}
+}
+
+// compareEmptySemantics checks one measured empty/omit map against the
+// artifact, field by field. A field the artifact has never seen is an error
+// rather than a log: this probe measures the same fixed set every run, so a
+// missing pin means the artifact was written by an older probe and the new
+// verdict is going unchecked.
+func compareEmptySemantics(t *testing.T, section string, pinned, got map[string]behavior.EmptySemantics) {
+	t.Helper()
+	if pinned == nil {
+		t.Logf("no pinned empty semantics for %s; run with BEHAVIOR_WRITE=1 to record them", section)
+		return
+	}
+	for _, f := range slices.Sorted(maps.Keys(got)) {
+		want, has := pinned[f]
+		if !has {
+			t.Errorf("%s.%s: measured empty=%s omit=%s but the artifact pins nothing; "+
+				"re-measure with BEHAVIOR_WRITE=1", section, f, got[f].Empty, got[f].Omit)
+			continue
+		}
+		if want != got[f] {
+			t.Errorf("%s.%s: artifact pins empty=%s omit=%s, measured empty=%s omit=%s; "+
+				"re-measure with BEHAVIOR_WRITE=1 once the change is understood",
+				section, f, want.Empty, want.Omit, got[f].Empty, got[f].Omit)
+		}
 	}
 }

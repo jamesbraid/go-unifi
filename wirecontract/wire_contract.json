@@ -4434,13 +4434,13 @@
           "wire": "group_type",
           "go_name": "GroupType",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "name",
           "go_name": "Name",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "source",
@@ -25196,6 +25196,41 @@
         "update_verb": "PUT",
         "update_path": "api/s/{site}/rest/device/{id}",
         "required_on_update": [
+          "name"
+        ]
+      }
+    },
+    "unifi.FirewallGroup": {
+      "discarded": [],
+      "empty": {
+        "description": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "group_members": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "group_type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "source": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/firewallgroup",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/firewallgroup/{id}",
+        "required_on_create": [
+          "group_type",
           "name"
         ]
       }

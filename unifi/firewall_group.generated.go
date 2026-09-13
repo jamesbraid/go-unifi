@@ -21,9 +21,9 @@ type FirewallGroup struct {
 
 	Description           string   `json:"description,omitempty"`
 	GroupMembers          []string `json:"group_members,omitempty"`
-	GroupType             string   `json:"group_type,omitempty"` // address-group|port-group|ipv6-address-group|domain-group
-	Name                  string   `json:"name,omitempty"`       // .{1,64}
-	Source                string   `json:"source,omitempty"`     // static|dynamic
+	GroupType             string   `json:"group_type"`       // address-group|port-group|ipv6-address-group|domain-group
+	Name                  string   `json:"name"`             // .{1,64}
+	Source                string   `json:"source,omitempty"` // static|dynamic
 	UpdateIntervalSeconds string   `json:"update_interval_seconds,omitempty"`
 	Url                   string   `json:"url,omitempty"`
 }

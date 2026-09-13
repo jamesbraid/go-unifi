@@ -159,6 +159,7 @@
     "DeviceRadioTable": [
       "dfs"
     ],
+    "FirewallGroup": [],
     "HotspotPackage": [],
     "Network": [
       "dhcpd_dns_enabled",
@@ -181,6 +182,28 @@
     "device": {
       "radio_table": {
         "empty": "EMPTY-IGNORED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "firewallgroup": {
+      "description": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "group_members": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "group_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "source": {
+        "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
     },
@@ -397,6 +420,16 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/device/{id}",
       "required_on_update": [
+        "name"
+      ]
+    },
+    "FirewallGroup": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/firewallgroup",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/firewallgroup/{id}",
+      "required_on_create": [
+        "group_type",
         "name"
       ]
     },
