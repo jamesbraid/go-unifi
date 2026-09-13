@@ -156,6 +156,9 @@
   },
   "discarded": {
     "DevicePortOverrides": [],
+    "DeviceRadioTable": [
+      "dfs"
+    ],
     "HotspotPackage": [],
     "Network": [
       "dhcpd_dns_enabled",
@@ -169,6 +172,18 @@
     ]
   },
   "empty": {
+    "DeviceRadioTable": {
+      "tx_power_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "device": {
+      "radio_table": {
+        "empty": "EMPTY-IGNORED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "hotspotpackage": {
       "charged_as": {
         "empty": "EMPTY-CLEARS",
@@ -374,6 +389,15 @@
         "categories",
         "name",
         "schedule"
+      ]
+    },
+    "DeviceRadioTable": {
+      "create_verb": "",
+      "create_path": "",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/device/{id}",
+      "required_on_update": [
+        "name"
       ]
     },
     "FirewallPolicy": {

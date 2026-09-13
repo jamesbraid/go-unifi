@@ -25167,12 +25167,38 @@
       }
     },
     "unifi.Device": {
+      "empty": {
+        "radio_table": {
+          "empty": "EMPTY-IGNORED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
       "ownership": {
         "port_overrides.setting_preference": []
       }
     },
     "unifi.DevicePortOverrides": {
       "discarded": []
+    },
+    "unifi.DeviceRadioTable": {
+      "discarded": [
+        "dfs"
+      ],
+      "empty": {
+        "tx_power_mode": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "",
+        "create_path": "",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/device/{id}",
+        "required_on_update": [
+          "name"
+        ]
+      }
     },
     "unifi.FirewallPolicy": {
       "writes": {

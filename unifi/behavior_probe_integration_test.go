@@ -1622,3 +1622,359 @@ func storedPortOverride(ctx context.Context, t *testing.T, s *controllertest.Ses
 	}
 	return nil
 }
+
+// TestIntegrationDeviceRadioTableWrites measures how the controller takes a
+// write to a device's radio table -- the other array of objects in the device
+// document, and the one no probe had touched.
+//
+// It owns four artifact entries, because nothing else writes them:
+//
+//	writes["DeviceRadioTable"]        the verb, the path, and the member an
+//	                                  entry cannot leave out
+//	empty["DeviceRadioTable"]         what "" and an absent key do to a member
+//	empty["device"]["radio_table"]    what an empty array and an unnamed entry
+//	                                  do to the array
+//	discarded["DeviceRadioTable"]     members every radio takes and drops
+//
+// The omit verdicts are the half that matters. port_overrides, written by
+// the same PUT to the same document, replaces on both levels: an entry the
+// payload omits is dropped and a member an entry omits is dropped from that
+// entry, which is why UpdateDevicePortOverrides reads the stored array and
+// resends it. If radio_table behaved the same way, UpdateDeviceRadioTable
+// would have to do the same, and these two verdicts are what says whether it
+// does.
+func TestIntegrationDeviceRadioTableWrites(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	emulated := controllertest.StartDevices(ctx, t, c, controllertest.DeviceRequest{Model: "U7PRO"})
+	if len(emulated) != 1 {
+		t.Skip("no emulated access point available for this controller target")
+	}
+	adopted := c.AdoptDevice(ctx, t, s, emulated[0].MAC)
+	id := deviceIDForMAC(ctx, t, s, c.Site, adopted.MAC)
+	if id == "" {
+		t.Skipf("adopted %s but the controller lists no device with that MAC", adopted.MAC)
+	}
+	writePath := "/api/s/" + c.Site + "/rest/device/" + id
+
+	// A slice, never a variadic: an empty radio_table has to be written as
+	// [], and a nil slice marshals as null, which the controller rejects
+	// outright (api.err.InvalidPayload) as it does for port_overrides.
+	put := func(entries []map[string]any) int {
+		body, status, err := s.PutJSON(ctx, writePath, map[string]any{"radio_table": entries})
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", writePath, err)
+		}
+		if status != 200 {
+			// The rejection is the measurement; its body is the reason.
+			t.Logf("PUT radio_table %v -> HTTP %d: %v", entries, status, body)
+		}
+		return status
+	}
+
+	radios := func() map[string]map[string]any {
+		body, status, err := s.GetJSON(ctx, "/api/s/"+c.Site+"/stat/device/"+adopted.MAC)
+		if err != nil || status != 200 {
+			t.Fatalf("read stat/device/%s (HTTP %d): %v", adopted.MAC, status, err)
+		}
+		raw, _ := json.Marshal(firstData(t, body)["radio_table"])
+		var entries []map[string]any
+		if err := json.Unmarshal(raw, &entries); err != nil {
+			t.Fatalf("radio_table is not an array of objects: %v", err)
+		}
+		out := make(map[string]map[string]any, len(entries))
+		for _, entry := range entries {
+			name, _ := entry["name"].(string)
+			out[name] = entry
+		}
+		return out
+	}
+
+	// Every verdict here is read from a settled table, and settling takes two
+	// steps rather than one.
+	//
+	// stat/device lags a write by a second or two, so a read taken straight
+	// after a PUT can still show the table as it was. And once the write does
+	// appear, it is not yet what survives: the AP informs every few seconds,
+	// the controller answers by provisioning the radios, and the AP then
+	// reports the configuration it was given -- which replaces radio_table in
+	// the document. A member the controller accepted but does not provision
+	// therefore sits in the document for one inform and then vanishes.
+	// Measured: dfs and a chosen antenna_id both do exactly that, so a probe
+	// that read straight after the write would record them as kept and a
+	// caller would find them gone.
+	//
+	// So: wait for the write's own value where there is one, then wait for
+	// the entry to stop moving.
+	settle := func(radio string) map[string]map[string]any {
+		t.Helper()
+		const quiet = 4 // consecutive equal reads, three seconds apart
+		deadline := time.Now().Add(2 * time.Minute)
+		var last map[string]any
+		same := 0
+		for {
+			table := radios()
+			if last != nil && reflect.DeepEqual(table[radio], last) {
+				if same++; same == quiet {
+					return table
+				}
+			} else {
+				same = 0
+			}
+			last = table[radio]
+			if time.Now().After(deadline) {
+				t.Fatalf("%s never stopped changing, so nothing read from it is what survives; last: %v",
+					radio, last)
+			}
+			time.Sleep(3 * time.Second)
+		}
+	}
+	settled := func(radio, wire string, want any) map[string]map[string]any {
+		t.Helper()
+		deadline := time.Now().Add(60 * time.Second)
+		for !jsonEqual(radios()[radio][wire], want) {
+			if time.Now().After(deadline) {
+				t.Fatalf("%s never reported %s = %v; last read: %v", radio, wire, want, radios()[radio])
+			}
+			time.Sleep(2 * time.Second)
+		}
+		return settle(radio)
+	}
+
+	var table map[string]map[string]any
+	deadline := time.Now().Add(3 * time.Minute)
+	for {
+		table = radios()
+		if len(table) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the adopted AP never reported a radio_table, so nothing here can be measured")
+		}
+		time.Sleep(3 * time.Second)
+	}
+	names := make([]string, 0, len(table))
+	for name := range table {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) < 2 || names[0] == "" {
+		t.Skipf("the AP reports %v; two named radios are needed to tell an unnamed entry being "+
+			"kept from one being dropped", names)
+	}
+	target, other := names[0], names[1]
+	t.Logf("radios: %v (merge arms on %s and %s, discard sweep on all of them, last)", names, target, other)
+
+	// An entry with no name, against the same entry with one: the pair is
+	// what makes the rejection about the name rather than about the body.
+	band := table[target]["radio"]
+	if put([]map[string]any{{"name": target, "radio": band, "maxsta": 33}}) != 200 {
+		t.Fatal("a named entry was refused; nothing below can attribute a rejection to the missing name")
+	}
+	requiredOnUpdate := []string{}
+	if put([]map[string]any{{"radio": band, "maxsta": 34}}) != 200 {
+		requiredOnUpdate = append(requiredOnUpdate, "name")
+	}
+
+	// Seed both radios with values the AP never reports on its own, so a
+	// preserved setting cannot be confused with a re-reported one.
+	if put([]map[string]any{{"name": target, "tx_power_mode": "custom", "tx_power": "17"}}) != 200 {
+		t.Fatal("the seed write was refused, so the omit verdicts below have nothing to preserve")
+	}
+	settled(target, "tx_power_mode", "custom")
+	if put([]map[string]any{{"name": other, "maxsta": 55}}) != 200 {
+		t.Fatal("the second seed write was refused, so an unnamed entry's fate cannot be measured")
+	}
+	settled(other, "maxsta", 55)
+
+	// A member written as "".
+	memberEmpty := "EMPTY-REJECTED"
+	if put([]map[string]any{{"name": target, "tx_power_mode": ""}}) == 200 {
+		switch got, _ := settle(target)[target]["tx_power_mode"].(string); got {
+		case "":
+			memberEmpty = "EMPTY-CLEARS"
+		case "custom":
+			memberEmpty = "EMPTY-IGNORED"
+		default:
+			memberEmpty = "EMPTY-REPLACED-" + got
+		}
+	}
+
+	// One write, two omissions: it names a member the seeded entry does not
+	// carry, and names no entry at all for the other radio.
+	memberOmit, entryOmit := "OMIT-REJECTED", "OMIT-REJECTED"
+	if put([]map[string]any{{"name": target, "maxsta": 44}}) == 200 {
+		after := settled(target, "maxsta", 44)
+		switch got, _ := after[target]["tx_power_mode"].(string); got {
+		case "custom":
+			memberOmit = "OMIT-KEEPS"
+		case "":
+			memberOmit = "OMIT-CLEARS"
+		default:
+			memberOmit = "OMIT-REPLACED-" + got
+		}
+		switch entry, present := after[other]; {
+		case !present:
+			entryOmit = "OMIT-CLEARS"
+		case jsonEqual(entry["maxsta"], 55):
+			entryOmit = "OMIT-KEEPS"
+		default:
+			entryOmit = fmt.Sprintf("OMIT-REPLACED-%v", entry["maxsta"])
+		}
+	}
+
+	// The array written as [].
+	arrayEmpty := "EMPTY-REJECTED"
+	if put([]map[string]any{}) == 200 {
+		switch after := settle(target); {
+		case len(after) == 0:
+			arrayEmpty = "EMPTY-CLEARS"
+		case jsonEqual(after[target]["maxsta"], 44) && jsonEqual(after[other]["maxsta"], 55):
+			arrayEmpty = "EMPTY-IGNORED"
+		default:
+			arrayEmpty = fmt.Sprintf("EMPTY-REPLACED-%d-radios", len(after))
+		}
+	}
+
+	t.Logf("radio_table semantics: member %s / %s, array %s / %s",
+		memberEmpty, memberOmit, arrayEmpty, entryOmit)
+
+	// One entry carrying a value of every member kind the generated struct
+	// has: the channel pair, the power pair, the thresholds and their enable
+	// bools, and an antenna choice. channel auto and a 20 MHz width, so the
+	// sweep measures what the controller keeps rather than what the band it
+	// lands on allows.
+	sweepEntry := func(radio string) map[string]any {
+		return map[string]any{
+			"name": radio, "radio": table[radio]["radio"],
+			"channel": "auto", "ht": 20,
+			"tx_power_mode": "custom", "tx_power": "17",
+			"antenna_gain": 6, "antenna_id": 4,
+			"dfs": true, "hard_noise_floor_enabled": true,
+			"loadbalance_enabled": true, "maxsta": 100,
+			"min_rssi_enabled": true, "min_rssi": -80,
+			"sens_level_enabled": true, "sens_level": -80,
+			"vwire_enabled": false,
+		}
+	}
+
+	// Every radio, not one: the verdict does vary by radio, because the
+	// controller answers out of the hardware's own capabilities. antenna_gain
+	// is coerced to each radio's built-in gain, so on the radio whose gain
+	// happens to match what was asked it reads as kept and on the others as
+	// changed. Only what every radio dropped is recorded, so the list holds
+	// whichever radio a caller writes to.
+	//
+	// CHANGED members are logged but not recorded, as in the port-override
+	// sweep: a member stored with a different value is a coercion, and filing
+	// it as discarded would tell a caller to stop sending a member the
+	// controller does keep.
+	drops := map[string]int{}
+	for _, radio := range names {
+		asked := sweepEntry(radio)
+		if put([]map[string]any{asked}) != 200 {
+			t.Fatalf("the sweep write for %s was refused outright, so no member of it can be classified", radio)
+		}
+		stored := settled(radio, "maxsta", 100)[radio]
+		for _, r := range probe.Classify(asked, stored) {
+			switch r.Verdict {
+			case probe.Dropped:
+				drops[r.Wire]++
+				t.Logf("DROPPED %-26s on %-8s (%s)", r.Wire, radio, r.Detail)
+			case probe.Changed:
+				t.Logf("CHANGED %-26s on %-8s (%s) -- stored, not discarded", r.Wire, radio, r.Detail)
+			}
+		}
+	}
+
+	// Non-nil so an all-kept measurement records as [] rather than null:
+	// "measured, nothing dropped" and "never measured" must not render alike.
+	dropped := []string{}
+	for wire, bands := range drops {
+		if bands == len(names) {
+			dropped = append(dropped, wire)
+			continue
+		}
+		t.Logf("%s was dropped by %d of this AP's %d radios, so it is a band's answer rather than "+
+			"the type's: logged, not recorded", wire, bands, len(names))
+	}
+	sort.Strings(dropped)
+	t.Logf("radio members: %d asked of each radio, %d dropped by all of them", len(sweepEntry(target)), len(dropped))
+
+	contract := behavior.WriteContract{
+		UpdateVerb:       "PUT",
+		UpdatePath:       "api/s/{site}/rest/device/{id}",
+		RequiredOnUpdate: requiredOnUpdate,
+	}
+	member := behavior.EmptySemantics{Empty: memberEmpty, Omit: memberOmit}
+	array := behavior.EmptySemantics{Empty: arrayEmpty, Omit: entryOmit}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			if a.Empty == nil {
+				a.Empty = map[string]map[string]behavior.EmptySemantics{}
+			}
+			if a.Empty["DeviceRadioTable"] == nil {
+				a.Empty["DeviceRadioTable"] = map[string]behavior.EmptySemantics{}
+			}
+			if a.Empty["device"] == nil {
+				a.Empty["device"] = map[string]behavior.EmptySemantics{}
+			}
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			// Replace, not merge: the probe writes the same bodies every
+			// run, so a member that stopped being dropped has to leave the
+			// artifact rather than linger as a fact nothing re-measures.
+			a.Writes["DeviceRadioTable"] = contract
+			a.Empty["DeviceRadioTable"]["tx_power_mode"] = member
+			a.Empty["device"]["radio_table"] = array
+			a.Discarded["DeviceRadioTable"] = dropped
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the radio table", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "DeviceRadioTable", art.Writes, contract)
+	for _, pin := range []struct {
+		section, field string
+		got            behavior.EmptySemantics
+	}{
+		{"DeviceRadioTable", "tx_power_mode", member},
+		{"device", "radio_table", array},
+	} {
+		want, has := art.Empty[pin.section][pin.field]
+		if !has {
+			t.Logf("no pinned semantics for %s.%s; run with BEHAVIOR_WRITE=1 to record them",
+				pin.section, pin.field)
+			continue
+		}
+		if want != pin.got {
+			t.Errorf("%s.%s: artifact pins empty=%s omit=%s, measured empty=%s omit=%s.\n\n"+
+				"A change away from OMIT-KEEPS is the one that matters: UpdateDeviceRadioTable "+
+				"writes only what the caller named because the controller keeps the rest. "+
+				"Re-measure with BEHAVIOR_WRITE=1 once the change is understood.",
+				pin.section, pin.field, want.Empty, want.Omit, pin.got.Empty, pin.got.Omit)
+		}
+	}
+	if pinned, has := art.Discarded["DeviceRadioTable"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("DeviceRadioTable discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+}
