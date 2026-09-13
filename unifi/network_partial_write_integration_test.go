@@ -14,7 +14,7 @@ import (
 // rather than replacing the object.
 //
 // This is the fact the client's write model rests on. The generated structs
-// declare 374 bools without omitempty (see TestGeneratedWriteShape), so every
+// declare 374 bools without omitempty (see cmd/apidiff), so every
 // write asserts false for every toggle the caller left alone -- and that is
 // the whole of the damage, because a key the payload omits keeps its stored
 // value. If the controller replaced instead of merged, omitting a key would

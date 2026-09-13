@@ -75,7 +75,7 @@ func TestIntegrationMaskedWritePreservesUnnamedFields(t *testing.T) {
 		if got := stored(id)["roaming_assistant_na_enabled"]; got != false {
 			t.Errorf("roaming_assistant_na_enabled = %v, want false.\n\n"+
 				"A full write no longer asserts every field of the struct. If the client's "+
-				"write model changed, TestGeneratedWriteShape needs revisiting too.", got)
+				"write model changed, the cmd/apidiff wire floor needs revisiting too.", got)
 		}
 	})
 

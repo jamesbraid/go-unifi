@@ -5,9 +5,10 @@ name: Auto Release
 # the tracked cache markers rather than the generated version file so that
 # same-version refreshes (e.g. a UniFi OS Server repackage changing SOURCE
 # but not VERSION) still release; generator-only changes stay manually
-# tagged. If the pushed commit breaks the public Go API vs the latest tag,
-# no tag is created: a human must either accept the break and tag the next
-# minor by hand, or do the /v2 module-path major.
+# tagged. If the pushed commit breaks the public Go API or moves the wire
+# surface vs the latest tag, no tag is created: a human must either accept
+# the change and tag the next minor by hand, or do the /v2 module-path
+# major.
 on:
   push:
     branches:
@@ -50,34 +51,59 @@ jobs:
           go-version-file: 'go.mod'
 
       # Refuse to auto-tag a minor release when the pushed commit breaks
-      # the public Go API vs the latest tag. Same apidiff check as in
-      # capture.yaml (a merge can land without going through it, e.g. a
-      # manual push or an edited PR), with the baseline extracted from
-      # the local tag via git archive rather than the module proxy.
-      # cmd/ holds main packages, not importable API, so it is ignored.
-      # A major bump requires a /v2 module-path change — a manual
-      # decision — so on breakage no tag is pushed and a human decides.
+      # the public Go API, or widens the wire surface, vs the latest tag.
+      # Same apidiff check as in capture.yaml (a merge can land without
+      # going through it, e.g. a manual push or an edited PR), with the
+      # baseline extracted from the local tag via git archive rather than
+      # the module proxy. cmd/ holds main packages, not importable API, so
+      # it is ignored. A major bump requires a /v2 module-path change — a
+      # manual decision — so on breakage no tag is pushed and a human
+      # decides.
+      #
+      # validators_changed stays reporting-only on purpose. A pattern moves
+      # on roughly every schema refresh, which is the event this workflow
+      # exists to tag automatically; gating it would hand every release
+      # back to a human and the automation would be the thing that broke.
       - name: Check API compatibility
         id: compat
         run: |
           if [ -n "$(git tag --points-at HEAD)" ]; then
             echo "breaking=false" >> "$GITHUB_OUTPUT"
+            echo "wire_changed=false" >> "$GITHUB_OUTPUT"
             echo "HEAD is already tagged; skipping the API check"
             exit 0
           fi
           go run ./cmd/apidiff
 
-      - name: Report breaking changes
-        if: steps.compat.outputs.breaking == 'true'
+      # A wire-surface change means a field joined or left the set the
+      # marshalers send unconditionally, so writes now assert a value they
+      # did not before (or stop asserting one they did). That silently
+      # rewrites config on objects nobody touched, which is why it blocks a
+      # tag: a human reads the diff and tags by hand if it is intended.
+      - name: Report what blocks the tag
+        if: steps.compat.outputs.breaking == 'true' || steps.compat.outputs.wire_changed == 'true'
         env:
           SUMMARY: ${{ steps.compat.outputs.summary }}
           BASE: ${{ steps.compat.outputs.base }}
+          BREAKING: ${{ steps.compat.outputs.breaking }}
+          WIRE_CHANGED: ${{ steps.compat.outputs.wire_changed }}
+          VALIDATORS_CHANGED: ${{ steps.compat.outputs.validators_changed }}
         run: |
-          echo "::warning::Breaking API changes vs ${BASE}; not tagging. Review and push a tag manually (accepted minor, or /v2 major)."
+          # Plain if rather than `[ x = y ] && ...`: under the default
+          # bash -e a false test would be the step's exit status.
+          reasons=""
+          if [ "$BREAKING" = 'true' ]; then
+            reasons="${reasons}breaking API changes; "
+          fi
+          if [ "$WIRE_CHANGED" = 'true' ]; then
+            reasons="${reasons}wire-surface changes; "
+          fi
+          echo "::warning::Not tagging vs ${BASE}: ${reasons}review and push a tag manually (accepted minor, or /v2 major)."
+          echo "validators_changed=${VALIDATORS_CHANGED} (reported, does not block)"
           printf '%s\n' "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create next minor tag
-        if: steps.compat.outputs.breaking != 'true'
+        if: steps.compat.outputs.breaking != 'true' && steps.compat.outputs.wire_changed != 'true'
         id: tag
         run: |
           if [ -n "$(git tag --points-at HEAD)" ]; then

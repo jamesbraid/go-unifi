@@ -14,7 +14,7 @@ import (
 // nullWriteCase is one field the client serializes unconditionally whose zero
 // value marshals as null, and what the controller does with that null.
 type nullWriteCase struct {
-	field string // "Struct.wire_name", as recorded in testdata/always_serialized_fields.txt
+	field string // "Struct.wire_name", as cmd/apidiff names a wire-floor field
 	wire  string
 
 	// prepare returns the endpoint of an object to write and the object as
