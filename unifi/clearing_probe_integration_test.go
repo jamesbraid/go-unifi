@@ -219,6 +219,19 @@ func clearingProbeResources(t *testing.T, ctx context.Context, s *controllertest
 
 	return []clearingProbeResource{
 		{
+			// A free-trial package: the controller's sanitizer refuses a
+			// package carrying both duration fields and refuses one
+			// carrying neither, so trial_duration_minutes has to be here
+			// and hours must not be. Neither is a string, so the sweep
+			// below leaves both alone and the reset write stays valid.
+			path: "hotspotpackage",
+			seed: map[string]any{
+				"name": "clear-package", "charged_as": "hour", "currency": "USD",
+				"trial_duration_minutes": 60, "trial_reset": 24,
+				"limit_overwrite": true, "limit_up": 1024, "limit_down": 2048,
+			},
+		},
+		{
 			path: "networkconf",
 			seed: map[string]any{
 				"name": "clear-net", "purpose": PurposeCorporate, "enabled": true,

@@ -25203,6 +25203,33 @@
         "stored": true
       }
     },
+    "unifi.HotspotPackage": {
+      "coercions": {},
+      "discarded": [],
+      "empty": {
+        "charged_as": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        },
+        "currency": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-CLEARS"
+        },
+        "name": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/hotspotpackage",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/hotspotpackage/{id}",
+        "required_on_create": [
+          "trial_duration_minutes"
+        ]
+      }
+    },
     "unifi.Nat": {
       "empty": {
         "description": {

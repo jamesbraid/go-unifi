@@ -36,11 +36,23 @@ import (
 // comparison skips rather than report drift between two different
 // controllers (the UOS harness bundles an older Network app than the lock).
 //
-// A v2 endpoint binds the body to a Jackson DTO with no unknown-property
-// tolerance, so an unrecognised key draws a 400 naming the key. That is
-// what makes a v2 sweep readable: an accepted create took the body as
-// sent, so a field whose removal is accepted really is optional.
-// unknownKeyRejected asserts it rather than assuming it.
+// The two API generations disagree about what an accepted write proves, and
+// several verdicts below are only readable once that is settled:
+//
+//   - v1 (api/s/{site}/rest/...) validates each key against the field
+//     document the controller ships, and a key the document does not name
+//     is dropped from the payload and the write carries on. Rejecting it
+//     instead is behind a webapi.strict system property that defaults off.
+//     So a v1 create answering 200 says the controller stored SOMETHING, not
+//     that it stored what was asked -- which is why every v1 probe here
+//     re-reads and classifies rather than trusting the status.
+//   - v2 (v2/api/site/{site}/...) binds the body to a Jackson DTO with no
+//     unknown-property tolerance, so an unrecognised key is a 400 naming the
+//     key.
+//
+// Both halves are asserted where they are relied on -- unknownKeyStripped
+// for v1, unknownKeyRejected for v2 -- so the distinction stays a
+// measurement rather than a remembered claim.
 
 // behaviorWriteRequested reports whether this run records into the artifact
 // rather than comparing against it.
@@ -579,6 +591,37 @@ func unknownKeyRejected(ctx context.Context, t *testing.T, s *controllertest.Ses
 		path, status)
 }
 
+// unknownKeyStripped asserts the v1 counterpart: the collection accepts a
+// body carrying an unrecognised key and stores the document without it. That
+// is why a v1 probe cannot read a 200 as "the controller took what I sent"
+// and has to compare the re-read against what it asked for.
+func unknownKeyStripped(ctx context.Context, t *testing.T, s *controllertest.Session, path string, doc map[string]any) {
+	t.Helper()
+	payload := clone(doc)
+	payload[probeUnknownKey] = "x"
+	body, status, err := s.PostJSON(ctx, path, payload)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	stored := firstData(t, body)
+	if id := objectID(stored); id != "" && status/100 == 2 {
+		defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	if status/100 != 2 {
+		t.Errorf("POST %s refused an unrecognised key (HTTP %d, %s); v1 was measured stripping one, "+
+			"and a controller that now rejects makes every v1 write stricter than the SDK assumes",
+			path, status, v1ErrCode(body))
+		return
+	}
+	if _, present := stored[probeUnknownKey]; present {
+		t.Errorf("POST %s stored the unrecognised key %q; v1 was measured dropping it",
+			path, probeUnknownKey)
+		return
+	}
+	t.Logf("v1 %s accepts an unrecognised key and stores the document without it (HTTP %d) -- "+
+		"a 2xx here does not mean the body was taken as sent", path, status)
+}
+
 // v2Rejection names why a v2 write was refused, in one line.
 //
 // Bean validation answers with a Spring paragraph under "message" that
@@ -951,6 +994,279 @@ func TestIntegrationNatUpdateEmptyVsAbsent(t *testing.T) {
 				f, want.Empty, want.Omit, got.Empty, got.Omit)
 		}
 	}
+}
+
+// TestIntegrationHotspotPackageWriteContract measures the hotspot package,
+// which no section of the artifact described: the SDK has shipped a client
+// for it since the schema was captured and nothing had ever written one.
+//
+// It owns three artifact entries outright -- the write contract, the
+// discard list and the coercion map -- because a second probe replacing any
+// of them would erase what this one measured.
+//
+// The resource is a v1 rest collection, so the verbs and paths are the
+// generic ones; what needed measuring is which fields a create cannot omit.
+// The controller's own sanitizer (com.ubnt.data.isqI) puts an exclusive-or
+// over the two duration fields, keyed on amount:
+//
+//	amount == 0  ->  trial_duration_minutes required, hours refused
+//	amount != 0  ->  hours required, trial_duration_minutes refused
+//
+// so "required on create" is not one set -- it depends on which branch the
+// body is in. The probe measures the free-trial branch, whose known-good
+// body this harness accepts, and asserts both halves of the exclusive-or
+// directly. The paid branch is measured and NOT recorded: see the loud log
+// below and the comment on paidHotspotPackage.
+func TestIntegrationHotspotPackageWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	path := "/api/s/" + c.Site + "/rest/hotspotpackage"
+
+	// A free-trial package (amount absent, so amount == 0) carrying one
+	// value of every kind the schema has: the duration pair, the rate and
+	// quota limits, and the payment-field booleans.
+	base := func(name string) map[string]any {
+		return map[string]any{
+			"name":                          name,
+			"trial_duration_minutes":        60,
+			"trial_reset":                   24,
+			"limit_overwrite":               true,
+			"limit_up":                      1024,
+			"limit_down":                    2048,
+			"limit_quota":                   500,
+			"index":                         90,
+			"custom_payment_fields_enabled": true,
+			"payment_fields_email_enabled":  true,
+			"payment_fields_email_required": true,
+		}
+	}
+
+	post := func(doc map[string]any) (int, any, map[string]any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		stored := firstData(t, body)
+		// A v1 rejection echoes the offending document under data rather
+		// than a stored one, so only a 2xx carrying an id created anything.
+		if id := objectID(stored); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, body, stored
+	}
+
+	asked := base("hotspot-package-probe")
+	status, body, created := post(asked)
+	if status/100 != 2 {
+		t.Fatalf("the known-good hotspot package was rejected (HTTP %d, %s): %v\n\nNothing removed "+
+			"from a body that does not create can measure anything.", status, v1ErrCode(body), created)
+	}
+
+	// What the controller kept, changed and dropped, in the round-trip
+	// probe's vocabulary. A CHANGED field is a coercion -- the controller
+	// stored something other than what was written -- and a DROPPED one was
+	// accepted and never persisted.
+	dropped := []string{}
+	coercions := map[string]behavior.Coercion{}
+	for _, r := range probe.Classify(asked, created) {
+		switch r.Verdict {
+		case probe.Dropped:
+			dropped = append(dropped, r.Wire)
+			t.Logf("DROPPED %-32s (%s)", r.Wire, r.Detail)
+		case probe.Changed:
+			coercions[r.Wire] = behavior.Coercion{
+				Wrote:  renderStoredValue(asked[r.Wire]),
+				Stored: renderStoredValue(created[r.Wire]),
+			}
+			t.Logf("CHANGED %-32s (%s)", r.Wire, r.Detail)
+		}
+	}
+	sort.Strings(dropped)
+	t.Logf("hotspot package round trip: %d asked, %d dropped, %d coerced",
+		len(asked), len(dropped), len(coercions))
+
+	// Why the classification above is the measurement and the 200 is not:
+	// this collection accepts a key it does not recognise and stores the
+	// document without it, so a create answering 200 says nothing on its
+	// own about what reached the database.
+	unknownKeyStripped(ctx, t, s, path, base("hotspot-package-unknown-key"))
+
+	// The generic v1 verbs, confirmed rather than assumed: the generated
+	// client lists the collection, reads by id, creates on the collection
+	// and updates by id, and none of that had ever been exercised.
+	if listBody, listStatus, err := s.GetJSON(ctx, path); listStatus != 200 {
+		t.Errorf("GET %s answered HTTP %d (%v %v); the generated list reads that path",
+			path, listStatus, listBody, err)
+	}
+	updateVerb, updatePath := "", ""
+	seedBody, seedStatus, err := s.PostJSON(ctx, path, base("hotspot-package-update-probe"))
+	if seedStatus/100 != 2 {
+		t.Fatalf("seeding a package to update failed (HTTP %d): %v %v", seedStatus, seedBody, err)
+	}
+	seeded := firstData(t, seedBody)
+	if id := objectID(seeded); id != "" {
+		defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		if got, getStatus, err := s.GetJSON(ctx, path+"/"+id); getStatus != 200 {
+			t.Errorf("GET %s/%s answered HTTP %d (%v %v); the generated read uses that path",
+				path, id, getStatus, got, err)
+		}
+		edited := clone(seeded)
+		edited["name"] = "hotspot-package-updated"
+		after, putStatus, err := s.PutJSON(ctx, path+"/"+id, edited)
+		if putStatus/100 == 2 {
+			updateVerb, updatePath = "PUT", "api/s/{site}/rest/hotspotpackage/{id}"
+			t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, putStatus)
+		} else {
+			t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+				path, id, putStatus, after, err)
+		}
+	} else {
+		t.Errorf("the seeded package carries no id, so the update path cannot be measured: %v", seeded)
+	}
+
+	fields := make([]string, 0, len(asked))
+	for f := range asked {
+		fields = append(fields, f)
+	}
+	sort.Strings(fields)
+
+	var required []string
+	for i, field := range fields {
+		doc := base(fmt.Sprintf("hotspot-package-probe-%d", i))
+		delete(doc, field)
+		status, body, _ := post(doc)
+		if status/100 == 2 {
+			t.Logf("hotspot package create without %-32s accepted (HTTP %d) -- not required", field, status)
+			continue
+		}
+		t.Logf("hotspot package create without %-32s rejected (HTTP %d, %s) -- required on create",
+			field, status, v1ErrCode(body))
+		required = append(required, field)
+	}
+	sort.Strings(required)
+
+	// The other half of the sanitizer's exclusive-or: a free-trial package
+	// may not also carry hours. That is a refusal to accept a field, which
+	// required_on_create has no way to say, so it is asserted here and
+	// named in the doc comment rather than recorded as a value.
+	withHours := base("hotspot-package-both-durations")
+	withHours["hours"] = 2
+	if status, body, _ := post(withHours); status/100 == 2 {
+		t.Errorf("a free-trial package carrying hours was accepted (HTTP %d); the sanitizer's "+
+			"exclusive-or over the duration fields no longer holds", status)
+	} else {
+		t.Logf("free trial carrying hours rejected (HTTP %d, %s) -- the duration fields are exclusive",
+			status, v1ErrCode(body))
+	}
+
+	paidHotspotPackage(ctx, t, s, path)
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "api/s/{site}/rest/hotspotpackage",
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate: required,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			a.Writes["HotspotPackage"] = contract
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			if a.Coercions == nil {
+				a.Coercions = map[string]map[string]behavior.Coercion{}
+			}
+			// Replace, not merge: the probe writes the same body every run,
+			// so a field that stopped being dropped or coerced has to leave
+			// the artifact rather than linger as a fact nothing re-measures.
+			a.Discarded["HotspotPackage"] = dropped
+			a.Coercions["HotspotPackage"] = coercions
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 to record the hotspot package", behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "HotspotPackage", art.Writes, contract)
+	if pinned, has := art.Discarded["HotspotPackage"]; has && !reflect.DeepEqual(pinned, dropped) {
+		t.Errorf("HotspotPackage discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, dropped)
+	}
+	if pinned, has := art.Coercions["HotspotPackage"]; has && !reflect.DeepEqual(pinned, coercions) {
+		t.Errorf("HotspotPackage coercions drifted:\n  artifact: %v\n  measured: %v\n\n"+
+			"re-measure with BEHAVIOR_WRITE=1 once the change is understood", pinned, coercions)
+	}
+}
+
+// paidHotspotPackage measures the sanitizer's other branch -- amount != 0,
+// priced by the hour -- and deliberately records nothing.
+//
+// The branch is reachable in principle: the sanitizer wants hours present
+// and trial_duration_minutes absent, which the body below satisfies, and
+// every field matches its own validator pattern. On this harness the create
+// is refused anyway, with a bare api.err.Invalid carrying no detail, and it
+// stays refused with the site's guest-access payment gateway switched on --
+// so the refusal was never narrowed to a missing prerequisite and no
+// required-on-create set for the paid branch could be established. Writing
+// one anyway would publish a shape nothing here observed the controller
+// accept, so the probe logs what it saw and the artifact stays silent about
+// paid packages.
+func paidHotspotPackage(ctx context.Context, t *testing.T, s *controllertest.Session, path string) {
+	t.Helper()
+	paid := map[string]any{
+		"name": "hotspot-package-paid-probe", "amount": 5.0,
+		"currency": "USD", "charged_as": "hour", "hours": 24,
+	}
+	body, status, err := s.PostJSON(ctx, path, paid)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	if id := objectID(firstData(t, body)); id != "" && status/100 == 2 {
+		s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	if status/100 == 2 {
+		t.Logf("LOUD: a paid hotspot package now creates (HTTP %d). The artifact records nothing for "+
+			"the paid branch because nothing could measure it; it can be measured now.", status)
+		return
+	}
+	t.Logf("LOUD: the paid branch stays unmeasured. A priced package (%v) is refused here with HTTP %d "+
+		"%q and no further detail, so its required-on-create set is unknown and the artifact "+
+		"records only the free-trial branch.", paid, status, v1ErrCode(body))
+}
+
+// v1ErrCode names why a v1 rest write was refused. A validation failure
+// echoes the offending document under data[0] with its own msg, which says
+// which rule fired; the envelope's meta.msg is the generic code and is all
+// there is when the controller sent no document. Prefer the specific one.
+func v1ErrCode(body any) string {
+	if data := probe.FirstData(body); data != nil {
+		if msg, _ := data["msg"].(string); msg != "" {
+			return msg
+		}
+	}
+	if envelope, ok := body.(map[string]any); ok {
+		if meta, ok := envelope["meta"].(map[string]any); ok {
+			if msg, _ := meta["msg"].(string); msg != "" {
+				return msg
+			}
+		}
+	}
+	return "no reason given"
 }
 
 // TestIntegrationOSPFRouterWriteContract measures the OSPF router write
