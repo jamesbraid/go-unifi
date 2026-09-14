@@ -22,6 +22,13 @@ import (
 // here measures anything new about them; the point is to check the
 // unmeasurability itself still holds rather than carry it forward
 // unverified.
+//
+// DeviceTag joins this batch once WireGuardPeer's own generated form lands:
+// all three of Site, WireGuardPeer and DeviceTag were hand-written types
+// cmd/wirecontract could not assign a resource key to, and DeviceTag's own
+// probe below records nothing into the artifact either -- not because it
+// was never tried, but because the create path it measures is a confirmed
+// no-op, not an unmeasured one.
 
 // TestIntegrationBGPConfigWriteContract measures the BGP config
 // (v2/api/site/{site}/bgp/config), gated on a BGP-capable gateway being
@@ -215,15 +222,18 @@ func randomWireGuardKey(t *testing.T) string {
 
 // TestIntegrationWireGuardPeerWriteContract measures the WireGuard peer
 // batch endpoints (v2/api/site/{site}/wireguard/{network_id}/users/batch).
-// Every field -- name, interface_ip, public_key, allowed_ips -- is
-// individually omittable from a create; the batch PUT does not merge a
-// partial body (measured elsewhere as a bare HTTP 500), and omitting a
-// previously-set key from a full-array PUT clears it exactly like sending
-// "" does, so update is a replace by the field-level as well as the
-// array-level definition.
+// required is measured, not assumed, by requiredFieldSweep below; the batch
+// PUT does not merge a partial body (measured elsewhere as a bare HTTP
+// 500), and omitting a previously-set key from a full-array PUT clears it
+// exactly like sending "" does, so update is a replace by the field-level
+// as well as the array-level definition.
+//
+// WireGuardPeer is now generated (unifi/wire_guard_peer.generated.go), so
+// this records into the artifact: create and update share one endpoint --
+// the batch array -- with no by-id path at all.
 func TestIntegrationWireGuardPeerWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
-	_, _, _ = behaviorGate(ctx, t, s, c.Site) // gates the controller version; nothing here writes to the artifact -- see below
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	body, status, err := s.PostJSON(ctx, "/api/s/"+c.Site+"/rest/networkconf", map[string]any{
 		"name": "wireguardpeer-probe", "purpose": PurposeUserVPN, "enabled": true,
@@ -362,16 +372,23 @@ func TestIntegrationWireGuardPeerWriteContract(t *testing.T) {
 	if !blankValue(omittedName) {
 		nameOmit = "OMIT-KEEPS"
 	}
-	// Not recorded into schemas/behavior.json: WireGuardPeer is hand-written
-	// (wireguard_peer.go), not generated from a schema capture, and
-	// cmd/wirecontract only assigns a resource key to generated types --
-	// confirmed by running go generate against a Writes["WireGuardPeer"]
-	// entry, which failed with "names \"WireGuardPeer\", which no type in
-	// the artifact claims". Everything measured above is real; it stays in
-	// this test's own log and doc comment, which is the only place it has
-	// anywhere to land.
-	t.Logf("WireGuardPeer write surface (not recorded into the artifact -- see comment above): "+
-		"required_on_create=%v, name empty=%s omit=%s", required, nameEmpty, nameOmit)
+
+	// WireGuardPeer is now generated (unifi/wire_guard_peer.generated.go),
+	// so its resource key is claimed in the wire contract and this lands in
+	// the artifact: create and update are both the batch endpoint, and
+	// there is no by-id path at all -- the batch array IS the unit of
+	// write, so CreatePath and UpdatePath are identical.
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "v2/api/site/{site}/wireguard/{network_id}/users/batch",
+		UpdateVerb: "PUT", UpdatePath: "v2/api/site/{site}/wireguard/{network_id}/users/batch",
+		RequiredOnCreate: required,
+	}
+	measured := map[string]behavior.EmptySemantics{"name": {Empty: nameEmpty, Omit: nameOmit}}
+	if behaviorWriteRequested() {
+		recordWrite(t, root, captured, "WireGuardPeer", "WireGuardPeer", contract, nil, measured)
+		return
+	}
+	compareRecorded(t, root, running, "WireGuardPeer", "WireGuardPeer", contract, nil, measured)
 }
 
 // renderAny renders an arbitrary stored value for an EMPTY-REPLACED-<value>
@@ -381,6 +398,153 @@ func renderAny(v any) string {
 		return "nil"
 	}
 	return jsonText(v)
+}
+
+// deviceTagByName finds a device tag by its name in a decoded GET
+// v2/api/site/{site}/device-tags response, or nil if none matches.
+func deviceTagByName(body any, name string) map[string]any {
+	for _, item := range asSlice(body) {
+		m, _ := item.(map[string]any)
+		if n, _ := m["name"].(string); n == name {
+			return m
+		}
+	}
+	return nil
+}
+
+// TestIntegrationDeviceTagWriteContract measures the DeviceTag write
+// surface. DeviceTag is now generated (unifi/device_tag.generated.go), so
+// unlike Site and WireGuardPeer above this COULD land in the artifact's
+// Writes map -- but nothing here does, because no working create path was
+// found, which this test confirms directly rather than inheriting the
+// hand-written client's doc comment ("no single-tag get/create/update/
+// delete has ever been measured") as though that settled it.
+//
+// POST v2/api/site/{site}/device-tags binds a real Jackson DTO -- it 400s
+// on an unrecognised key and on a missing name -- but a body that satisfies
+// both answers HTTP 200 with an EMPTY body (fails to parse as JSON) and,
+// on a fresh re-GET (trap 1: never trust the write's own answer), the
+// collection is unchanged. Five 1-second retries rule out an async
+// settle. The v1 collection names a controller might use instead --
+// "tag", "devicetag", "device_tag" -- all answer api.err.InvalidObject,
+// same as a name the controller does not register at all.
+//
+// The one other candidate write surface, the assignment command
+// (POST .../device-tags/device-tag-assignment/{mac}), is tried against a
+// REAL adopted device (not a made-up MAC, which could no-op for a
+// different reason) with an addition that has never existed, once as a
+// human-readable name and once as an id-shaped string -- in case the UI
+// auto-creates a tag from either shape. Both answer HTTP 200 with an empty
+// array and leave the collection unchanged. Since nothing this test tries
+// creates a tag, update and delete cannot be measured either -- there is
+// never an id to address. If any of this changes on a future controller,
+// the LOUD failure below is what forces a re-look rather than a stale pin.
+func TestIntegrationDeviceTagWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
+	_, _, _ = behaviorGate(ctx, t, s, c.Site) // gates the controller version; nothing here writes to the artifact -- see above
+
+	path := "/v2/api/site/" + c.Site + "/device-tags"
+	list := func() any {
+		body, status, err := s.GetJSON(ctx, path)
+		if err != nil || status != 200 {
+			t.Fatalf("GET %s answered HTTP %d (%v); the generated list reads that path", path, status, err)
+		}
+		return body
+	}
+
+	baseline := list()
+	if len(asSlice(baseline)) != 0 {
+		t.Logf("this site already carries %d device tag(s); the probe still checks its own name only",
+			len(asSlice(baseline)))
+	}
+
+	// Required-on-create and unknown-key handling on the DTO: real facts
+	// about the binding layer, independent of whether a satisfied create
+	// persists anything.
+	if _, status, _ := s.PostJSON(ctx, path, map[string]any{"member_device_macs": []any{}}); status/100 == 2 {
+		t.Errorf("LOUD: POST %s without name now succeeds (HTTP %d); name may no longer be required", path, status)
+	} else {
+		t.Logf("POST %s without name rejected (HTTP %d) -- name is required", path, status)
+	}
+	if _, status, err := s.PostJSON(ctx, path, map[string]any{"name": "devicetag-nomacs-probe"}); status/100 != 2 {
+		t.Errorf("POST %s without member_device_macs rejected (HTTP %d, %v); expected accepted (if uselessly)",
+			path, status, err)
+	} else {
+		t.Logf("POST %s without member_device_macs answers HTTP %d -- member_device_macs is not required "+
+			"(consistent with the create below never persisting anything either)", path, status)
+	}
+	unkBody, unkStatus, _ := s.PostJSON(ctx, path, map[string]any{
+		"name": "devicetag-unknown-key-probe", "member_device_macs": []any{}, probeUnknownKey: "x",
+	})
+	if unkStatus/100 == 2 {
+		t.Errorf("LOUD: POST %s with an unrecognised key now succeeds (HTTP %d); the v2 rejects-unknown-keys "+
+			"rule may no longer hold for this collection", path, unkStatus)
+	} else {
+		t.Logf("POST %s with an unrecognised key rejected (HTTP %d, %s) -- v2 rejects it, as usual",
+			path, unkStatus, v2Rejection(unkBody))
+	}
+
+	// The satisfied create: valid name, valid (empty) member_device_macs.
+	const probeName = "devicetag-write-contract-probe"
+	createBody, createStatus, createErr := s.PostJSON(ctx, path, map[string]any{
+		"name": probeName, "member_device_macs": []any{},
+	})
+	if createStatus/100 != 2 {
+		t.Fatalf("a known-good DeviceTag create was rejected (HTTP %d, %v): %v -- if it now succeeds and "+
+			"persists, this test needs rewriting to measure the real create/update/delete contract",
+			createStatus, createErr, createBody)
+	}
+	var stored map[string]any
+	for i := 0; i < 5; i++ {
+		if stored = deviceTagByName(list(), probeName); stored != nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if stored != nil {
+		id := objectID(stored)
+		t.Errorf("LOUD: POST %s now PERSISTS a tag (id=%q) it previously discarded; DeviceTag can be fully "+
+			"measured now -- this test needs rewriting into a real write-contract probe with recordWrite, "+
+			"not left here logging non-persistence", path, id)
+		if id != "" {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return
+	}
+	t.Logf("POST %s answered HTTP %d but a fresh GET (after 5 retries) shows no %q -- the create is a "+
+		"confirmed no-op, not merely unmeasured", path, createStatus, probeName)
+
+	// The assignment command, against a real adopted device: does either
+	// shape of a never-before-seen addition auto-create a tag?
+	devices := controllertest.StartDevices(ctx, t, c, controllertest.DeviceRequest{Model: "USM8P"})
+	if len(devices) != 1 {
+		t.Log("no emulated device available for this controller target; assignment-create probe skipped")
+		return
+	}
+	adopted := c.AdoptDevice(ctx, t, s, devices[0].MAC)
+	assignPath := "/v2/api/site/" + c.Site + "/device-tags/device-tag-assignment/" + adopted.MAC
+	for _, addition := range []string{"devicetag-via-assignment-probe", "68c00000000000000000abcd"} {
+		asBody, asStatus, asErr := s.PostJSON(ctx, assignPath, map[string]any{
+			"device_tag_additions": []any{addition}, "device_tag_removals": []any{},
+		})
+		if asStatus/100 != 2 {
+			t.Logf("POST %s with addition %q answered HTTP %d (%v); not the previously measured 200",
+				assignPath, addition, asStatus, asErr)
+			continue
+		}
+		if created := deviceTagByName(list(), addition); created != nil {
+			id := objectID(created)
+			t.Errorf("LOUD: the assignment command now auto-creates a tag (id=%q) from addition %q; "+
+				"DeviceTag can be fully measured now -- rewrite this test into a real write-contract probe",
+				id, addition)
+			if id != "" {
+				s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+			}
+			continue
+		}
+		t.Logf("POST %s with addition %q answers HTTP %d (%v) and creates nothing -- confirmed no-op",
+			assignPath, addition, asStatus, asBody)
+	}
 }
 
 // TestIntegrationUnmeasurableResourcesRecheck re-confirms, rather than

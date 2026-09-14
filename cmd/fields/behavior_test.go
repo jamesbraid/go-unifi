@@ -374,37 +374,29 @@ var retiredV2List = []string{
 
 // TestIsV2MatchesRetiredList is the proof that swapping the hardcoded slice
 // for a measured derivation did not move any generated output: for every
-// resource the real schemas/behavior.json artifact has a write contract
-// for, plus every name the retired list named, the derivation must agree
-// with what the literal slice used to answer. Today that is every name in
-// both sets -- schemas/behavior.json now measures a create path for all ten
-// retired names, and for none of them does it disagree.
+// name the retired list named, the derivation must agree with what the
+// literal slice used to answer -- true, on today's real
+// schemas/behavior.json, for all ten.
+//
+// This checks exactly the ten retired names, not every name writeContracts()
+// happens to hold. An earlier version unioned the two sets, relying on them
+// coinciding; that coincidence ended the day a hand-written type (first
+// WireGuardPeer) was generated and measured with a genuine v2/ create path
+// of its own -- correctly true, and rightly outside a list that is a frozen
+// historical snapshot, not a running total of every v2 resource. Confirming
+// isV2 stays correct for names outside the frozen ten is
+// TestIsV2AgreesWithMeasuredPath's job, checked against the artifact's own
+// paths rather than against this list.
 //
 // This is the one check in this file that reads the actual artifact
 // checked into the repo rather than a synthetic one, because the claim
 // being proven is specifically about today's real schemas/behavior.json.
 func TestIsV2MatchesRetiredList(t *testing.T) {
-	retired := make(map[string]bool, len(retiredV2List))
+	contracts := writeContracts()
 	for _, name := range retiredV2List {
-		retired[name] = true
-	}
-
-	names := map[string]bool{}
-	for name := range retired {
-		names[name] = true
-	}
-	for name := range writeContracts() {
-		names[name] = true
-	}
-	if len(names) == 0 {
-		t.Fatal("no resources to check -- writeContracts() and retiredV2List are both empty")
-	}
-
-	for name := range names {
 		t.Run(name, func(t *testing.T) {
-			got := isV2(name, writeContracts()[name])
-			if want := retired[name]; got != want {
-				t.Errorf("isV2(%q) = %v, want %v (the retired list's answer)", name, got, want)
+			if got := isV2(name, contracts[name]); !got {
+				t.Errorf("isV2(%q) = %v, want true (the retired list's answer)", name, got)
 			}
 		})
 	}
