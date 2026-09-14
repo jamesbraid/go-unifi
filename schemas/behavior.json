@@ -567,6 +567,47 @@
         "source_filter"
       ]
     },
+    "Network": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/networkconf",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/networkconf/{id}",
+      "required_on_create_when": {
+        "purpose=corporate": [
+          "vlan",
+          "vlan_enabled"
+        ],
+        "purpose=guest": [
+          "vlan",
+          "vlan_enabled"
+        ],
+        "purpose=remote-user-vpn,vpn_type=openvpn-server": [
+          "local_port",
+          "radiusprofile_id",
+          "vpn_type"
+        ],
+        "purpose=site-vpn,vpn_type=ipsec-vpn": [
+          "ipsec_interface",
+          "ipsec_peer_ip",
+          "remote_vpn_subnets",
+          "vpn_type",
+          "x_ipsec_pre_shared_key"
+        ],
+        "purpose=vlan-only": [
+          "vlan",
+          "vlan_enabled"
+        ],
+        "purpose=vpn-client,vpn_type=wireguard-client": [
+          "dhcpd_dns_1",
+          "ip_subnet",
+          "wireguard_client_peer_ip",
+          "wireguard_client_peer_port",
+          "wireguard_client_peer_public_key",
+          "x_wireguard_private_key"
+        ],
+        "purpose=wan": []
+      }
+    },
     "OSPFRouter": {
       "create_verb": "POST",
       "create_path": "v2/api/site/{site}/ospf/router",
@@ -602,6 +643,37 @@
         "network_id",
         "target_devices"
       ]
+    },
+    "WLAN": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/wlanconf",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/wlanconf/{id}",
+      "required_on_create": [
+        "ap_group_ids"
+      ],
+      "required_on_create_when": {
+        "security=open": [
+          "ap_group_ids"
+        ],
+        "security=osen": [
+          "ap_group_ids",
+          "radiusprofile_id"
+        ],
+        "security=wep": [
+          "ap_group_ids"
+        ],
+        "security=wpaeap": [
+          "ap_group_ids",
+          "radiusprofile_id"
+        ],
+        "security=wpapsk": [
+          "ap_group_ids"
+        ]
+      },
+      "min_items": {
+        "ap_group_ids": 1
+      }
     }
   },
   "rejected_creates": {
