@@ -1139,6 +1139,15 @@ var handWrittenCRUD = map[string]map[string]bool{
 		"Update": false,
 		"Delete": false,
 	},
+	"Site": {
+		// Not a REST object: read via api/self/sites, written via the
+		// sitemgr command. None of the generic CRUD shapes apply.
+		"List":   false,
+		"Get":    false,
+		"Create": false,
+		"Update": false,
+		"Delete": false,
+	},
 }
 
 // Exports reports whether the generator publishes the exported form of a CRUD

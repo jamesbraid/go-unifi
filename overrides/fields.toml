@@ -331,3 +331,32 @@ pointer = true
 # measured write here has sent; keep it.
 [FirewallPolicy.field.connection_states]
 omitempty = false
+
+# Not a REST object: read via api/self/sites, written via the sitemgr
+# command (add-site/update-site/delete-site), which accepts only desc. The
+# schema carries just the two fields the hand-written client already
+# published; _id keeps the envelope default and the rest of the envelope
+# (site_id, attr_*) does not apply to a self/sites entry.
+[Site.field.site_id]
+remove = true
+
+[Site.field.attr_hidden]
+remove = true
+
+[Site.field.attr_hidden_id]
+remove = true
+
+[Site.field.attr_no_delete]
+remove = true
+
+[Site.field.attr_no_edit]
+remove = true
+
+[Site.field.name]
+omitempty = false
+
+# Pin the Go name the hand-written type established; cleanName would
+# otherwise render desc as Desc.
+[Site.field.desc]
+name = "Description"
+omitempty = false
