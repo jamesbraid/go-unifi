@@ -14,10 +14,10 @@
   },
   "inputs": {
     "extraction_rules_sha256": "531bd12eece41c3f8c3d9b3565475eb85c148c27f5af52c510c375d7e217e1ac",
-    "generator_inputs_sha256": "77dccdade8d06c988c813f311d2a2da072417bacde0d8b03da654bef02dd5778"
+    "generator_inputs_sha256": "a9cf1c59705270c781f14f2670848784e79dcbf6709b2c09f59ebe24e8ba0440"
   },
   "snapshots": {
-    "structural_sha256": "8334a10d213eb8866f3afcbbcbcc01d9967713ed7eb036f98fd06555762a845f",
+    "structural_sha256": "06c87e0fe52c43b4963dd3510e311acad35e94a7b308fc7af3de1b79bb4e824d",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c",
     "field_documents": {
       ".extracted": "ec8dcc2cf646e64d955eeb0c3bc026ac3dcca6e78a0b4953c7a97c06118a09b6",
@@ -105,6 +105,7 @@
       "TrafficRoute.json": "b2c077a248b24c1c03d3b3d5801dfd532fb15a3c31e4288fbda0569b8107a572",
       "User.json": "630f51ce9a125de210d07a9f8045fad0759d1ef61577e0b7ea4486ee83cb3c5e",
       "UserGroup.json": "04f8c288638b2e0041acc6167b4ad461d01f02de2a335b2316582a77f78fd748",
+      "WireGuardPeer.json": "593492f40cd328f85da7b1eabcf6b8ece4191182025249b4950824b9bd7c3238",
       "WlanConf.json": "125293dbd6f897472b964c64672e5879287f96a12a31d7fcf6f6b62dd571e631",
       "WlanGroup.json": "4cf6d0e554f271a79b1c180b38d1fa79dab4be697b55952615537ddaf244cd85"
     }

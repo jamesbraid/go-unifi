@@ -24,6 +24,11 @@ import (
 // neither v2 nor site-scoped -- it lists every site the credential can see,
 // with no site in the path at all. Forcing it through fmt.Sprintf(path,
 // site) would probe the wrong shape, not a missing one.
+//
+// WireGuardPeer.json is absent for the same reason from the other side: its
+// collection nests under a specific network (.../wireguard/%s/users), a
+// second path placeholder this harness has no way to fill, and one that
+// only exists once a live network is configured as a WireGuard server.
 var v2Probes = []struct {
 	schemaFile string
 	path       string

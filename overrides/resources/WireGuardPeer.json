@@ -1,0 +1,7 @@
+{
+    "network_id": "",
+    "name": "",
+    "interface_ip": "",
+    "public_key": "",
+    "allowed_ips": [""]
+}
