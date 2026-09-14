@@ -113,19 +113,27 @@ func TestMaskedBodyRejectsFieldsTheEncoderDrops(t *testing.T) {
 }
 
 // TestMaskedBodyNeedsTheDiscriminator pins the cost of the design above: a
-// masked Network write needs Purpose set even when the mask names only
-// "name".
+// masked Network write needs a Purpose the encoder recognizes, even when the
+// mask names only "name".
 //
 // That is deliberate, not an oversight. The mask decides what a field's fate
 // would have been by running the encoder, and Network's encoder cannot decide
-// anything without a purpose -- so the alternative to failing here is
-// guessing, and a wrong guess writes WAN keys onto a vlan-only network.
-// Callers have the purpose: it comes back on the read that preceded the
-// write. What this asserts is that they are told so.
+// anything for a purpose it has never heard of -- so the alternative to
+// failing here is guessing, and a wrong guess writes WAN keys onto a
+// vlan-only network. Callers have the purpose: it comes back on the read
+// that preceded the write. What this asserts is that they are told so.
+//
+// The empty Purpose is deliberately NOT used here any more: it used to be
+// this same failure, but a network the SDK did not create can come back
+// from the controller with no purpose key at all (measured on 10.6.101,
+// see networkFallbackFields), and MarshalJSON now has a real answer for
+// that specific value. A masked write against one of those objects is
+// exactly as informed as a full write against it, so it goes through
+// instead of demanding a purpose that does not exist for it to name.
 func TestMaskedBodyNeedsTheDiscriminator(t *testing.T) {
-	_, err := maskedBody(&Network{ID: "netid", Name: strPtr("example")}, []string{"name"})
+	_, err := maskedBody(&Network{ID: "netid", Name: strPtr("example"), Purpose: "bogus-purpose"}, []string{"name"})
 	if err == nil {
-		t.Fatal("a network with no Purpose encoded anyway; the mask cannot know what that encoder would send")
+		t.Fatal("a network with an unrecognized Purpose encoded anyway; the mask cannot know what that encoder would send")
 	}
 	if !strings.Contains(err.Error(), "Network.Purpose") {
 		t.Errorf("the error does not say what to set, so the caller cannot act on it: %v", err)
