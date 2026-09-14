@@ -289,28 +289,42 @@ func withoutNetworkFields(fields []string, drop ...string) []string {
 // networkClearableSlots are the *string fields whose explicit "" must reach
 // the wire. The blanket rule is the opposite -- an optional string that is
 // empty is absent (see TestNetworkEncoderDropsEmptyStrings) -- but these
-// eight were measured on 10.6.101 to accept "" and clear on it, and
-// omitting one PRESERVES the stored value. Dropping the empty here is why a
-// caller could not empty a DHCP DNS, NTP or WINS list at all.
+// nine were measured on 10.6.101 to accept "" and clear on it, and omitting
+// one PRESERVES the stored value. Dropping the empty here is why a caller
+// could not empty a DHCP DNS, NTP or WINS list, or a network's search
+// domain, at all.
 //
 // The preserving half is not what makes them special: every field on every
 // collection the clearing probe sweeps preserves on omission. What makes
 // them special is only that they were measured and that "" clears them.
+//
+// Membership is safe precisely because the field is a *string: nil still
+// sends nothing, so only a caller who went out of their way to point at ""
+// clears anything. A plain string could not draw that line -- see
+// networkEmptyStringOmitted.
 var networkClearableSlots = map[string]bool{
 	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
 	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
 	"dhcpd_wins_1": true, "dhcpd_wins_2": true,
+	"domain_name": true,
 }
 
 // networkEmptyStringOmitted are plain-string fields the generated struct
-// sends unconditionally but the encoder drops when empty. Both are now
-// measured on 10.6.101 and both stay, for opposite reasons:
-// dhcpd_boot_server rejects "", so dropping it is what keeps the write from
-// being refused; mac_override accepts "" and clears on it, so dropping the
-// empty costs a caller the only way to clear the field -- but the generated
-// field is a plain string, which cannot tell "the caller wants it empty"
-// from "the caller never set it", and sending "" unconditionally would clear
-// mac_override on every write. It needs a pointer before it can move.
+// sends unconditionally but the encoder drops when empty. Both are measured
+// on 10.6.101 and both stay, for opposite reasons: dhcpd_boot_server rejects
+// "", so dropping it is what keeps the write from being refused;
+// mac_override accepts "" and clears on it, and the generated field is a
+// plain string, which cannot tell "the caller wants it empty" from "the
+// caller never set it" -- so sending "" unconditionally would clear
+// mac_override on every write, which is worse than not offering the clear.
+//
+// Not offering it here is not the same as not offering it at all.
+// UpdateNetworkFields(ctx, site, n, "mac_override") writes "" whatever the
+// encoder does, because a masked write force-sends the zero value of a field
+// it names; TestIntegrationClearingThroughTheClient measures that clearing
+// mac_override. Turning the field into a *string would let the unmasked
+// write express it too, at the price of a breaking change to an exported
+// struct field.
 // (TestKnownStringOmitemptyDriftIsUnchanged in network_encode_drift_test.go
 // keeps this list honest.)
 var networkEmptyStringOmitted = map[string]bool{
