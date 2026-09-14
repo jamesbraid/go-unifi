@@ -35,7 +35,17 @@ const (
 func (n *Network) MarshalJSON() ([]byte, error) {
 	fields := networkPurposeFields[n.Purpose]
 	if fields == nil {
-		return nil, fmt.Errorf("unknown network purpose: %s", n.Purpose)
+		if n.Purpose != "" {
+			// A non-empty value naming no known purpose is a caller (or a
+			// generator) error, not something measured: falling back here
+			// too would silently encode a typo'd "wan " as if it were a
+			// corporate network, which is worse than refusing it. Only the
+			// empty Purpose is measured behaviour -- see
+			// networkFallbackFields -- so that is the only value this
+			// bypasses the error for.
+			return nil, fmt.Errorf("unknown network purpose: %s", n.Purpose)
+		}
+		fields = networkFallbackFields
 	}
 	overrides := n.networkPurposeOverrides()
 	byWire := networkFieldByWire()
@@ -273,6 +283,37 @@ var networkPurposeFields = map[string][]string{
 	PurposeVPNClient: networkVPNClientFields,
 	PurposeUserVPN:   networkUserVPNFields,
 }
+
+// networkFallbackFields is what MarshalJSON sends for a Network whose
+// Purpose is "". Measured on 10.6.101: a create that names no "purpose" key
+// at all answers 200, and both the create response and a subsequent GET
+// come back with no "purpose" key either -- there is nothing to dispatch on,
+// and by the time this runs the decoded Network has already lost whatever
+// the controller's own internal state for that object is. Erroring here, as
+// this used to do unconditionally, means the SDK can read such a network and
+// never write it back: GetNetwork succeeds and CreateNetwork's own return
+// value cannot round-trip through UpdateNetwork.
+//
+// This does not extend to some OTHER value naming no known purpose: that is
+// a typo or a controller generation ahead of this package, not a measured
+// shape, and MarshalJSON still refuses it.
+//
+// The corporate list, minus "purpose" itself, is the least-lossy fallback
+// the measurement supports: corporate is the superset every simple purpose's
+// list is built from, its per-purpose overrides key off n.Purpose and so
+// never fire for a value that matches none of them (no invented DHCP range,
+// no derived vlan_enabled), and "purpose" is dropped rather than sent as ""
+// because omitting it is the one shape actually observed on the wire --
+// sending an explicit empty purpose was never measured to do anything a
+// caller would want. Writing this fallback shape back onto the exact object
+// it was measured against was PUT and re-GET clean: every field the object
+// held survived, and no new field appeared.
+//
+// This is a landing pad for an object the SDK cannot otherwise name, not a
+// purpose of its own: NetworkEncodedFields already documented this same
+// corporate fallback for computing a mask's legal field names, so a masked
+// write against such a network now agrees with what a full write sends.
+var networkFallbackFields = withoutNetworkFields(networkCorporateFields, "purpose")
 
 // withoutNetworkFields returns fields with the named entries removed,
 // preserving order.
