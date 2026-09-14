@@ -26278,6 +26278,20 @@
         ]
       }
     },
+    "unifi.Site": {
+      "empty": {
+        "desc": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/cmd/sitemgr",
+        "update_verb": "POST",
+        "update_path": "api/s/{site}/cmd/sitemgr"
+      }
+    },
     "unifi.SpatialRecord": {
       "discarded": [],
       "empty": {
@@ -26465,6 +26479,20 @@
         "create_path": "api/s/{site}/rest/wlangroup",
         "update_verb": "PUT",
         "update_path": "api/s/{site}/rest/wlangroup/{id}"
+      }
+    },
+    "unifi.WireGuardPeer": {
+      "empty": {
+        "name": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch",
+        "update_verb": "PUT",
+        "update_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch"
       }
     },
     "unifi/settings.Dashboard": {

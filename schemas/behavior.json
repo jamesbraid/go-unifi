@@ -244,6 +244,18 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "Site": {
+      "desc": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
+    "WireGuardPeer": {
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "account": {
       "ip": {
         "empty": "EMPTY-CLEARS",
@@ -1251,6 +1263,12 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/set/setting/mgmt"
     },
+    "Site": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/cmd/sitemgr",
+      "update_verb": "POST",
+      "update_path": "api/s/{site}/cmd/sitemgr"
+    },
     "SpatialRecord": {
       "create_verb": "POST",
       "create_path": "api/s/{site}/rest/spatialrecord",
@@ -1318,6 +1336,12 @@
       "create_path": "api/s/{site}/rest/wlangroup",
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/wlangroup/{id}"
+    },
+    "WireGuardPeer": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch"
     }
   },
   "rejected_creates": {

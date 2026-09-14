@@ -15,10 +15,13 @@ import (
 
 // Batch 4 of the write-contract re-measurement: Device, DevicePortOverrides,
 // PortProfile, Setting (mgmt), Dashboard (the settings singleton) and Site.
-// None of these has a create verb in the ordinary REST sense -- devices are
-// provisioned by adopt, port overrides and settings live inside another
-// object's write, and sites are commands -- so every contract here has an
-// empty CreateVerb/CreatePath.
+// None of the first five has a create verb in the ordinary REST sense --
+// devices are provisioned by adopt, port overrides and settings live inside
+// another object's write -- so their contracts have an empty
+// CreateVerb/CreatePath. Site is the exception: it is a command, not a REST
+// object, but the command that creates a site and the one that updates it
+// share the same endpoint, so its contract carries a real CreateVerb/
+// CreatePath equal to its UpdateVerb/UpdatePath.
 
 // TestIntegrationDeviceWriteContract measures the Device write path
 // (api/s/{site}/rest/device/{id}). There is no create: CreateDevice (POST
@@ -709,9 +712,15 @@ func TestIntegrationSettingDashboardWriteContract(t *testing.T) {
 // one. delete-site is confirmed to need the site's own _id, not its
 // name/slug -- DeleteSite's own doc comment is checked against the
 // controller rather than trusted.
+//
+// Site is now generated (unifi/site.generated.go), so this records into
+// the artifact: create and update share one command endpoint (there is no
+// per-id path), desc is the only field either command writes, and it is
+// optional on both -- add-site with no desc gets the controller's own
+// default, and update-site with no desc key clears it exactly like "" does.
 func TestIntegrationSiteWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
-	_, _, _ = behaviorGate(ctx, t, s, c.Site) // gates the controller version; nothing here writes to the artifact -- see below
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	cmdPath := "/api/s/" + c.Site + "/cmd/sitemgr"
 
@@ -808,18 +817,21 @@ func TestIntegrationSiteWriteContract(t *testing.T) {
 		t.Fatalf("delete-site with the real _id was rejected (HTTP %d): %v", st, err)
 	}
 
-	// Not recorded into schemas/behavior.json: Site is hand-written
-	// (sites.go), not generated from a schema capture, and cmd/wirecontract
-	// only assigns a resource key to generated types -- confirmed by
-	// running go generate against a Writes["Site"] entry, which failed with
-	// "names \"Site\", which no type in the artifact claims". The verb and
-	// path (POST api/s/{site}/cmd/sitemgr for all three commands) and the
-	// desc empty/omit verdict above are real, measured facts; they just
-	// have nowhere in the generated pipeline to land, so they stay in this
-	// test's own log and doc comment instead of the artifact.
-	t.Logf("Site write surface (not recorded into the artifact -- see comment above): "+
-		"create/update/delete all POST api/s/{site}/cmd/sitemgr; desc empty=%s omit=%s",
-		measured["desc"].Empty, measured["desc"].Omit)
+	// Site is now generated (unifi/site.generated.go, from
+	// overrides/resources/Site.json), so its resource key is claimed in the
+	// wire contract and this lands in the artifact same as any other
+	// resource -- create, update and delete all share one command endpoint,
+	// which the generic verb/path shape represents as identical create and
+	// update paths.
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: "api/s/{site}/cmd/sitemgr",
+		UpdateVerb: "POST", UpdatePath: "api/s/{site}/cmd/sitemgr",
+	}
+	if behaviorWriteRequested() {
+		recordWrite(t, root, captured, "Site", "Site", contract, nil, measured)
+		return
+	}
+	compareRecorded(t, root, running, "Site", "Site", contract, nil, measured)
 }
 
 // siteDescByID reads one site's desc by id via ListSites. t.Fatal if the
