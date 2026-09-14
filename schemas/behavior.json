@@ -156,7 +156,9 @@
   },
   "discarded": {
     "APGroup": [],
+    "ChannelPlan": [],
     "ClientGroup": [],
+    "DHCPOption": [],
     "DNSRecord": [],
     "DevicePortOverrides": [],
     "DeviceRadioTable": [
@@ -164,7 +166,9 @@
     ],
     "DpiApp": [],
     "DpiGroup": [],
+    "DynamicDNS": [],
     "FirewallGroup": [],
+    "Hotspot2Conf": [],
     "HotspotOp": [],
     "HotspotPackage": [],
     "Network": [
@@ -178,7 +182,9 @@
       "upnp_lan_enabled"
     ],
     "PortForward": [],
-    "TrafficRoute": []
+    "ScheduleTask": [],
+    "TrafficRoute": [],
+    "WLANGroup": []
   },
   "empty": {
     "DeviceRadioTable": {
@@ -193,9 +199,33 @@
         "omit": "OMIT-REJECTED"
       }
     },
+    "channelplan": {
+      "date": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "device": {
       "radio_table": {
         "empty": "EMPTY-IGNORED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "dhcpoption": {
+      "code": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "width": {
+        "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
     },
@@ -243,6 +273,36 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "dynamicdns": {
+      "host_name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "interface": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "login": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "options": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "server": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "service": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "x_password": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "firewallgroup": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -261,6 +321,40 @@
         "omit": "OMIT-KEEPS"
       },
       "source": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "hotspot2conf": {
+      "domain_name_list": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "hessid": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "network_access_internet": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "network_auth_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "network_type": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "venue_group": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "venue_type": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
@@ -457,6 +551,16 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "scheduletask": {
+      "cron_expr": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      },
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "static-dns": {
       "enabled": {
         "empty": "EMPTY-CLEARS",
@@ -586,6 +690,12 @@
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
+    },
+    "wlangroup": {
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
     }
   },
   "coercions": {
@@ -602,6 +712,12 @@
         "device_macs",
         "name"
       ]
+    },
+    "ChannelPlan": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/channelplan",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/channelplan/{id}"
     },
     "Client": {
       "create_verb": "POST",
@@ -638,6 +754,15 @@
         "schedule"
       ]
     },
+    "DHCPOption": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/dhcpoption",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/dhcpoption/{id}",
+      "required_on_create": [
+        "type"
+      ]
+    },
     "DNSRecord": {
       "create_verb": "POST",
       "create_path": "v2/api/site/{site}/static-dns",
@@ -670,6 +795,17 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/dpigroup/{id}"
     },
+    "DynamicDNS": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/dynamicdns",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/dynamicdns/{id}",
+      "required_on_create_when": {
+        "service=custom": [
+          "server"
+        ]
+      }
+    },
     "FirewallGroup": {
       "create_verb": "POST",
       "create_path": "api/s/{site}/rest/firewallgroup",
@@ -689,6 +825,12 @@
         "destination.zone_id",
         "source.zone_id"
       ]
+    },
+    "Hotspot2Conf": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/hotspot2conf",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/hotspot2conf/{id}"
     },
     "HotspotOp": {
       "create_verb": "POST",
@@ -777,6 +919,16 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/portforward/{id}"
     },
+    "ScheduleTask": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/scheduletask",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/scheduletask/{id}",
+      "required_on_create": [
+        "action",
+        "cron_expr"
+      ]
+    },
     "TrafficRoute": {
       "create_verb": "POST",
       "create_path": "v2/api/site/{site}/trafficroutes",
@@ -823,6 +975,12 @@
       "min_items": {
         "ap_group_ids": 1
       }
+    },
+    "WLANGroup": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/wlangroup",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/wlangroup/{id}"
     }
   },
   "rejected_creates": {
