@@ -813,6 +813,13 @@ func compareWriteContract(t *testing.T, resource string, pinned map[string]behav
 		if len(w.MinItems) == 0 {
 			w.MinItems = nil
 		}
+		if len(w.RequiredOnCreateWhen) == 0 {
+			w.RequiredOnCreateWhen = nil
+		} else {
+			for k := range w.RequiredOnCreateWhen {
+				sort.Strings(w.RequiredOnCreateWhen[k])
+			}
+		}
 		return w
 	}
 	want, got = normalize(want), normalize(got)
@@ -3924,4 +3931,892 @@ func dnsRecordClearing(
 	t.Logf("static DNS clearing semantics (%d fields):\n  %s", len(summary), strings.Join(summary, "\n  "))
 
 	return measured
+}
+
+// createSweep measures a v1 rest collection's create contract by reduction:
+// it starts from a body the controller accepts, removes every field the
+// controller does not need, and names what is left.
+//
+// Reduction rather than the one-at-a-time sweep the other probes here use,
+// because a network's rich body is full of pairs. dhcpd_start is refused
+// only while dhcpd_enabled is set; dhcpd_ip_1 only while dhcpguard_enabled
+// is. A sweep that removes one key from a body still carrying its partner
+// records the partner as required on create, which it is not -- it is
+// required by a flag the caller chose to set, and those cross-field rules
+// are measured on their own by TestIntegrationNetworkCrossField. Here every
+// removable field is gone before anything is named, so a field that survives
+// is one no create of that shape may omit whatever else it carries.
+//
+// The passes run to a fixpoint rather than once, because removability itself
+// depends on what is still in the body: the first pass cannot remove
+// dhcpd_start while dhcpd_enabled is present, and the second can once it is
+// not. A pass that removes nothing is the answer.
+type createSweep struct {
+	s      *controllertest.Session
+	path   string // the collection, e.g. /api/s/default/rest/networkconf
+	prefix string // name prefix; every attempt gets its own
+	n      int
+}
+
+// maxCreateSweepPasses bounds the reduction. A body still shrinking after
+// this many passes means the controller is answering the same request
+// differently run to run, and every verdict below it would be noise.
+const maxCreateSweepPasses = 8
+
+// post creates one document, re-reads it, and deletes it again. The re-read
+// is the point: this is a v1 collection, which drops a key it does not
+// recognise and carries on, so a 200 says the controller stored something
+// and not that it stored what was asked. The delete is confirmed rather than
+// fired and forgotten -- a document left behind makes the next attempt
+// collide on a unique value, and a collision rejection read as a field
+// verdict is exactly the kind of lie this probe exists to avoid.
+func (c *createSweep) post(ctx context.Context, t *testing.T, doc map[string]any) (int, string, map[string]any) {
+	t.Helper()
+	body, status, err := c.s.PostJSON(ctx, c.path, doc)
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", c.path, err)
+	}
+	if status/100 != 2 {
+		return status, v1ErrCode(body), nil
+	}
+	id := objectID(firstData(t, body))
+	if id == "" {
+		t.Fatalf("POST %s answered HTTP %d with no id, so nothing can be re-read or cleaned up: %v",
+			c.path, status, body)
+	}
+	stored := v1Read(ctx, t, c.s, c.path, id)
+	if len(stored) == 0 {
+		t.Fatalf("GET %s/%s after a %d create came back empty; the stored document is what classifies "+
+			"the write", c.path, id, status)
+	}
+	c.remove(ctx, t, id)
+	return status, "", stored
+}
+
+// v1Read fetches one document by id, or nil when the collection holds none.
+// A v1 rest read of an id that is not there answers HTTP 200 with an empty
+// data array rather than a 404, so presence is the envelope's doing and not
+// the status line's.
+func v1Read(ctx context.Context, t *testing.T, s *controllertest.Session, path, id string) map[string]any {
+	t.Helper()
+	body, status, err := s.GetJSON(ctx, path+"/"+id)
+	if status != 200 {
+		t.Fatalf("GET %s/%s answered HTTP %d (%v %v)", path, id, status, body, err)
+	}
+	return firstData(t, body)
+}
+
+// remove deletes one document and waits for the collection to stop serving
+// it.
+func (c *createSweep) remove(ctx context.Context, t *testing.T, id string) {
+	t.Helper()
+	if _, status, err := c.s.DeleteJSON(ctx, c.path+"/"+id); status/100 != 2 {
+		t.Fatalf("DELETE %s/%s answered HTTP %d (%v); the objects this sweep creates have to go away "+
+			"between attempts or the next one collides", c.path, id, status, err)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if len(v1Read(ctx, t, c.s, c.path, id)) == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s/%s is still served after a successful DELETE; every later attempt would be "+
+				"measured against a site that still holds it", c.path, id)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+// sweepVerdict is one attempted create. The two failing halves are kept
+// apart on purpose: only a refusal is a requirement, and a create the
+// controller took but stored off-branch is a different fact that
+// required_on_create has no vocabulary for.
+type sweepVerdict struct {
+	accepted bool   // 2xx, and the stored document is in the branch
+	refused  bool   // the controller answered other than 2xx
+	why      string // what it said, or what it stored instead
+}
+
+// attempt sends one candidate body and classifies the answer. The branch
+// check on the stored document is what stops a 200 being read as "the field
+// was optional": a create that omits purpose is accepted and stores a
+// network with no purpose at all, which is not the branch anything here is
+// measuring.
+func (c *createSweep) attempt(ctx context.Context, t *testing.T, doc map[string]any, selector map[string]string) sweepVerdict {
+	t.Helper()
+	c.n++
+	body := clone(doc)
+	// Only when the body has one: name is a field under test, and stamping
+	// it on every attempt would make it un-removable and so read as
+	// required.
+	if _, named := body["name"]; named {
+		body["name"] = fmt.Sprintf("%s-%d", c.prefix, c.n)
+	}
+	status, reason, stored := c.post(ctx, t, body)
+	if status/100 != 2 {
+		return sweepVerdict{refused: true, why: fmt.Sprintf("HTTP %d %s", status, reason)}
+	}
+	for _, wire := range sortedWireNames(selector) {
+		if got, _ := stored[wire].(string); got != selector[wire] {
+			return sweepVerdict{why: fmt.Sprintf("accepted (HTTP %d) and stored %s=%v", status, wire, stored[wire])}
+		}
+	}
+	return sweepVerdict{accepted: true}
+}
+
+// reduce runs the sweep and returns the smallest body the controller
+// accepted along with the fields it REFUSED to create without. Fields named
+// in selector are held out of the reduction -- removing one leaves the
+// branch under measurement -- and tested last.
+//
+// Only a refusal makes the recorded list. A removal the controller accepts
+// but stores off-branch is loud in the log and absent from the artifact:
+// required_on_create means "the create was rejected", and stretching it to
+// cover "accepted, but you got something else" would publish two different
+// measurements as one.
+func (c *createSweep) reduce(ctx context.Context, t *testing.T, seed map[string]any, selector map[string]string) (map[string]any, []string) {
+	t.Helper()
+	branch := createBranchKey(selector)
+	if v := c.attempt(ctx, t, seed, selector); !v.accepted {
+		t.Fatalf("the seed for %s was not accepted (%s).\n\nNothing removed from a body that does "+
+			"not create can measure anything.", branch, v.why)
+	}
+
+	body := clone(seed)
+	var blocked map[string]sweepVerdict
+	for pass := 1; ; pass++ {
+		removed := 0
+		blocked = map[string]sweepVerdict{}
+		for _, wire := range sortedWireNames(body) {
+			if _, held := selector[wire]; held {
+				continue
+			}
+			if _, still := body[wire]; !still {
+				continue // removed earlier in this pass
+			}
+			trial := clone(body)
+			delete(trial, wire)
+			v := c.attempt(ctx, t, trial, selector)
+			if v.accepted {
+				body = trial
+				removed++
+				continue
+			}
+			blocked[wire] = v
+		}
+		if removed == 0 {
+			break
+		}
+		if pass == maxCreateSweepPasses {
+			t.Fatalf("the %s create body was still shrinking after %d passes; the controller is not "+
+				"answering the same request the same way and no verdict here would mean anything",
+				branch, pass)
+		}
+	}
+
+	for _, wire := range sortedWireNames(selector) {
+		trial := clone(body)
+		delete(trial, wire)
+		if v := c.attempt(ctx, t, trial, selector); !v.accepted {
+			blocked[wire] = v
+		}
+	}
+
+	t.Logf("%s minimal accepted body: %v", branch, sortedWireNames(body))
+	required := []string{}
+	for _, wire := range sortedWireNames(blocked) {
+		v := blocked[wire]
+		if v.refused {
+			required = append(required, wire)
+			t.Logf("%s requires %-32s removing it: %s", branch, wire, v.why)
+			continue
+		}
+		t.Logf("LOUD: %s is NOT refused without %-24s it %s. Recorded nowhere: the create succeeded, "+
+			"and what came back is a different shape rather than an error the caller can act on.",
+			branch, wire, v.why)
+	}
+	return body, required
+}
+
+// createBranch is one shape of a resource's create: the field values that
+// select it, and a body the controller accepts in it.
+type createBranch struct {
+	selector map[string]string
+	seed     map[string]any
+}
+
+// createBranchKey renders a selector as the artifact's condition key --
+// field=value pairs, sorted by field name, comma-joined.
+func createBranchKey(selector map[string]string) string {
+	parts := make([]string, 0, len(selector))
+	for _, wire := range sortedWireNames(selector) {
+		parts = append(parts, wire+"="+selector[wire])
+	}
+	return strings.Join(parts, ",")
+}
+
+// requiredInEveryBranch is the intersection: the fields no create of any
+// measured branch may omit, which is the only thing the artifact may publish
+// as an unconditional rule.
+func requiredInEveryBranch(byBranch map[string][]string) []string {
+	if len(byBranch) == 0 {
+		return nil
+	}
+	counts := map[string]int{}
+	for _, fields := range byBranch {
+		for _, f := range fields {
+			counts[f]++
+		}
+	}
+	out := []string{}
+	for f, n := range counts {
+		if n == len(byBranch) {
+			out = append(out, f)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sortedWireNames is the deterministic iteration order every sweep here
+// needs: a reduction whose order varies finds a different minimal body run
+// to run, and the artifact would never settle.
+func sortedWireNames[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// v1UpdateContract measures the update half: which verb and path the
+// collection takes an edit on, and which of the stored document's own keys a
+// PUT may not omit. It seeds one object, re-reads it, and puts it back a key
+// at a time.
+//
+// The collection PUT is measured too, and it is what says the update path is
+// the {id} one rather than the collection: an update body carries its own
+// _id, so it could plausibly go either way, and only the controller settles
+// which.
+func v1UpdateContract(ctx context.Context, t *testing.T, s *controllertest.Session, path, relPath string, seed map[string]any) (verb, updatePath string, required []string) {
+	t.Helper()
+
+	body, status, err := s.PostJSON(ctx, path, seed)
+	if status/100 != 2 {
+		t.Fatalf("seeding an object to update failed (HTTP %d): %v %v", status, body, err)
+	}
+	id := objectID(firstData(t, body))
+	if id == "" {
+		t.Fatalf("the seeded object carries no id, so the update path cannot be measured: %v", body)
+	}
+	defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+
+	stored := v1Read(ctx, t, s, path, id)
+	if len(stored) == 0 {
+		t.Fatalf("GET %s/%s came back empty right after the create; the generated read uses that path", path, id)
+	}
+
+	if after, putStatus, err := s.PutJSON(ctx, path+"/"+id, stored); putStatus/100 == 2 {
+		verb, updatePath = "PUT", relPath
+		t.Logf("PUT %s/{id} -> HTTP %d; that is the update", path, putStatus)
+	} else {
+		t.Errorf("PUT %s/%s answered HTTP %d (%v %v); the generated update writes to that path",
+			path, id, putStatus, after, err)
+	}
+
+	// The same document, same verb, one path segment shorter. A 2xx here
+	// would mean the {id} path above is one update route of two.
+	if collBody, collStatus, _ := s.PutJSON(ctx, path, stored); collStatus/100 == 2 {
+		t.Errorf("PUT %s (the collection) also accepted an update (HTTP %d); the update path is then "+
+			"not the {id} one alone and the recorded contract is too narrow", path, collStatus)
+	} else {
+		t.Logf("PUT %s (the collection) is refused (HTTP %d, %s) -- the update needs the id in the path",
+			path, collStatus, v1ErrCode(collBody))
+	}
+
+	required = []string{}
+	for _, wire := range sortedWireNames(stored) {
+		trial := clone(stored)
+		delete(trial, wire)
+		after, putStatus, _ := s.PutJSON(ctx, path+"/"+id, trial)
+		if putStatus/100 == 2 {
+			continue
+		}
+		t.Logf("update without %-32s rejected (HTTP %d, %s) -- required on update",
+			wire, putStatus, v1ErrCode(after))
+		required = append(required, wire)
+	}
+	sort.Strings(required)
+	return verb, updatePath, required
+}
+
+// listMinItems measures the smallest length a present list field may carry:
+// it writes the field as an empty array into a body the controller otherwise
+// accepts. 0 means an empty list is stored, 1 means it is refused. Distinct
+// from required-on-create, which says whether the key may be absent at all --
+// remote_vpn_subnets is measured absent-is-refused and empty-is-stored, and
+// only the two together describe it.
+func listMinItems(ctx context.Context, t *testing.T, sweep *createSweep, seed map[string]any, selector map[string]string, wire string) int {
+	t.Helper()
+	doc := clone(seed)
+	doc[wire] = []string{}
+	if v := sweep.attempt(ctx, t, doc, selector); !v.accepted {
+		t.Logf("%s written as an empty list is refused (%s) -- a present list needs a member", wire, v.why)
+		return 1
+	}
+	t.Logf("%s written as an empty list is stored -- the key is required, its contents are not", wire)
+	return 0
+}
+
+// TestIntegrationNetworkWriteContract measures the write contract of the
+// biggest resource the SDK ships. Network already has entries in the
+// artifact's discarded, ownership, rejected_creates, replays and uos_pins
+// sections; the plainest thing about it had never been recorded -- which
+// verb and path create one, and which fields a create cannot omit.
+//
+// It owns the artifact's writes["Network"] entry outright.
+//
+// The required set is not one set. A network's create rules follow its
+// purpose, and for the three VPN purposes they follow vpn_type inside that,
+// so the answer is recorded per branch under required_on_create_when. A flat
+// list would say a WAN create has to carry an IPsec pre-shared key. Only the
+// intersection -- what every branch requires -- may be published flat, and
+// here that intersection is empty: no field is required on every network
+// create.
+//
+// Two verdicts are worth reading before the numbers:
+//
+//   - purpose is NOT required. A create that names none is accepted and
+//     stores a network with no purpose at all -- an object the SDK's own
+//     Network.MarshalJSON cannot encode, since it dispatches on Purpose and
+//     errors on a value it does not know. That is asserted here rather than
+//     recorded, because required_on_create has no way to say "accepted, but
+//     not the thing you asked for".
+//   - name is NOT required either, on any purpose. A nameless network
+//     creates and is stored nameless.
+//
+// The corporate, guest and vlan-only branches require vlan and vlan_enabled,
+// and the reason is measured rather than assumed: the refusal is
+// api.err.VlanUsed, the same code a second network on an already-used VLAN
+// draws, because a create naming no VLAN lands untagged and the site's
+// default LAN is already there. networkUntaggedSlotIsTaken measures that
+// whole chain, including that the default LAN can be neither moved onto a
+// VLAN nor deleted -- which is what makes the requirement hold on every site
+// rather than only on this one.
+func TestIntegrationNetworkWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 60*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	const (
+		createRel = "api/s/{site}/rest/networkconf"
+		updateRel = "api/s/{site}/rest/networkconf/{id}"
+	)
+	path := "/api/s/" + c.Site + "/rest/networkconf"
+
+	// The list has to be served before anything else here means what it
+	// looks like: a 404 collection would make every refusal below "the route
+	// is absent" wearing another status code's clothes.
+	if body, status, err := s.GetJSON(ctx, path); status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v %v); the collection is not served, so nothing below "+
+			"measures the write contract", path, status, body, err)
+	}
+
+	// Why every sweep below re-reads instead of trusting its 200.
+	unknownKeyStripped(ctx, t, s, path, map[string]any{
+		"name": "write-contract-unknown-key", "purpose": PurposeCorporate,
+		"vlan_enabled": true, "vlan": 3901,
+	})
+
+	// remote-user-vpn authenticates against the built-in RADIUS server,
+	// which has to be running before the controller will accept the network.
+	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
+	radiusProfile := builtinRadiusProfileID(ctx, t, s, c.Site)
+
+	sweep := &createSweep{s: s, path: path, prefix: "write-contract"}
+	byBranch := map[string][]string{}
+	var siteVPN createBranch
+	for _, branch := range networkCreateBranches(radiusProfile) {
+		key := createBranchKey(branch.selector)
+		if branch.selector["purpose"] == PurposeSiteVPN {
+			siteVPN = branch
+		}
+		_, required := sweep.reduce(ctx, t, branch.seed, branch.selector)
+		byBranch[key] = required
+	}
+
+	// A list field named in a required set says the key must be there; it
+	// does not say the list must hold anything. The site-vpn branch is the
+	// only measured branch that requires one.
+	minItems := map[string]int{}
+	if n := listMinItems(ctx, t, sweep, siteVPN.seed, siteVPN.selector, "remote_vpn_subnets"); n > 0 {
+		minItems["remote_vpn_subnets"] = n
+	}
+
+	networkPurposeless(ctx, t, s, path)
+	networkUntaggedSlotIsTaken(ctx, t, s, c.Site)
+
+	updateVerb, updatePath, requiredOnUpdate := v1UpdateContract(ctx, t, s, path, updateRel, map[string]any{
+		"name": "write-contract-update", "purpose": PurposeCorporate,
+		"vlan_enabled": true, "vlan": 3902,
+	})
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: createRel,
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate:     requiredInEveryBranch(byBranch),
+		RequiredOnCreateWhen: byBranch,
+		RequiredOnUpdate:     requiredOnUpdate,
+		MinItems:             minItems,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			a.Writes["Network"] = contract
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok || art.Writes == nil {
+		t.Logf("no pinned write contracts in %s; run with BEHAVIOR_WRITE=1 to record the network one",
+			behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "Network", art.Writes, contract)
+}
+
+// networkCreateBranches is one accepted body per shape of network create.
+//
+// Each seed only has to create and to carry every field the branch is asked
+// about: a field the seed does not name is proven unnecessary by the seed's
+// own success, and one it does name is tested by removal. Which is why they
+// are lean rather than the full per-purpose payloads
+// TestIntegrationNetworkRoundTrip seeds -- the extra hundred fields there
+// buy nothing here and cost an attempt each.
+func networkCreateBranches(radiusProfile string) []createBranch {
+	return []createBranch{
+		{
+			selector: map[string]string{"purpose": PurposeCorporate},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeCorporate, "enabled": true,
+				"ip_subnet": "10.94.10.1/24", "vlan_enabled": true, "vlan": 810,
+				"networkgroup": "LAN", "setting_preference": "manual",
+				"igmp_snooping": true, "dhcpguard_enabled": true, "dhcpd_ip_1": "10.94.10.2",
+				"dhcpd_enabled": true, "dhcpd_start": "10.94.10.6", "dhcpd_stop": "10.94.10.254",
+			},
+		},
+		{
+			selector: map[string]string{"purpose": PurposeGuest},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeGuest, "enabled": true,
+				"ip_subnet": "10.94.20.1/24", "vlan_enabled": true, "vlan": 820,
+				"networkgroup": "LAN", "setting_preference": "manual",
+				"igmp_snooping": true, "dhcpguard_enabled": true, "dhcpd_ip_1": "10.94.20.2",
+				"dhcpd_enabled": true, "dhcpd_start": "10.94.20.6", "dhcpd_stop": "10.94.20.254",
+			},
+		},
+		{
+			selector: map[string]string{"purpose": PurposeVLANOnly},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeVLANOnly, "enabled": false,
+				"networkgroup": "LAN", "vlan_enabled": true, "vlan": 830,
+				"igmp_snooping": true, "dhcpguard_enabled": true, "dhcpd_ip_1": "10.94.30.2",
+			},
+		},
+		{
+			selector: map[string]string{"purpose": PurposeWAN},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeWAN, "enabled": true,
+				"wan_networkgroup": "WAN2", "wan_type": "dhcp", "wan_type_v6": "disabled",
+				"wan_dns_preference": "manual", "wan_dns1": "10.94.40.53",
+				"wan_load_balance_type": "failover-only", "wan_failover_priority": 2,
+			},
+		},
+		// The three VPN purposes pin vpn_type as well. Their requirements
+		// belong to the tunnel, not to the purpose: an IPsec site-to-site
+		// network needs a peer and a pre-shared key, and recording that
+		// under purpose=site-vpn alone would hand the same rules to the
+		// other tunnel types the enum admits.
+		{
+			selector: map[string]string{"purpose": PurposeSiteVPN, "vpn_type": "ipsec-vpn"},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeSiteVPN, "enabled": true,
+				"vpn_type": "ipsec-vpn", "ipsec_interface": "wan",
+				"ipsec_peer_ip": "203.0.113.9", "ipsec_key_exchange": "ikev2",
+				"x_ipsec_pre_shared_key": "s3cret-psk",
+				"remote_vpn_subnets":     []string{"192.0.2.0/24"},
+			},
+		},
+		{
+			selector: map[string]string{"purpose": PurposeVPNClient, "vpn_type": "wireguard-client"},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeVPNClient, "enabled": true,
+				"vpn_type": "wireguard-client", "wireguard_client_mode": "manual",
+				"ip_subnet":                "10.198.0.1/24",
+				"wireguard_client_peer_ip": "203.0.113.20", "wireguard_client_peer_port": 51820,
+				"wireguard_client_peer_public_key": "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=",
+				"x_wireguard_private_key":          "6KpcbNfK7kFzOlKjnDbSaYbmDbAZBOKwFqjOWMkSCFU=",
+				"vpn_client_pull_dns":              false,
+				"dhcpd_dns_enabled":                true, "dhcpd_dns_1": "1.1.1.1",
+			},
+		},
+		{
+			selector: map[string]string{"purpose": PurposeUserVPN, "vpn_type": "openvpn-server"},
+			seed: map[string]any{
+				"name": "x", "purpose": PurposeUserVPN, "enabled": true,
+				"vpn_type": "openvpn-server", "openvpn_mode": "server",
+				"openvpn_encryption_cipher": "AES_256_CBC",
+				"ip_subnet":                 "10.199.0.1/24", "local_port": 1195,
+				"radiusprofile_id":  radiusProfile,
+				"dhcpd_dns_enabled": true, "dhcpd_dns_1": "1.1.1.1",
+			},
+		},
+	}
+}
+
+// networkPurposeless measures what a create that names no purpose does. It
+// is accepted, and the network it stores has no purpose at all -- not a
+// default, not corporate, absent.
+//
+// This is asserted rather than recorded because required_on_create can only
+// say "the create was refused", and this create was not. It matters anyway:
+// the SDK's Network.MarshalJSON dispatches on Purpose and refuses a value it
+// does not know, so an object created this way -- or by any other client --
+// can be read by the SDK and never written back.
+func networkPurposeless(ctx context.Context, t *testing.T, s *controllertest.Session, path string) {
+	t.Helper()
+	body, status, err := s.PostJSON(ctx, path, map[string]any{
+		"name": "write-contract-no-purpose", "vlan_enabled": true, "vlan": 3903,
+	})
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	id := objectID(firstData(t, body))
+	if id != "" {
+		defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	if status/100 != 2 {
+		t.Errorf("a create naming no purpose was refused (HTTP %d, %s); it was measured being "+
+			"accepted, and the branch sweeps read their own purpose-removal results against that",
+			status, v1ErrCode(body))
+		return
+	}
+	stored := v1Read(ctx, t, s, path, id)
+	if purpose, present := stored["purpose"]; present {
+		t.Errorf("a create naming no purpose stored purpose=%v; it was measured storing none at all, "+
+			"and a controller that now fills one in changes what every purpose branch means", purpose)
+		return
+	}
+	t.Logf("LOUD: a create naming no purpose is accepted (HTTP %d) and stores a network with no "+
+		"purpose key: %v. Network.MarshalJSON cannot encode that object, so the SDK can read it and "+
+		"never write it back.", status, sortedWireNames(stored))
+}
+
+// networkUntaggedSlotIsTaken measures why a corporate, guest or vlan-only
+// create that names no VLAN is refused, so the vlan and vlan_enabled entries
+// in those branches' required sets are read as what they are.
+//
+// Three legs, in order:
+//
+//   - the matrix: of the four ways to write the two VLAN keys, only the pair
+//     -- the flag true and an id -- creates. The other three draw
+//     api.err.VlanUsed, and so does naming neither.
+//   - the control: a second network on an id the first already holds draws
+//     the SAME code. So the refusals above are a collision, not a missing
+//     field: a create with no usable VLAN lands untagged and something is
+//     already there.
+//   - the occupant: the site's default LAN is untagged, refuses to be moved
+//     onto a VLAN, and refuses to be deleted. Which is what turns "this
+//     site's untagged slot is taken" into a rule that holds on every site.
+func networkUntaggedSlotIsTaken(ctx context.Context, t *testing.T, s *controllertest.Session, site string) {
+	t.Helper()
+	path := "/api/s/" + site + "/rest/networkconf"
+	sweep := &createSweep{s: s, path: path, prefix: "vlan-matrix"}
+	corporate := map[string]string{"purpose": PurposeCorporate}
+
+	for _, tc := range []struct {
+		what   string
+		keys   map[string]any
+		accept bool
+	}{
+		{"neither key", map[string]any{}, false},
+		{"vlan_enabled alone", map[string]any{"vlan_enabled": true}, false},
+		{"an id alone", map[string]any{"vlan": 3904}, false},
+		{"an id with the flag false", map[string]any{"vlan_enabled": false, "vlan": 3905}, false},
+		{"the flag true and an id", map[string]any{"vlan_enabled": true, "vlan": 3906}, true},
+	} {
+		doc := map[string]any{"name": "vlan-matrix", "purpose": PurposeCorporate}
+		for wire, v := range tc.keys {
+			doc[wire] = v
+		}
+		v := sweep.attempt(ctx, t, doc, corporate)
+		switch {
+		case v.accepted && !tc.accept:
+			t.Errorf("a corporate create carrying %s was accepted; the vlan entries in the recorded "+
+				"required set rest on it being refused", tc.what)
+		case !v.accepted && tc.accept:
+			t.Fatalf("a corporate create carrying %s was refused (%s); that is the one combination "+
+				"the whole matrix reads the others against", tc.what, v.why)
+		case !v.accepted && !strings.Contains(v.why, "api.err.VlanUsed"):
+			t.Errorf("a corporate create carrying %s was refused with %s, not api.err.VlanUsed; the "+
+				"refusal is about something other than the VLAN and the reading below does not hold",
+				tc.what, v.why)
+		default:
+			t.Logf("corporate create carrying %-26s accepted=%v %s", tc.what, v.accepted, v.why)
+		}
+	}
+
+	// The control. Without it, api.err.VlanUsed above is just a code that
+	// happens to mention VLANs.
+	held := map[string]any{
+		"name": "vlan-collision-a", "purpose": PurposeCorporate,
+		"vlan_enabled": true, "vlan": 3907,
+	}
+	body, status, err := s.PostJSON(ctx, path, held)
+	if status/100 != 2 {
+		t.Fatalf("seeding a network on VLAN 3907 failed (HTTP %d): %v %v", status, body, err)
+	}
+	if id := objectID(firstData(t, body)); id != "" {
+		defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	second := clone(held)
+	second["name"] = "vlan-collision-b"
+	dup, dupStatus, _ := s.PostJSON(ctx, path, second)
+	if id := objectID(firstData(t, dup)); id != "" && dupStatus/100 == 2 {
+		s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	if code := v1ErrCode(dup); dupStatus/100 == 2 || code != "api.err.VlanUsed" {
+		t.Errorf("a second network on VLAN 3907 answered HTTP %d %q; api.err.VlanUsed was measured "+
+			"as the collision code, and the matrix above is read as collisions because of it",
+			dupStatus, code)
+	} else {
+		t.Logf("a second network on a held VLAN draws %s -- the matrix above is collisions, not "+
+			"missing fields", code)
+	}
+
+	// The occupant.
+	lanID := defaultLANNetworkID(ctx, t, s, site)
+	if lanID == "" {
+		t.Fatal("the site has no corporate network, so nothing here says what holds the untagged slot")
+	}
+	lan := v1Read(ctx, t, s, path, lanID)
+	if lan["vlan_enabled"] == true {
+		t.Fatalf("the site's default network is on VLAN %v, so it does not hold the untagged slot and "+
+			"the refusals above have some other cause", lan["vlan"])
+	}
+	moved := clone(lan)
+	moved["vlan_enabled"] = true
+	moved["vlan"] = 3908
+	if after, moveStatus, _ := s.PutJSON(ctx, path+"/"+lanID, moved); moveStatus/100 == 2 {
+		t.Errorf("the default network moved onto a VLAN (HTTP %d); the untagged slot can then be "+
+			"freed and vlan is not required on a site whose owner does so", moveStatus)
+		s.PutJSON(ctx, path+"/"+lanID, lan) //nolint:errcheck
+	} else {
+		t.Logf("the default network refuses to move onto a VLAN (HTTP %d, %s)", moveStatus, v1ErrCode(after))
+	}
+	deleted, deleteStatus, _ := s.DeleteJSON(ctx, path+"/"+lanID)
+	stillThere := len(v1Read(ctx, t, s, path, lanID)) > 0
+	if deleteStatus/100 == 2 || !stillThere {
+		t.Errorf("the default network was deleted (HTTP %d, still served: %v); the untagged slot can "+
+			"then be freed and the vlan requirement does not hold on every site",
+			deleteStatus, stillThere)
+	} else {
+		t.Logf("the default network refuses to be deleted (HTTP %d, %s) and is still served -- the "+
+			"untagged slot is taken on every site", deleteStatus, v1ErrCode(deleted))
+	}
+}
+
+// TestIntegrationWLANWriteContract measures the other resource the artifact
+// described everywhere except where it is written. WLAN already has entries
+// under ownership, replays and uos_pins; the verb, the path and the
+// required-on-create set had never been recorded.
+//
+// It owns the artifact's writes["WLAN"] entry outright.
+//
+// One field is required on every create -- ap_group_ids, and a present list
+// must name a group -- and one more is required on two of the five security
+// modes, so the answer is again per branch. What is NOT required is the
+// surprise: a WPA-PSK SSID with no passphrase creates, and so does an SSID
+// with no security and no name.
+func TestIntegrationWLANWriteContract(t *testing.T) {
+	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
+
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+
+	const (
+		createRel = "api/s/{site}/rest/wlanconf"
+		updateRel = "api/s/{site}/rest/wlanconf/{id}"
+	)
+	path := "/api/s/" + c.Site + "/rest/wlanconf"
+
+	if body, status, err := s.GetJSON(ctx, path); status != 200 {
+		t.Fatalf("GET %s answered HTTP %d (%v %v); the collection is not served, so nothing below "+
+			"measures the write contract", path, status, body, err)
+	}
+
+	apGroup := firstAPGroupID(ctx, t, s, c.Site)
+	if apGroup == "" {
+		t.Fatal("the site offers no AP group; every WLAN create would fail for the wrong reason")
+	}
+	// The enterprise modes authenticate against the site's own RADIUS
+	// server, and the controller refuses the SSID outright
+	// (api.err.RadiusServerNotEnabled) while it is off -- before it gets as
+	// far as saying anything about the fields. A prerequisite, not a
+	// requirement: it has to be satisfied for the wpaeap and osen sweeps
+	// below to be measuring their own bodies.
+	setSiteRadiusEnabled(ctx, t, s, c.Site, true)
+	radiusProfile := builtinRadiusProfileID(ctx, t, s, c.Site)
+
+	unknownKeyStripped(ctx, t, s, path, map[string]any{
+		"name": "write-contract-unknown-key", "security": "open",
+		"ap_group_ids": []string{apGroup},
+	})
+
+	sweep := &createSweep{s: s, path: path, prefix: "wlan-contract"}
+	byBranch := map[string][]string{}
+	var psk createBranch
+	for _, branch := range wlanCreateBranches(apGroup, radiusProfile) {
+		if branch.selector["security"] == "wpapsk" {
+			psk = branch
+		}
+		_, required := sweep.reduce(ctx, t, branch.seed, branch.selector)
+		byBranch[createBranchKey(branch.selector)] = required
+	}
+
+	// ap_group_ids is required in every branch, but "required" only says the
+	// key has to be there. Whether it may be empty is its own measurement.
+	minItems := map[string]int{}
+	if n := listMinItems(ctx, t, sweep, psk.seed, psk.selector, "ap_group_ids"); n > 0 {
+		minItems["ap_group_ids"] = n
+	}
+
+	wlanPassphraseless(ctx, t, s, path, apGroup)
+
+	updateVerb, updatePath, requiredOnUpdate := v1UpdateContract(ctx, t, s, path, updateRel, map[string]any{
+		"name": "write-contract-update", "security": "open",
+		"ap_group_ids": []string{apGroup},
+	})
+
+	contract := behavior.WriteContract{
+		CreateVerb: "POST", CreatePath: createRel,
+		UpdateVerb: updateVerb, UpdatePath: updatePath,
+		RequiredOnCreate:     requiredInEveryBranch(byBranch),
+		RequiredOnCreateWhen: byBranch,
+		RequiredOnUpdate:     requiredOnUpdate,
+		MinItems:             minItems,
+	}
+
+	if behaviorWriteRequested() {
+		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+			if a.Writes == nil {
+				a.Writes = map[string]behavior.WriteContract{}
+			}
+			a.Writes["WLAN"] = contract
+		})
+		return
+	}
+
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok || art.Writes == nil {
+		t.Logf("no pinned write contracts in %s; run with BEHAVIOR_WRITE=1 to record the WLAN one",
+			behavior.Path)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, "WLAN", art.Writes, contract)
+}
+
+// wlanCreateBranches is one accepted body per security mode the collection
+// takes. All five are measured, not the two a caller is likeliest to write:
+// wpaeap and osen turn out to want a RADIUS profile that the other three do
+// not, and a set measured on wpapsk alone would have missed it.
+func wlanCreateBranches(apGroup, radiusProfile string) []createBranch {
+	base := func(security string) map[string]any {
+		return map[string]any{
+			"name": "x", "security": security, "enabled": true,
+			"ap_group_ids": []string{apGroup}, "ap_group_mode": "all",
+			"wlan_band": "both", "hide_ssid": false, "is_guest": false,
+			"vlan_enabled": false, "setting_preference": "manual",
+		}
+	}
+	psk := base("wpapsk")
+	psk["wpa_mode"] = "wpa2"
+	psk["wpa_enc"] = "ccmp"
+	psk["x_passphrase"] = "write-contract-probe"
+
+	eap := base("wpaeap")
+	eap["wpa_mode"] = "wpa2"
+	eap["wpa_enc"] = "ccmp"
+	eap["radiusprofile_id"] = radiusProfile
+
+	osen := base("osen")
+	osen["radiusprofile_id"] = radiusProfile
+
+	return []createBranch{
+		{selector: map[string]string{"security": "open"}, seed: base("open")},
+		{selector: map[string]string{"security": "wpapsk"}, seed: psk},
+		{selector: map[string]string{"security": "wep"}, seed: base("wep")},
+		{selector: map[string]string{"security": "wpaeap"}, seed: eap},
+		{selector: map[string]string{"security": "osen"}, seed: osen},
+	}
+}
+
+// wlanPassphraseless measures the create the reduction says is legal and
+// nobody would guess: security wpapsk with no x_passphrase, no wpa_mode and
+// no wpa_enc.
+//
+// It is accepted, and the SSID is stored with all three absent. Asserted
+// rather than recorded, for the same reason as the purposeless network: the
+// artifact's required_on_create can say a create was refused and nothing
+// else, and this one was not.
+func wlanPassphraseless(ctx context.Context, t *testing.T, s *controllertest.Session, path, apGroup string) {
+	t.Helper()
+	body, status, err := s.PostJSON(ctx, path, map[string]any{
+		"name": "write-contract-no-passphrase", "security": "wpapsk",
+		"ap_group_ids": []string{apGroup},
+	})
+	if status == 0 {
+		t.Fatalf("transport to %s: %v", path, err)
+	}
+	id := objectID(firstData(t, body))
+	if id != "" {
+		defer s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+	}
+	if status/100 != 2 {
+		t.Errorf("a wpapsk SSID with no passphrase was refused (HTTP %d, %s); it was measured being "+
+			"accepted, and the wpapsk branch's required set reads x_passphrase as optional because "+
+			"of it", status, v1ErrCode(body))
+		return
+	}
+	got, readStatus, err := s.GetJSON(ctx, path+"/"+id)
+	if readStatus != 200 {
+		t.Fatalf("GET %s/%s answered HTTP %d (%v)", path, id, readStatus, err)
+	}
+	stored := firstData(t, got)
+	for _, wire := range []string{"x_passphrase", "wpa_mode", "wpa_enc"} {
+		if v, present := stored[wire]; present {
+			t.Errorf("the passphrase-less wpapsk SSID stored %s=%v; it was measured storing none, and "+
+				"a controller that now fills one in has changed what the branch requires", wire, v)
+		}
+	}
+	t.Logf("LOUD: security wpapsk with no x_passphrase, wpa_mode or wpa_enc is accepted (HTTP %d) "+
+		"and stored with none of them: %v", status, sortedWireNames(stored))
 }

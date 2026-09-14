@@ -122,6 +122,23 @@ type WriteContract struct {
 	RequiredOnCreate []string `json:"required_on_create,omitempty"`
 	RequiredOnUpdate []string `json:"required_on_update,omitempty"`
 
+	// RequiredOnCreateWhen carries the requirements that hold only for part
+	// of a resource, keyed by the branch that selects them: a
+	// comma-separated list of wire field and value, sorted by field name
+	// ("purpose=site-vpn,vpn_type=ipsec-vpn", "security=wpaeap").
+	//
+	// A network's required set is not one set -- a WAN create may omit
+	// everything, an IPsec site-to-site create may not -- and flattening the
+	// branches into RequiredOnCreate would publish each branch's rules as
+	// though every create had to obey them. When this map is populated,
+	// RequiredOnCreate holds only what EVERY measured branch requires, so an
+	// empty RequiredOnCreate beside a populated map reads as "nothing is
+	// required unconditionally", not as "nobody measured it".
+	//
+	// Only RequiredOnCreate reaches the generator: a field required in one
+	// branch is optional in another, and a struct tag cannot say "sometimes".
+	RequiredOnCreateWhen map[string][]string `json:"required_on_create_when,omitempty"`
+
 	// MinItems: per list field, the measured smallest length a present list
 	// may carry. Distinct from RequiredOnCreate, which says whether the key
 	// may be omitted at all.
@@ -170,6 +187,9 @@ func Write(root string, a Artifact) error {
 	for _, w := range a.Writes {
 		sort.Strings(w.RequiredOnCreate)
 		sort.Strings(w.RequiredOnUpdate)
+		for k := range w.RequiredOnCreateWhen {
+			sort.Strings(w.RequiredOnCreateWhen[k])
+		}
 	}
 	raw, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {

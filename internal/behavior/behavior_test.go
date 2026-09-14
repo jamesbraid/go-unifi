@@ -34,6 +34,13 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 				CreateVerb: "POST", CreatePath: "rest/ospf",
 				MinItems: map[string]int{"areas[].network_ids": 1},
 			},
+			"Network": {
+				CreateVerb: "POST", CreatePath: "rest/networkconf",
+				RequiredOnCreateWhen: map[string][]string{
+					"purpose=corporate": {"vlan_enabled", "vlan"},
+					"purpose=wan":       {},
+				},
+			},
 		},
 	}
 	if err := Write(dir, want); err != nil {
@@ -54,6 +61,16 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 	if got.Coercions["SettingUsg"]["icmp_timeout"].Stored != "30" {
 		t.Errorf("coercion lost: %+v", got.Coercions)
+	}
+	// A branch measured to require nothing has to survive as an empty list.
+	// Losing it would make "no field is required for a WAN create" look like
+	// "nobody measured a WAN create".
+	when := got.Writes["Network"].RequiredOnCreateWhen
+	if branch, has := when["purpose=wan"]; !has || branch == nil || len(branch) != 0 {
+		t.Errorf("empty branch lost: %+v", when)
+	}
+	if branch := when["purpose=corporate"]; len(branch) != 2 || branch[0] != "vlan" {
+		t.Errorf("branch not sorted on write: %v", branch)
 	}
 }
 
