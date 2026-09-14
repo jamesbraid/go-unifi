@@ -8,13 +8,13 @@ import (
 	"github.com/ubiquiti-community/go-unifi/unifi/types"
 )
 
-// This is a v2 API object, manually coded.
-
-type DeviceTag struct {
-	ID               string   `json:"_id,omitempty"`
-	Name             string   `json:"name"`
-	MemberDeviceMacs []string `json:"member_device_macs"`
-}
+// DeviceTag is a v2 API object (see overrides/resources/DeviceTag.json).
+// The only published verbs are List, below, and the assignment command;
+// no single-tag get, create, update or delete has ever been measured
+// against a live controller, so the generator emits none of them either
+// (see handWrittenCRUD in cmd/fields/main.go) -- including the usual
+// generated masked-update helper, which would otherwise guess at an
+// unmeasured per-tag endpoint.
 
 type deviceTagAssignment struct {
 	Additions []string `json:"device_tag_additions"`

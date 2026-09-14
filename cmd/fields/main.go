@@ -1157,6 +1157,17 @@ var handWrittenCRUD = map[string]map[string]bool{
 		"Update": false,
 		"Delete": false,
 	},
+	"DeviceTag": {
+		// The only published verbs are ListDeviceTags and the
+		// device-tag-assignment command; no single-tag get/create/update/
+		// delete has ever been measured, so none of the generic CRUD
+		// shapes are emitted for it.
+		"List":   false,
+		"Get":    false,
+		"Create": false,
+		"Update": false,
+		"Delete": false,
+	},
 }
 
 // Exports reports whether the generator publishes the exported form of a CRUD

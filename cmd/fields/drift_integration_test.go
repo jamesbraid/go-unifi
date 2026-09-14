@@ -42,6 +42,7 @@ var v2Probes = []struct {
 	{"BgpConfig.json", "/v2/api/site/%s/bgp/config"},
 	{"ApGroups.json", "/v2/api/site/%s/apgroups"},
 	{"NetworkMembersGroup.json", "/v2/api/site/%s/network-members-groups"},
+	{"DeviceTag.json", "/v2/api/site/%s/device-tags"},
 }
 
 // TestIntegrationV2Drift compares the hand-written v2 schemas against what a
