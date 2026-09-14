@@ -228,7 +228,7 @@
           "wire": "frr_bgpd_config",
           "go_name": "Config",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "description",
@@ -246,7 +246,7 @@
           "wire": "uploaded_file_name",
           "go_name": "UploadedFileName",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -521,7 +521,7 @@
           "wire": "mac",
           "go_name": "MAC",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "name",
@@ -1480,7 +1480,7 @@
           "wire": "type",
           "go_name": "Type",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "width",
@@ -4948,7 +4948,7 @@
           "wire": "action",
           "go_name": "Action",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "dst_address",
@@ -5050,7 +5050,7 @@
           "wire": "ruleset",
           "go_name": "Ruleset",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "setting_preference",
@@ -9410,7 +9410,7 @@
           "wire": "ip",
           "go_name": "IP",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "port",
@@ -9422,7 +9422,7 @@
           "wire": "x_secret",
           "go_name": "Secret",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -9436,7 +9436,7 @@
           "wire": "ip",
           "go_name": "IP",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "port",
@@ -9448,7 +9448,7 @@
           "wire": "x_secret",
           "go_name": "Secret",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -9557,7 +9557,7 @@
           "wire": "static-route_network",
           "go_name": "StaticRouteNetwork",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "static-route_nexthop",
@@ -9569,13 +9569,13 @@
           "wire": "static-route_type",
           "go_name": "StaticRouteType",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "type",
           "go_name": "Type",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -9628,13 +9628,13 @@
           "wire": "action",
           "go_name": "Action",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "cron_expr",
           "go_name": "CronExpr",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "execute_only_once",
@@ -10083,7 +10083,7 @@
           "wire": "name",
           "go_name": "Name",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -10097,7 +10097,7 @@
           "wire": "mac",
           "go_name": "MAC",
           "go_type": "string",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "position",
@@ -10117,19 +10117,19 @@
           "wire": "x",
           "go_name": "X",
           "go_type": "float64",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "y",
           "go_name": "Y",
           "go_type": "float64",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "z",
           "go_name": "Z",
           "go_type": "float64",
-          "omit_empty": true
+          "omit_empty": false
         }
       ]
     },
@@ -25153,6 +25153,158 @@
     }
   },
   "behavior": {
+    "unifi.APGroup": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/apgroups",
+        "update_verb": "PUT",
+        "update_path": "v2/api/site/{site}/apgroups/{id}",
+        "required_on_create": [
+          "device_macs",
+          "name"
+        ]
+      }
+    },
+    "unifi.Account": {
+      "discarded": [],
+      "empty": {
+        "ip": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "tunnel_config_type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "tunnel_medium_type": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "tunnel_type": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "ulp_user_id": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "vlan": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_password": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/account",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/account/{id}"
+      }
+    },
+    "unifi.BGPConfig": {
+      "empty": {
+        "description": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/bgp/config",
+        "update_verb": "POST",
+        "update_path": "v2/api/site/{site}/bgp/config",
+        "required_on_create": [
+          "frr_bgpd_config",
+          "uploaded_file_name"
+        ]
+      }
+    },
+    "unifi.ChannelPlan": {
+      "discarded": [],
+      "empty": {
+        "date": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/channelplan",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/channelplan/{id}"
+      }
+    },
+    "unifi.Client": {
+      "empty": {
+        "name": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "network_id": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "note": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/user",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/user/{id}",
+        "required_on_create": [
+          "mac"
+        ],
+        "required_on_create_when": {
+          "local_dns_record_enabled=true": [
+            "local_dns_record",
+            "use_fixedip"
+          ],
+          "use_fixedip=true": [
+            "fixed_ip"
+          ]
+        }
+      }
+    },
+    "unifi.ClientGroup": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "qos_rate_max_down": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "qos_rate_max_up": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/usergroup",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/usergroup/{id}"
+      }
+    },
     "unifi.ContentFiltering": {
       "writes": {
         "create_verb": "POST",
@@ -25163,6 +25315,36 @@
           "categories",
           "name",
           "schedule"
+        ]
+      }
+    },
+    "unifi.DHCPOption": {
+      "discarded": [],
+      "empty": {
+        "code": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "width": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/dhcpoption",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/dhcpoption/{id}",
+        "required_on_create": [
+          "type"
         ]
       }
     },
@@ -25214,8 +25396,27 @@
         ]
       }
     },
-    "unifi.Device": {
+    "unifi.Dashboard": {
       "empty": {
+        "layout_preference": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      }
+    },
+    "unifi.Device": {
+      "discarded": [
+        "lcm_brightness"
+      ],
+      "empty": {
+        "led_override": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REPLACED-Gateway Enterprise",
+          "omit": "OMIT-KEEPS"
+        },
         "radio_table": {
           "empty": "EMPTY-IGNORED",
           "omit": "OMIT-KEEPS"
@@ -25223,10 +25424,44 @@
       },
       "ownership": {
         "port_overrides.setting_preference": []
+      },
+      "writes": {
+        "create_verb": "",
+        "create_path": "",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/device/{id}"
       }
     },
     "unifi.DevicePortOverrides": {
-      "discarded": []
+      "discarded": [],
+      "empty": {
+        "autoneg": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        },
+        "isolation": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        },
+        "name": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        },
+        "poe_mode": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-CLEARS"
+        },
+        "stp_port_mode": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-CLEARS"
+        }
+      },
+      "writes": {
+        "create_verb": "",
+        "create_path": "",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/device/{id}"
+      }
     },
     "unifi.DeviceRadioTable": {
       "discarded": [
@@ -25246,6 +25481,112 @@
         "required_on_update": [
           "name"
         ]
+      }
+    },
+    "unifi.DpiApp": {
+      "discarded": [],
+      "empty": {
+        "apps": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "blocked": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "cats": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "log": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "qos_rate_max_down": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "qos_rate_max_up": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/dpiapp",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/dpiapp/{id}"
+      }
+    },
+    "unifi.DpiGroup": {
+      "discarded": [],
+      "empty": {
+        "dpiapp_ids": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "enabled": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/dpigroup",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/dpigroup/{id}"
+      }
+    },
+    "unifi.DynamicDNS": {
+      "discarded": [],
+      "empty": {
+        "host_name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "interface": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "login": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "options": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "server": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "service": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_password": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/dynamicdns",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/dynamicdns/{id}",
+        "required_on_create_when": {
+          "service=custom": [
+            "server"
+          ]
+        }
       }
     },
     "unifi.FirewallGroup": {
@@ -25296,6 +25637,21 @@
       }
     },
     "unifi.FirewallRule": {
+      "discarded": [],
+      "empty": {
+        "dst_port": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "src_address": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
       "ownership": {
         "setting_preference": [
           "state_established",
@@ -25304,12 +25660,95 @@
       },
       "uos_pins": {
         "setting_preference": []
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/firewallrule",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/firewallrule/{id}",
+        "required_on_create": [
+          "action",
+          "rule_index",
+          "ruleset"
+        ]
       }
     },
     "unifi.FirewallZone": {
       "rejected_creates": {
         "status": 404,
         "stored": true
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/firewall/zone",
+        "update_verb": "PUT",
+        "update_path": "v2/api/site/{site}/firewall/zone/{id}"
+      }
+    },
+    "unifi.Hotspot2Conf": {
+      "discarded": [],
+      "empty": {
+        "domain_name_list": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "hessid": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "network_access_internet": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "network_auth_type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "network_type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "venue_group": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "venue_type": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/hotspot2conf",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/hotspot2conf/{id}"
+      }
+    },
+    "unifi.HotspotOp": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "note": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_password": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/hotspotop",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/hotspotop/{id}"
       }
     },
     "unifi.HotspotPackage": {
@@ -25545,6 +25984,31 @@
         }
       }
     },
+    "unifi.NetworkMembersGroup": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/network-members-group",
+        "update_verb": "PUT",
+        "update_path": "v2/api/site/{site}/network-members-group/{id}",
+        "required_on_create": [
+          "members",
+          "name",
+          "type"
+        ],
+        "required_on_update": [
+          "members",
+          "name",
+          "type"
+        ]
+      }
+    },
     "unifi.OSPFRouter": {
       "writes": {
         "create_verb": "POST",
@@ -25617,7 +26081,15 @@
       }
     },
     "unifi.PortProfile": {
+      "discarded": [
+        "excluded_networkconf_ids",
+        "fec_mode"
+      ],
       "empty": {
+        "dot1x_ctrl": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
         "forward": {
           "empty": "EMPTY-REJECTED",
           "omit": "OMIT-KEEPS"
@@ -25662,6 +26134,173 @@
       },
       "uos_pins": {
         "setting_preference": []
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/portconf",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/portconf/{id}"
+      }
+    },
+    "unifi.RADIUSProfile": {
+      "discarded": [],
+      "empty": {
+        "acct_servers": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "acct_servers.ip": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "acct_servers.x_secret": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "auth_servers": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "auth_servers.ip": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "auth_servers.x_secret": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "interim_update_interval": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "vlan_wlan_mode": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_ca_crts": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_client_crt": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_client_crt_filename": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_client_private_key": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_client_private_key_filename": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_client_private_key_password": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/radiusprofile",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/radiusprofile/{id}",
+        "required_on_create": [
+          "acct_servers.ip",
+          "acct_servers.x_secret",
+          "auth_servers.ip",
+          "auth_servers.x_secret"
+        ]
+      }
+    },
+    "unifi.Routing": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "static-route_distance": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/routing",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/routing/{id}",
+        "required_on_create": [
+          "static-route_network",
+          "static-route_type",
+          "type"
+        ],
+        "required_on_create_when": {
+          "static-route_type=blackhole": null,
+          "static-route_type=interface-route": [
+            "static-route_interface"
+          ],
+          "static-route_type=nexthop-route": [
+            "static-route_nexthop"
+          ]
+        }
+      }
+    },
+    "unifi.ScheduleTask": {
+      "discarded": [],
+      "empty": {
+        "cron_expr": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "name": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/scheduletask",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/scheduletask/{id}",
+        "required_on_create": [
+          "action",
+          "cron_expr"
+        ]
+      }
+    },
+    "unifi.SpatialRecord": {
+      "discarded": [],
+      "empty": {
+        "devices": {
+          "empty": "EMPTY-CLEARS",
+          "omit": "OMIT-KEEPS"
+        },
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/spatialrecord",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/spatialrecord/{id}",
+        "required_on_create": [
+          "devices",
+          "devices.mac",
+          "devices.position",
+          "devices.position.x",
+          "devices.position.y",
+          "devices.position.z",
+          "name"
+        ]
       }
     },
     "unifi.TrafficRoute": {
@@ -25810,7 +26449,28 @@
         }
       }
     },
+    "unifi.WLANGroup": {
+      "discarded": [],
+      "empty": {
+        "name": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "POST",
+        "create_path": "api/s/{site}/rest/wlangroup",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/rest/wlangroup/{id}"
+      }
+    },
     "unifi/settings.Dashboard": {
+      "empty": {
+        "layout_preference": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
       "ownership": {
         "layout_preference": [
           "widgets"
@@ -25818,6 +26478,30 @@
       },
       "uos_pins": {
         "layout_preference": []
+      },
+      "writes": {
+        "create_verb": "",
+        "create_path": "",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/set/setting/dashboard"
+      }
+    },
+    "unifi/settings.Mgmt": {
+      "empty": {
+        "x_ssh_password": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        },
+        "x_ssh_username": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-KEEPS"
+        }
+      },
+      "writes": {
+        "create_verb": "",
+        "create_path": "",
+        "update_verb": "PUT",
+        "update_path": "api/s/{site}/set/setting/mgmt"
       }
     },
     "unifi/settings.Ntp": {

@@ -33,7 +33,7 @@ type Client struct {
 	LastSeen                      *int64   `json:"last_seen,omitempty"`
 	LocalDNSRecord                string   `json:"local_dns_record,omitempty"`
 	LocalDNSRecordEnabled         bool     `json:"local_dns_record_enabled"`
-	MAC                           string   `json:"mac,omitempty"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
+	MAC                           string   `json:"mac"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
 	Name                          string   `json:"name,omitempty"`
 	NetworkID                     string   `json:"network_id,omitempty"`
 	NetworkMembersGroupIDs        []string `json:"network_members_group_ids,omitempty"`

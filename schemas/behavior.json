@@ -200,8 +200,46 @@
     "WLANGroup": []
   },
   "empty": {
+    "DevicePortOverrides": {
+      "autoneg": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "isolation": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "poe_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "stp_port_mode": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "DeviceRadioTable": {
       "tx_power_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "SettingDashboard": {
+      "layout_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "SettingMgmt": {
+      "x_ssh_password": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "x_ssh_username": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
@@ -246,7 +284,7 @@
         "omit": "OMIT-REJECTED"
       }
     },
-    "bgp": {
+    "bgp/config": {
       "description": {
         "empty": "EMPTY-CLEARS",
         "omit": "OMIT-CLEARS"
@@ -468,16 +506,6 @@
         "omit": "OMIT-KEEPS"
       }
     },
-    "mgmt": {
-      "x_ssh_password": {
-        "empty": "EMPTY-REJECTED",
-        "omit": "OMIT-KEEPS"
-      },
-      "x_ssh_username": {
-        "empty": "EMPTY-REJECTED",
-        "omit": "OMIT-KEEPS"
-      }
-    },
     "nat": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -570,28 +598,6 @@
       "setting_preference": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
-      }
-    },
-    "port_overrides": {
-      "autoneg": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
-      },
-      "isolation": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
-      },
-      "name": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
-      },
-      "poe_mode": {
-        "empty": "EMPTY-REJECTED",
-        "omit": "OMIT-CLEARS"
-      },
-      "stp_port_mode": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
       }
     },
     "portconf": {
@@ -756,12 +762,6 @@
         "omit": "OMIT-KEEPS"
       }
     },
-    "sitemgr": {
-      "desc": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
-      }
-    },
     "spatialrecord": {
       "devices": {
         "empty": "EMPTY-CLEARS",
@@ -842,12 +842,6 @@
       "qos_rate_max_up": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
-      }
-    },
-    "wireguardpeer": {
-      "name": {
-        "empty": "EMPTY-CLEARS",
-        "omit": "OMIT-CLEARS"
       }
     },
     "wlanconf": {
@@ -1257,12 +1251,6 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/set/setting/mgmt"
     },
-    "Site": {
-      "create_verb": "POST",
-      "create_path": "api/s/{site}/cmd/sitemgr",
-      "update_verb": "POST",
-      "update_path": "api/s/{site}/cmd/sitemgr"
-    },
     "SpatialRecord": {
       "create_verb": "POST",
       "create_path": "api/s/{site}/rest/spatialrecord",
@@ -1330,12 +1318,6 @@
       "create_path": "api/s/{site}/rest/wlangroup",
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/wlangroup/{id}"
-    },
-    "WireGuardPeer": {
-      "create_verb": "POST",
-      "create_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch",
-      "update_verb": "PUT",
-      "update_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch"
     }
   },
   "rejected_creates": {

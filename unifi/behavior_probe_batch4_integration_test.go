@@ -324,10 +324,14 @@ func TestIntegrationDevicePortOverridesWriteContract(t *testing.T) {
 		// Discarded is left untouched (nil): TestIntegrationDevicePortOverridesDiscard
 		// already owns that list, and this probe measures the write
 		// contract and empty/omit facts alongside it.
-		recordWrite(t, root, captured, "DevicePortOverrides", "port_overrides", contract, nil, measured)
+		// The Empty section is keyed "DevicePortOverrides" (the Go type
+		// name), not a lowercase collection alias: cmd/wirecontract only
+		// registers an api_paths alias for a type when one comes from the
+		// schema capture, and this nested type carries none.
+		recordWrite(t, root, captured, "DevicePortOverrides", "DevicePortOverrides", contract, nil, measured)
 		return
 	}
-	compareRecorded(t, root, running, "DevicePortOverrides", "port_overrides", contract, nil, measured)
+	compareRecorded(t, root, running, "DevicePortOverrides", "DevicePortOverrides", contract, nil, measured)
 }
 
 // TestIntegrationPortProfileWriteContract measures the port profile
@@ -550,10 +554,13 @@ func TestIntegrationSettingMgmtWriteContract(t *testing.T) {
 		UpdateVerb: "PUT", UpdatePath: "api/s/{site}/set/setting/mgmt",
 	}
 	if behaviorWriteRequested() {
-		recordWrite(t, root, captured, "SettingMgmt", "mgmt", contract, nil, measured)
+		// settings.Mgmt carries no api_paths alias in the wire contract
+		// (only generated: true types backed by a schema capture get one),
+		// so the Empty section has to key on SettingMgmt itself.
+		recordWrite(t, root, captured, "SettingMgmt", "SettingMgmt", contract, nil, measured)
 		return
 	}
-	compareRecorded(t, root, running, "SettingMgmt", "mgmt", contract, nil, measured)
+	compareRecorded(t, root, running, "SettingMgmt", "SettingMgmt", contract, nil, measured)
 }
 
 // TestIntegrationSettingDashboardWriteContract measures the dashboard
@@ -673,10 +680,16 @@ func TestIntegrationSettingDashboardWriteContract(t *testing.T) {
 		UpdateVerb: "PUT", UpdatePath: "api/s/{site}/set/setting/dashboard",
 	}
 	if behaviorWriteRequested() {
-		recordWrite(t, root, captured, "SettingDashboard", "dashboard", contract, nil, measured)
+		// "dashboard" is already claimed as an api_paths alias by the
+		// unrelated unifi.Dashboard REST-collection type (a separate Go
+		// type this file does not measure); keying this section on that
+		// string would silently attribute the settings singleton's data to
+		// the wrong type. SettingDashboard carries no alias of its own, so
+		// this uses the type name instead.
+		recordWrite(t, root, captured, "SettingDashboard", "SettingDashboard", contract, nil, measured)
 		return
 	}
-	compareRecorded(t, root, running, "SettingDashboard", "dashboard", contract, nil, measured)
+	compareRecorded(t, root, running, "SettingDashboard", "SettingDashboard", contract, nil, measured)
 }
 
 // TestIntegrationSiteWriteContract measures the site command surface
@@ -687,7 +700,7 @@ func TestIntegrationSettingDashboardWriteContract(t *testing.T) {
 // controller rather than trusted.
 func TestIntegrationSiteWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 30*time.Minute)
-	root, captured, running := behaviorGate(ctx, t, s, c.Site)
+	_, _, _ = behaviorGate(ctx, t, s, c.Site) // gates the controller version; nothing here writes to the artifact -- see below
 
 	cmdPath := "/api/s/" + c.Site + "/cmd/sitemgr"
 
@@ -784,15 +797,18 @@ func TestIntegrationSiteWriteContract(t *testing.T) {
 		t.Fatalf("delete-site with the real _id was rejected (HTTP %d): %v", st, err)
 	}
 
-	contract := behavior.WriteContract{
-		CreateVerb: "POST", CreatePath: "api/s/{site}/cmd/sitemgr",
-		UpdateVerb: "POST", UpdatePath: "api/s/{site}/cmd/sitemgr",
-	}
-	if behaviorWriteRequested() {
-		recordWrite(t, root, captured, "Site", "sitemgr", contract, nil, measured)
-		return
-	}
-	compareRecorded(t, root, running, "Site", "sitemgr", contract, nil, measured)
+	// Not recorded into schemas/behavior.json: Site is hand-written
+	// (sites.go), not generated from a schema capture, and cmd/wirecontract
+	// only assigns a resource key to generated types -- confirmed by
+	// running go generate against a Writes["Site"] entry, which failed with
+	// "names \"Site\", which no type in the artifact claims". The verb and
+	// path (POST api/s/{site}/cmd/sitemgr for all three commands) and the
+	// desc empty/omit verdict above are real, measured facts; they just
+	// have nowhere in the generated pipeline to land, so they stay in this
+	// test's own log and doc comment instead of the artifact.
+	t.Logf("Site write surface (not recorded into the artifact -- see comment above): "+
+		"create/update/delete all POST api/s/{site}/cmd/sitemgr; desc empty=%s omit=%s",
+		measured["desc"].Empty, measured["desc"].Omit)
 }
 
 // siteDescByID reads one site's desc by id via ListSites. t.Fatal if the
