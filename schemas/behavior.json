@@ -161,6 +161,9 @@
     "ClientGroup": [],
     "DHCPOption": [],
     "DNSRecord": [],
+    "Device": [
+      "lcm_brightness"
+    ],
     "DevicePortOverrides": [],
     "DeviceRadioTable": [
       "dfs"
@@ -185,6 +188,10 @@
     ],
     "NetworkMembersGroup": [],
     "PortForward": [],
+    "PortProfile": [
+      "excluded_networkconf_ids",
+      "fec_mode"
+    ],
     "RADIUSProfile": [],
     "Routing": [],
     "ScheduleTask": [],
@@ -245,7 +252,21 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "dashboard": {
+      "layout_preference": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "device": {
+      "led_override": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REPLACED-Gateway Enterprise",
+        "omit": "OMIT-KEEPS"
+      },
       "radio_table": {
         "empty": "EMPTY-IGNORED",
         "omit": "OMIT-KEEPS"
@@ -441,6 +462,16 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "mgmt": {
+      "x_ssh_password": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "x_ssh_username": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "nat": {
       "description": {
         "empty": "EMPTY-CLEARS",
@@ -535,7 +566,33 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "port_overrides": {
+      "autoneg": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "isolation": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      },
+      "poe_mode": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-CLEARS"
+      },
+      "stp_port_mode": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "portconf": {
+      "dot1x_ctrl": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
       "forward": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
@@ -691,6 +748,12 @@
       "name": {
         "empty": "EMPTY-CLEARS",
         "omit": "OMIT-KEEPS"
+      }
+    },
+    "sitemgr": {
+      "desc": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
       }
     },
     "spatialrecord": {
@@ -922,6 +985,18 @@
         "value"
       ]
     },
+    "Device": {
+      "create_verb": "",
+      "create_path": "",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/device/{id}"
+    },
+    "DevicePortOverrides": {
+      "create_verb": "",
+      "create_path": "",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/device/{id}"
+    },
     "DeviceRadioTable": {
       "create_verb": "",
       "create_path": "",
@@ -1094,6 +1169,12 @@
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/portforward/{id}"
     },
+    "PortProfile": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/portconf",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/portconf/{id}"
+    },
     "RADIUSProfile": {
       "create_verb": "POST",
       "create_path": "api/s/{site}/rest/radiusprofile",
@@ -1135,6 +1216,24 @@
         "action",
         "cron_expr"
       ]
+    },
+    "SettingDashboard": {
+      "create_verb": "",
+      "create_path": "",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/set/setting/dashboard"
+    },
+    "SettingMgmt": {
+      "create_verb": "",
+      "create_path": "",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/set/setting/mgmt"
+    },
+    "Site": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/cmd/sitemgr",
+      "update_verb": "POST",
+      "update_path": "api/s/{site}/cmd/sitemgr"
     },
     "SpatialRecord": {
       "create_verb": "POST",
