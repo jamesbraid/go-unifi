@@ -82,7 +82,7 @@ func maskedBody(d any, fields []string) (json.RawMessage, error) {
 			unknown = append(unknown, wire)
 			continue
 		}
-		zero, err := zeroJSONFor(field)
+		zero, err := zeroJSONFor(d, wire, field)
 		if err != nil {
 			return nil, fmt.Errorf("masked write cannot express a zero value for %q: %w", wire, err)
 		}
@@ -240,9 +240,34 @@ func setNonZero(v reflect.Value) bool {
 // A nil slice or map is rendered as an empty one rather than null, matching
 // what nil_as_empty does on the fields the controller rejects nulls for: a
 // caller selecting a list field means "no members", not "unset".
-func zeroJSONFor(field reflect.StructField) (json.RawMessage, error) {
+//
+// A nil *string is null, with one measured exception. null is the zero
+// value of a pointer in Go and encoding/json's own choice for it, and that
+// is what a masked write sends for a *string the caller left nil -- but
+// 10.6.101 refuses null on every *string field probed (domain_name and each
+// of the eight DHCP slots in networkClearableSlots, plus networkgroup,
+// which is not a member) with api.err.InvalidValue, where "" is accepted
+// and, for the measured clearable slots, clears the field.
+//
+// Sending "" for every nil *string instead would not be a bigger version of
+// this fix: measured against networkgroup, it fails the same write with the
+// same code, just for its own pattern instead of the null it does not
+// permit either -- so the blanket change would not turn any additional
+// rejection into an acceptance, and nothing has measured what a *string
+// field on some type this package does not yet generate would do with an
+// unexpected "". Network is, today, the only generated type with a *string
+// field at all (checked against every generated struct in this package), so
+// this reduces to exactly the fields already known to clear on "" for the
+// unmasked write -- reusing networkClearableSlots rather than keeping a
+// second list that could drift from it.
+func zeroJSONFor(d any, wire string, field reflect.StructField) (json.RawMessage, error) {
 	typ := field.Type
 	if typ.Kind() == reflect.Pointer {
+		if typ.Elem().Kind() == reflect.String {
+			if _, ok := d.(*Network); ok && networkClearableSlots[wire] {
+				return json.Marshal("")
+			}
+		}
 		return json.RawMessage("null"), nil
 	}
 
