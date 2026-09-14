@@ -12,8 +12,7 @@ import (
 // TestIntegrationDHCPSlotsClearWithAnEmptyString pins the behaviour the
 // encoder's clearableSlots exception rests on, through the public client.
 //
-// Two facts, opposite to the rule that governs every other optional string
-// in this encoder:
+// Two facts:
 //
 //   - omitting a slot leaves the stored value alone, so omission is not a
 //     way to clear one
@@ -22,6 +21,13 @@ import (
 // Which is why these eight fields are *string and are not wrapped in
 // nilIfEmpty: a caller emptying a DHCP DNS, NTP or WINS list has no other
 // way to say so.
+//
+// The first fact was once thought peculiar to these eight, and this test was
+// written to guard the peculiarity. It is not peculiar. Every field on every
+// collection TestIntegrationClearingSemantics sweeps preserves on omission;
+// these were simply the ones measured with an instrument that could see it.
+// What still singles them out is the second fact -- most fields reject ""
+// rather than clearing on it.
 func TestIntegrationDHCPSlotsClearWithAnEmptyString(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 15*time.Minute)
 	client := harnessClient(ctx, t, c)

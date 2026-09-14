@@ -18,34 +18,39 @@ import (
 // This rule was originally per-field, driven by the schema pattern: drop the
 // empty string where the pattern refused one, keep it where the pattern
 // allowed one, on the reasoning that "" was the caller's only way to clear
-// such a field. TestIntegrationClearingSemantics measured both halves of
-// that and found them wrong:
+// such a field. What replaced it was a blanket drop, justified by a
+// measurement that said omitting a key clears the stored value -- so
+// dropping a field could never be worse than sending it empty.
 //
-//   - Omitting a key clears the stored value. PUT is a full document
-//     replace, not a merge, on all 39 fields probed across three resources.
-//     So dropping a field is never worse than sending it empty.
-//   - The pattern does not predict what the controller accepts. dhcpd_gateway,
-//     dhcpd_ntp_1, dhcpd_boot_server, dhcpd_start and dhcpd_stop all carry ^$
-//     in their published pattern and all reject "". The controller is
-//     stricter than its own schema.
+// That justification is gone. TestIntegrationClearingSemantics was taking
+// its verdicts from the PUT's own response, which a v1 write that changed
+// nothing answers with an empty data array, so a preserved field read as a
+// cleared one. Re-measured against a re-read of the stored document on
+// 10.6.101: the v1 rest PUT MERGES. An omitted key preserves the stored
+// value on 39 of the 42 fields swept across four collections, and the three
+// that do not preserve do something else again -- they do not clear on
+// omission either, bar one.
 //
-// Which left one rule: an optional *string that is empty is absent. It
-// clears the field just the same, and it never hands the controller a value
-// it refuses.
+// So dropping an empty field is not free. Where the controller accepts ""
+// and clears (domain_name and mac_override among them), a caller who empties
+// the field gets a 200 and no change. That is a live defect in this encoder,
+// recorded rather than fixed here: mac_override is a plain string, so it
+// cannot carry "the caller asked for empty" at all until the generated field
+// becomes a pointer.
 //
-// That rule now has exactly one class of exception, measured on 10.6.101 and
-// listed in clearableSlots below. The eight DHCP slot fields behave the
-// opposite way round: omitting one PRESERVES the stored value, and sending
-// "" is what clears it. Seven of the eight accept "" outright; dhcpd_ntp_1
-// accepts it only in a write that also turns dhcpd_ntp_enabled off, which is
-// a pairing constraint rather than a refusal.
+// The one thing the blanket drop still buys is safety. The pattern does not
+// predict what the controller accepts -- dhcpd_gateway, dhcpd_ntp_1,
+// dhcpd_boot_server, dhcpd_start and dhcpd_stop all carry ^$ in their
+// published pattern and all reject "" -- and for those, dropping the empty
+// is what keeps the write from being refused.
 //
-// So for those eight, dropping the empty string is not a harmless
-// simplification -- it is the reason a caller could not empty a DHCP DNS,
-// NTP or WINS list at all. They are sent as "" deliberately.
-//
-// Nothing else is exempt. The other optional strings were never measured
-// this way, and the rule stands for them until they are.
+// clearableSlots below is where the encoder does send "". The eight DHCP
+// slots are not special in their omit behaviour any more; nothing is. They
+// are listed because they accept "" and clear, and a caller emptying a DHCP
+// DNS, NTP or WINS list has no other way to say so. Seven accept ""
+// outright; dhcpd_ntp_1 accepts it only in a write that also turns
+// dhcpd_ntp_enabled off, which is a pairing constraint rather than a
+// refusal.
 
 // newPointerStringNetwork returns a Network whose every *string field points
 // at value, with Purpose set.
@@ -88,6 +93,11 @@ func marshalKeys(t *testing.T, n *Network) map[string]any {
 // rather than a habit. Every entry was measured on 10.6.101 by seeding a
 // corporate network with all eight populated, then writing each one back
 // both ways.
+//
+// The list is short because these eight were measured, not because they are
+// the only fields it applies to. Every collection the clearing probe sweeps
+// merges on PUT, so any field the controller clears on "" belongs here on
+// the same reasoning.
 var clearableSlots = map[string]bool{
 	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
 	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
@@ -137,9 +147,13 @@ func TestNetworkEncoderDropsEmptyStrings(t *testing.T) {
 
 				if sendsEmpty {
 					t.Errorf("%s is emitted as \"\" for an unset pointer; wrap it in nilIfEmpty. "+
-						"Omitting it clears the field just the same, and several fields reject "+
-						"\"\" outright. If this field is one a caller has to clear explicitly, "+
-						"measure it and add it to clearableSlots rather than removing the wrap.", wire)
+						"That is not free -- omitting the key preserves the stored value on this "+
+						"controller, so a caller who empties a field the controller would have "+
+						"cleared gets a 200 and no change -- but several fields reject \"\" "+
+						"outright and the drop is what keeps the write from being refused. If "+
+						"this field is one a caller has to clear explicitly, check what "+
+						"schemas/behavior.json records for it and add it to clearableSlots "+
+						"rather than removing the wrap.", wire)
 				}
 			}
 		})

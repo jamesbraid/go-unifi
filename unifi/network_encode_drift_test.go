@@ -73,16 +73,23 @@ func TestPurposeEncodersDoNotDropFalseBools(t *testing.T) {
 // it, so a caller emptying a DNS list could not say so. They are *string
 // now, and an explicit empty reaches the wire -- see clearableSlots in
 // network_encode_empty_test.go.
+//
+// The two that remain are measured too, and stay for reasons the
+// measurement gave rather than for want of one. dhcpd_boot_server rejects
+// ""; dropping it is correct. mac_override accepts "" and clears on it, so
+// dropping the empty is a real defect -- but the generated field is a plain
+// string, and sending "" unconditionally would clear mac_override on every
+// write. Fixing it means making the field a pointer first.
 func TestKnownStringOmitemptyDriftIsUnchanged(t *testing.T) {
-	awaitingControllerMeasurement := map[string]bool{
+	droppedEmptyByMeasurement := map[string]bool{
 		"dhcpd_boot_server": true,
 		"mac_override":      true,
 	}
 
-	if !maps.Equal(networkEmptyStringOmitted, awaitingControllerMeasurement) {
-		t.Errorf("networkEmptyStringOmitted = %v, want %v; an entry only joins with a "+
-			"controller measurement of what an explicit \"\" does, and only leaves with one",
-			networkEmptyStringOmitted, awaitingControllerMeasurement)
+	if !maps.Equal(networkEmptyStringOmitted, droppedEmptyByMeasurement) {
+		t.Errorf("networkEmptyStringOmitted = %v, want %v; an entry only joins or leaves with a "+
+			"controller measurement of what an explicit \"\" does",
+			networkEmptyStringOmitted, droppedEmptyByMeasurement)
 	}
 
 	// An entry is only meaningful for a field the generated struct would
