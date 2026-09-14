@@ -32,11 +32,13 @@ import (
 // omission either, bar one.
 //
 // So dropping an empty field is not free. Where the controller accepts ""
-// and clears (domain_name and mac_override among them), a caller who empties
-// the field gets a 200 and no change. That is a live defect in this encoder,
-// recorded rather than fixed here: mac_override is a plain string, so it
-// cannot carry "the caller asked for empty" at all until the generated field
-// becomes a pointer.
+// and clears, a caller who empties the field gets a 200 and no change.
+// domain_name was in that position and is not any more -- it is a *string,
+// so it can say "empty" without saying it on every write, and it joined
+// clearableSlots below. mac_override cannot: it is a plain string, which
+// cannot carry "the caller asked for empty" at all. Clearing that one goes
+// through UpdateNetworkFields, which force-sends the zero value of a field
+// the mask names.
 //
 // The one thing the blanket drop still buys is safety. The pattern does not
 // predict what the controller accepts -- dhcpd_gateway, dhcpd_ntp_1,
@@ -44,11 +46,11 @@ import (
 // published pattern and all reject "" -- and for those, dropping the empty
 // is what keeps the write from being refused.
 //
-// clearableSlots below is where the encoder does send "". The eight DHCP
-// slots are not special in their omit behaviour any more; nothing is. They
-// are listed because they accept "" and clear, and a caller emptying a DHCP
-// DNS, NTP or WINS list has no other way to say so. Seven accept ""
-// outright; dhcpd_ntp_1 accepts it only in a write that also turns
+// clearableSlots below is where the encoder does send "". These nine are
+// not special in their omit behaviour; nothing is. They are listed because
+// they accept "" and clear, and a caller emptying a DHCP DNS, NTP or WINS
+// slot, or a network's search domain, has no other way to say so. Eight
+// accept "" outright; dhcpd_ntp_1 accepts it only in a write that also turns
 // dhcpd_ntp_enabled off, which is a pairing constraint rather than a
 // refusal.
 
@@ -94,14 +96,15 @@ func marshalKeys(t *testing.T, n *Network) map[string]any {
 // corporate network with all eight populated, then writing each one back
 // both ways.
 //
-// The list is short because these eight were measured, not because they are
-// the only fields it applies to. Every collection the clearing probe sweeps
-// merges on PUT, so any field the controller clears on "" belongs here on
-// the same reasoning.
+// The list is short because these were measured, not because they are the
+// only fields it applies to. Every collection the clearing probe sweeps
+// merges on PUT, so any *string field the controller clears on "" belongs
+// here on the same reasoning -- which is how domain_name joined them.
 var clearableSlots = map[string]bool{
 	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
 	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
 	"dhcpd_wins_1": true, "dhcpd_wins_2": true,
+	"domain_name": true,
 }
 
 // TestNetworkEncoderDropsEmptyStrings fails when the encoder puts an empty

@@ -74,12 +74,19 @@ func TestPurposeEncodersDoNotDropFalseBools(t *testing.T) {
 // now, and an explicit empty reaches the wire -- see clearableSlots in
 // network_encode_empty_test.go.
 //
+// domain_name came off it on 2026-09-13, for the same reason and with the
+// same evidence: 10.6.101 clears it on "" and preserves it on omission, and
+// the generated field is already a *string, so an explicit empty can reach
+// the wire without every write carrying one.
+//
 // The two that remain are measured too, and stay for reasons the
 // measurement gave rather than for want of one. dhcpd_boot_server rejects
-// ""; dropping it is correct. mac_override accepts "" and clears on it, so
-// dropping the empty is a real defect -- but the generated field is a plain
-// string, and sending "" unconditionally would clear mac_override on every
-// write. Fixing it means making the field a pointer first.
+// ""; dropping it is correct. mac_override accepts "" and clears on it, and
+// the generated field is a plain string, so sending "" unconditionally would
+// clear it on every write -- a caller who wants it cleared says so with
+// UpdateNetworkFields instead. Letting the unmasked write express it means
+// making the field a *string, which is a breaking change to an exported
+// field and belongs with the next major bump.
 func TestKnownStringOmitemptyDriftIsUnchanged(t *testing.T) {
 	droppedEmptyByMeasurement := map[string]bool{
 		"dhcpd_boot_server": true,
