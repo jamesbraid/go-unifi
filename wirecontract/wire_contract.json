@@ -3984,7 +3984,8 @@
     "unifi.DeviceTag": {
       "package": "unifi",
       "go_name": "DeviceTag",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "DeviceTag",
       "fields": [
         {
           "wire": "_id",
@@ -3993,15 +3994,15 @@
           "omit_empty": true
         },
         {
-          "wire": "name",
-          "go_name": "Name",
-          "go_type": "string",
-          "omit_empty": false
-        },
-        {
           "wire": "member_device_macs",
           "go_name": "MemberDeviceMacs",
           "go_type": "[]string",
+          "omit_empty": false
+        },
+        {
+          "wire": "name",
+          "go_name": "Name",
+          "go_type": "string",
           "omit_empty": false
         }
       ]

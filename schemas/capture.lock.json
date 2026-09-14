@@ -14,10 +14,10 @@
   },
   "inputs": {
     "extraction_rules_sha256": "531bd12eece41c3f8c3d9b3565475eb85c148c27f5af52c510c375d7e217e1ac",
-    "generator_inputs_sha256": "a9cf1c59705270c781f14f2670848784e79dcbf6709b2c09f59ebe24e8ba0440"
+    "generator_inputs_sha256": "f187af11d50ed6f22e57f68be2ab4cfab0f5f059e7e54deb3153b038147a3a74"
   },
   "snapshots": {
-    "structural_sha256": "06c87e0fe52c43b4963dd3510e311acad35e94a7b308fc7af3de1b79bb4e824d",
+    "structural_sha256": "ad10daf2038e616fb18bae96b51a2d50666d79542164ac7c5ad5756d41f4c9d7",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c",
     "field_documents": {
       ".extracted": "ec8dcc2cf646e64d955eeb0c3bc026ac3dcca6e78a0b4953c7a97c06118a09b6",
@@ -30,6 +30,7 @@
       "ContentFiltering.json": "b9b0546b0c1f905bd9b86e12c6214f7d5fa9c6b83716a5f62479adf93e83d2f0",
       "Dashboard.json": "4eca0c67ccaafe1452b88026038e08610e8a571c37f479d5ed7e4b23277a2052",
       "Device.json": "ccc1e1c94ba68eabd306802b2870ad62e4ad4f374750db5db14d41c703e315e9",
+      "DeviceTag.json": "682f58064bdfba1acebfce7bfbb5d9371c290737b1165747a2290bd3642d5dae",
       "DhcpOption.json": "0989d421853ceb5579d1fdf78713373049e5fef44b447cdbde3c8947f4a2a388",
       "DnsRecord.json": "68c8a70830367e7b9d6156d1e0ef5b3945b53382e3b054031a7c3468b38fa10a",
       "DpiApp.json": "92533936120e6fb9adab31096e02365fc5b698f7f347a6d7e4998cf0a36bb51f",

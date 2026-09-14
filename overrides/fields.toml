@@ -393,3 +393,29 @@ omitempty = false
 # omitting the key.
 [WireGuardPeer.field.allowed_ips]
 omitempty = false
+
+# True-v2 object, no envelope.
+[DeviceTag.field.site_id]
+remove = true
+
+[DeviceTag.field.attr_hidden]
+remove = true
+
+[DeviceTag.field.attr_hidden_id]
+remove = true
+
+[DeviceTag.field.attr_no_delete]
+remove = true
+
+[DeviceTag.field.attr_no_edit]
+remove = true
+
+[DeviceTag.field.name]
+omitempty = false
+
+# Pin the Go name the hand-written type established; cleanName's Mac->MAC
+# rewrite would otherwise render member_device_macs as MemberDeviceMACs (see
+# the APGroup.field.device_macs precedent above).
+[DeviceTag.field.member_device_macs]
+name = "MemberDeviceMacs"
+omitempty = false
