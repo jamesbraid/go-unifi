@@ -6,8 +6,10 @@ import (
 	"go/format"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
+	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
 // The measured-behaviour artifact (schemas/behavior.json) is a generator
@@ -53,6 +55,107 @@ func createPathSegment(path string) string {
 		}
 	}
 	return ""
+}
+
+var (
+	writeContractsOnce sync.Once
+	writeContractsMap  map[string]behavior.WriteContract
+)
+
+// writeContracts lazily loads the writes section of schemas/behavior.json,
+// the same way preferenceTables loads the ownership sections: found via
+// fields.ModuleRoot, cached for the process. A missing artifact degrades to
+// an empty map, same as everywhere else the artifact is read.
+func writeContracts() map[string]behavior.WriteContract {
+	writeContractsOnce.Do(func() {
+		root := fields.ModuleRoot()
+		if root == "" {
+			panic("unable to locate the module root (go.mod) for schemas/behavior.json")
+		}
+		artifact, _, err := behavior.Load(root)
+		if err != nil {
+			panic(err)
+		}
+		writeContractsMap = artifact.Writes
+	})
+	return writeContractsMap
+}
+
+// v2 and v1 REST create paths are spelled with these prefixes; see the
+// create_path values in schemas/behavior.json.
+const (
+	v2CreatePathPrefix     = "v2/"
+	v1RESTCreatePathPrefix = "api/s/"
+)
+
+// v2MustMeasure names every StructName the hardcoded slice IsV2 used to
+// return true for, literally, before this file replaced it. isV2 does not
+// consult this map to decide its answer -- the measured create path always
+// does that -- it exists only so a regression is loud: if any of these ten
+// ever shows up with no measured create path, or with one that has moved to
+// v1 REST, that is a capture that stopped covering it, an artifact rebuilt
+// without a batch, or a rename, and generating the wrong client for it in
+// silence is worse than a generator that refuses to run and says which
+// resource broke.
+//
+// Confirmed against schemas/behavior.json: all ten measure with a "v2/"
+// create path today, and no other resource in the artifact does. This map
+// is expected to stay exactly this size; growing it back toward "every v2
+// resource" would just be the old hardcoded list wearing a panic.
+var v2MustMeasure = map[string]bool{
+	"APGroup":             true,
+	"BGPConfig":           true,
+	"ContentFiltering":    true,
+	"DNSRecord":           true,
+	"FirewallPolicy":      true,
+	"FirewallZone":        true,
+	"Nat":                 true,
+	"NetworkMembersGroup": true,
+	"OSPFRouter":          true,
+	"TrafficRoute":        true,
+}
+
+// isV2 reports whether structName's generated client targets the v2 API
+// surface, decided entirely by the measured create path: a "v2/" path is
+// v2, an "api/s/" path is v1 REST, and a resource with no measured contract
+// at all is an ordinary v1 resource nobody has ever flagged otherwise --
+// the same answer "not in the list" always meant.
+//
+// The one case that must never resolve that way in silence is one of the
+// ten resources v2MustMeasure names: those used to be true unconditionally,
+// and a derivation that quietly let one fall back to v1 because its
+// measurement went missing would generate the wrong client without saying
+// so. isV2 panics naming the resource instead, and the same for a measured
+// path that matches neither known shape -- guessing there is exactly the
+// failure mode this artifact exists to replace.
+func isV2(structName string, w behavior.WriteContract) bool {
+	switch {
+	case strings.HasPrefix(w.CreatePath, v2CreatePathPrefix):
+		return true
+	case strings.HasPrefix(w.CreatePath, v1RESTCreatePathPrefix):
+		if v2MustMeasure[structName] {
+			panic(fmt.Sprintf(
+				"%s is required to measure as v2 but its create path %q is v1 REST -- "+
+					"either it really moved to v1 REST (update v2MustMeasure to say so) "+
+					"or the measurement regressed",
+				structName, w.CreatePath))
+		}
+		return false
+	case w.CreatePath == "":
+		if v2MustMeasure[structName] {
+			panic(fmt.Sprintf(
+				"%s is required to measure as v2 but has no measured create path in "+
+					"schemas/behavior.json -- measure it before generating, do not let it "+
+					"fall back to v1 in silence",
+				structName))
+		}
+		return false
+	default:
+		panic(fmt.Sprintf(
+			"%s has a measured create path %q that is neither v2 (%q) nor v1 REST (%q) -- "+
+				"teach isV2 the new shape instead of guessing",
+			structName, w.CreatePath, v2CreatePathPrefix, v1RESTCreatePathPrefix))
+	}
 }
 
 // withRequiredOnCreate drops the omitempty tag from the fields the
