@@ -215,25 +215,26 @@ func TestIntegrationClearingThroughTheClient(t *testing.T) {
 		wantCleared(t, read(), "charged_as", `UpdateHotspotPackageFields naming "charged_as"`)
 	})
 
-	// A caller must still say "empty" with a pointer to "", even through a
-	// mask. A mask that names a *string the caller left nil sends JSON null,
-	// because null is the zero value of a pointer -- and 10.6.101 refuses
-	// that with api.err.InvalidValue where it would have accepted "".
+	// A caller must still be able to say "empty" with a pointer to "", even
+	// through a mask. A mask naming a *string the caller left nil used to
+	// send JSON null, because null is the zero value of a pointer -- and
+	// 10.6.101 refuses that with api.err.InvalidValue on every *string field
+	// measured, domain_name and each of the eight DHCP slots alike, where ""
+	// is accepted and, on these nine, clears the field.
 	//
-	// This corner is reachable on domain_name only because the encoder now
-	// emits its explicit "": before, the mask rejected the name client-side,
-	// since the probe that asks "would the encoder send this field" points
-	// the pointer at "" and watches the encoder drop it again. The same
-	// applies to the eight DHCP slots, which have always been in this
-	// position.
-	//
-	// Pinned rather than fixed. Making zeroJSONFor render "" for a *string
-	// would make the two write paths agree here, but it would change what
-	// every masked write on every type sends for a nil pointer, and nothing
-	// has measured what the other collections do with "" where they take
-	// null today -- trafficroutes stores null for a cleared string, so at
-	// least one of them means something by it. What matters for now is that
-	// the refusal is loud and the stored value survives it.
+	// zeroJSONFor now renders "" instead of null for exactly the fields in
+	// networkClearableSlots -- reusing that table rather than keeping a
+	// second one -- because that is the span the fix was measured over.
+	// Measured directly against the mask's own shape (an identity-plus-one-
+	// field PUT, not the full unmasked write networkClearableSlots was
+	// first measured through): null is refused for domain_name, a DHCP DNS
+	// slot and a DHCP WINS slot alike, "" is accepted and clears on all
+	// three, and "" against networkgroup -- a *string that is NOT in
+	// networkClearableSlots -- is refused too, on its own pattern, exactly
+	// as null already was. That last point is why the fix stops at the
+	// measured table instead of covering every *string: widening it would
+	// not have turned that rejection into an acceptance, only swapped which
+	// error the caller gets.
 	t.Run("networkconf/domain_name via a mask naming an unset pointer", func(t *testing.T) {
 		created, err := client.CreateNetwork(ctx, c.Site, &Network{
 			Name: strPtr("clear-client-domain-null"), Purpose: PurposeCorporate, Enabled: true,
@@ -247,15 +248,57 @@ func TestIntegrationClearingThroughTheClient(t *testing.T) {
 		read := networkReader(ctx, t, s, c.Site, created.ID)
 
 		net := mustGetNetwork(ctx, t, client, c.Site, created.ID)
+
+		// A mask naming a DIFFERENT field, with DomainName sitting nil on
+		// the same struct, must not touch it: zeroJSONFor only ever runs
+		// for a name the caller put in the mask, and this is what would
+		// break first if that stopped being true.
 		net.DomainName = nil
-		if _, err := client.UpdateNetworkFields(ctx, c.Site, net, "domain_name"); err == nil {
-			t.Errorf("a mask naming an unset domain_name was accepted, and the stored value is "+
-				"now %v. Measured on 10.6.101 it is refused with api.err.InvalidValue, because "+
-				"the mask sends null for a nil pointer. If this now works, the masked path can "+
-				"express the clear too and this test should say so.", read()["domain_name"])
+		net.Name = strPtr("clear-client-domain-null-renamed")
+		if _, err := client.UpdateNetworkFields(ctx, c.Site, net, "name"); err != nil {
+			t.Fatalf("UpdateNetworkFields naming only \"name\": %v", err)
 		}
-		wantStored(t, read(), "domain_name", "null.example",
-			"a mask the controller refused")
+		after := read()
+		wantWriteLanded(t, after, "name", "clear-client-domain-null-renamed")
+		wantStored(t, after, "domain_name", "null.example",
+			`a masked write that named "name" but left DomainName nil`)
+
+		net = mustGetNetwork(ctx, t, client, c.Site, created.ID)
+		net.DomainName = nil
+		if _, err := client.UpdateNetworkFields(ctx, c.Site, net, "domain_name"); err != nil {
+			t.Fatalf("a mask naming an unset domain_name was refused: %v. Measured on 10.6.101, "+
+				"the mask now renders \"\" for this field instead of null, and the controller "+
+				"clears on it -- see zeroJSONFor.", err)
+		}
+		wantCleared(t, read(), "domain_name", `UpdateNetworkFields naming "domain_name"`)
+	})
+
+	// networkgroup is a *string the mask can select but which is NOT in
+	// networkClearableSlots: measured above, "" fails it exactly as null
+	// did, on its own pattern rather than InvalidValue. The mask must still
+	// send null here -- the field survives either way, but only null is the
+	// behaviour anything has actually measured for it, and the surviving
+	// value is the point of the assertion.
+	t.Run("networkconf/networkgroup via a mask naming an unset pointer", func(t *testing.T) {
+		created, err := client.CreateNetwork(ctx, c.Site, &Network{
+			Name: strPtr("clear-client-networkgroup-null"), Purpose: PurposeCorporate, Enabled: true,
+			IPSubnet: strPtr("10.98.5.1/24"), VLANEnabled: true, VLAN: ptrInt64(985),
+			NetworkGroup: strPtr("LAN"),
+		})
+		if err != nil {
+			t.Fatalf("CreateNetwork: %v", err)
+		}
+		defer client.DeleteNetwork(context.WithoutCancel(ctx), c.Site, created.ID, "") //nolint:errcheck
+		read := networkReader(ctx, t, s, c.Site, created.ID)
+
+		net := mustGetNetwork(ctx, t, client, c.Site, created.ID)
+		net.NetworkGroup = nil
+		if _, err := client.UpdateNetworkFields(ctx, c.Site, net, "networkgroup"); err == nil {
+			t.Errorf("a mask naming an unset networkgroup was accepted, and the stored value is "+
+				"now %v. Measured on 10.6.101 both null and \"\" are refused here, so this "+
+				"field's masked write was expected to keep failing.", read()["networkgroup"])
+		}
+		wantStored(t, read(), "networkgroup", "LAN", "a mask the controller refused")
 	})
 }
 
