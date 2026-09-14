@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 	"github.com/ubiquiti-community/go-unifi/internal/fields"
 )
 
@@ -43,6 +44,18 @@ func withPreferences(t *testing.T, tables map[string]map[string]fields.Preferenc
 	saved := preferenceTablesMap
 	preferenceTablesMap = tables
 	t.Cleanup(func() { preferenceTablesMap = saved })
+	fn()
+}
+
+// withWriteContracts swaps the measured write-contract map IsV2 (and
+// applyWriteContract's caller) reads, the same way and with the same
+// no-t.Parallel caveat as withOverrides.
+func withWriteContracts(t *testing.T, contracts map[string]behavior.WriteContract, fn func()) {
+	t.Helper()
+	_ = writeContracts()
+	saved := writeContractsMap
+	writeContractsMap = contracts
+	t.Cleanup(func() { writeContractsMap = saved })
 	fn()
 }
 

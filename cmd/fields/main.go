@@ -1091,19 +1091,10 @@ func (r *ResourceInfo) IsSetting() bool {
 	return strings.HasPrefix(r.StructName, "Setting")
 }
 
+// IsV2 reports whether the generated client targets the v2 API surface.
+// Derived from the measured write contract; see isV2 in behavior.go.
 func (r *ResourceInfo) IsV2() bool {
-	return slices.Contains([]string{
-		"APGroup",
-		"BGPConfig",
-		"ContentFiltering",
-		"DNSRecord",
-		"FirewallPolicy",
-		"FirewallZone",
-		"Nat",
-		"NetworkMembersGroup",
-		"OSPFRouter",
-		"TrafficRoute",
-	}, r.StructName)
+	return isV2(r.StructName, writeContracts()[r.StructName])
 }
 
 // handWrittenCRUD names the CRUD methods whose exported form the

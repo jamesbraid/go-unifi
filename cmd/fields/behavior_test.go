@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/internal/behavior"
 )
 
@@ -348,6 +349,173 @@ func TestGeneratedCreatePath(t *testing.T) {
 		// own paths, which the same measurement recorded separately.
 		if strings.Contains(code, `v2/api/site/%s/content-filtering/create/%s"`) {
 			t.Error("the create sub-path leaked into a by-id path")
+		}
+	})
+}
+
+// retiredV2List is the literal slice IsV2 used to return, kept here word for
+// word so TestIsV2MatchesRetiredList has something fixed to check the
+// derivation against. It must never be updated to make a test pass -- if
+// isV2 disagrees with it, either isV2 is wrong or a name here has actually
+// changed API generation, and either way that is the finding, not a reason
+// to edit this list.
+var retiredV2List = []string{
+	"APGroup",
+	"BGPConfig",
+	"ContentFiltering",
+	"DNSRecord",
+	"FirewallPolicy",
+	"FirewallZone",
+	"Nat",
+	"NetworkMembersGroup",
+	"OSPFRouter",
+	"TrafficRoute",
+}
+
+// TestIsV2MatchesRetiredList is the proof that swapping the hardcoded slice
+// for a measured derivation did not move any generated output: for every
+// resource the real schemas/behavior.json artifact has a write contract
+// for, plus every name the retired list named, the derivation must agree
+// with what the literal slice used to answer. Today that is every name in
+// both sets -- schemas/behavior.json now measures a create path for all ten
+// retired names, and for none of them does it disagree.
+//
+// This is the one check in this file that reads the actual artifact
+// checked into the repo rather than a synthetic one, because the claim
+// being proven is specifically about today's real schemas/behavior.json.
+func TestIsV2MatchesRetiredList(t *testing.T) {
+	retired := make(map[string]bool, len(retiredV2List))
+	for _, name := range retiredV2List {
+		retired[name] = true
+	}
+
+	names := map[string]bool{}
+	for name := range retired {
+		names[name] = true
+	}
+	for name := range writeContracts() {
+		names[name] = true
+	}
+	if len(names) == 0 {
+		t.Fatal("no resources to check -- writeContracts() and retiredV2List are both empty")
+	}
+
+	for name := range names {
+		t.Run(name, func(t *testing.T) {
+			got := isV2(name, writeContracts()[name])
+			if want := retired[name]; got != want {
+				t.Errorf("isV2(%q) = %v, want %v (the retired list's answer)", name, got, want)
+			}
+		})
+	}
+}
+
+// TestV2MustMeasureIsFullyMeasured proves the loud path in isV2 has nothing
+// to catch today: every resource v2MustMeasure names has a measured create
+// path in the real artifact, and it is a v2 path. If either goes false for
+// some future name, isV2 itself would already panic during generation --
+// this test just says so on its own terms, without needing `go generate` to
+// find it first.
+func TestV2MustMeasureIsFullyMeasured(t *testing.T) {
+	contracts := writeContracts()
+	for name := range v2MustMeasure {
+		t.Run(name, func(t *testing.T) {
+			w, ok := contracts[name]
+			if !ok || w.CreatePath == "" {
+				t.Fatalf("%s is in v2MustMeasure but schemas/behavior.json has no measured create path for it", name)
+			}
+			if !strings.HasPrefix(w.CreatePath, v2CreatePathPrefix) {
+				t.Fatalf("%s is in v2MustMeasure but its measured create path %q is not v2", name, w.CreatePath)
+			}
+		})
+	}
+}
+
+// TestIsV2AgreesWithMeasuredPath is the guard the hardcoded list never had:
+// it walks every resource the real artifact has actually measured a create
+// path for and checks isV2's answer against the path's own prefix,
+// recomputed independently of isV2's internals. A future edit that makes
+// isV2 stop reading the path correctly fails here even if
+// TestIsV2MatchesRetiredList still passes, because that test's "no measured
+// path" branches do not exercise this comparison.
+func TestIsV2AgreesWithMeasuredPath(t *testing.T) {
+	contracts := writeContracts()
+	measuredAny := false
+	for name, w := range contracts {
+		if w.CreatePath == "" {
+			continue
+		}
+		measuredAny = true
+		t.Run(name, func(t *testing.T) {
+			want := strings.HasPrefix(w.CreatePath, "v2/")
+			var got bool
+			require.NotPanics(t, func() {
+				got = isV2(name, w)
+			}, "a measured, recognized create path must not panic")
+			if got != want {
+				t.Errorf("isV2(%q) = %v for create_path %q, want %v", name, got, w.CreatePath, want)
+			}
+		})
+	}
+	if !measuredAny {
+		t.Fatal("no resource in schemas/behavior.json has a measured create_path -- this test is not checking anything")
+	}
+}
+
+// TestIsV2 exercises the derivation directly against synthetic contracts,
+// independent of whatever schemas/behavior.json happens to hold today.
+func TestIsV2(t *testing.T) {
+	t.Run("a v2 measured path is v2", func(t *testing.T) {
+		require.True(t, isV2("Whatever", behavior.WriteContract{CreatePath: "v2/api/site/{site}/whatever"}))
+	})
+
+	t.Run("a v1 REST measured path is not v2", func(t *testing.T) {
+		require.False(t, isV2("Whatever", behavior.WriteContract{CreatePath: "api/s/{site}/rest/whatever"}))
+	})
+
+	t.Run("no measured path defaults to v1, same as not being in the old list", func(t *testing.T) {
+		require.False(t, isV2("Network", behavior.WriteContract{}))
+	})
+
+	t.Run("a must-measure resource with no measured path panics rather than fall back to v1", func(t *testing.T) {
+		require.Panics(t, func() {
+			isV2("APGroup", behavior.WriteContract{})
+		})
+	})
+
+	t.Run("a must-measure resource measuring out as v1 REST panics rather than flip in silence", func(t *testing.T) {
+		require.Panics(t, func() {
+			isV2("APGroup", behavior.WriteContract{CreatePath: "api/s/{site}/rest/apgroup"})
+		})
+	})
+
+	t.Run("an unrecognized path shape panics rather than guess", func(t *testing.T) {
+		require.Panics(t, func() {
+			isV2("Whatever", behavior.WriteContract{CreatePath: "POST-REJECTED-405"})
+		})
+	})
+}
+
+// TestIsV2ReadsTheRealArtifact locks IsV2 (the template-facing method) to
+// the writeContracts() global instead of some other, disconnected source --
+// the exact wiring mistake that would leave the method still returning the
+// pre-refactor answers for the wrong reason.
+func TestIsV2ReadsTheRealArtifact(t *testing.T) {
+	withWriteContracts(t, map[string]behavior.WriteContract{
+		"Thing": {CreatePath: "v2/api/site/{site}/things"},
+	}, func() {
+		r := NewResource("Thing", "things")
+		if !r.IsV2() {
+			t.Error("IsV2() = false for a resource with a v2 measured create path")
+		}
+	})
+
+	withWriteContracts(t, map[string]behavior.WriteContract{
+		"Thing": {CreatePath: "api/s/{site}/rest/thing"},
+	}, func() {
+		r := NewResource("Thing", "thing")
+		if r.IsV2() {
+			t.Error("IsV2() = true for a resource with a v1 REST measured create path")
 		}
 	})
 }
