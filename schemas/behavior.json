@@ -155,12 +155,17 @@
     }
   },
   "discarded": {
+    "APGroup": [],
+    "ClientGroup": [],
     "DNSRecord": [],
     "DevicePortOverrides": [],
     "DeviceRadioTable": [
       "dfs"
     ],
+    "DpiApp": [],
+    "DpiGroup": [],
     "FirewallGroup": [],
+    "HotspotOp": [],
     "HotspotPackage": [],
     "Network": [
       "dhcpd_dns_enabled",
@@ -182,9 +187,59 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "apgroups": {
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-REJECTED"
+      }
+    },
     "device": {
       "radio_table": {
         "empty": "EMPTY-IGNORED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "dpiapp": {
+      "apps": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "blocked": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "cats": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "log": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "qos_rate_max_down": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "qos_rate_max_up": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "dpigroup": {
+      "dpiapp_ids": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "enabled": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "name": {
+        "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
     },
@@ -206,6 +261,20 @@
         "omit": "OMIT-KEEPS"
       },
       "source": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "hotspotop": {
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "note": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "x_password": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
       }
@@ -432,6 +501,34 @@
         "omit": "OMIT-CLEARS"
       }
     },
+    "user": {
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "network_id": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      },
+      "note": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-KEEPS"
+      }
+    },
+    "usergroup": {
+      "name": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "qos_rate_max_down": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      },
+      "qos_rate_max_up": {
+        "empty": "EMPTY-REJECTED",
+        "omit": "OMIT-KEEPS"
+      }
+    },
     "wlanconf": {
       "ap_group_mode": {
         "empty": "EMPTY-REJECTED",
@@ -496,6 +593,40 @@
     "SettingUsg": {}
   },
   "writes": {
+    "APGroup": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/apgroups",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/apgroups/{id}",
+      "required_on_create": [
+        "device_macs",
+        "name"
+      ]
+    },
+    "Client": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/user",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/user/{id}",
+      "required_on_create": [
+        "mac"
+      ],
+      "required_on_create_when": {
+        "local_dns_record_enabled=true": [
+          "local_dns_record",
+          "use_fixedip"
+        ],
+        "use_fixedip=true": [
+          "fixed_ip"
+        ]
+      }
+    },
+    "ClientGroup": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/usergroup",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/usergroup/{id}"
+    },
     "ContentFiltering": {
       "create_verb": "POST",
       "create_path": "v2/api/site/{site}/content-filtering/create",
@@ -527,6 +658,18 @@
         "name"
       ]
     },
+    "DpiApp": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/dpiapp",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/dpiapp/{id}"
+    },
+    "DpiGroup": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/dpigroup",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/dpigroup/{id}"
+    },
     "FirewallGroup": {
       "create_verb": "POST",
       "create_path": "api/s/{site}/rest/firewallgroup",
@@ -546,6 +689,12 @@
         "destination.zone_id",
         "source.zone_id"
       ]
+    },
+    "HotspotOp": {
+      "create_verb": "POST",
+      "create_path": "api/s/{site}/rest/hotspotop",
+      "update_verb": "PUT",
+      "update_path": "api/s/{site}/rest/hotspotop/{id}"
     },
     "HotspotPackage": {
       "create_verb": "POST",
