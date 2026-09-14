@@ -17,24 +17,25 @@ import (
 )
 
 // TestIntegrationNatUpdateEmptyVsAbsentReread re-measures the three nat
-// fields TestIntegrationNatUpdateEmptyVsAbsent
-// (unifi/behavior_probe_integration_test.go) already records. That test
-// still takes its EMPTY/OMIT verdict from the PUT's own response rather
-// than a GET of the stored document -- the exact mistake that put
-// OMIT-CLEARS in schemas/behavior.json for 39 fields across hotspotpackage,
-// networkconf, portconf and wlanconf before 8b4eeae fixed it there and
-// introduced storedEmptySemantics to do the reading correctly. nat was not
-// swept by that fix.
+// fields TestIntegrationNatUpdateEmptyVsAbsent used to record in
+// unifi/behavior_probe_integration_test.go. That test took its EMPTY/OMIT
+// verdict from the PUT's own response rather than a GET of the stored
+// document -- the exact mistake that put OMIT-CLEARS in schemas/behavior.json
+// for 39 fields across hotspotpackage, networkconf, portconf and wlanconf
+// before 8b4eeae fixed it there and introduced storedEmptySemantics to do the
+// reading correctly. nat was not swept by that fix.
 //
 // This lives in its own file and calls storedEmptySemantics rather than
-// editing TestIntegrationNatUpdateEmptyVsAbsent in place, because another
-// change is landing concurrently in behavior_probe_integration_test.go and
-// editing it here would collide with that work. storedEmptySemantics is
+// having lived alongside the old test, because both were landing in
+// behavior_probe_integration_test.go at once. storedEmptySemantics is
 // unexported but package-scoped, so this reaches it without touching the
-// file it is declared in. TestIntegrationNatUpdateEmptyVsAbsent itself is
-// unchanged and still measures the old, unsound way; reconciling the two
-// (most likely by deleting the old one) is left for whoever lands that
-// other change, once it is no longer moving.
+// file it was declared in. TestIntegrationNatUpdateEmptyVsAbsent has since
+// been deleted: its own re-derived verdict for ip_address (OMIT-CLEARS,
+// from a PUT response that never carried the field either way) disagreed
+// with the one this test records off a GET (OMIT-REJECTED, measured on
+// SNAT, the shape that can actually hold the field) and would have failed
+// against the artifact this test's own BEHAVIOR_WRITE run produces. There
+// was nothing left it measured that this test does not.
 //
 // Two things came out of measuring this correctly instead of assuming the
 // old verdicts were wrong:
