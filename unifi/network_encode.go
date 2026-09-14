@@ -289,10 +289,13 @@ func withoutNetworkFields(fields []string, drop ...string) []string {
 // networkClearableSlots are the *string fields whose explicit "" must reach
 // the wire. The blanket rule is the opposite -- an optional string that is
 // empty is absent (see TestNetworkEncoderDropsEmptyStrings) -- but these
-// eight were measured on 10.6.101 to behave the other way round: omitting
-// one PRESERVES the stored value, and "" is what clears it. Dropping the
-// empty here is why a caller could not empty a DHCP DNS, NTP or WINS list
-// at all.
+// eight were measured on 10.6.101 to accept "" and clear on it, and
+// omitting one PRESERVES the stored value. Dropping the empty here is why a
+// caller could not empty a DHCP DNS, NTP or WINS list at all.
+//
+// The preserving half is not what makes them special: every field on every
+// collection the clearing probe sweeps preserves on omission. What makes
+// them special is only that they were measured and that "" clears them.
 var networkClearableSlots = map[string]bool{
 	"dhcpd_dns_1": true, "dhcpd_dns_2": true, "dhcpd_dns_3": true, "dhcpd_dns_4": true,
 	"dhcpd_ntp_1": true, "dhcpd_ntp_2": true,
@@ -300,10 +303,16 @@ var networkClearableSlots = map[string]bool{
 }
 
 // networkEmptyStringOmitted are plain-string fields the generated struct
-// sends unconditionally but the encoder drops when empty. Both await a
-// controller measurement of what an explicit "" does; until one exists the
-// long-standing omission stands (TestKnownStringOmitemptyDriftIsUnchanged
-// in network_encode_drift_test.go keeps this list honest).
+// sends unconditionally but the encoder drops when empty. Both are now
+// measured on 10.6.101 and both stay, for opposite reasons:
+// dhcpd_boot_server rejects "", so dropping it is what keeps the write from
+// being refused; mac_override accepts "" and clears on it, so dropping the
+// empty costs a caller the only way to clear the field -- but the generated
+// field is a plain string, which cannot tell "the caller wants it empty"
+// from "the caller never set it", and sending "" unconditionally would clear
+// mac_override on every write. It needs a pointer before it can move.
+// (TestKnownStringOmitemptyDriftIsUnchanged in network_encode_drift_test.go
+// keeps this list honest.)
 var networkEmptyStringOmitted = map[string]bool{
 	"dhcpd_boot_server": true,
 	"mac_override":      true,
@@ -432,10 +441,12 @@ var networkFieldByWire = sync.OnceValue(func() map[string]networkWireField {
 // networkFieldValue applies the generated declaration's emission rule to one
 // field, with the measured exceptions layered on:
 //
-//   - an optional *string that is empty is absent -- omitting clears the
-//     stored value just the same, and several fields reject "" outright
-//     (measured by TestIntegrationClearingSemantics) -- except the
-//     networkClearableSlots, where "" is the only way to clear;
+//   - an optional *string that is empty is absent, because several fields
+//     reject "" outright (measured by TestIntegrationClearingSemantics) --
+//     except the networkClearableSlots, where "" is the only way to clear.
+//     Omitting the key does NOT clear it: the same probe measures this PUT
+//     as a merge, so a caller emptying a field outside that list gets a 200
+//     and no change;
 //   - networkEmptyStringOmitted drops the empty for two unconditional
 //     strings still awaiting measurement;
 //   - networkAlwaysArrays sends [] where the controller demands an array.
