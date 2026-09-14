@@ -9698,7 +9698,8 @@
     "unifi.Site": {
       "package": "unifi",
       "go_name": "Site",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "Site",
       "fields": [
         {
           "wire": "_id",
@@ -9707,14 +9708,14 @@
           "omit_empty": true
         },
         {
-          "wire": "name",
-          "go_name": "Name",
+          "wire": "desc",
+          "go_name": "Description",
           "go_type": "string",
           "omit_empty": false
         },
         {
-          "wire": "desc",
-          "go_name": "Description",
+          "wire": "name",
+          "go_name": "Name",
           "go_type": "string",
           "omit_empty": false
         }

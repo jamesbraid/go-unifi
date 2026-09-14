@@ -7,13 +7,6 @@ import (
 	"strings"
 )
 
-type Site struct {
-	ID string `json:"_id,omitempty"`
-
-	Name        string `json:"name"`
-	Description string `json:"desc"`
-}
-
 func (c *ApiClient) ListSites(ctx context.Context) ([]Site, error) {
 	var respBody struct {
 		Meta meta   `json:"meta"`

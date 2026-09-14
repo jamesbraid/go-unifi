@@ -18,6 +18,12 @@ import (
 
 // v2Probes maps each hand-written schema in overrides/resources/ to the
 // live endpoint that serves it.
+//
+// Site.json is deliberately absent: every probe here is a bare GET against
+// a single site-scoped v2 collection (the one %s), and api/self/sites is
+// neither v2 nor site-scoped -- it lists every site the credential can see,
+// with no site in the path at all. Forcing it through fmt.Sprintf(path,
+// site) would probe the wrong shape, not a missing one.
 var v2Probes = []struct {
 	schemaFile string
 	path       string
