@@ -246,6 +246,12 @@
         "omit": "OMIT-REJECTED"
       }
     },
+    "bgp": {
+      "description": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "channelplan": {
       "date": {
         "empty": "EMPTY-CLEARS",
@@ -838,6 +844,12 @@
         "omit": "OMIT-KEEPS"
       }
     },
+    "wireguardpeer": {
+      "name": {
+        "empty": "EMPTY-CLEARS",
+        "omit": "OMIT-CLEARS"
+      }
+    },
     "wlanconf": {
       "ap_group_mode": {
         "empty": "EMPTY-REJECTED",
@@ -923,6 +935,16 @@
       "create_path": "api/s/{site}/rest/account",
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/account/{id}"
+    },
+    "BGPConfig": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/bgp/config",
+      "update_verb": "POST",
+      "update_path": "v2/api/site/{site}/bgp/config",
+      "required_on_create": [
+        "frr_bgpd_config",
+        "uploaded_file_name"
+      ]
     },
     "ChannelPlan": {
       "create_verb": "POST",
@@ -1059,6 +1081,12 @@
         "rule_index",
         "ruleset"
       ]
+    },
+    "FirewallZone": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/firewall/zone",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/firewall/zone/{id}"
     },
     "Hotspot2Conf": {
       "create_verb": "POST",
@@ -1302,6 +1330,12 @@
       "create_path": "api/s/{site}/rest/wlangroup",
       "update_verb": "PUT",
       "update_path": "api/s/{site}/rest/wlangroup/{id}"
+    },
+    "WireGuardPeer": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch",
+      "update_verb": "PUT",
+      "update_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch"
     }
   },
   "rejected_creates": {
