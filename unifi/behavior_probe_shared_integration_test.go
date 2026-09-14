@@ -306,6 +306,44 @@ func compareRecorded(
 	}
 }
 
+// recordWriteMergeEmpty is recordWrite's counterpart for a resource whose
+// Empty section a prior probe already partly populated (PortProfile's
+// "portconf", Device's "device"): it overlays the newly measured fields onto
+// whatever is already pinned there instead of replacing the section
+// outright, so a field this probe does not re-measure is not silently
+// dropped from the artifact. Writes and Discarded still replace, as
+// recordWrite's do -- only Empty additively merges, and only for this
+// resource's own section.
+func recordWriteMergeEmpty(
+	t *testing.T, root, captured, resource, emptySection string,
+	contract behavior.WriteContract, dropped []string, newEmpties map[string]behavior.EmptySemantics,
+) {
+	t.Helper()
+	mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+		if a.Writes == nil {
+			a.Writes = map[string]behavior.WriteContract{}
+		}
+		a.Writes[resource] = contract
+		if dropped != nil {
+			if a.Discarded == nil {
+				a.Discarded = map[string][]string{}
+			}
+			a.Discarded[resource] = dropped
+		}
+		if a.Empty == nil {
+			a.Empty = map[string]map[string]behavior.EmptySemantics{}
+		}
+		existing := a.Empty[emptySection]
+		if existing == nil {
+			existing = map[string]behavior.EmptySemantics{}
+		}
+		for field, sem := range newEmpties {
+			existing[field] = sem
+		}
+		a.Empty[emptySection] = existing
+	})
+}
+
 func stringSlicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
