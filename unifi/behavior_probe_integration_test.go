@@ -4296,6 +4296,10 @@ func listMinItems(ctx context.Context, t *testing.T, sweep *createSweep, seed ma
 //   - name is NOT required either, on any purpose. A nameless network
 //     creates and is stored nameless.
 //
+// Three of the thirteen vpn_type values the controller declares have an
+// accepted body here; the other ten are swept by networkVPNBranchesUnmeasured
+// and left out of the artifact, loudly, rather than guessed at.
+//
 // The corporate, guest and vlan-only branches require vlan and vlan_enabled,
 // and the reason is measured rather than assumed: the refusal is
 // api.err.VlanUsed, the same code a second network on an already-used VLAN
@@ -4356,6 +4360,7 @@ func TestIntegrationNetworkWriteContract(t *testing.T) {
 
 	networkPurposeless(ctx, t, s, path)
 	networkUntaggedSlotIsTaken(ctx, t, s, c.Site)
+	networkVPNBranchesUnmeasured(ctx, t, s, c.Site, radiusProfile)
 
 	updateVerb, updatePath, requiredOnUpdate := v1UpdateContract(ctx, t, s, path, updateRel, map[string]any{
 		"name": "write-contract-update", "purpose": PurposeCorporate,
@@ -4819,4 +4824,69 @@ func wlanPassphraseless(ctx context.Context, t *testing.T, s *controllertest.Ses
 	}
 	t.Logf("LOUD: security wpapsk with no x_passphrase, wpa_mode or wpa_enc is accepted (HTTP %d) "+
 		"and stored with none of them: %v", status, sortedWireNames(stored))
+}
+
+// networkVPNBranchesUnmeasured walks every vpn_type the controller's own
+// field definitions declare against each VPN purpose, and records nothing.
+//
+// The three vpn_type branches above are the ones this probe has an accepted
+// body for. NetworkVPNTypeValues names thirteen, and the artifact says
+// nothing about the other ten -- which is correct and which is also
+// invisible unless something says so. So this sweep sends the smallest body
+// that names the branch and reports what came back:
+//
+//	accepted             the branch needs nothing more; it could be measured
+//	api.err.InvalidValue the purpose does not admit that vpn_type at all
+//	anything else        the purpose admits it and wants fields nothing here
+//	                     supplies, so its required set stays unknown
+//
+// Reading the list off the controller's definitions rather than naming the
+// types here is the point: a controller that grows a tunnel type puts it in
+// this log on the next run instead of waiting for someone to remember.
+func networkVPNBranchesUnmeasured(ctx context.Context, t *testing.T, s *controllertest.Session, site, radiusProfile string) {
+	t.Helper()
+	path := "/api/s/" + site + "/rest/networkconf"
+	sweep := &createSweep{s: s, path: path, prefix: "vpn-type"}
+
+	measured := map[string]bool{
+		PurposeSiteVPN + "/ipsec-vpn":          true,
+		PurposeVPNClient + "/wireguard-client": true,
+		PurposeUserVPN + "/openvpn-server":     true,
+	}
+	for _, purpose := range []string{PurposeSiteVPN, PurposeVPNClient, PurposeUserVPN} {
+		var reachable, refused, notInEnum []string
+		for _, vpnType := range NetworkVPNTypeValues {
+			if measured[purpose+"/"+vpnType] {
+				continue
+			}
+			doc := map[string]any{"name": "vpn-type", "purpose": purpose, "vpn_type": vpnType}
+			if purpose == PurposeUserVPN {
+				// Without it every remote-user-vpn body is refused for the
+				// site's RADIUS profile before the tunnel type is reached,
+				// and each branch would read as unreachable for the wrong
+				// reason.
+				doc["radiusprofile_id"] = radiusProfile
+			}
+			v := sweep.attempt(ctx, t, doc, map[string]string{"purpose": purpose, "vpn_type": vpnType})
+			switch {
+			case v.accepted:
+				reachable = append(reachable, vpnType)
+			case strings.Contains(v.why, "api.err.InvalidValue"):
+				notInEnum = append(notInEnum, vpnType)
+			default:
+				refused = append(refused, vpnType+" ("+v.why+")")
+			}
+		}
+		t.Logf("LOUD: the artifact says nothing about %s over %v. Each is refused, none of the "+
+			"refusals was narrowed to the fields it wants, and a required set nothing observed the "+
+			"controller accept is not one to publish.", purpose, refused)
+		if len(notInEnum) > 0 {
+			t.Logf("%s refuses %v as tunnel types outright, though the controller's own field "+
+				"definitions declare them", purpose, notInEnum)
+		}
+		if len(reachable) > 0 {
+			t.Logf("%s creates from purpose and vpn_type alone over %v -- those branches require "+
+				"nothing, which is all an entry each could say", purpose, reachable)
+		}
+	}
 }
