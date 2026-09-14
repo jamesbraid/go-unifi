@@ -7,21 +7,11 @@ import (
 	"net/http"
 )
 
-// This is a v2 API object, manually coded.
+// WireGuardPeer is a v2 API object (see overrides/resources/WireGuardPeer.json).
 //
 // WireGuard peers ("clients" in the UI) of a WireGuard server network
 // (vpn_type=wireguard-server). The controller only exposes batch
 // create/update/delete endpoints, so single-peer CRUD wraps those.
-
-type WireGuardPeer struct {
-	ID        string `json:"_id,omitempty"`
-	NetworkID string `json:"network_id,omitempty"`
-
-	Name        string   `json:"name"`
-	InterfaceIP string   `json:"interface_ip"`
-	PublicKey   string   `json:"public_key"`
-	AllowedIPs  []string `json:"allowed_ips"`
-}
 
 func (c *ApiClient) wireGuardPeersPath(site, networkID string) string {
 	return fmt.Sprintf("v2/api/site/%s/wireguard/%s/users", site, networkID)

@@ -1148,6 +1148,15 @@ var handWrittenCRUD = map[string]map[string]bool{
 		"Update": false,
 		"Delete": false,
 	},
+	"WireGuardPeer": {
+		// The controller exposes only batch create/update/delete; there is
+		// no per-peer endpoint at all, so every verb stays hand-written.
+		"List":   false,
+		"Get":    false,
+		"Create": false,
+		"Update": false,
+		"Delete": false,
+	},
 }
 
 // Exports reports whether the generator publishes the exported form of a CRUD

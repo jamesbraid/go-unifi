@@ -360,3 +360,36 @@ omitempty = false
 [Site.field.desc]
 name = "Description"
 omitempty = false
+
+# True-v2 object, no envelope: WireGuard peers ("clients" in the UI) of a
+# WireGuard server network. The controller only exposes batch
+# create/update/delete endpoints, so the CRUD stays hand-written.
+[WireGuardPeer.field.site_id]
+remove = true
+
+[WireGuardPeer.field.attr_hidden]
+remove = true
+
+[WireGuardPeer.field.attr_hidden_id]
+remove = true
+
+[WireGuardPeer.field.attr_no_delete]
+remove = true
+
+[WireGuardPeer.field.attr_no_edit]
+remove = true
+
+[WireGuardPeer.field.name]
+omitempty = false
+
+[WireGuardPeer.field.interface_ip]
+omitempty = false
+
+[WireGuardPeer.field.public_key]
+omitempty = false
+
+# Sent unconditionally today (no omitempty on the hand-written field); the
+# batch create/update always send a value, even an empty list, rather than
+# omitting the key.
+[WireGuardPeer.field.allowed_ips]
+omitempty = false

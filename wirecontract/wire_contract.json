@@ -11715,7 +11715,8 @@
     "unifi.WireGuardPeer": {
       "package": "unifi",
       "go_name": "WireGuardPeer",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "WireGuardPeer",
       "fields": [
         {
           "wire": "_id",
@@ -11724,15 +11725,9 @@
           "omit_empty": true
         },
         {
-          "wire": "network_id",
-          "go_name": "NetworkID",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "name",
-          "go_name": "Name",
-          "go_type": "string",
+          "wire": "allowed_ips",
+          "go_name": "AllowedIPs",
+          "go_type": "[]string",
           "omit_empty": false
         },
         {
@@ -11742,15 +11737,21 @@
           "omit_empty": false
         },
         {
-          "wire": "public_key",
-          "go_name": "PublicKey",
+          "wire": "name",
+          "go_name": "Name",
           "go_type": "string",
           "omit_empty": false
         },
         {
-          "wire": "allowed_ips",
-          "go_name": "AllowedIPs",
-          "go_type": "[]string",
+          "wire": "network_id",
+          "go_name": "NetworkID",
+          "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "public_key",
+          "go_name": "PublicKey",
+          "go_type": "string",
           "omit_empty": false
         }
       ]
