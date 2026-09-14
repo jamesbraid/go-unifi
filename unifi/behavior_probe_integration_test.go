@@ -1999,10 +1999,17 @@ func TestIntegrationDeviceRadioTableWrites(t *testing.T) {
 // []any{} for a list. seed is the stored document to measure against and to
 // restore between the two halves; it must carry a value for field, or CLEARS
 // and KEEPS are the same observation.
+//
+// controllerDefault is what the controller stores for the field when nobody
+// asks, or nil where that is not known. A write that lands on it is recorded
+// as REPLACED-default rather than by value, because several such defaults are
+// per-site object ids: recording the id would read as drift on the next run
+// against a fresh container.
 func storedEmptySemantics(
 	t *testing.T,
 	field string,
 	blank any,
+	controllerDefault any,
 	seed map[string]any,
 	put func(map[string]any) int,
 	read func() map[string]any,
@@ -2026,6 +2033,8 @@ func storedEmptySemantics(
 				return "EMPTY-IGNORED"
 			}
 			return "OMIT-KEEPS"
+		case controllerDefault != nil && jsonEqual(got, controllerDefault):
+			return prefix + "-REPLACED-default"
 		default:
 			return fmt.Sprintf("%s-REPLACED-%v", prefix, got)
 		}
@@ -2249,7 +2258,7 @@ func TestIntegrationFirewallGroupWriteContract(t *testing.T) {
 		{"name", ""},
 		{"source", ""},
 	} {
-		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, stored, put, read)
+		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, nil, stored, put, read)
 	}
 	var summary []string
 	for _, f := range slices.Sorted(maps.Keys(measured)) {
@@ -2658,7 +2667,7 @@ func TestIntegrationTrafficRouteWriteContract(t *testing.T) {
 	// pin a verdict that only holds for the branch this seed happens to be in.
 	measured := map[string]behavior.EmptySemantics{}
 	for _, field := range []string{"description", "next_hop"} {
-		measured[field] = storedEmptySemantics(t, field, "", stored, put, func() map[string]any {
+		measured[field] = storedEmptySemantics(t, field, "", nil, stored, put, func() map[string]any {
 			return storedRoute(id)
 		})
 	}
@@ -3334,7 +3343,7 @@ func portForwardClearing(
 
 	measured := map[string]behavior.EmptySemantics{}
 	for _, f := range fields {
-		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, stored, put, read)
+		measured[f.wire] = storedEmptySemantics(t, f.wire, f.blank, nil, stored, put, read)
 	}
 	var summary []string
 	for _, f := range slices.Sorted(maps.Keys(measured)) {
@@ -3812,7 +3821,7 @@ func dnsRecordClearing(
 
 	measured := map[string]behavior.EmptySemantics{}
 	for _, field := range fields {
-		measured[field] = storedEmptySemantics(t, field, "", stored, put, read)
+		measured[field] = storedEmptySemantics(t, field, "", nil, stored, put, read)
 	}
 	var summary []string
 	for _, f := range slices.Sorted(maps.Keys(measured)) {
