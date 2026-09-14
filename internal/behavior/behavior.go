@@ -107,10 +107,18 @@ type Coercion struct {
 // resource's create and update. Nested fields are named by dotted path
 // ("source.zone_id"), like the ownership section names them.
 type WriteContract struct {
-	CreateVerb       string   `json:"create_verb"`
-	CreatePath       string   `json:"create_path"`
-	UpdateVerb       string   `json:"update_verb"`
-	UpdatePath       string   `json:"update_path"`
+	CreateVerb string `json:"create_verb"`
+	CreatePath string `json:"create_path"`
+	UpdateVerb string `json:"update_verb"`
+	UpdatePath string `json:"update_path"`
+	// RequiredOnCreate and RequiredOnUpdate say what the CONTROLLER
+	// refuses, and nothing more. They are not a statement about any
+	// consumer's schema: a consumer that supplies the field itself -- from
+	// a default, or from another object it already holds -- can leave it
+	// optional to its own users and still satisfy the controller. Compiling
+	// one of these into "the user must provide this" is an inference this
+	// artifact cannot support, and it has already broken a downstream
+	// provider once by forcing a field its own code was filling in.
 	RequiredOnCreate []string `json:"required_on_create,omitempty"`
 	RequiredOnUpdate []string `json:"required_on_update,omitempty"`
 

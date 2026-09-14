@@ -14,7 +14,7 @@
   },
   "inputs": {
     "extraction_rules_sha256": "531bd12eece41c3f8c3d9b3565475eb85c148c27f5af52c510c375d7e217e1ac",
-    "generator_inputs_sha256": "b31e37062859ad3a29359a100f02c92005d2832234597c66931240620e2d1780"
+    "generator_inputs_sha256": "56059a9d23e91946b81b8ee7242620aac6ccce37a6166614628bb6f0a40187ca"
   },
   "snapshots": {
     "structural_sha256": "7c68b279fe193180eb7c451ca7f17d407088336d29bb8ecf722309aa60d3cf3d",
