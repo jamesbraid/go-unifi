@@ -229,9 +229,20 @@ func TestIntegrationDevicePortOverridesWriteContract(t *testing.T) {
 	}); st/100 != 2 {
 		t.Fatalf("seeding both port_idx=1 and port_idx=2 together was rejected (HTTP %d): %v", st, err)
 	}
-	before2 := storedPortOverride(ctx, t, s, c.Site, adopted.MAC, 2)
+	// Same settle window as restoreSeed: this read can race the write it
+	// just made, especially under concurrent load from other containers on
+	// the same host.
+	var before2 map[string]any
+	for attempt := 0; attempt < 5; attempt++ {
+		before2 = storedPortOverride(ctx, t, s, c.Site, adopted.MAC, 2)
+		if before2 != nil {
+			break
+		}
+		t.Logf("attempt %d: port_idx=2 not visible yet after seeding it alongside port_idx=1; retrying after settle", attempt)
+		time.Sleep(2 * time.Second)
+	}
 	if before2 == nil {
-		t.Fatalf("port_idx=2 does not appear after seeding it alongside port_idx=1: both should be present")
+		t.Fatalf("port_idx=2 never appeared after seeding it alongside port_idx=1: both should be present")
 	}
 	putOverride(seed) // PUT naming only port_idx=1
 	// Read a few times with a settle delay before trusting the answer: an
