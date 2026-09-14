@@ -2444,7 +2444,10 @@ func compareEmptySemantics(t *testing.T, section string, pinned, got map[string]
 // shape.
 //
 // required_on_create is measured as the set no branch can do without. The
-// destination filters are conditional and are asserted rather than recorded:
+// sweep that finds it matches on IP, which on its own says nothing about the
+// other three selectors, so trafficRouteBranchRequiredFields re-runs the
+// fields it records against all four. The destination filters are conditional
+// and are asserted rather than recorded:
 // matching_target selects which filter list has to be non-empty, and a flat
 // list naming any of them would tell a caller addressing IPs to send domains.
 func TestIntegrationTrafficRouteWriteContract(t *testing.T) {
@@ -2659,6 +2662,7 @@ func TestIntegrationTrafficRouteWriteContract(t *testing.T) {
 	sort.Strings(requiredOnUpdate)
 
 	trafficRouteMatchingBranches(ctx, t, s, path, wanID, lanID)
+	trafficRouteBranchRequiredFields(ctx, t, s, path, wanID, lanID)
 	trafficRouteEmptyTargetKeys(ctx, t, s, path, wanID, lanID)
 
 	// The empty/omit half, for the two fields whose verdict does not depend on
@@ -2800,6 +2804,96 @@ func trafficRouteMatchingBranches(
 			continue
 		}
 		t.Logf("matching %-8s without %-12s -> %s", tc.target, tc.filter, got)
+	}
+}
+
+// trafficRouteBranchRequiredFields measures whether the flat
+// required_on_create entry is really flat.
+//
+// The sweep above deletes one field at a time from a body that always matches
+// on IP, so on its own it can only say a field is required for an IP route.
+// A consumer reading the artifact compiles the entry into "this attribute is
+// required" for every route it writes, including the DOMAIN, REGION and
+// INTERNET ones the sweep never sent -- so a field required only on the IP
+// branch would be recorded as required everywhere and break configurations the
+// controller accepts today.
+//
+// Measured on 10.6.101: network_id and target_devices are refused by all four
+// matching_target values, which is what makes the flat entry the right shape.
+// The controller's own error carries the attribution independent of this
+// function's sweep discipline: Spring bean validation names the offending
+// field in camelCase, so a refusal reading "networkId NotEmpty" is the removal
+// being answered rather than the branch's filter list.
+func trafficRouteBranchRequiredFields(
+	ctx context.Context,
+	t *testing.T,
+	s *controllertest.Session,
+	path, wanID, lanID string,
+) {
+	t.Helper()
+
+	// The smallest body each branch accepts: the common half, plus the filter
+	// list matching_target names. INTERNET names none.
+	base := func(target, description string) map[string]any {
+		doc := map[string]any{
+			"description":     description,
+			"enabled":         true,
+			"network_id":      wanID,
+			"matching_target": target,
+			"target_devices":  []any{map[string]any{"type": "NETWORK", "network_id": lanID}},
+		}
+		switch target {
+		case "IP":
+			doc["ip_addresses"] = []any{map[string]any{"ip_or_subnet": "192.0.2.0/24", "ip_version": "v4"}}
+		case "DOMAIN":
+			doc["domains"] = []any{map[string]any{"domain": "example.com"}}
+		case "REGION":
+			doc["regions"] = []any{"US"}
+		}
+		return doc
+	}
+
+	post := func(doc map[string]any) (int, any) {
+		body, status, err := s.PostJSON(ctx, path, doc)
+		if status == 0 {
+			t.Fatalf("transport to %s: %v", path, err)
+		}
+		if id := objectID(firstData(t, body)); id != "" && status/100 == 2 {
+			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+		}
+		return status, body
+	}
+
+	for _, target := range []string{"IP", "DOMAIN", "REGION", "INTERNET"} {
+		// The branch's known-good body first. Nothing removed from a body
+		// that does not create measures anything.
+		if status, body := post(base(target, "traffic-route-required-"+target)); status/100 != 2 {
+			t.Errorf("the smallest %s route was refused (HTTP %d, %s); the two removals below "+
+				"would then measure the body rather than the field", target, status, v2Rejection(body))
+			continue
+		}
+
+		for _, field := range []struct{ wire, named string }{
+			{"network_id", "networkId NotEmpty"},
+			{"target_devices", "targetDevices NotEmpty"},
+		} {
+			doc := base(target, "traffic-route-required-"+target+"-no-"+field.wire)
+			delete(doc, field.wire)
+			status, body := post(doc)
+			if status/100 == 2 {
+				t.Errorf("a route matching %s created without %s (HTTP %d); required_on_create "+
+					"records it as required for every branch, so the flat entry now over-requires "+
+					"and has to become conditional", target, field.wire, status)
+				continue
+			}
+			if got := v2Rejection(body); got != field.named {
+				t.Errorf("a route matching %s without %s was refused with %q, not %q; the field is "+
+					"still required but something else is answering for it",
+					target, field.wire, got, field.named)
+				continue
+			}
+			t.Logf("matching %-8s without %-14s -> %s", target, field.wire, field.named)
+		}
 	}
 }
 
