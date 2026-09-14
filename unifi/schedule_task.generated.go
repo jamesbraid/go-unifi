@@ -19,8 +19,8 @@ type ScheduleTask struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	Action          string                       `json:"action,omitempty"` // upgrade
-	CronExpr        string                       `json:"cron_expr,omitempty"`
+	Action          string                       `json:"action"` // upgrade
+	CronExpr        string                       `json:"cron_expr"`
 	ExecuteOnlyOnce bool                         `json:"execute_only_once"`
 	Name            string                       `json:"name,omitempty"`
 	UpgradeTargets  []ScheduleTaskUpgradeTargets `json:"upgrade_targets,omitempty"`

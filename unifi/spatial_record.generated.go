@@ -20,7 +20,7 @@ type SpatialRecord struct {
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
 	Devices []SpatialRecordDevices `json:"devices,omitempty"`
-	Name    string                 `json:"name,omitempty"` // .{1,128}
+	Name    string                 `json:"name"` // .{1,128}
 }
 
 func (dst *SpatialRecord) UnmarshalJSON(b []byte) error {
@@ -40,7 +40,7 @@ func (dst *SpatialRecord) UnmarshalJSON(b []byte) error {
 }
 
 type SpatialRecordDevices struct {
-	MAC      string                 `json:"mac,omitempty"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
+	MAC      string                 `json:"mac"` // ^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$
 	Position *SpatialRecordPosition `json:"position,omitempty"`
 }
 
@@ -61,9 +61,9 @@ func (dst *SpatialRecordDevices) UnmarshalJSON(b []byte) error {
 }
 
 type SpatialRecordPosition struct {
-	X float64 `json:"x,omitempty"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
-	Y float64 `json:"y,omitempty"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
-	Z float64 `json:"z,omitempty"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
+	X float64 `json:"x"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
+	Y float64 `json:"y"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
+	Z float64 `json:"z"` // (^([-]?[\d]+)$)|(^([-]?[\d]+[.]?[\d]+)$)
 }
 
 func (dst *SpatialRecordPosition) UnmarshalJSON(b []byte) error {

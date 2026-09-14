@@ -67,9 +67,9 @@ func (dst *RADIUSProfile) UnmarshalJSON(b []byte) error {
 }
 
 type RADIUSProfileAcctServers struct {
-	IP     string `json:"ip,omitempty"`   // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+	IP     string `json:"ip"`             // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
 	Port   *int64 `json:"port,omitempty"` // ^([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])$|^$
-	Secret string `json:"x_secret,omitempty"`
+	Secret string `json:"x_secret"`
 }
 
 func (dst *RADIUSProfileAcctServers) UnmarshalJSON(b []byte) error {
@@ -99,9 +99,9 @@ func (dst *RADIUSProfileAcctServers) UnmarshalJSON(b []byte) error {
 }
 
 type RADIUSProfileAuthServers struct {
-	IP     string `json:"ip,omitempty"`   // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
+	IP     string `json:"ip"`             // ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$
 	Port   *int64 `json:"port,omitempty"` // ^([1-9][0-9]{0,3}|[1-5][0-9]{4}|[6][0-4][0-9]{3}|[6][5][0-4][0-9]{2}|[6][5][5][0-2][0-9]|[6][5][5][3][0-5])$|^$
-	Secret string `json:"x_secret,omitempty"`
+	Secret string `json:"x_secret"`
 }
 
 func (dst *RADIUSProfileAuthServers) UnmarshalJSON(b []byte) error {

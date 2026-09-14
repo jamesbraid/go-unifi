@@ -19,10 +19,10 @@ type BGPConfig struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	Config           string `json:"frr_bgpd_config,omitempty"`
+	Config           string `json:"frr_bgpd_config"`
 	Description      string `json:"description,omitempty"` // .{0,128}
 	Enabled          bool   `json:"enabled"`
-	UploadedFileName string `json:"uploaded_file_name,omitempty"` // .{0,256}
+	UploadedFileName string `json:"uploaded_file_name"` // .{0,256}
 }
 
 func (dst *BGPConfig) UnmarshalJSON(b []byte) error {

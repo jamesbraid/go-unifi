@@ -21,7 +21,7 @@ type FirewallRule struct {
 	NoDelete bool   `json:"attr_no_delete,omitempty"`
 	NoEdit   bool   `json:"attr_no_edit,omitempty"`
 
-	Action                string   `json:"action,omitempty"` // drop|reject|accept
+	Action                string   `json:"action"` // drop|reject|accept
 	DstAddress            string   `json:"dst_address,omitempty"`
 	DstAddressIPV6        string   `json:"dst_address_ipv6,omitempty"`
 	DstFirewallGroupIDs   []string `json:"dst_firewallgroup_ids,omitempty"` // [\d\w-]+
@@ -38,7 +38,7 @@ type FirewallRule struct {
 	ProtocolMatchExcepted bool     `json:"protocol_match_excepted"`
 	ProtocolV6            string   `json:"protocol_v6"`                  // ^$|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|ah|all|dccp|eigrp|esp|gre|icmpv6|ipcomp|ipv6|ipv6-frag|ipv6-icmp|ipv6-nonxt|ipv6-opts|ipv6-route|isis|l2tp|manet|mobility-header|mpls-in-ip|ospf|pim|rsvp|sctp|shim6|tcp|tcp_udp|udp|vrrp
 	RuleIndex             *int64   `json:"rule_index,omitempty"`         // 2[0-9]{3,4}|4[0-9]{3,4}
-	Ruleset               string   `json:"ruleset,omitempty"`            // WAN_IN|WAN_OUT|WAN_LOCAL|LAN_IN|LAN_OUT|LAN_LOCAL|GUEST_IN|GUEST_OUT|GUEST_LOCAL|WANv6_IN|WANv6_OUT|WANv6_LOCAL|LANv6_IN|LANv6_OUT|LANv6_LOCAL|GUESTv6_IN|GUESTv6_OUT|GUESTv6_LOCAL
+	Ruleset               string   `json:"ruleset"`                      // WAN_IN|WAN_OUT|WAN_LOCAL|LAN_IN|LAN_OUT|LAN_LOCAL|GUEST_IN|GUEST_OUT|GUEST_LOCAL|WANv6_IN|WANv6_OUT|WANv6_LOCAL|LANv6_IN|LANv6_OUT|LANv6_LOCAL|GUESTv6_IN|GUESTv6_OUT|GUESTv6_LOCAL
 	SettingPreference     string   `json:"setting_preference,omitempty"` // auto|manual
 	SrcAddress            string   `json:"src_address,omitempty"`
 	SrcAddressIPV6        string   `json:"src_address_ipv6,omitempty"`
