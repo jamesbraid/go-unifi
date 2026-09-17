@@ -1168,6 +1168,13 @@ var handWrittenCRUD = map[string]map[string]bool{
 		"Update": false,
 		"Delete": false,
 	},
+	"SiteHealth": {
+		"List":   false,
+		"Get":    false,
+		"Create": false,
+		"Update": false,
+		"Delete": false,
+	},
 	"ClientInfo": {
 		// Three different read endpoints (clients/active, clients/local/
 		// {mac}, clients/history), each with its own fixed query
