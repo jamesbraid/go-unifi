@@ -25411,7 +25411,9 @@
       }
     },
     "unifi.DevicePortOverrides": {
-      "discarded": [],
+      "discarded": [
+        "tagged_networkconf_ids"
+      ],
       "empty": {
         "autoneg": {
           "empty": "EMPTY-CLEARS",

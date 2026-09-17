@@ -1330,6 +1330,14 @@ func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
 		t.Skipf("adopted %s but the controller lists no device with that MAC", adopted.MAC)
 	}
 
+	// tagged_networkconf_ids needs two real network ids: a singleton round-
+	// trips identically whether the controller stores the list or only its
+	// head, so it cannot tell "kept" from "kept the first element" (see
+	// portconf's tagged_networkconf_ids measurement, which named the same
+	// requirement). The demo site carries one network (Default); add a
+	// second so the probe can tell.
+	taggedIDs := taggedNetworkProbeIDs(ctx, t, s, c.Site)
+
 	// One entry, many members: name/port_idx/poe_mode plus a spread of the
 	// generated struct's member kinds -- mode strings, plain bools, and a
 	// stormctrl level with its enable pair so the value is not dead config.
@@ -1346,6 +1354,7 @@ func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
 		"stormctrl_type":          "level",
 		"stormctrl_bcast_enabled": true,
 		"stormctrl_bcast_level":   42,
+		"tagged_networkconf_ids":  taggedIDs,
 	}
 	if body, status, err := s.PutJSON(ctx, "/api/s/"+c.Site+"/rest/device/"+id,
 		map[string]any{"port_overrides": []any{asked}}); err != nil || status != 200 {
@@ -1387,6 +1396,17 @@ func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
 	}
 	sort.Strings(dropped)
 	t.Logf("port override members: %d asked, %d dropped", len(asked), len(dropped))
+
+	// tagged_networkconf_ids has three disagreeing reports about it (a
+	// 10.4.57 lane measurement, a 10.6.101 hand measurement through
+	// UpdateDevicePortOverrides, and this artifact's own empty discard
+	// list), so its verdict is worth a line of its own rather than trusting
+	// silence in the dropped/changed loop above.
+	if raw, ok := entry["tagged_networkconf_ids"]; ok {
+		t.Logf("tagged_networkconf_ids ALIVE on port_overrides: stored %v (asked %v)", raw, taggedIDs)
+	} else {
+		t.Logf("tagged_networkconf_ids DROPPED from port_overrides (asked %v, absent from the re-read document)", taggedIDs)
+	}
 
 	if behaviorWriteRequested() {
 		mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
@@ -1432,6 +1452,53 @@ func TestIntegrationDevicePortOverridesDiscard(t *testing.T) {
 				"The controller's behaviour changed -- re-measure with BEHAVIOR_WRITE=1 once that is understood", wire)
 		}
 	}
+}
+
+// taggedNetworkProbeIDs returns two networkconf ids from site, creating a
+// second corporate network when the demo site's stock "Default" LAN is the
+// only one present.
+//
+// A singleton round-trips identically whether the controller stores the
+// whole list or only its head, so it cannot tell "kept" from "kept the
+// first element" -- the same requirement portconf's tagged_networkconf_ids
+// measurement named. Two ids can.
+func taggedNetworkProbeIDs(ctx context.Context, t *testing.T, s *controllertest.Session, site string) []string {
+	t.Helper()
+	nets, err := listNetworks(ctx, s, site)
+	if err != nil {
+		t.Fatalf("list networkconf: %v", err)
+	}
+	ids := make([]string, 0, len(nets)+1)
+	for _, n := range nets {
+		if id, _ := n["_id"].(string); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	for len(ids) < 2 {
+		n := len(ids)
+		body, status, err := s.PostJSON(ctx, "/api/s/"+site+"/rest/networkconf", map[string]any{
+			"name":         fmt.Sprintf("tagged-probe-%d", n),
+			"purpose":      PurposeCorporate,
+			"enabled":      true,
+			"vlan_enabled": true,
+			"vlan":         200 + n,
+			"ip_subnet":    fmt.Sprintf("10.198.%d.1/24", n),
+		})
+		if err != nil || status != 200 {
+			t.Fatalf("creating a second network for the tagged_networkconf_ids probe (HTTP %d): %v %v", status, body, err)
+		}
+		id, _ := firstData(t, body)["_id"].(string)
+		if id == "" {
+			t.Fatalf("created network carries no id: %s", jsonText(body))
+		}
+		t.Cleanup(func() {
+			if _, status, err := s.DeleteJSON(context.WithoutCancel(ctx), "/api/s/"+site+"/rest/networkconf/"+id); err != nil || status != 200 {
+				t.Logf("deleting probe network %s failed (HTTP %d): %v", id, status, err)
+			}
+		})
+		ids = append(ids, id)
+	}
+	return ids[:2]
 }
 
 // storedPortOverride reads the stored override entry for one port off
