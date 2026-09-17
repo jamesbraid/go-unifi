@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,11 +28,15 @@ import (
 // generated Values slice, is where its legal names live -- so this, not a
 // list this project maintains, is the domain the matrix below sweeps. A
 // controller that adds a name to the pattern grows this domain with it.
-// Numeric protocol numbers (the "6" in "protocol=6, ip_version=IPV4" the enum
-// test already tries) are not enumerated here: the regex names a 256-value
-// range, not a discrete capability, and every number the pattern would let
-// through aliases one of these names or is untested territory this matrix
-// does not claim to cover.
+//
+// The pattern's other branch -- a bare protocol NUMBER, 0-255 -- is not a
+// name and is not returned here; firewallPolicyNumericProtocolDomain sweeps
+// that branch instead, into the same matrix under a differently-named key.
+// The two are NOT aliases of each other: this session measured the
+// controller accepting protocol=58 under IPV4 while refusing protocol=icmpv6
+// (58's own name) under the same version, so a name-only matrix is
+// incomplete in a way that matters, not just in a way that is theoretically
+// possible.
 func firewallPolicyProtocolDomain(t *testing.T) []string {
 	t.Helper()
 	pattern, ok := FieldValidationPatterns["FirewallPolicy"]["protocol"]
@@ -57,6 +62,150 @@ func firewallPolicyProtocolDomain(t *testing.T) []string {
 // "protocol").
 func firewallCapabilityKey(protocol, ipVersion string) string {
 	return fmt.Sprintf("ip_version=%s,protocol=%s", ipVersion, protocol)
+}
+
+// firewallCapabilityNumericKey spells a (protocol NUMBER, ip_version) branch
+// the way firewallCapabilityKey spells a (protocol NAME, ip_version) one, but
+// under a different field name -- protocol_number, not protocol -- so a
+// consumer reading the key can tell a numeric row from a named one without
+// guessing from the value's shape (no name in firewallPolicyProtocolDomain's
+// domain is all digits, but a key format should not rely on that holding
+// forever). protocol_number names what KIND of row this is; the wire field
+// the create actually sent is still plain "protocol", carrying the decimal
+// string -- confirmed round-tripping verbatim as a JSON string for both a
+// name and a bare number, never coerced to a JSON number
+// ([[go-unifi-number-or-word-decode]]).
+func firewallCapabilityNumericKey(protocolNumber int, ipVersion string) string {
+	return fmt.Sprintf("ip_version=%s,protocol_number=%d", ipVersion, protocolNumber)
+}
+
+// firewallCapabilityKeyIdentity splits a key this file spells
+// ("ip_version=X,protocol=Y" or "ip_version=X,protocol_number=N") into the
+// ip_version and everything else -- the part naming WHICH protocol, by name
+// or by number, the row measures. Used to group a name row and its
+// corresponding number row under the same identity for a cross-check, and to
+// check the BOTH-is-intersection invariant per protocol regardless of which
+// key shape it was measured under.
+func firewallCapabilityKeyIdentity(key string) (ipVersion, identity string) {
+	ipVersion, identity, ok := strings.Cut(strings.TrimPrefix(key, "ip_version="), ",")
+	if !ok {
+		return "", key
+	}
+	return ipVersion, identity
+}
+
+// firewallPolicyProtocolNumberVocabulary maps a protocol NUMBER (in the
+// pattern's 0-255 numeric branch, which firewallPolicyProtocolDomain's walk
+// skips) to the NAME the standard IANA "Assigned Internet Protocol Numbers"
+// registry -- the table most Unix systems ship as /etc/protocols, and the
+// evident source of firewallPolicyProtocolDomain's own vocabulary, judging by
+// names like "ip", "ipencap" and "ipip" existing as three separate entries
+// exactly the way that file lists them -- assigns the same value. These are
+// the numbers where "does the number agree with its own name" is even
+// askable, which is how this session found the counter-example that started
+// this sweep: the controller accepts protocol=58 under IPV4 while it refuses
+// protocol=icmpv6 (58's registry name) under IPV4.
+//
+// This map is NOT exhaustive over firewallPolicyProtocolDomain's names. Every
+// entry here was checked against the registry by this session; a domain name
+// with no entry means its number could not be confirmed with the confidence
+// this artifact requires, not that no number exists. "rspf" is the one
+// case, found in the pattern but not confirmed against the registry.
+// "tcp_udp" and "all" are controller synonyms with no single registry number
+// at all, so neither has one either. Do not fill in a guess -- measure it and
+// add the entry once confirmed, the same rule this codebase applies
+// everywhere a fact must come from the controller rather than from memory.
+var firewallPolicyProtocolNumberVocabulary = map[int]string{
+	0: "ip", 1: "icmp", 2: "igmp", 3: "ggp", 4: "ipencap", 5: "st", 6: "tcp",
+	8: "egp", 9: "igp", 12: "pup", 17: "udp", 20: "hmp", 22: "xns-idp",
+	27: "rdp", 29: "iso-tp4", 33: "dccp", 36: "xtp", 37: "ddp", 38: "idpr-cmtp",
+	41: "ipv6", 43: "ipv6-route", 44: "ipv6-frag", 45: "idrp", 46: "rsvp",
+	47: "gre", 50: "esp", 51: "ah", 57: "skip", 58: "icmpv6", 59: "ipv6-nonxt",
+	60: "ipv6-opts", 81: "vmtp", 88: "eigrp", 89: "ospf", 93: "ax.25",
+	94: "ipip", 97: "etherip", 98: "encap", 103: "pim", 108: "ipcomp",
+	112: "vrrp", 115: "l2tp", 124: "isis", 132: "sctp", 133: "fc",
+	135: "mobility-header", 136: "udplite", 137: "mpls-in-ip", 138: "manet",
+	139: "hip", 140: "shim6", 141: "wesp", 142: "rohc",
+}
+
+// firewallPolicyNumericSampleStep is the spacing of the systematic sample
+// firewallPolicyNumericProtocolDomain takes across the numeric range beyond
+// the named vocabulary.
+const firewallPolicyNumericSampleStep = 5
+
+// firewallPolicyNumericProtocolDomain returns the numeric protocol values
+// this sweep measures: every number firewallPolicyProtocolNumberVocabulary
+// names (so a disagreement between a number and its own name, like the
+// icmpv6/58 one this sweep exists to close, would surface), plus a
+// systematic sample of the rest of the pattern's 0-255 numeric branch --
+// every multiple of firewallPolicyNumericSampleStep not already covered by a
+// name. That sample necessarily includes both boundaries, 0 and 255.
+//
+// This is a declared PARTIAL sweep of the numeric branch, not the full
+// 256-value range crossed with 3 ip_versions (768 creates) the task that
+// added it judged impractical to run on every measurement. It instead
+// prioritises the numbers most likely to disagree with something (the named
+// ones) and takes an even-spaced look at the numbers with no name attached
+// at all, rather than either skipping the numeric branch entirely (the prior
+// state) or attempting every value. A number this sweep does not visit is
+// UNSWEPT, not "assumed to behave like its neighbours" -- said here rather
+// than left for a reader to infer from the artifact's row count.
+func firewallPolicyNumericProtocolDomain(t *testing.T) []int {
+	t.Helper()
+	seen := map[int]bool{}
+	var out []int
+	add := func(n int) {
+		if !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	for n := range firewallPolicyProtocolNumberVocabulary {
+		add(n)
+	}
+	for n := 0; n <= 255; n += firewallPolicyNumericSampleStep {
+		add(n)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// assertBothIsIntersectionHolds checks a fact TestIntegrationFirewallPolicyCapabilityMatrix
+// already established before this sweep grew it: BOTH accepts a protocol --
+// named or numeric -- exactly when IPV4 and IPV6 both accept it, never more
+// and never less. A protocol measured under fewer than all three versions
+// cannot be checked and is logged, not failed -- that only happens if a
+// future change stops sweeping every version uniformly.
+func assertBothIsIntersectionHolds(t *testing.T, measured map[string]behavior.Capability) {
+	t.Helper()
+	byIdentity := map[string]map[string]behavior.Capability{}
+	for key, verdict := range measured {
+		ipVersion, identity := firewallCapabilityKeyIdentity(key)
+		if byIdentity[identity] == nil {
+			byIdentity[identity] = map[string]behavior.Capability{}
+		}
+		byIdentity[identity][ipVersion] = verdict
+	}
+	checked := 0
+	for _, identity := range slices.Sorted(maps.Keys(byIdentity)) {
+		byVersion := byIdentity[identity]
+		both, hasBoth := byVersion["BOTH"]
+		v4, hasV4 := byVersion["IPV4"]
+		v6, hasV6 := byVersion["IPV6"]
+		if !hasBoth || !hasV4 || !hasV6 {
+			t.Logf("%s: measured under %d of 3 ip_versions; BOTH-is-intersection cannot be checked",
+				identity, len(byVersion))
+			continue
+		}
+		checked++
+		want := v4.Accepted && v6.Accepted
+		if both.Accepted != want {
+			t.Errorf("%s: BOTH accepted=%v, but IPV4 accepted=%v and IPV6 accepted=%v (their intersection "+
+				"says %v) -- BOTH's accepted set is no longer exactly the intersection of IPV4's and IPV6's",
+				identity, both.Accepted, v4.Accepted, v6.Accepted, want)
+		}
+	}
+	t.Logf("BOTH-is-intersection checked across %d protocol identities (name and number rows alike)", checked)
 }
 
 // v2ErrMessage pulls the human-readable message out of a v2 error envelope
@@ -91,9 +240,10 @@ func findFirewallPolicyByName(ctx context.Context, t *testing.T, s *controllerte
 }
 
 // TestIntegrationFirewallPolicyCapabilityMatrix measures, for every (protocol,
-// ip_version) pair the controller's own field declarations admit, whether a
-// firewall policy create using that pair is accepted -- and if refused, the
-// controller's verbatim message.
+// ip_version) pair the controller's own field declarations admit -- by NAME
+// and, for a justified subset, by the numeric protocol values the same
+// pattern also admits -- whether a firewall policy create using that pair is
+// accepted, and if refused, the controller's verbatim message.
 //
 // This replaces terraform-provider-unifi's firewall_policy_resource.go, which
 // carries roughly sixty hand-written protocol/ip_version literals labelled
@@ -107,11 +257,22 @@ func findFirewallPolicyByName(ctx context.Context, t *testing.T, s *controllerte
 // response is not evidence of what got stored (see nat_update_empty_reread's
 // doc comment for the general form of this trap).
 //
-// Two candidate third axes were spot-checked rather than fully swept -- see
-// the doc comment on the spot-check below for what was tried and why the
-// full cross product was not measured. Do not delete a hand-written literal
-// this matrix disagrees with until that spot-check either clears or the axis
-// is measured in full.
+// A number and its own name are NOT interchangeable to the controller: this
+// session measured protocol=58 accepted under IPV4 while protocol=icmpv6
+// (58's own name) is refused under IPV4. So the numeric branch of the
+// pattern -- 0-255, which an earlier version of this matrix skipped as "a
+// range, not a discrete capability" -- gets its own sweep,
+// firewallPolicyNumericProtocolDomain, keyed distinctly (protocol_number, not
+// protocol) so a consumer can tell the two kinds of row apart without
+// guessing.
+//
+// Candidate third axes beyond protocol and ip_version -- the matching_target
+// on source/destination, and the KIND of zone a policy addresses -- are
+// spot-checked, not fully swept, below and in
+// TestIntegrationFirewallPolicyZoneKindSpotCheck. See those doc comments for
+// what was tried and what is still open. Do not delete a hand-written
+// literal this matrix disagrees with until that coverage either clears the
+// literal or the axis it depends on is measured in full.
 func TestIntegrationFirewallPolicyCapabilityMatrix(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 45*time.Minute)
 	root, captured, running := behaviorGate(ctx, t, s, c.Site)
@@ -182,52 +343,89 @@ func TestIntegrationFirewallPolicyCapabilityMatrix(t *testing.T) {
 		}
 	}
 
-	// Third-axis spot check: does the matching_target on source/destination,
-	// or the zone kind they name, change which (protocol, ip_version) pairs
-	// are legal? A discriminator here would make the matrix above true only
-	// for ANY-matched, custom-zone policies, and publishing it as universal
-	// would be the same branch-blindness the artifact's own EmptyWhen section
-	// exists to catch elsewhere.
+	// The pattern's numeric branch (GAP 1): a justified partial sweep of
+	// 0-255, not every value -- see firewallPolicyNumericProtocolDomain for
+	// exactly what is and is not covered and why. Recorded under a
+	// protocol_number key so it never collides with, or is mistaken for, a
+	// named row.
+	numbers := firewallPolicyNumericProtocolDomain(t)
+	for _, ipVersion := range versions {
+		for _, number := range numbers {
+			measured[firewallCapabilityNumericKey(number, ipVersion)] = measureOne(strconv.Itoa(number), ipVersion, nil)
+		}
+	}
+	t.Logf("swept %d numeric protocol values (of the pattern's 0-255 range) x %d ip_versions = %d additional pairs; "+
+		"%d of the %d numbers correspond to a name in firewallPolicyProtocolDomain's vocabulary",
+		len(numbers), len(versions), len(numbers)*len(versions), len(firewallPolicyProtocolNumberVocabulary), len(numbers))
+
+	// A fact this matrix already established, now checked directly rather
+	// than only asserted in a comment: BOTH accepts a protocol -- named or
+	// numeric -- exactly when IPV4 and IPV6 both do.
+	assertBothIsIntersectionHolds(t, measured)
+
+	// Third-axis spot check (GAP 2, matching_target half): does the
+	// matching_target on source/destination change which (protocol,
+	// ip_version) pairs are legal? A discriminator here would make the
+	// matrix above true only for ANY-matched policies, and publishing it as
+	// universal would be the same branch-blindness the artifact's own
+	// EmptyWhen section exists to catch elsewhere.
 	//
-	// What was tried: the same boundary pairs re-created with source AND
-	// destination set to matching_target IP (an address list, not a zone
-	// reference) instead of ANY -- covering the one refusal the baseline
-	// sweep is expected to produce (icmp on a non-IPV4 version) plus the
-	// protocols that name an IP version directly (ipv6, icmpv6) and the two
-	// controls (all, tcp). Both v4 and v6 literal addresses were used so an
-	// IPV4 or IPV6 policy's address matches its own family.
+	// What was tried, against the two CUSTOM zones this test already made:
 	//
-	// Zone kind was checked differently: a fresh site on this harness ships
-	// with zero firewall zones (confirmed directly -- GET .../firewall/zone
-	// on an unmigrated site returns an empty array), so "Internal"/
-	// "External"/"Gateway" system zones to compare against a custom zone
-	// simply do not exist here. Whether a zone the controller creates for
-	// itself once a gateway is adopted behaves differently is UNSWEPT: this
-	// probe adopts no device and cannot reach that state.
+	//   - matching_target=IP, EVERY protocol firewallPolicyProtocolDomain
+	//     returns (not a boundary subset -- the full domain), source AND
+	//     destination both IP-matched, across all 3 ip_versions. Both v4 and
+	//     v6 literal addresses were used so an IPV4 or IPV6 policy's address
+	//     matches its own family.
+	//   - matching_target=CLIENT on source (a client_macs list; ANY on
+	//     destination), across the boundary protocols below and all 3
+	//     ip_versions.
 	//
-	// What was NOT tried: DOMAIN/REGION/APP matching targets, and every
-	// protocol outside this boundary subset against every matching target.
-	// If the controller ties legality to a matching target this spot check
-	// did not exercise, that dimension is unswept and the baseline matrix
-	// above must not be read as covering it.
+	// What was tried and found NOT constructible against a custom zone at
+	// all, regardless of protocol -- measured directly, not inferred:
+	// matching_target=NETWORK, WEB, REGION, APP, APP_CATEGORY,
+	// EXTERNAL_SOURCE and VPN_USER are every one refused with
+	// api.err.FirewallPolicy{Source,Destination}MatchingTargetNotApplicableForZone
+	// before the controller ever looks at protocol -- a zone-kind gate on
+	// the matching_target itself, not a protocol-dependent one, and
+	// therefore uninformative about THIS matrix on a custom zone. Once
+	// addressed at a zone kind that accepts them (a predefined zone; see
+	// TestIntegrationFirewallPolicyZoneKindSpotCheck), NETWORK and WEB
+	// (destination's variant of "domain" matching, via web_domains) were
+	// re-tried there instead and agreed with the flat matrix -- REGION and
+	// APP still could not be constructed even there without a field this
+	// SDK does not model (the controller's refusal names "regions" and
+	// validates real app-catalog ids, neither of which
+	// FirewallPolicySource/Destination expose), so those two stay UNSWEPT
+	// for protocol legality: attempting a payload for them without a
+	// confirmed field shape would be exactly the "no hand-coded fields" this
+	// project refuses to do elsewhere. matching_target=MAC on source (as
+	// opposed to CLIENT, which does work) was tried with the same
+	// client_macs shape and refused for an unrelated reason
+	// (api.err.EmptyFirewallPolicySourceMacs) that this session did not
+	// resolve; matching_target=IID crashes the endpoint outright (HTTP 500,
+	// non-JSON body) on both source and destination -- a controller defect
+	// worth its own report, unrelated to this matrix.
 	spotCheckProtocols := []string{"all", "tcp", "icmp", "icmpv6", "ipv6", "ah"}
 	spotCheck := map[string]behavior.Capability{}
-	for _, ipVersion := range versions {
+	ipsFor := func(ipVersion string) []string {
 		// An IP-matched policy's address list has to suit the family it
 		// polices: an IPV4 policy takes the v4 literal, an IPV6 policy the v6
 		// one, and BOTH both -- mixing families into a version-specific
 		// policy would draw a family-mismatch refusal that has nothing to do
 		// with the protocol/ip_version pairing this spot check is after.
-		var ips []string
 		switch ipVersion {
 		case "IPV4":
-			ips = []string{"192.0.2.10/32"}
+			return []string{"192.0.2.10/32"}
 		case "IPV6":
-			ips = []string{"2001:db8::10/128"}
+			return []string{"2001:db8::10/128"}
 		default: // BOTH
-			ips = []string{"192.0.2.10/32", "2001:db8::10/128"}
+			return []string{"192.0.2.10/32", "2001:db8::10/128"}
 		}
-		for _, protocol := range spotCheckProtocols {
+	}
+	for _, ipVersion := range versions {
+		ips := ipsFor(ipVersion)
+		for _, protocol := range protocols {
 			overrides := map[string]any{
 				"source": map[string]any{
 					"zone_id": src, "matching_target": "IP", "matching_target_type": "SPECIFIC", "ips": ips,
@@ -236,13 +434,25 @@ func TestIntegrationFirewallPolicyCapabilityMatrix(t *testing.T) {
 					"zone_id": dst, "matching_target": "IP", "matching_target_type": "SPECIFIC", "ips": ips,
 				},
 			}
-			spotCheck[firewallCapabilityKey(protocol, ipVersion)] = measureOne(protocol, ipVersion, overrides)
+			key := "matching_target=IP," + firewallCapabilityKey(protocol, ipVersion)
+			spotCheck[key] = measureOne(protocol, ipVersion, overrides)
+		}
+		for _, protocol := range spotCheckProtocols {
+			overrides := map[string]any{
+				"source": map[string]any{
+					"zone_id": src, "matching_target": "CLIENT", "matching_target_type": "SPECIFIC",
+					"client_macs": []string{"00:11:22:33:44:55"},
+				},
+			}
+			key := "matching_target=CLIENT," + firewallCapabilityKey(protocol, ipVersion)
+			spotCheck[key] = measureOne(protocol, ipVersion, overrides)
 		}
 	}
 	var diverged []string
 	for key, want := range spotCheck {
-		if got := measured[key]; got.Accepted != want.Accepted {
-			diverged = append(diverged, fmt.Sprintf("%s: ANY-zone accepted=%v, IP-matched accepted=%v (%q)",
+		_, baseline, _ := strings.Cut(key, ",")
+		if got := measured[baseline]; got.Accepted != want.Accepted {
+			diverged = append(diverged, fmt.Sprintf("%s: ANY-zone accepted=%v, spot-check accepted=%v (%q)",
 				key, got.Accepted, want.Accepted, want.Error))
 		}
 	}
@@ -252,9 +462,11 @@ func TestIntegrationFirewallPolicyCapabilityMatrix(t *testing.T) {
 			"is a real third axis and the flat matrix above is branch-blind:\n  %s",
 			len(diverged), len(spotCheck), strings.Join(diverged, "\n  "))
 	} else {
-		t.Logf("spot-checked %d (protocol, ip_version) pairs under matching_target=IP: all agreed with "+
-			"the ANY-zone baseline. matching_target is not ruled out as a third axis beyond this subset "+
-			"-- see the test's doc comment for what was and was not tried.", len(spotCheck))
+		t.Logf("spot-checked %d (protocol, ip_version) pairs under matching_target=IP (every protocol) and "+
+			"matching_target=CLIENT (the boundary subset): all agreed with the ANY-zone baseline. See the "+
+			"test's doc comment for the matching_target values that could not be constructed against a "+
+			"custom zone at all, and TestIntegrationFirewallPolicyZoneKindSpotCheck for where those are "+
+			"tried against a zone kind that accepts them.", len(spotCheck))
 	}
 
 	var summary []string

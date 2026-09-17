@@ -1593,6 +1593,294 @@
         "accepted": false,
         "error": "Firewall policy protocol unsupported on IP version"
       },
+      "ip_version=BOTH,protocol_number=0": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=1": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=10": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=100": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=103": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=105": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=108": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=110": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=112": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=115": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=12": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=120": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=124": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=125": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=130": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=132": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=133": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=135": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=136": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=137": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=138": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=139": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=140": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=141": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=142": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=145": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=15": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=150": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=155": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=160": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=165": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=17": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=170": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=175": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=180": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=185": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=190": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=195": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=2": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=20": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=200": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=205": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=210": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=215": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=22": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=220": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=225": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=230": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=235": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=240": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=245": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=25": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=250": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=255": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=27": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=29": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=3": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=30": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=33": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=35": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=36": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=37": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=38": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=4": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=40": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=41": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=43": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=44": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=45": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=46": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=47": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=5": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=50": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=51": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=55": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=57": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=58": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=59": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=6": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=60": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=65": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=70": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=75": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=8": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=80": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=81": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=85": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=88": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=89": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=9": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=90": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=93": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=94": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=95": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=97": {
+        "accepted": true
+      },
+      "ip_version=BOTH,protocol_number=98": {
+        "accepted": true
+      },
       "ip_version=IPV4,protocol=ah": {
         "accepted": true
       },
@@ -1765,6 +2053,294 @@
         "accepted": true
       },
       "ip_version=IPV4,protocol=xtp": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=0": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=1": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=10": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=100": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=103": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=105": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=108": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=110": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=112": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=115": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=12": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=120": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=124": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=125": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=130": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=132": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=133": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=135": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=136": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=137": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=138": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=139": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=140": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=141": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=142": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=145": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=15": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=150": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=155": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=160": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=165": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=17": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=170": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=175": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=180": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=185": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=190": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=195": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=2": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=20": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=200": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=205": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=210": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=215": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=22": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=220": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=225": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=230": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=235": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=240": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=245": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=25": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=250": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=255": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=27": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=29": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=3": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=30": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=33": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=35": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=36": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=37": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=38": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=4": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=40": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=41": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=43": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=44": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=45": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=46": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=47": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=5": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=50": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=51": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=55": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=57": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=58": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=59": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=6": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=60": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=65": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=70": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=75": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=8": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=80": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=81": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=85": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=88": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=89": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=9": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=90": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=93": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=94": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=95": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=97": {
+        "accepted": true
+      },
+      "ip_version=IPV4,protocol_number=98": {
         "accepted": true
       },
       "ip_version=IPV6,protocol=ah": {
@@ -1963,6 +2539,294 @@
       "ip_version=IPV6,protocol=xtp": {
         "accepted": false,
         "error": "Firewall policy protocol unsupported on IP version"
+      },
+      "ip_version=IPV6,protocol_number=0": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=1": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=10": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=100": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=103": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=105": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=108": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=110": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=112": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=115": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=12": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=120": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=124": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=125": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=130": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=132": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=133": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=135": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=136": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=137": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=138": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=139": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=140": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=141": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=142": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=145": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=15": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=150": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=155": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=160": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=165": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=17": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=170": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=175": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=180": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=185": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=190": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=195": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=2": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=20": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=200": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=205": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=210": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=215": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=22": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=220": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=225": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=230": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=235": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=240": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=245": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=25": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=250": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=255": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=27": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=29": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=3": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=30": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=33": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=35": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=36": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=37": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=38": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=4": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=40": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=41": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=43": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=44": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=45": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=46": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=47": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=5": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=50": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=51": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=55": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=57": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=58": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=59": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=6": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=60": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=65": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=70": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=75": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=8": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=80": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=81": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=85": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=88": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=89": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=9": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=90": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=93": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=94": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=95": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=97": {
+        "accepted": true
+      },
+      "ip_version=IPV6,protocol_number=98": {
+        "accepted": true
       }
     }
   }
