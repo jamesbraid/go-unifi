@@ -1260,43 +1260,6 @@
         }
       ]
     },
-    "unifi.Cmd": {
-      "package": "unifi",
-      "go_name": "Cmd",
-      "generated": false,
-      "fields": [
-        {
-          "wire": "cmd",
-          "go_name": "Command",
-          "go_type": "string",
-          "omit_empty": false
-        },
-        {
-          "wire": "mac",
-          "go_name": "Mac",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "port_idx",
-          "go_name": "PortIdx",
-          "go_type": "*int64",
-          "omit_empty": true
-        },
-        {
-          "wire": "filename",
-          "go_name": "FileName",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "site_id",
-          "go_name": "SiteId",
-          "go_type": "string",
-          "omit_empty": true
-        }
-      ]
-    },
     "unifi.ContentFiltering": {
       "package": "unifi",
       "go_name": "ContentFiltering",
