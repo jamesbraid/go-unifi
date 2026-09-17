@@ -217,7 +217,7 @@ func (c *ApiClient) {{ .Method "Create" }}(ctx context.Context, site string, d *
 }
 {{- end }}
 
-{{ if and (ne .StructName "BGPConfig") (ne .StructName "Site") (ne .StructName "WireGuardPeer") (ne .StructName "DeviceTag") (ne .StructName "ClientInfo") }}
+{{ if and (ne .StructName "BGPConfig") (ne .StructName "Site") (ne .StructName "WireGuardPeer") (ne .StructName "DeviceTag") (ne .StructName "ClientInfo") (ne .StructName "SiteHealth") }}
 // Update{{ .StructName }}Fields writes only the named wire fields and leaves
 // the rest of the stored object untouched. Use it when the caller models some
 // of the object rather than all of it: an unnamed field keeps its stored

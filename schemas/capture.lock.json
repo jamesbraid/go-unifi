@@ -14,10 +14,10 @@
   },
   "inputs": {
     "extraction_rules_sha256": "531bd12eece41c3f8c3d9b3565475eb85c148c27f5af52c510c375d7e217e1ac",
-    "generator_inputs_sha256": "565698cf92670b4a99db71e7e6a2d386b744cfd6c0aded15e096a6c051f6bc5d"
+    "generator_inputs_sha256": "36036b9cbc7ce260dc9bea53c445d9372591a011e7818b87ed2d742f093e8752"
   },
   "snapshots": {
-    "structural_sha256": "51721c3e04756dcf0cd181d2a8d7796d91d9f1ce5a0da5b2f1ebdd415cc8a13c",
+    "structural_sha256": "4568e3c9414b1ab4ec2b66c3c5109537e5fdcd2cf26345d51229e490e8f470a7",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c",
     "field_documents": {
       ".extracted": "ec8dcc2cf646e64d955eeb0c3bc026ac3dcca6e78a0b4953c7a97c06118a09b6",
@@ -103,6 +103,7 @@
       "SettingUsgGeo.json": "d24c1d5cacec4a8d95b05f3ee4f43e375658afc6a81af4a2663f703e565b753b",
       "SettingUsw.json": "a8c34b7694d572392cd02ca81a971ea2839003a7a4d0f8d468e9f888e91a8627",
       "Site.json": "302aa4370649d6307227421034e39134591562386ebe9068661b43c52631aa7a",
+      "SiteHealth.json": "405529a09b15f79eccf8bde08e65c06234385505806f9ac8e49cb90ca69638ca",
       "SpatialRecord.json": "f5522e3fb61f312d672fcb7a5d7e37aece6b5bf2949b6db3df6167ddbb6daba6",
       "TrafficRoute.json": "b2c077a248b24c1c03d3b3d5801dfd532fb15a3c31e4288fbda0569b8107a572",
       "User.json": "630f51ce9a125de210d07a9f8045fad0759d1ef61577e0b7ea4486ee83cb3c5e",

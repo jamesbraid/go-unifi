@@ -587,3 +587,239 @@ add = true
 name = "IconResolutions"
 type = "[][]*int64"
 omitempty = true
+
+[SiteHealth.field._id]
+remove = true
+
+[SiteHealth.field.site_id]
+remove = true
+
+[SiteHealth.field.attr_hidden]
+remove = true
+
+[SiteHealth.field.attr_hidden_id]
+remove = true
+
+[SiteHealth.field.attr_no_delete]
+remove = true
+
+[SiteHealth.field.attr_no_edit]
+remove = true
+
+# subsystem and status always serialize on the hand-written type.
+[SiteHealth.field.subsystem]
+omitempty = false
+
+[SiteHealth.field.status]
+omitempty = false
+
+# Every numeric field below is measured decoding both a JSON number and a
+# quoted string across controller builds (TestGetHealth_MixedNumberRepresentations),
+# which is exactly what types.Number exists for. A bare numeric validation
+# infers *int64 with a types.Number-typed shadow field for that tolerant
+# decode, which is right everywhere else but throws the tolerance away right
+# after using it. Pin type + pointer=false to hold the field at types.Number
+# itself, and pass the shadow straight through with a no-op decode func:
+# unmarshal_func always wins over the inferred shadow type, so this is the
+# one way to keep a field decoding through types.Number's own UnmarshalJSON
+# without a live-shape-derived struct ending up *int64.
+[SiteHealth.field.num_user]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_guest]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_iot]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.tx_bytes-r]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.rx_bytes-r]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_ap]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_adopted]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_disabled]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_disconnected]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_pending]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_gw]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_sw]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.num_sta]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.wan_ip]
+name = "WanIP"
+
+[SiteHealth.field.gw_mac]
+name = "GwMac"
+
+# gw_system-stats always serializes and is a plain value on the
+# hand-written type, not a pointer.
+[SiteHealth.field.gw_system-stats]
+pointer = false
+omitempty = false
+
+[SiteHealth.field.latency]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.uptime]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.drops]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.xput_up]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.xput_down]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.speedtest_lastrun]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.speedtest_ping]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+# remote_user_enabled and site_to_site_enabled always serialize on the
+# hand-written type; a bare true|false validation defaults to no omitempty.
+[SiteHealth.field.remote_user_enabled]
+omitempty = true
+
+[SiteHealth.field.remote_user_num_active]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.remote_user_num_inactive]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.remote_user_rx_bytes]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.remote_user_tx_bytes]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.remote_user_rx_packets]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.remote_user_tx_packets]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_enabled]
+omitempty = true
+
+[SiteHealth.field.site_to_site_num_active]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_num_inactive]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_rx_bytes]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_tx_bytes]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_rx_packets]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealth.field.site_to_site_tx_packets]
+type = "types.Number"
+pointer = false
+unmarshal_func = "identityTypesNumber"
+
+# SiteHealthGwSystemStats: same types.Number preservation, plus cpu/mem/
+# uptime always serialize on the hand-written type (no omitempty).
+[SiteHealthGwSystemStats.field.cpu]
+name = "CPU"
+type = "types.Number"
+pointer = false
+omitempty = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealthGwSystemStats.field.mem]
+type = "types.Number"
+pointer = false
+omitempty = false
+unmarshal_func = "identityTypesNumber"
+
+[SiteHealthGwSystemStats.field.uptime]
+type = "types.Number"
+pointer = false
+omitempty = false
+unmarshal_func = "identityTypesNumber"

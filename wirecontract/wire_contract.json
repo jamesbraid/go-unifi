@@ -9698,119 +9698,18 @@
     "unifi.SiteHealth": {
       "package": "unifi",
       "go_name": "SiteHealth",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "SiteHealth",
       "fields": [
         {
-          "wire": "subsystem",
-          "go_name": "Subsystem",
-          "go_type": "string",
-          "omit_empty": false
-        },
-        {
-          "wire": "status",
-          "go_name": "Status",
-          "go_type": "string",
-          "omit_empty": false
-        },
-        {
-          "wire": "num_user",
-          "go_name": "NumUser",
+          "wire": "drops",
+          "go_name": "Drops",
           "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_guest",
-          "go_name": "NumGuest",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_iot",
-          "go_name": "NumIot",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "tx_bytes-r",
-          "go_name": "TxBytesR",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "rx_bytes-r",
-          "go_name": "RxBytesR",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_ap",
-          "go_name": "NumAp",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_adopted",
-          "go_name": "NumAdopted",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_disabled",
-          "go_name": "NumDisabled",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_disconnected",
-          "go_name": "NumDisconnected",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_pending",
-          "go_name": "NumPending",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_gw",
-          "go_name": "NumGw",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_sw",
-          "go_name": "NumSw",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "num_sta",
-          "go_name": "NumSta",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "wan_ip",
-          "go_name": "WanIP",
-          "go_type": "string",
           "omit_empty": true
         },
         {
           "wire": "gateways",
           "go_name": "Gateways",
-          "go_type": "[]string",
-          "omit_empty": true
-        },
-        {
-          "wire": "netmask",
-          "go_name": "Netmask",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "nameservers",
-          "go_name": "Nameservers",
           "go_type": "[]string",
           "omit_empty": true
         },
@@ -9830,7 +9729,7 @@
           "wire": "gw_system-stats",
           "go_name": "GwSystemStats",
           "go_type": "SiteHealthGwSystemStats",
-          "omit_empty": true
+          "omit_empty": false
         },
         {
           "wire": "gw_version",
@@ -9851,44 +9750,80 @@
           "omit_empty": true
         },
         {
-          "wire": "uptime",
-          "go_name": "Uptime",
-          "go_type": "types.Number",
+          "wire": "nameservers",
+          "go_name": "Nameservers",
+          "go_type": "[]string",
           "omit_empty": true
         },
         {
-          "wire": "drops",
-          "go_name": "Drops",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "xput_up",
-          "go_name": "XputUp",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "xput_down",
-          "go_name": "XputDown",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
-          "wire": "speedtest_status",
-          "go_name": "SpeedtestStatus",
+          "wire": "netmask",
+          "go_name": "Netmask",
           "go_type": "string",
           "omit_empty": true
         },
         {
-          "wire": "speedtest_lastrun",
-          "go_name": "SpeedtestLastrun",
+          "wire": "num_adopted",
+          "go_name": "NumAdopted",
           "go_type": "types.Number",
           "omit_empty": true
         },
         {
-          "wire": "speedtest_ping",
-          "go_name": "SpeedtestPing",
+          "wire": "num_ap",
+          "go_name": "NumAp",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_disabled",
+          "go_name": "NumDisabled",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_disconnected",
+          "go_name": "NumDisconnected",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_guest",
+          "go_name": "NumGuest",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_gw",
+          "go_name": "NumGw",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_iot",
+          "go_name": "NumIot",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_pending",
+          "go_name": "NumPending",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_sta",
+          "go_name": "NumSta",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_sw",
+          "go_name": "NumSw",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "num_user",
+          "go_name": "NumUser",
           "go_type": "types.Number",
           "omit_empty": true
         },
@@ -9917,20 +9852,26 @@
           "omit_empty": true
         },
         {
-          "wire": "remote_user_tx_bytes",
-          "go_name": "RemoteUserTxBytes",
-          "go_type": "types.Number",
-          "omit_empty": true
-        },
-        {
           "wire": "remote_user_rx_packets",
           "go_name": "RemoteUserRxPackets",
           "go_type": "types.Number",
           "omit_empty": true
         },
         {
+          "wire": "remote_user_tx_bytes",
+          "go_name": "RemoteUserTxBytes",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
           "wire": "remote_user_tx_packets",
           "go_name": "RemoteUserTxPackets",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "rx_bytes-r",
+          "go_name": "RxBytesR",
           "go_type": "types.Number",
           "omit_empty": true
         },
@@ -9959,14 +9900,14 @@
           "omit_empty": true
         },
         {
-          "wire": "site_to_site_tx_bytes",
-          "go_name": "SiteToSiteTxBytes",
+          "wire": "site_to_site_rx_packets",
+          "go_name": "SiteToSiteRxPackets",
           "go_type": "types.Number",
           "omit_empty": true
         },
         {
-          "wire": "site_to_site_rx_packets",
-          "go_name": "SiteToSiteRxPackets",
+          "wire": "site_to_site_tx_bytes",
+          "go_name": "SiteToSiteTxBytes",
           "go_type": "types.Number",
           "omit_empty": true
         },
@@ -9975,13 +9916,74 @@
           "go_name": "SiteToSiteTxPackets",
           "go_type": "types.Number",
           "omit_empty": true
+        },
+        {
+          "wire": "speedtest_lastrun",
+          "go_name": "SpeedtestLastrun",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "speedtest_ping",
+          "go_name": "SpeedtestPing",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "speedtest_status",
+          "go_name": "SpeedtestStatus",
+          "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "status",
+          "go_name": "Status",
+          "go_type": "string",
+          "omit_empty": false
+        },
+        {
+          "wire": "subsystem",
+          "go_name": "Subsystem",
+          "go_type": "string",
+          "omit_empty": false
+        },
+        {
+          "wire": "tx_bytes-r",
+          "go_name": "TxBytesR",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "uptime",
+          "go_name": "Uptime",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "wan_ip",
+          "go_name": "WanIP",
+          "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "xput_down",
+          "go_name": "XputDown",
+          "go_type": "types.Number",
+          "omit_empty": true
+        },
+        {
+          "wire": "xput_up",
+          "go_name": "XputUp",
+          "go_type": "types.Number",
+          "omit_empty": true
         }
       ]
     },
     "unifi.SiteHealthGwSystemStats": {
       "package": "unifi",
       "go_name": "SiteHealthGwSystemStats",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "SiteHealthGwSystemStats",
       "fields": [
         {
           "wire": "cpu",
