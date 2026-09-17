@@ -25793,7 +25793,23 @@
         },
         "ip_address": {
           "empty": "EMPTY-REJECTED",
-          "omit": "OMIT-REJECTED"
+          "omit": "OMIT-VARIES-BY-TYPE"
+        }
+      },
+      "empty_when": {
+        "ip_address": {
+          "type=DNAT": {
+            "empty": "EMPTY-REJECTED",
+            "omit": "OMIT-REJECTED"
+          },
+          "type=MASQUERADE": {
+            "empty": "EMPTY-REJECTED",
+            "omit": "OMIT-OK"
+          },
+          "type=SNAT": {
+            "empty": "EMPTY-REJECTED",
+            "omit": "OMIT-REJECTED"
+          }
         }
       },
       "ownership": {

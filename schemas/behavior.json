@@ -529,7 +529,7 @@
       },
       "ip_address": {
         "empty": "EMPTY-REJECTED",
-        "omit": "OMIT-REJECTED"
+        "omit": "OMIT-VARIES-BY-TYPE"
       }
     },
     "network-members-group": {
@@ -918,6 +918,24 @@
       "name": {
         "empty": "EMPTY-REJECTED",
         "omit": "OMIT-KEEPS"
+      }
+    }
+  },
+  "empty_when": {
+    "nat": {
+      "ip_address": {
+        "type=DNAT": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        },
+        "type=MASQUERADE": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-OK"
+        },
+        "type=SNAT": {
+          "empty": "EMPTY-REJECTED",
+          "omit": "OMIT-REJECTED"
+        }
       }
     }
   },
