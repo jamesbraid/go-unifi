@@ -20,6 +20,16 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 		Discarded: map[string][]string{"Network": {"dhcpd_dns_enabled"}},
 		Empty: map[string]map[string]EmptySemantics{
 			"Network": {"dhcpd_gateway": {Empty: "EMPTY-REJECTED", Omit: "OMIT-CLEARS"}},
+			"Nat":     {"ip_address": {Empty: "EMPTY-REJECTED", Omit: "OMIT-VARIES-BY-TYPE"}},
+		},
+		EmptyWhen: map[string]map[string]map[string]EmptySemantics{
+			"Nat": {
+				"ip_address": {
+					"type=DNAT":       {Empty: "EMPTY-REJECTED", Omit: "OMIT-REJECTED"},
+					"type=SNAT":       {Empty: "EMPTY-REJECTED", Omit: "OMIT-REJECTED"},
+					"type=MASQUERADE": {Empty: "EMPTY-REJECTED", Omit: "OMIT-OK"},
+				},
+			},
 		},
 		Coercions: map[string]map[string]Coercion{
 			"SettingUsg": {"icmp_timeout": {Wrote: "1", Stored: "30"}},
@@ -71,6 +81,23 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 	if branch := when["purpose=corporate"]; len(branch) != 2 || branch[0] != "vlan" {
 		t.Errorf("branch not sorted on write: %v", branch)
+	}
+	// EmptyWhen mirrors RequiredOnCreateWhen one level down: resource, then
+	// field, then branch. A branch's verdict must survive round-tripping
+	// distinctly from its siblings, and the flat Empty entry beside it must
+	// not silently pick up one branch's answer.
+	ipWhen := got.EmptyWhen["Nat"]["ip_address"]
+	if len(ipWhen) != 3 {
+		t.Fatalf("expected 3 branches for Nat.ip_address, got %v", ipWhen)
+	}
+	if got := ipWhen["type=MASQUERADE"]; got != (EmptySemantics{Empty: "EMPTY-REJECTED", Omit: "OMIT-OK"}) {
+		t.Errorf("MASQUERADE branch lost or changed: %+v", got)
+	}
+	if got := ipWhen["type=SNAT"]; got != (EmptySemantics{Empty: "EMPTY-REJECTED", Omit: "OMIT-REJECTED"}) {
+		t.Errorf("SNAT branch lost or changed: %+v", got)
+	}
+	if flat := got.Empty["Nat"]["ip_address"]; flat.Omit != "OMIT-VARIES-BY-TYPE" {
+		t.Errorf("flat Nat.ip_address.omit = %q, want the branch-disagreement marker, not one branch's own answer", flat.Omit)
 	}
 }
 

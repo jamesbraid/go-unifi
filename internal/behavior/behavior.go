@@ -48,7 +48,34 @@ type Artifact struct {
 
 	// Empty: per resource, per field, how the controller treats an empty
 	// string versus an absent key, in the clearing probe's vocabulary.
+	//
+	// One entry per field is only ever true when every branch of the
+	// resource agrees. A field's disposition can turn on a discriminator
+	// the same way a write contract's required set can (see
+	// WriteContract.RequiredOnCreateWhen) -- nat.ip_address is EMPTY-
+	// REJECTED on every type, but OMIT-REJECTED on DNAT and SNAT while
+	// MASQUERADE accepts an absent key unconditionally because the field
+	// can never hold a value there at all. Flattening that disagreement
+	// into one branch's answer -- which is how nat.ip_address ended up
+	// pinned OMIT-REJECTED, measured on SNAT alone -- tells the other
+	// branch's callers something false. When EmptyWhen carries branches
+	// for a field, this map holds only what every one of them agrees on,
+	// so a consumer reading Empty alone is told less, never told wrong.
 	Empty map[string]map[string]EmptySemantics `json:"empty,omitempty"`
+
+	// EmptyWhen carries the Empty verdicts that hold only for part of a
+	// resource, mirroring WriteContract.RequiredOnCreateWhen: keyed by
+	// resource, then by field, then by the discriminator branch that
+	// selects the verdict -- a comma-separated list of wire field and
+	// value, sorted by field name ("type=MASQUERADE"), the same branch-key
+	// spelling RequiredOnCreateWhen uses.
+	//
+	// A field absent from this map was measured the same across every
+	// branch tried (or only one branch was ever measurable), and Empty
+	// alone already says what that is. A field present here disagreed
+	// across branches, and Empty holds only the intersection -- read this
+	// map for the rest.
+	EmptyWhen map[string]map[string]map[string]EmptySemantics `json:"empty_when,omitempty"`
 
 	// Coercions: per resource, per field, a below-range value that was
 	// written and the value the controller floored/clamped it to -- the
