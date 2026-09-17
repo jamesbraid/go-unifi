@@ -164,7 +164,9 @@
     "Device": [
       "lcm_brightness"
     ],
-    "DevicePortOverrides": [],
+    "DevicePortOverrides": [
+      "tagged_networkconf_ids"
+    ],
     "DeviceRadioTable": [
       "dfs"
     ],
