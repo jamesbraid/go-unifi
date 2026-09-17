@@ -145,6 +145,14 @@ Gone this way so far, with the successor where there is one:
   `siteCommand`'s callers now guard against. Call the wrapper for the
   command you need instead; if none exists, that is a gap to fill with a
   typed one, not a reason to keep an untyped one around.
+- `ClientInfoDeviceInfo` — renamed to `ClientInfoUnifiDeviceInfo`. The type
+  is unchanged; only its name moved. `ClientInfo` is now generated from the
+  document the controller actually returns rather than hand-written, and the
+  generator names a nested type after the wire key that carries it — here
+  `unifi_device_info`, which the hand-written name had shortened. The field
+  on `ClientInfo` keeps its own name (`UnifiDeviceInfo`); a caller that only
+  reaches the nested value through that field needs no change, and one that
+  names the type does.
 
 ## Versioning honesty
 
