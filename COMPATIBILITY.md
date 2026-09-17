@@ -133,6 +133,18 @@ Gone this way so far, with the successor where there is one:
   not come back. `Network.MdnsEnabled` is a different field and stays:
   the same measurement finds the controller storing and returning it on
   a network.
+- `Cmd`, `(*ApiClient).ExecuteCmd` — no successor. A generic escape hatch for
+  posting an arbitrary site command, added once and never called by
+  anything in this SDK, its tests, or `cmd/`. Every command the SDK
+  actually issues (adopt, delete-device, add/delete/update-site, firewall
+  reorder) builds its own typed request and goes through the unexported
+  `siteCommand`, which decodes the command manager's answer and reports
+  when a command was accepted but not acted on. `ExecuteCmd` discarded the
+  response body outright (`var respBody struct{}`), so it could never have
+  told a performed command from an ignored one — the exact failure mode
+  `siteCommand`'s callers now guard against. Call the wrapper for the
+  command you need instead; if none exists, that is a gap to fill with a
+  typed one, not a reason to keep an untyped one around.
 
 ## Versioning honesty
 
