@@ -1881,6 +1881,58 @@ func storedEmptySemantics(
 	return behavior.EmptySemantics{Empty: empty, Omit: omit}
 }
 
+// neverHeldEmptySemantics measures empty-vs-absent for a field that a branch
+// of its resource never lets hold a real value at all -- nat.ip_address on a
+// MASQUERADE rule, which the controller rejects for any value, seed
+// included (api.err.NatRuleInvalidParameters). storedEmptySemantics refuses
+// that case outright (its seed must already carry a value, or EMPTY-CLEARS
+// and EMPTY-IGNORED are indistinguishable), and rightly so for the ordinary
+// case: a field nobody happened to seed. This is a different case -- one a
+// direct create was used to CONFIRM can never be seeded -- so the absence in
+// stored is not a gap in the measurement, it is the measurement.
+//
+// classify only ever needs REJECTED or the null hypothesis (still blank)
+// here, but the branches route through the same shape as
+// storedEmptySemantics' so a controller change that starts accepting a real
+// value on this branch shows up as a REPLACED verdict instead of silently
+// passing.
+func neverHeldEmptySemantics(
+	t *testing.T,
+	field string,
+	stored map[string]any,
+	put func(map[string]any) int,
+	read func() map[string]any,
+) behavior.EmptySemantics {
+	t.Helper()
+
+	if !blankValue(stored[field]) {
+		t.Fatalf("%s already carries a value in the seed document; this is for a field the seed "+
+			"proved can never hold one, not for measuring an ordinary clear", field)
+	}
+
+	classify := func(prefix string, status int) string {
+		if status/100 != 2 {
+			return prefix + "-REJECTED"
+		}
+		if got := read()[field]; !blankValue(got) {
+			return fmt.Sprintf("%s-REPLACED-%v", prefix, got)
+		}
+		return prefix + "-OK"
+	}
+
+	doc := clone(stored)
+	doc[field] = ""
+	empty := classify("EMPTY", put(doc))
+	put(clone(stored)) // reset
+
+	doc = clone(stored)
+	delete(doc, field)
+	omit := classify("OMIT", put(doc))
+	put(clone(stored)) // reset
+
+	return behavior.EmptySemantics{Empty: empty, Omit: omit}
+}
+
 // blankValue reports whether a stored value is the empty form of its field:
 // absent, JSON null, the empty string, the empty list, false, or zero. The
 // controller spells a cleared field every one of those ways depending on the
