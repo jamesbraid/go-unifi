@@ -419,3 +419,171 @@ omitempty = false
 [DeviceTag.field.member_device_macs]
 name = "MemberDeviceMacs"
 omitempty = false
+
+# True-v2 object. The wire identifier is "id" (the client's MAC), not "_id"
+# -- remove the envelope default and pin this resource's own id field to the
+# Go name the hand-written type established. site_id keeps the envelope's
+# own field (same wire name, same shape, so it is not repeated in
+# ClientInfo.json); only its Go name needs pinning back to what already
+# shipped.
+[ClientInfo.field._id]
+remove = true
+
+[ClientInfo.field.attr_hidden]
+remove = true
+
+[ClientInfo.field.attr_hidden_id]
+remove = true
+
+[ClientInfo.field.attr_no_delete]
+remove = true
+
+[ClientInfo.field.attr_no_edit]
+remove = true
+
+[ClientInfo.field.id]
+name = "Id"
+
+[ClientInfo.field.site_id]
+name = "SiteId"
+
+# cleanName's Mac/Ip/Id rewrites (Mac->MAC, Ip->IP, Id->ID) would rename
+# every one of these away from what the hand-written struct already shipped.
+# Pin them back so this migration is a pure codegen-mechanism change, not an
+# API break.
+[ClientInfo.field.ap_mac]
+name = "ApMac"
+
+[ClientInfo.field.dhcpend_time]
+name = "DhcpendTime"
+
+[ClientInfo.field.gw_mac]
+name = "GwMac"
+
+[ClientInfo.field.idletime]
+name = "Idletime"
+
+[ClientInfo.field.ipv4_lease_expiration_timestamp_seconds]
+name = "Ipv4LeaseExpirationTimestampSeconds"
+
+[ClientInfo.field.ipv6_address]
+name = "Ipv6Address"
+
+[ClientInfo.field.last_connection_network_id]
+name = "LastConnectionNetworkId"
+
+[ClientInfo.field.last_ipv6]
+name = "LastIpv6"
+
+[ClientInfo.field.last_uplink_mac]
+name = "LastUplinkMac"
+
+[ClientInfo.field.mac]
+name = "Mac"
+
+[ClientInfo.field.network_id]
+name = "NetworkId"
+
+[ClientInfo.field.uplink_mac]
+name = "UplinkMac"
+
+[ClientInfo.field.usergroup_id]
+name = "UsergroupId"
+
+[ClientInfo.field.user_id]
+name = "UserId"
+
+[ClientInfo.field.virtual_network_override_id]
+name = "VirtualNetworkOverrideId"
+
+[ClientInfo.field.wlanconf_id]
+name = "WlanconfId"
+
+# A bare "true|false" validation defaults to a plain bool with no omitempty
+# (see FirewallZone.field.default_zone above for the pointer-shaped version
+# of this same default); the hand-written struct sends every one of these
+# with omitempty instead.
+[ClientInfo.field.authorized]
+omitempty = true
+
+[ClientInfo.field.blocked]
+omitempty = true
+
+[ClientInfo.field.fixed_ap_enabled]
+omitempty = true
+
+[ClientInfo.field.is_allowed_in_visual_programming]
+omitempty = true
+
+[ClientInfo.field.is_guest]
+omitempty = true
+
+[ClientInfo.field.is_mlo]
+omitempty = true
+
+[ClientInfo.field.is_wired]
+omitempty = true
+
+[ClientInfo.field.local_dns_record_enabled]
+omitempty = true
+
+[ClientInfo.field.noted]
+omitempty = true
+
+[ClientInfo.field.powersave_enabled]
+omitempty = true
+
+[ClientInfo.field.unifi_device]
+omitempty = true
+
+[ClientInfo.field.use_fixedip]
+name = "UseFixedip"
+omitempty = true
+
+[ClientInfo.field.virtual_network_override_enabled]
+omitempty = true
+
+# fingerprint and detailed_states always serialize (no omitempty) and are
+# plain values, not pointers, on the hand-written struct; a nested object
+# defaults to *T,omitempty.
+[ClientInfo.field.fingerprint]
+pointer = false
+omitempty = false
+
+[ClientInfo.field.detailed_states]
+pointer = false
+omitempty = false
+
+[ClientInfoFingerprint.field.computed_dev_id]
+name = "ComputedDevId"
+
+[ClientInfoFingerprint.field.dev_id]
+name = "DevId"
+
+[ClientInfoFingerprint.field.dev_id_override]
+name = "DevIdOverride"
+
+[ClientInfoFingerprint.field.has_override]
+omitempty = true
+
+[ClientInfoDetailedStates.field.uplink_near_power_limit]
+omitempty = true
+
+# unifi_device_info's nested type generates as ClientInfoUnifiDeviceInfo
+# (StructName + field name); the hand-written type named it
+# ClientInfoDeviceInfo instead. Renaming a generated nested type is not
+# something the override layer can do (same limitation noted for
+# PowerSupervisor in overrides/README.md) -- ClientInfoDeviceInfo ->
+# ClientInfoUnifiDeviceInfo is a real, reported rename.
+[ClientInfoUnifiDeviceInfo.field.view_in_application]
+omitempty = true
+
+# icon_resolutions is a 2D array ([][]*int64), which the schema-derived
+# array shape (a single IsArray flag, one level deep) cannot represent; add
+# it as a raw Go type instead. Standard encoding/json decodes it natively,
+# same as the hand-written struct did, so no custom unmarshal is needed.
+[ClientInfoUnifiDeviceInfo.field.icon_resolutions]
+add = true
+name = "IconResolutions"
+type = "[][]*int64"
+omitempty = true
