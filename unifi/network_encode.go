@@ -22,6 +22,21 @@ const (
 	PurposeUserVPN   = "remote-user-vpn"
 )
 
+// WANNetworkGroupDefault is the wan_networkgroup value that identifies a
+// site's single default (primary) WAN network, as opposed to a secondary
+// uplink in "WAN2".."WAN9" or the cellular failover slot "WAN_LTE_FAILOVER"
+// (wan_networkgroup's own pattern: WAN[2-9]?|WAN_LTE_FAILOVER).
+//
+// This is not a naming convention a caller could pick differently -- it is
+// the controller's own bookkeeping. Measured on 10.6.101: a WAN network
+// created with wan_networkgroup omitted from the request comes back with
+// wan_networkgroup and attr_hidden_id both stored as "WAN", and a second WAN
+// create that explicitly names wan_networkgroup "WAN" is then refused
+// (api.err.WanConfigurationForNetworkGroupAlreadyExists) -- the omitted key
+// and the literal string collide, so the server treats them as the same
+// slot. See TestIntegrationDefaultWANNetworkIdentity.
+const WANNetworkGroupDefault = "WAN"
+
 // MarshalJSON writes only the fields relevant to the network's Purpose.
 //
 // Which fields a purpose sends is the per-purpose lists below: hand-kept
