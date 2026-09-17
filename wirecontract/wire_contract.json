@@ -641,7 +641,8 @@
     "unifi.ClientInfo": {
       "package": "unifi",
       "go_name": "ClientInfo",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "ClientInfo",
       "fields": [
         {
           "wire": "anomalies",
@@ -758,6 +759,12 @@
           "omit_empty": true
         },
         {
+          "wire": "ip",
+          "go_name": "IP",
+          "go_type": "string",
+          "omit_empty": true
+        },
+        {
           "wire": "id",
           "go_name": "Id",
           "go_type": "string",
@@ -767,12 +774,6 @@
           "wire": "idletime",
           "go_name": "Idletime",
           "go_type": "*int64",
-          "omit_empty": true
-        },
-        {
-          "wire": "ip",
-          "go_name": "IP",
-          "go_type": "string",
           "omit_empty": true
         },
         {
@@ -854,15 +855,15 @@
           "omit_empty": true
         },
         {
-          "wire": "last_uplink_remote_port",
-          "go_name": "LastUplinkRemotePort",
-          "go_type": "*int64",
-          "omit_empty": true
-        },
-        {
           "wire": "last_uplink_name",
           "go_name": "LastUplinkName",
           "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "last_uplink_remote_port",
+          "go_name": "LastUplinkRemotePort",
+          "go_type": "*int64",
           "omit_empty": true
         },
         {
@@ -911,6 +912,12 @@
           "wire": "network_id",
           "go_name": "NetworkId",
           "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "network_members_group_ids",
+          "go_name": "NetworkMembersGroupIDs",
+          "go_type": "[]string",
           "omit_empty": true
         },
         {
@@ -1072,7 +1079,7 @@
         {
           "wire": "unifi_device_info",
           "go_name": "UnifiDeviceInfo",
-          "go_type": "*ClientInfoDeviceInfo",
+          "go_type": "*ClientInfoUnifiDeviceInfo",
           "omit_empty": true
         },
         {
@@ -1094,14 +1101,14 @@
           "omit_empty": true
         },
         {
-          "wire": "usergroup_id",
-          "go_name": "UsergroupId",
+          "wire": "user_id",
+          "go_name": "UserId",
           "go_type": "string",
           "omit_empty": true
         },
         {
-          "wire": "user_id",
-          "go_name": "UserId",
+          "wire": "usergroup_id",
+          "go_name": "UsergroupId",
           "go_type": "string",
           "omit_empty": true
         },
@@ -1158,7 +1165,8 @@
     "unifi.ClientInfoDetailedStates": {
       "package": "unifi",
       "go_name": "ClientInfoDetailedStates",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "ClientInfoDetailedStates",
       "fields": [
         {
           "wire": "uplink_near_power_limit",
@@ -1168,35 +1176,11 @@
         }
       ]
     },
-    "unifi.ClientInfoDeviceInfo": {
-      "package": "unifi",
-      "go_name": "ClientInfoDeviceInfo",
-      "generated": false,
-      "fields": [
-        {
-          "wire": "icon_filename",
-          "go_name": "IconFilename",
-          "go_type": "string",
-          "omit_empty": true
-        },
-        {
-          "wire": "icon_resolutions",
-          "go_name": "IconResolutions",
-          "go_type": "[][]*int64",
-          "omit_empty": true
-        },
-        {
-          "wire": "view_in_application",
-          "go_name": "ViewInApplication",
-          "go_type": "bool",
-          "omit_empty": true
-        }
-      ]
-    },
     "unifi.ClientInfoFingerprint": {
       "package": "unifi",
       "go_name": "ClientInfoFingerprint",
-      "generated": false,
+      "generated": true,
+      "schema_resource": "ClientInfoFingerprint",
       "fields": [
         {
           "wire": "computed_dev_id",
@@ -1256,6 +1240,32 @@
           "wire": "os_name",
           "go_name": "OsName",
           "go_type": "*int64",
+          "omit_empty": true
+        }
+      ]
+    },
+    "unifi.ClientInfoUnifiDeviceInfo": {
+      "package": "unifi",
+      "go_name": "ClientInfoUnifiDeviceInfo",
+      "generated": true,
+      "schema_resource": "ClientInfoUnifiDeviceInfo",
+      "fields": [
+        {
+          "wire": "icon_filename",
+          "go_name": "IconFilename",
+          "go_type": "string",
+          "omit_empty": true
+        },
+        {
+          "wire": "icon_resolutions",
+          "go_name": "IconResolutions",
+          "go_type": "[][]*int64",
+          "omit_empty": true
+        },
+        {
+          "wire": "view_in_application",
+          "go_name": "ViewInApplication",
+          "go_type": "bool",
           "omit_empty": true
         }
       ]

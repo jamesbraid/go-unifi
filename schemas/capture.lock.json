@@ -14,10 +14,10 @@
   },
   "inputs": {
     "extraction_rules_sha256": "531bd12eece41c3f8c3d9b3565475eb85c148c27f5af52c510c375d7e217e1ac",
-    "generator_inputs_sha256": "6551d8c7bb1d89fbb407d1883603ee3ef610ff0376c8c467f46016f004dfba87"
+    "generator_inputs_sha256": "565698cf92670b4a99db71e7e6a2d386b744cfd6c0aded15e096a6c051f6bc5d"
   },
   "snapshots": {
-    "structural_sha256": "ad10daf2038e616fb18bae96b51a2d50666d79542164ac7c5ad5756d41f4c9d7",
+    "structural_sha256": "51721c3e04756dcf0cd181d2a8d7796d91d9f1ce5a0da5b2f1ebdd415cc8a13c",
     "sensitivity_sha256": "7cbf064aadf45fc601ed52bffcfb88e657d64460f35c1bb9719858cdee44434c",
     "field_documents": {
       ".extracted": "ec8dcc2cf646e64d955eeb0c3bc026ac3dcca6e78a0b4953c7a97c06118a09b6",
@@ -27,6 +27,7 @@
       "BgpConfig.json": "25b4b90333c8301194467f345000a95e7454bef7fda5d821d25299247ddb9d66",
       "BroadcastGroup.json": "e03e549795f804a43c30bbfe325afbf78d34e41dc81865c93ed8532bb587be33",
       "ChannelPlan.json": "590dff057a4e13ebe23c1ad86a47a88ce2d2f60d313cea564cec0d9a8d87c7c4",
+      "ClientInfo.json": "899b7de7660caebb936dce06d55f95b56baf5cc1b6a9c5e89b9630dbbca0a494",
       "ContentFiltering.json": "b9b0546b0c1f905bd9b86e12c6214f7d5fa9c6b83716a5f62479adf93e83d2f0",
       "Dashboard.json": "4eca0c67ccaafe1452b88026038e08610e8a571c37f479d5ed7e4b23277a2052",
       "Device.json": "ccc1e1c94ba68eabd306802b2870ad62e4ad4f374750db5db14d41c703e315e9",

@@ -1168,6 +1168,18 @@ var handWrittenCRUD = map[string]map[string]bool{
 		"Update": false,
 		"Delete": false,
 	},
+	"ClientInfo": {
+		// Three different read endpoints (clients/active, clients/local/
+		// {mac}, clients/history), each with its own fixed query
+		// parameters -- none of the generic CRUD shapes fit, and there is
+		// no create, update or delete at all. ListClientInfo, GetClientInfo
+		// and ListClientHistory stay entirely hand-written.
+		"List":   false,
+		"Get":    false,
+		"Create": false,
+		"Update": false,
+		"Delete": false,
+	},
 }
 
 // Exports reports whether the generator publishes the exported form of a CRUD
