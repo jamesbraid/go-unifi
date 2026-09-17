@@ -52,6 +52,13 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 				},
 			},
 		},
+		Capabilities: map[string]map[string]Capability{
+			"FirewallPolicy": {
+				"ip_version=IPV4,protocol=tcp":    {Accepted: true},
+				"ip_version=IPV6,protocol=icmp":   {Accepted: false, Error: "icmp unsupported on IP version IPV6"},
+				"ip_version=BOTH,protocol=icmpv6": {Accepted: false, Error: "icmpv6 unsupported on IP version BOTH"},
+			},
+		},
 	}
 	if err := Write(dir, want); err != nil {
 		t.Fatal(err)
@@ -98,6 +105,20 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 	if flat := got.Empty["Nat"]["ip_address"]; flat.Omit != "OMIT-VARIES-BY-TYPE" {
 		t.Errorf("flat Nat.ip_address.omit = %q, want the branch-disagreement marker, not one branch's own answer", flat.Omit)
+	}
+	// Capabilities is keyed like RequiredOnCreateWhen -- a branch key joining
+	// two discriminators, sorted by field name -- and an accepted branch
+	// carries no error while a refused one carries the controller's own
+	// message. Both must survive round-tripping distinctly.
+	fwPolicy := got.Capabilities["FirewallPolicy"]
+	if len(fwPolicy) != 3 {
+		t.Fatalf("expected 3 measured (protocol, ip_version) branches for FirewallPolicy, got %v", fwPolicy)
+	}
+	if got := fwPolicy["ip_version=IPV4,protocol=tcp"]; got != (Capability{Accepted: true}) {
+		t.Errorf("accepted branch lost or changed: %+v", got)
+	}
+	if got := fwPolicy["ip_version=IPV6,protocol=icmp"]; got.Accepted || got.Error == "" {
+		t.Errorf("refused branch lost its error: %+v", got)
 	}
 }
 

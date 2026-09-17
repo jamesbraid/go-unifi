@@ -97,6 +97,30 @@ type Artifact struct {
 	// measured ground under the transport's retry policy (replay PUT, never
 	// POST).
 	Replays map[string]Replay `json:"replays,omitempty"`
+
+	// Capabilities: per resource, per combination of discriminator fields,
+	// whether a create using that combination is accepted -- and if refused,
+	// the controller's own message. Keyed like
+	// WriteContract.RequiredOnCreateWhen: a comma-separated list of wire
+	// field and value, sorted by field name ("ip_version=IPV4,protocol=tcp").
+	//
+	// This replaces a hand-maintained compatibility table with a measured
+	// one: FirewallPolicy's (protocol, ip_version) matrix used to live as
+	// ~60 literals in a downstream consumer, pinned by a comment naming a
+	// controller version rather than anything checkable. The domain swept
+	// into each key must come from the controller's own declarations -- the
+	// generated Values slice for an enum field, the field's own validation
+	// pattern for a pattern-typed one -- never from a list this project
+	// maintains, so a controller that adds a value shows up here as a new
+	// row instead of being silently skipped.
+	Capabilities map[string]map[string]Capability `json:"capabilities,omitempty"`
+}
+
+// Capability is one branch's measured create outcome: accepted, or refused
+// with the controller's own message. Error is empty when Accepted is true.
+type Capability struct {
+	Accepted bool   `json:"accepted"`
+	Error    string `json:"error,omitempty"`
 }
 
 // RejectedCreate is the controller's answer to one deliberately invalid
