@@ -289,17 +289,33 @@ func compareRecorded(
 			"a version difference as drift", art.ControllerVersion, running)
 	}
 	compareWriteContract(t, resource, art.Writes, contract)
-	if pinned, has := art.Discarded[resource]; has {
-		sort.Strings(pinned)
-		sortedDropped := append([]string(nil), dropped...)
-		sort.Strings(sortedDropped)
-		if !stringSlicesEqual(pinned, sortedDropped) {
-			t.Errorf("%s discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
-				"re-measure with BEHAVIOR_WRITE=1 once the change is understood", resource, pinned, sortedDropped)
+	// dropped == nil means this probe never swept the resource's discard
+	// list at all -- distinct from a non-nil empty slice, which means it
+	// swept every field it sent and found nothing dropped. recordWrite
+	// already draws this line (its own "if dropped != nil" guard), so a
+	// caller documents "I don't own this resource's discard list" by
+	// passing nil, same as it always has. compareRecorded used to ignore
+	// that distinction and diff a nil measurement against whatever another
+	// probe had pinned for the same resource: two DevicePortOverrides
+	// probes assert this artifact key, one sweeping tagged_networkconf_ids
+	// and one not, and the one that skips it was reading its own silence
+	// as "swept, found nothing" and reporting the other probe's finding as
+	// drift. Skipping the comparison on a nil measurement makes that
+	// probe's silence read as what it is -- and the resource is still
+	// covered, by the probe that does pass a real list.
+	if dropped != nil {
+		if pinned, has := art.Discarded[resource]; has {
+			sort.Strings(pinned)
+			sortedDropped := append([]string(nil), dropped...)
+			sort.Strings(sortedDropped)
+			if !stringSlicesEqual(pinned, sortedDropped) {
+				t.Errorf("%s discard list drifted:\n  artifact: %v\n  measured: %v\n\n"+
+					"re-measure with BEHAVIOR_WRITE=1 once the change is understood", resource, pinned, sortedDropped)
+			}
+		} else if len(dropped) > 0 {
+			t.Errorf("%s measured %d dropped field(s) but the artifact pins none; "+
+				"re-measure with BEHAVIOR_WRITE=1", resource, len(dropped))
 		}
-	} else if len(dropped) > 0 {
-		t.Errorf("%s measured %d dropped field(s) but the artifact pins none; "+
-			"re-measure with BEHAVIOR_WRITE=1", resource, len(dropped))
 	}
 	if len(empties) > 0 {
 		compareEmptySemantics(t, emptySection, art.Empty[emptySection], empties)
