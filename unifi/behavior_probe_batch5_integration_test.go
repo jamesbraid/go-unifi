@@ -6,6 +6,7 @@ package unifi
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -414,34 +415,52 @@ func deviceTagByName(body any, name string) map[string]any {
 
 // TestIntegrationDeviceTagWriteContract measures the DeviceTag write
 // surface. DeviceTag is now generated (unifi/device_tag.generated.go), so
-// unlike Site and WireGuardPeer above this COULD land in the artifact's
-// Writes map -- but nothing here does, because no working create path was
-// found, which this test confirms directly rather than inheriting the
-// hand-written client's doc comment ("no single-tag get/create/update/
-// delete has ever been measured") as though that settled it.
+// unlike Site and WireGuardPeer above this can land in the artifact -- and
+// now does, but only in behavior.Artifact.UOSWrites, because create's own
+// answer is not one fact but two.
 //
-// POST v2/api/site/{site}/device-tags binds a real Jackson DTO -- it 400s
-// on an unrecognised key and on a missing name -- but a body that satisfies
-// both answers HTTP 200 with an EMPTY body (fails to parse as JSON) and,
-// on a fresh re-GET (trap 1: never trust the write's own answer), the
-// collection is unchanged. Five 1-second retries rule out an async
-// settle. The v1 collection names a controller might use instead --
-// "tag", "devicetag", "device_tag" -- all answer api.err.InvalidObject,
-// same as a name the controller does not register at all.
+// POST v2/api/site/{site}/device-tags binds a real Jackson DTO -- it 400s on
+// an unrecognised key and on a missing name -- but what a body that
+// satisfies both does depends on which product answers it. On the
+// standalone controller it answers HTTP 200 with an EMPTY body (fails to
+// parse as JSON) and, on a fresh re-GET (trap 1: never trust the write's own
+// answer), the collection is unchanged: five 1-second retries rule out an
+// async settle, and the v1 collection names a controller might use instead
+// -- "tag", "devicetag", "device_tag" -- all answer api.err.InvalidObject,
+// same as a name the controller does not register at all. On UniFi OS the
+// same request answers a real id and PERSISTS. That is a genuine harness
+// difference, not something one universal Writes entry can hold, so it is
+// recorded in UOSWrites instead -- and only measured there, on this
+// harness, never inferred for the other one.
+//
+// member_device_macs's own required-on-create cannot be read off a
+// rejection the way name's can: omitting it does not answer a validation
+// error, it crashes the controller outright (HTTP 500, a body that fails to
+// parse as JSON). A crash proves nothing about the DTO's rules, so it is
+// logged as the defect it is and left unmeasured rather than filed as
+// "required".
+//
+// Once UOS is known to persist, update and delete get a real id to address
+// for the first time -- and neither turns out to have a working path
+// either, confirmed rather than merely untried: PUT {id} answers HTTP 400
+// ("unrecognised field member_device_macs") when the create body is
+// replayed, and the same crash as above when member_device_macs is dropped
+// to satisfy that; DELETE {id} answers HTTP 405 outright. No body or verb
+// this test tries lands, so the recorded contract carries an empty
+// UpdateVerb/UpdatePath on purpose.
 //
 // The one other candidate write surface, the assignment command
 // (POST .../device-tags/device-tag-assignment/{mac}), is tried against a
 // REAL adopted device (not a made-up MAC, which could no-op for a
 // different reason) with an addition that has never existed, once as a
 // human-readable name and once as an id-shaped string -- in case the UI
-// auto-creates a tag from either shape. Both answer HTTP 200 with an empty
-// array and leave the collection unchanged. Since nothing this test tries
-// creates a tag, update and delete cannot be measured either -- there is
-// never an id to address. If any of this changes on a future controller,
-// the LOUD failure below is what forces a re-look rather than a stale pin.
+// auto-creates a tag from either shape. It is only reached below when the
+// dedicated create path is confirmed a no-op (the standalone harness):
+// once UOS's create is known to persist, it already answers the "does
+// anything persist" question this command exists to probe.
 func TestIntegrationDeviceTagWriteContract(t *testing.T) {
 	ctx, c, s := controllertest.MutatingHarness(t, 20*time.Minute)
-	_, _, _ = behaviorGate(ctx, t, s, c.Site) // gates the controller version; nothing here writes to the artifact -- see above
+	root, captured, running := behaviorGate(ctx, t, s, c.Site)
 
 	path := "/v2/api/site/" + c.Site + "/device-tags"
 	list := func() any {
@@ -466,13 +485,22 @@ func TestIntegrationDeviceTagWriteContract(t *testing.T) {
 	} else {
 		t.Logf("POST %s without name rejected (HTTP %d) -- name is required", path, status)
 	}
-	if _, status, err := s.PostJSON(ctx, path, map[string]any{"name": "devicetag-nomacs-probe"}); status/100 != 2 {
-		t.Errorf("POST %s without member_device_macs rejected (HTTP %d, %v); expected accepted (if uselessly)",
-			path, status, err)
+
+	// member_device_macs cannot be measured the same way: omitting it
+	// crashes the controller rather than answering a rejection, so this
+	// checks for that specific crash and refuses to file a "required on
+	// create" verdict from it either way.
+	if _, status, err := s.PostJSON(ctx, path, map[string]any{"name": "devicetag-nomacs-probe"}); status == 500 && errors.Is(err, controllertest.ErrNotJSON) {
+		t.Logf("POST %s without member_device_macs crashes the controller (HTTP 500, non-JSON body) -- "+
+			"a defect, not a validation result; member_device_macs's required-on-create is left "+
+			"unmeasured rather than filed from it", path)
+	} else if status/100 != 2 {
+		t.Errorf("POST %s without member_device_macs rejected (HTTP %d, %v) -- neither the known crash "+
+			"nor an accept; re-check what this answer means before trusting either verdict", path, status, err)
 	} else {
-		t.Logf("POST %s without member_device_macs answers HTTP %d -- member_device_macs is not required "+
-			"(consistent with the create below never persisting anything either)", path, status)
+		t.Logf("POST %s without member_device_macs answers HTTP %d -- member_device_macs is not required", path, status)
 	}
+
 	unkBody, unkStatus, _ := s.PostJSON(ctx, path, map[string]any{
 		"name": "devicetag-unknown-key-probe", "member_device_macs": []any{}, probeUnknownKey: "x",
 	})
@@ -501,18 +529,80 @@ func TestIntegrationDeviceTagWriteContract(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 	}
-	if stored != nil {
-		id := objectID(stored)
-		t.Errorf("LOUD: POST %s now PERSISTS a tag (id=%q) it previously discarded; DeviceTag can be fully "+
-			"measured now -- this test needs rewriting into a real write-contract probe with recordWrite, "+
-			"not left here logging non-persistence", path, id)
-		if id != "" {
-			s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+
+	if stored == nil {
+		if onUOSHarness() {
+			t.Errorf("LOUD: create no longer persists on %s; previously measured to persist here with a "+
+				"real id (see UOSWrites[%q] in %s) -- re-measure with BEHAVIOR_WRITE=1 before trusting "+
+				"either verdict", harnessName(), "DeviceTag", behavior.Path)
+			return
 		}
+		t.Logf("POST %s answered HTTP %d but a fresh GET (after 5 retries) shows no %q -- the create is a "+
+			"confirmed no-op on %s, not merely unmeasured", path, createStatus, probeName, harnessName())
+	} else {
+		id := objectID(stored)
+		if !onUOSHarness() {
+			t.Errorf("LOUD: POST %s now PERSISTS a tag (id=%q) on %s; previously confirmed a no-op here "+
+				"across five retries and three collection names -- if this holds up, DeviceTag's write "+
+				"contract needs recording for this harness too (see UOSWrites[%q] in %s)",
+				path, id, harnessName(), "DeviceTag", behavior.Path)
+			if id != "" {
+				s.DeleteJSON(ctx, path+"/"+id) //nolint:errcheck
+			}
+			return
+		}
+
+		t.Logf("POST %s persists on %s (id=%q) -- measuring the rest of the write contract", path, harnessName(), id)
+
+		// update: PUT {id}. Replaying the create body verbatim exercises a
+		// DIFFERENT DTO -- member_device_macs is not part of it -- and
+		// dropping it to satisfy that crashes the endpoint instead of
+		// answering a rejection. Neither shape lands, on purpose measured
+		// rather than left untried.
+		withMacsBody, withMacsStatus, _ := s.PutJSON(ctx, path+"/"+id, map[string]any{
+			"name": probeName + "-renamed", "member_device_macs": []any{},
+		})
+		if withMacsStatus/100 == 2 {
+			t.Errorf("LOUD: PUT %s/%s with member_device_macs now succeeds (HTTP %d); DeviceTag's update "+
+				"path may now be measurable -- this needs rewriting to record it", path, id, withMacsStatus)
+		} else {
+			t.Logf("PUT %s/%s with member_device_macs: HTTP %d (%s) -- rejected as a different DTO than create's",
+				path, id, withMacsStatus, v2Rejection(withMacsBody))
+		}
+
+		noMacsBody, noMacsStatus, noMacsErr := s.PutJSON(ctx, path+"/"+id, map[string]any{"name": probeName + "-renamed"})
+		switch {
+		case noMacsStatus == 500 && errors.Is(noMacsErr, controllertest.ErrNotJSON):
+			t.Logf("PUT %s/%s without member_device_macs crashes the controller (HTTP 500, non-JSON "+
+				"body) -- a defect; no update body shape this probe tried lands, so update-by-id is "+
+				"recorded as no working path rather than untried", path, id)
+		case noMacsStatus/100 == 2:
+			t.Errorf("LOUD: PUT %s/%s without member_device_macs now succeeds (HTTP %d); DeviceTag's "+
+				"update path may now be measurable -- this needs rewriting to record it", path, id, noMacsStatus)
+		default:
+			t.Logf("PUT %s/%s without member_device_macs: HTTP %d (%v %v)", path, id, noMacsStatus, noMacsBody, noMacsErr)
+		}
+
+		delBody, delStatus, delErr := s.DeleteJSON(ctx, path+"/"+id)
+		if delStatus/100 == 2 {
+			t.Errorf("LOUD: DELETE %s/%s now succeeds (HTTP %d); DeviceTag's delete path may now be "+
+				"measurable -- this needs rewriting to record it", path, id, delStatus)
+		} else {
+			t.Logf("DELETE %s/%s: HTTP %d (%v %v) -- no working single-tag delete path; the tag this "+
+				"probe created is left in place for the container's own teardown", path, id, delStatus, delBody, delErr)
+		}
+
+		contract := behavior.WriteContract{
+			CreateVerb: "POST", CreatePath: "v2/api/site/{site}/device-tags",
+			RequiredOnCreate: []string{"name"},
+		}
+		if behaviorWriteRequested() {
+			recordWriteUOS(t, root, captured, "DeviceTag", contract)
+			return
+		}
+		compareRecordedUOS(t, root, running, "DeviceTag", contract)
 		return
 	}
-	t.Logf("POST %s answered HTTP %d but a fresh GET (after 5 retries) shows no %q -- the create is a "+
-		"confirmed no-op, not merely unmeasured", path, createStatus, probeName)
 
 	// The assignment command, against a real adopted device: does either
 	// shape of a never-before-seen addition auto-create a tag?

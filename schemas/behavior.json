@@ -1364,6 +1364,17 @@
       "update_path": "v2/api/site/{site}/wireguard/{network_id}/users/batch"
     }
   },
+  "uos_writes": {
+    "DeviceTag": {
+      "create_verb": "POST",
+      "create_path": "v2/api/site/{site}/device-tags",
+      "update_verb": "",
+      "update_path": "",
+      "required_on_create": [
+        "name"
+      ]
+    }
+  },
   "rejected_creates": {
     "FirewallZone": {
       "status": 404,

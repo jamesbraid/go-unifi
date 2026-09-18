@@ -87,6 +87,19 @@ type Artifact struct {
 	// create and on update. Replaces the codegen's guess-from-shape.
 	Writes map[string]WriteContract `json:"writes,omitempty"`
 
+	// UOSWrites: keyed like Writes, a write contract measured to hold only
+	// on the UniFi OS harness -- the standalone controller answers the same
+	// request differently (a discarded write, a crash, a rejection), so
+	// filing it beside Writes would claim a create path the standalone
+	// controller does not actually have. Mirrors the Ownership/UOSPins
+	// split: a resource entirely absent from Writes is not "unmeasured", it
+	// is "no working create path on the standalone controller", same as
+	// today; this map is where a UOS-only path is recorded instead of
+	// papering over the difference. DeviceTag is the first: its create
+	// persists only on UOS, confirmed a no-op on the standalone harness
+	// across five retries and three collection names.
+	UOSWrites map[string]WriteContract `json:"uos_writes,omitempty"`
+
 	// RejectedCreates: per resource, what a create the controller rejected
 	// left behind -- the status it answered and whether the document was
 	// stored anyway. A rejection that stores is why a client must never
@@ -236,6 +249,13 @@ func Write(root string, a Artifact) error {
 		sort.Strings(a.Discarded[k])
 	}
 	for _, w := range a.Writes {
+		sort.Strings(w.RequiredOnCreate)
+		sort.Strings(w.RequiredOnUpdate)
+		for k := range w.RequiredOnCreateWhen {
+			sort.Strings(w.RequiredOnCreateWhen[k])
+		}
+	}
+	for _, w := range a.UOSWrites {
 		sort.Strings(w.RequiredOnCreate)
 		sort.Strings(w.RequiredOnUpdate)
 		for k := range w.RequiredOnCreateWhen {
