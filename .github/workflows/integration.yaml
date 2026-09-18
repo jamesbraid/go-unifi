@@ -41,7 +41,15 @@ jobs:
     if: github.server_url == 'https://github.com'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    # 49 TestIntegration* functions landed in the five days to 2026-09-18
+    # (41 -> 90), and the suite's own -timeout below now measures its
+    # ceiling nightly instead of clearing it with room to spare: the
+    # unifi package alone hit its 40m internal timeout to the second on
+    # the amd64 leg, and missed the arm64 leg's job timeout by 18s on the
+    # other side. 105 restores the same ~2x margin -timeout 40m had over
+    # the ~21-38m the suite measured the last time this was sized (see
+    # -timeout below and 5425979, which set both these numbers together).
+    timeout-minutes: 105
     strategy:
       fail-fast: false
       matrix:
@@ -118,8 +126,14 @@ jobs:
             export UNIFI_TEST_IMAGE="ghcr.io/jamesbraid/unifi-network:${version}-sim"
             export UNIFI_TEST_EXPECT_VERSION="$version"
           fi
+          # -timeout was 40m from 2026-07 (5425979) until 2026-09, when the
+          # unifi package's own TestIntegration* count went 41 -> 90 in five
+          # days and started tripping this to the second on every nightly
+          # run instead of clearing it: see the job's timeout-minutes above
+          # for the measurements. 90m restores roughly the margin 40m had
+          # when it was set.
           UNIFI_TEST_REQUIRE=1 \
-            go test -tags integration -p 1 -timeout 40m -v \
+            go test -tags integration -p 1 -timeout 90m -v \
             ./internal/controllertest/ ./cmd/fields/ ./unifi/ -run 'TestIntegration'
 
   # Aggregate the matrix into one required check. GitHub creates a check per
