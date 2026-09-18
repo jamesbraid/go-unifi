@@ -25463,6 +25463,17 @@
         ]
       }
     },
+    "unifi.DeviceTag": {
+      "uos_writes": {
+        "create_verb": "POST",
+        "create_path": "v2/api/site/{site}/device-tags",
+        "update_verb": "",
+        "update_path": "",
+        "required_on_create": [
+          "name"
+        ]
+      }
+    },
     "unifi.DpiApp": {
       "discarded": [],
       "empty": {

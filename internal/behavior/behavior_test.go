@@ -52,6 +52,12 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 				},
 			},
 		},
+		UOSWrites: map[string]WriteContract{
+			"DeviceTag": {
+				CreateVerb: "POST", CreatePath: "v2/api/site/{site}/device-tags",
+				RequiredOnCreate: []string{"name"},
+			},
+		},
 		Capabilities: map[string]map[string]Capability{
 			"FirewallPolicy": {
 				"ip_version=IPV4,protocol=tcp":    {Accepted: true},
@@ -75,6 +81,15 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 	}
 	if got.Writes["OSPFRouter"].MinItems["areas[].network_ids"] != 1 {
 		t.Errorf("min-items lost: %+v", got.Writes["OSPFRouter"])
+	}
+	// UOSWrites is a harness-scoped sibling of Writes: a resource can carry
+	// a contract there without ever appearing in Writes at all, and the two
+	// must not merge on round-trip.
+	if got.UOSWrites["DeviceTag"].CreatePath != "v2/api/site/{site}/device-tags" {
+		t.Errorf("UOS-only write contract lost: %+v", got.UOSWrites["DeviceTag"])
+	}
+	if _, inWrites := got.Writes["DeviceTag"]; inWrites {
+		t.Errorf("DeviceTag leaked into Writes: %+v", got.Writes["DeviceTag"])
 	}
 	if got.Coercions["SettingUsg"]["icmp_timeout"].Stored != "30" {
 		t.Errorf("coercion lost: %+v", got.Coercions)

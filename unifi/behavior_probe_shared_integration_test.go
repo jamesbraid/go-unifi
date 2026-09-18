@@ -267,6 +267,43 @@ func recordWrite(
 	})
 }
 
+// recordWriteUOS is recordWrite's counterpart for a resource whose write
+// contract holds only on the UniFi OS harness (behavior.Artifact.UOSWrites),
+// filed there instead of Writes so it is never read as a fact about the
+// standalone controller too. DeviceTag is the first user: measured a
+// confirmed no-op on the standalone harness, its create persists only on
+// UOS.
+func recordWriteUOS(t *testing.T, root, captured, resource string, contract behavior.WriteContract) {
+	t.Helper()
+	mergeBehaviorArtifact(t, root, captured, func(a *behavior.Artifact) {
+		if a.UOSWrites == nil {
+			a.UOSWrites = map[string]behavior.WriteContract{}
+		}
+		a.UOSWrites[resource] = contract
+	})
+}
+
+// compareRecordedUOS is recordWriteUOS's bare-run half: compareWriteContract
+// against UOSWrites rather than Writes. There is no dropped/empties half
+// here because no UOSWrites resource has measured either yet -- add them the
+// same way recordWrite/compareRecorded do if one ever does.
+func compareRecordedUOS(t *testing.T, root, running, resource string, contract behavior.WriteContract) {
+	t.Helper()
+	art, ok, err := behavior.Load(root)
+	if err != nil {
+		t.Fatalf("load %s: %v", behavior.Path, err)
+	}
+	if !ok {
+		t.Logf("no artifact at %s; run with BEHAVIOR_WRITE=1 on the UOS harness to record %s", behavior.Path, resource)
+		return
+	}
+	if art.ControllerVersion != running {
+		t.Skipf("artifact was measured on %s, this controller reports %s; comparing them would file "+
+			"a version difference as drift", art.ControllerVersion, running)
+	}
+	compareWriteContract(t, resource, art.UOSWrites, contract)
+}
+
 // compareRecorded is the bare-run half: compare a fresh measurement against
 // what the artifact pins, resource by resource. Skips (rather than fails)
 // when there is no artifact yet or it was measured on a different
