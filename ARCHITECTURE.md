@@ -80,12 +80,13 @@ COMPATIBILITY.md for the retention policy.
 
 ## CI model
 
-Two CI systems, one per forge. A `.forgejo/workflows` directory would
-replace `.github/workflows` rather than add to it, so instead every job
-under `.github/workflows/` carries a `github.server_url` guard naming
-the one forge it belongs to, and `.woodpecker/checks.yml` runs the same
-gates on the canonical forge. Nothing here is portable to an arbitrary
-Actions-compatible forge: each job names its own.
+One set of workflows serves both forges. A `.forgejo/workflows` directory
+would replace `.github/workflows` rather than add to it, so everything
+lives under `.github/workflows/`. The `ci` jobs run on both forges and
+pick their runner from `github.server_url`; every other job carries a
+`github.server_url` guard naming the one forge it belongs to. Nothing
+here is portable to an arbitrary Actions-compatible forge: each job
+names its own.
 
 Every input the gates read is public: the controller CDN, the sim
 controller images (`ghcr.io/jamesbraid/unifi-network`, built from
@@ -101,14 +102,13 @@ missing.
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
-| `ci` | push, PR | unit tests, lock verification without the artifact |
+| `ci` | push, PR | unit tests, lint, lock verification without the artifact; both forges |
 | `integration` | PR, nightly, dispatch | sim controller + emulated devices, full suite |
 | `capture` | manual dispatch | fetch artifact, propose lock, regenerate, open PR |
 | `auto-release` | merge touching schemas/{VERSION,SOURCE,ARTIFACT} | apidiff, then tag the next minor |
 | `release` | tag push | goreleaser release notes naming the controller train |
 | `rebuild` | generator input or output changes, dispatch | from-scratch regenerate-and-diff on a stock runner |
 | `renovate` | nightly, dispatch | Renovate against the canonical forge; forge-only |
-| `.woodpecker/checks.yml` | PR, push to main, manual | the canonical forge's copy of the `ci` gates |
 
 ## Releasing for a new controller version
 

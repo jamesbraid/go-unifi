@@ -12,13 +12,14 @@ on:
 permissions:
   contents: read
 
+# These jobs run on both forges: here they check pull requests, and on the
+# GitHub mirror they keep the mirrored main and tags truthful. None of them
+# needs a container daemon, so on the forge they ask for the runner tier
+# that has none.
+
 jobs:
   generate:
-    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
-    # too, so without this guard enabling Actions doubles every job onto
-    # runners that lack this workflow's environment.
-    if: github.server_url == 'https://github.com'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'podman-general' }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -43,12 +44,8 @@ jobs:
           fi
 
   lint:
-    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
-    # too, so without this guard enabling Actions doubles every job onto
-    # runners that lack this workflow's environment.
-    if: github.server_url == 'https://github.com'
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'podman-general' }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -71,19 +68,14 @@ jobs:
           # handed to it, so this line is invisible to it without an opt-in.
           # The trailing marker is that opt-in: it puts the pin under a custom
           # manager in renovate.json, which is what lets one rule there group
-          # it with the toolchain and the .woodpecker image into a single pull
-          # request. Delete the marker and this pin quietly stops moving with
-          # the other two.
+          # it with the toolchain into a single pull request. Delete the marker
+          # and this pin quietly stops moving with the toolchain.
           version: v2.13.2 # renovate: datasource=github-releases depName=golangci/golangci-lint
           args: --timeout=10m
 
   test:
-    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
-    # too, so without this guard enabling Actions doubles every job onto
-    # runners that lack this workflow's environment.
-    if: github.server_url == 'https://github.com'
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'podman-general' }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -105,12 +97,12 @@ jobs:
         run: go vet -tags integration ./...
 
   yamllint:
-    # Runs on the GitHub mirror only. Forgejo executes .github/workflows
-    # too, so without this guard enabling Actions doubles every job onto
-    # runners that lack this workflow's environment.
-    if: github.server_url == 'https://github.com'
     name: yamllint
-    runs-on: 'ubuntu-latest'
+    runs-on: ${{ github.server_url == 'https://github.com' && 'ubuntu-latest' || 'podman-general' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # v3.1.1
+      # uv rather than a yamllint action: the forge's daemonless runner image
+      # carries neither pip nor pipx.
+      - run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          "$HOME/.local/bin/uvx" yamllint -c .yamllint .
